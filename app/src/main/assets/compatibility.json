@@ -46,7 +46,7 @@
       "api": 36,
       "deviceClass": "12 GiB",
       "device": "Samsung SM-S918B",
-      "scope": "pre-hardening bootstrap and Qwen3.5 4B CPU smoke; 0.3.0-alpha1 revalidation pending"
+      "scope": "0.3.0-alpha1 debug APK and instrumentation; Termux 0.118.3 runtime/legacy migration; private Qwen3.5 2B SHA-256; authenticated server/bridge; exact Pi 0.82.1 PIDECK_OK smoke"
     }
   ]
 }

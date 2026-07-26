@@ -124,6 +124,50 @@ public final class DebugCommandReceiver extends BroadcastReceiver {
                                 find "$HOME/.pideck/sessions" -type f -print 2>/dev/null || true
                                 """
                 );
+                case "legacy_state" -> termux.runBash(
+                        operationId,
+                        OperationKind.RECONCILE,
+                        """
+                                set -eu
+                                export PYTHONPATH="$HOME/.pideck/runtime"
+                                python - <<'PY'
+                                import json
+                                from pideck_runtime.common import proc_cmdline, proc_identity
+                                from pideck_runtime.server_supervisor import (
+                                    LEGACY_SERVER_PID,
+                                    _legacy_arguments_recognized,
+                                    _legacy_candidate,
+                                    _process_started_before_file,
+                                )
+
+                                value = {"pidFileExists": LEGACY_SERVER_PID.is_file()}
+                                try:
+                                    stat = LEGACY_SERVER_PID.stat()
+                                    raw_pid = LEGACY_SERVER_PID.read_text(encoding="ascii").strip()
+                                    pid = int(raw_pid)
+                                    process_group, start_ticks = proc_identity(pid)
+                                    arguments = proc_cmdline(pid)
+                                    value.update({
+                                        "pid": pid,
+                                        "pidFileBytes": stat.st_size,
+                                        "pidFileMtime": stat.st_mtime,
+                                        "processGroup": process_group,
+                                        "startTicks": start_ticks,
+                                        "timeBound": _process_started_before_file(
+                                            start_ticks, stat.st_mtime
+                                        ),
+                                        "arguments": arguments,
+                                        "argumentsRecognized": _legacy_arguments_recognized(
+                                            arguments, 8080
+                                        ),
+                                        "candidate": _legacy_candidate(8080) is not None,
+                                    })
+                                except Exception as error:
+                                    value["error"] = f"{type(error).__name__}: {error}"
+                                print(json.dumps(value, separators=(",", ":")))
+                                PY
+                                """
+                );
                 case "abort" -> termux.runRuntime(
                         operationId,
                         OperationKind.ABORT_AGENT,

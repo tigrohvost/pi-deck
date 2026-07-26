@@ -24,11 +24,21 @@ rather than rewriting the application.
 | Android navigation bar covers controls and status | `DeckView` applies system-bar and display-cutout insets to the content padding on enforced edge-to-edge Android versions. |
 | `env: .../usr/bin/pi: No such file or directory` | Pi is content-pinned under `~/.pideck/runtime/bin/pi`; probes and the RPC child launch that exact managed executable instead of assuming `/usr/bin/pi`. |
 
+Device testing also exposed three upgrade-only faults: Termux b10092 reports
+`version: 0 (unknown)` from the executable, 0.1.x GGUF files live under the old
+`Download/PiDeck/models` source root, and an exact old server can survive on
+port 8080. The probe now falls back to the owning `dpkg` version only when the
+executable runs but has no usable build metadata. Legacy GGUF is accepted only
+as re-hashed migration input to the private store. A legacy server is retired
+only when its private PID file, process start time and complete 0.1.x argv all
+match; unrelated listeners remain untouched.
+
 Regression coverage exists for runtime layout, exact Pi version, direct RPC
 launch, strict process identity, operation races and system-bar-aware layout
-code. The current candidate could not be exercised on the physical phone
-because it was absent from both `adb devices` and the host USB device list at
-final validation time.
+code. The current candidate was installed over 0.1.7 on a Samsung SM-S918B
+without clearing application, Termux, model or session data. Device validation
+covered the upgrade path, instrumentation, insets, private model migration,
+managed server/bridge startup, exact Pi CLI and a real local model turn.
 
 ## Requirement status
 
@@ -95,15 +105,15 @@ Implemented infrastructure, but not eligible for a completed production claim:
 |---|---|
 | Gradle clean/JVM/lint/APKs | Passed: 117 tasks; 50 JVM tests; debug, instrumentation and unsigned release APKs assembled |
 | Android lint | Passed: 0 errors, 1 `OldTargetApi` warning (`targetSdk=35` while SDK 36 is installed) |
-| Embedded Python runtime | Passed: 17 tests with `ResourceWarning` promoted to error |
+| Embedded Python runtime | Passed: 21 tests with `ResourceWarning` promoted to error |
 | Host tools | Passed: 5 tests |
 | Exact Pi RPC protocol | Passed: 1 end-to-end test against `@earendil-works/pi-coding-agent` 0.82.1 and a fake authenticated llama endpoint |
 | Permission extension | Passed strict TypeScript type-check against the exact Pi 0.82.1 package types |
 | Python bytecode compile | Passed for runtime, tools and tests |
 | Benchmark contract | Passed: 28 unique tasks and protected outside-workspace fixture |
 | APK inspection | Debug APK verifies with Android Debug certificate; release candidate correctly has no signature |
-| Android instrumentation execution | Not run: APK compiled, but no ADB/USB device was present |
-| Real-device UI/runtime smoke | Blocked by the same disconnected device |
+| Android instrumentation execution | Passed on API 36 hardware: 2/2 process-recreation and stale-result tests |
+| Real-device UI/runtime smoke | Passed: upgrade install, exact runtime probe, legacy GGUF migration, server, bridge and Pi `PIDECK_OK` turn |
 
 The local commands are documented in `README.md` and
 `docs/release-process.md`. CI repeats the build, runtime, protocol, benchmark
@@ -115,13 +125,13 @@ No hardware tier is promoted to supported by this report.
 
 | Device/tier | Evidence | Status |
 |---|---|---|
-| Samsung SM-S918B, API 36, 12 GiB | Pre-hardening bootstrap and Qwen3.5 4B CPU smoke only | 0.3.0-alpha1 revalidation pending |
+| Samsung SM-S918B, API 36, 12 GiB | 0.3.0-alpha1 APK/insets/instrumentation; Termux 0.118.3; private Qwen3.5 2B; server/bridge; Pi 0.82.1 turn | Smoke passed; experimental pending full benchmark |
 | 4/6/8/12/16 GiB tiers | No current committed thermal/memory reports | Experimental |
 
 | Model | Tier | Catalog status | Admission result |
 |---|---|---|---|
 | Qwen3.5 0.8B Q4_0 | NANO | `EXPERIMENTAL` | Current device benchmark and complete conversion provenance missing |
-| Qwen3.5 2B Q4_K_M | EDGE | `EXPERIMENTAL` | Current device benchmark and complete conversion provenance missing |
+| Qwen3.5 2B Q4_K_M | EDGE | `EXPERIMENTAL` | Private SHA/server/Pi device smoke passed; 28-task benchmark and complete conversion provenance missing |
 | Qwen3.5 4B Q4_K_M | CORE | `EXPERIMENTAL` | Current hardening-tree benchmark and complete conversion provenance missing |
 | Qwen3.5 9B Q4_K_M | MAX | `EXPERIMENTAL` | Current device benchmark and complete conversion provenance missing |
 
@@ -139,9 +149,8 @@ claim is made.
 
 ## Remaining risks
 
-- A physical-device instrumentation run, reported navigation-bar journey,
-  Termux upgrade/install migration and ten-run model/server stability test are
-  still required.
+- The full 28-task device benchmark, thermal/battery report and ten-run
+  model/server stability test are still required.
 - Production signing and published release assets require repository secrets
   and a GitHub-verified signed `v*` tag.
 - Termux native packages are repository-resolved rather than sourced from an
@@ -163,12 +172,12 @@ These are validation artifacts, not a production release:
 
 | Artifact | Bytes | SHA-256 |
 |---|---:|---|
-| `app-debug.apk` | 159899 | `6da04028349f58e589a6350c35031bfbda936caaf0e4679ae93af7abe2d3ede6` |
+| `app-debug.apk` | 162311 | `5589d5e704596edb76241bc1d56a3f92ad3787213a87ac470fb3a269dd12ecc9` |
 | `app-debug-androidTest.apk` | 1675238 | `7d4905cc1617a9d9438e4d6a50a0f96c85f078ae5b8b5f38d1cefaf7b8d5d7cf` |
-| `app-release-unsigned.apk` | 106100 | `b2e5eb61a6e5d818b26559bf2236f70a8076fdd3be1274206db6f4a3757616e8` |
-| `pi-deck-0.3.0-alpha1.cdx.json` | generated locally | `8e824eef11cab6069b3406c26b2ff9887418954b95b5891671772973cb7573bd` |
+| `app-release-unsigned.apk` | 107724 | `878ae842d5c13b536b2cce36463c3a09206128f7ea81493a5e8752c5858f8274` |
+| `pi-deck.cdx.json` | 90740 | `8e824eef11cab6069b3406c26b2ff9887418954b95b5891671772973cb7573bd` |
 | `models-v2.json` | 8709 | `a7e4366f07d4cab47ffbd597b1ab8e6de21257a2aaa6dc32fa3797ca07788368` |
-| `compatibility.json` | 1716 | `bb520b8505cbff30ea1490f8845140a3417e79717f5e95002933c864fe43be86` |
+| `compatibility.json` | 1806 | `19e5dc381f39d90af1e8837c876609ce7f365fa6132048d7ea5a457a84c88d70` |
 
 The generated CycloneDX 1.5 document contains 151 components, 141 dependency
 records and verified SHA-1/SHA-512 hashes for the exact Pi 0.82.1 tarball.

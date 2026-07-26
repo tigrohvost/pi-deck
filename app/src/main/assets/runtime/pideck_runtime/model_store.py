@@ -114,10 +114,7 @@ def _allowed_source(source: Path) -> Path:
         resolved = source.resolve(strict=True)
     except OSError as error:
         raise PiDeckError("SOURCE_MISSING", "Incoming GGUF is not readable") from error
-    candidates = [
-        Path.home() / "storage" / "downloads" / "PiDeck" / "incoming",
-        Path("/storage/emulated/0/Download/PiDeck/incoming"),
-    ]
+    candidates = _managed_source_candidates()
     allowed_roots: list[Path] = []
     for candidate in candidates:
         try:
@@ -127,11 +124,24 @@ def _allowed_source(source: Path) -> Path:
     if not any(resolved == root or root in resolved.parents for root in allowed_roots):
         raise PiDeckError(
             "SOURCE_OUTSIDE_INCOMING",
-            "Incoming artifact is outside Download/PiDeck/incoming",
+            "Incoming artifact is outside a managed PiDeck download directory",
         )
     if not resolved.is_file():
         raise PiDeckError("SOURCE_MISSING", "Incoming artifact is not a regular file")
     return resolved
+
+
+def _managed_source_candidates() -> tuple[Path, ...]:
+    return (
+        Path.home() / "storage" / "downloads" / "PiDeck" / "incoming",
+        Path("/storage/emulated/0/Download/PiDeck/incoming"),
+        # 0.1.x stored DownloadManager artifacts here. Accept this project-owned
+        # source only as migration input; install_private still checks the
+        # pinned byte count and SHA-256 before atomically activating a private
+        # read-only copy.
+        Path.home() / "storage" / "downloads" / "PiDeck" / "models",
+        Path("/storage/emulated/0/Download/PiDeck/models"),
+    )
 
 
 def _write_all(descriptor: int, content: bytes) -> None:

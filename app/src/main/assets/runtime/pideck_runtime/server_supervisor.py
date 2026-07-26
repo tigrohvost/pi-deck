@@ -25,6 +25,8 @@ from .common import (
     bounded_text,
     managed_environment,
     metadata_for_process,
+    proc_cmdline,
+    proc_identity,
     process_alive,
     process_matches,
     read_json,
@@ -41,6 +43,7 @@ SERVER_STATUS = SERVER_DIRECTORY / "status.json"
 SERVER_CONFIG = SERVER_DIRECTORY / "launch.json"
 SERVER_API_KEY = SERVER_DIRECTORY / "api-key"
 SERVER_LOG = BASE / "logs" / "llama-server.log"
+LEGACY_SERVER_PID = BASE / "llama-server.pid"
 PI_MODELS = BASE / "pi" / "models.json"
 BRIDGE_PORT = 8787
 DEFAULT_SERVER_PORT = 8080
@@ -269,6 +272,149 @@ def _wake_lock(enabled: bool) -> None:
         pass
 
 
+def _legacy_arguments_recognized(arguments: list[str], port: int) -> bool:
+    if port != DEFAULT_SERVER_PORT or not arguments:
+        return False
+    if Path(arguments[0]).name != "llama-server":
+        return False
+    catalog = load_catalog()
+    for model in catalog["models"]:
+        if not isinstance(model, dict):
+            continue
+        artifact = model.get("artifact")
+        if not isinstance(artifact, dict):
+            continue
+        legacy_model = (
+            BASE.parent
+            / "storage"
+            / "downloads"
+            / "PiDeck"
+            / "models"
+            / str(artifact.get("file", ""))
+        )
+        for threads in range(2, 9):
+            expected = [
+                arguments[0],
+                "-m",
+                str(legacy_model),
+                "--alias",
+                str(model.get("id", "")),
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(DEFAULT_SERVER_PORT),
+                "-c",
+                "8192",
+                "-np",
+                "1",
+                "-t",
+                str(threads),
+                "--jinja",
+                "--reasoning",
+                "off",
+                "--temp",
+                "0.7",
+                "--top-p",
+                "0.8",
+                "--top-k",
+                "20",
+                "--min-p",
+                "0.0",
+                "--presence-penalty",
+                "1.5",
+            ]
+            if arguments == expected:
+                return True
+    return False
+
+
+def _process_started_before_file(start_ticks: int, file_mtime: float) -> bool:
+    try:
+        ticks_per_second = int(os.sysconf("SC_CLK_TCK"))
+        if ticks_per_second <= 0:
+            return False
+        boot_clock = getattr(time, "CLOCK_BOOTTIME", time.CLOCK_MONOTONIC)
+        boot_time = time.time() - time.clock_gettime(boot_clock)
+    except (OSError, ValueError):
+        return False
+    started_at = boot_time + (start_ticks / ticks_per_second)
+    return started_at <= file_mtime + 5.0
+
+
+def _legacy_candidate(port: int) -> dict[str, Any] | None:
+    try:
+        stat = LEGACY_SERVER_PID.stat()
+        if stat.st_size <= 0 or stat.st_size > 32:
+            return None
+        raw_pid = LEGACY_SERVER_PID.read_text(encoding="ascii").strip()
+        if not raw_pid.isascii() or not raw_pid.isdecimal():
+            return None
+        pid = int(raw_pid)
+        _process_group, start_ticks = proc_identity(pid)
+        arguments = proc_cmdline(pid)
+    except (OSError, UnicodeError, ValueError, PiDeckError):
+        return None
+    if not _process_started_before_file(start_ticks, stat.st_mtime):
+        return None
+    if not _legacy_arguments_recognized(arguments, port):
+        return None
+    return {
+        "pid": pid,
+        "procStartTicks": start_ticks,
+        "arguments": arguments,
+    }
+
+
+def _legacy_candidate_matches(candidate: dict[str, Any]) -> bool:
+    try:
+        pid = int(candidate["pid"])
+        _process_group, start_ticks = proc_identity(pid)
+        return (
+            start_ticks == int(candidate["procStartTicks"])
+            and proc_cmdline(pid) == candidate["arguments"]
+        )
+    except (KeyError, TypeError, ValueError, PiDeckError):
+        return False
+
+
+def _retire_legacy_server(port: int) -> bool:
+    candidate = _legacy_candidate(port)
+    if candidate is None:
+        return False
+    pid = int(candidate["pid"])
+    for selected_signal, grace in (
+        (signal.SIGINT, 4.0),
+        (signal.SIGTERM, 4.0),
+        (signal.SIGKILL, 1.0),
+    ):
+        if not _legacy_candidate_matches(candidate):
+            LEGACY_SERVER_PID.unlink(missing_ok=True)
+            _wake_lock(False)
+            return True
+        try:
+            os.kill(pid, selected_signal)
+        except ProcessLookupError:
+            LEGACY_SERVER_PID.unlink(missing_ok=True)
+            _wake_lock(False)
+            return True
+        except PermissionError as error:
+            raise PiDeckError(
+                "LEGACY_SERVER_BUSY",
+                "Verified PI//DECK 0.1.x llama-server could not be signalled",
+            ) from error
+        deadline = time.monotonic() + grace
+        while time.monotonic() < deadline:
+            if not _legacy_candidate_matches(candidate):
+                LEGACY_SERVER_PID.unlink(missing_ok=True)
+                _wake_lock(False)
+                return True
+            time.sleep(0.1)
+    raise PiDeckError(
+        "LEGACY_SERVER_BUSY",
+        "Verified PI//DECK 0.1.x llama-server did not stop",
+    )
+
+
 def start_server(request: dict[str, Any]) -> dict[str, Any]:
     operation_id = require_uuid4(request)
     model_id = require_string(request, "modelId", 128)
@@ -326,6 +472,7 @@ def start_server(request: dict[str, Any]) -> dict[str, Any]:
                 },
             )
 
+    _retire_legacy_server(port)
     if not _port_available(port):
         raise PiDeckError(
             "PORT_OCCUPIED",

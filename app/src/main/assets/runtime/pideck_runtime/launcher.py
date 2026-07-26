@@ -189,7 +189,24 @@ def probe() -> dict[str, Any]:
     pi_version = version([str(BASE / "runtime" / "bin" / "pi"), "--version"])
     node_version = version([str(PREFIX / "bin" / "node"), "--version"])
     python_version = version([sys.executable, "--version"])
-    llama_version = version([str(PREFIX / "bin" / "llama-server"), "--version"])
+    llama_executable_version = version(
+        [str(PREFIX / "bin" / "llama-server"), "--version"]
+    )
+    llama_package_version = version(
+        [
+            str(PREFIX / "bin" / "dpkg-query"),
+            "-W",
+            "-f=${Version}",
+            "llama-cpp",
+        ]
+    )
+    # Termux's b10092 package currently builds llama-server without upstream
+    # version metadata, so the executable reports "version: 0 (unknown)".
+    # Prefer a real executable build when one is present; otherwise use the
+    # exact package version that owns the binary.
+    llama_version = _resolved_llama_version(
+        llama_executable_version, llama_package_version
+    )
     compatibility: dict[str, Any] = {}
     try:
         compatibility = read_json(BASE / "runtime" / "compatibility.json")
@@ -220,6 +237,8 @@ def probe() -> dict[str, Any]:
         "nodeVersion": node_version,
         "pythonVersion": python_version,
         "llamaVersion": llama_version,
+        "llamaExecutableVersion": llama_executable_version,
+        "llamaPackageVersion": llama_package_version,
         "layoutReady": layout_ready,
         "versionsCompatible": versions_compatible,
         "compatibility": {
@@ -252,28 +271,45 @@ def _semver_at_least(actual: str | None, minimum: str) -> bool:
 def _llama_in_range(
     actual: str | None, minimum: str, maximum: str
 ) -> bool:
-    def build(value: str | None) -> int | None:
-        if not isinstance(value, str):
-            return None
-        for pattern in (
-            r"\bb(\d{4,})\b",
-            r"\bbuild[\s:]+(\d{4,})\b",
-            r"\bversion[\s:]+(\d{4,})\b",
-        ):
-            match = re.search(pattern, value, re.IGNORECASE)
-            if match is not None:
-                return int(match.group(1))
-        return None
-
-    parsed = build(actual)
-    lower = build(minimum)
-    upper = build(maximum)
+    parsed = _llama_build(actual)
+    lower = _llama_build(minimum)
+    upper = _llama_build(maximum)
     return (
         parsed is not None
         and lower is not None
         and upper is not None
         and lower <= parsed <= upper
     )
+
+
+def _resolved_llama_version(
+    executable_version: str | None, package_version: str | None
+) -> str | None:
+    if _llama_build(executable_version) is not None:
+        return executable_version
+    if (
+        isinstance(executable_version, str)
+        and executable_version.strip()
+        and _llama_build(package_version) is not None
+    ):
+        return package_version
+    return executable_version
+
+
+def _llama_build(value: str | None) -> int | None:
+    if not isinstance(value, str):
+        return None
+    for pattern in (
+        r"\bb(\d{4,})\b",
+        r"\bbuild[\s:]+(\d{4,})\b",
+        r"\bversion[\s:]+(\d{4,})\b",
+    ):
+        match = re.search(pattern, value, re.IGNORECASE)
+        if match is not None:
+            build = int(match.group(1))
+            # Zero is the sentinel emitted by builds without version metadata.
+            return build if build > 0 else None
+    return None
 
 
 def reconcile() -> dict[str, Any]:

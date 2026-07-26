@@ -194,6 +194,32 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual(0o400, destination.stat().st_mode & 0o777)
         self.assertEqual(model["artifact"]["sha256"], first["sha256"])
 
+    def test_private_install_source_allowlist_accepts_legacy_migration_only(self) -> None:
+        incoming = TEST_ROOT / "Download" / "PiDeck" / "incoming"
+        legacy = TEST_ROOT / "Download" / "PiDeck" / "models"
+        outside = TEST_ROOT / "Download" / "other"
+        for directory in (incoming, legacy, outside):
+            directory.mkdir(parents=True, exist_ok=True)
+        incoming_file = incoming / "new.gguf"
+        legacy_file = legacy / "old.gguf"
+        outside_file = outside / "outside.gguf"
+        for file in (incoming_file, legacy_file, outside_file):
+            file.write_bytes(b"GGUF")
+        with mock.patch.object(
+            model_store,
+            "_managed_source_candidates",
+            return_value=(incoming, legacy),
+        ):
+            self.assertEqual(
+                incoming_file.resolve(), model_store._allowed_source(incoming_file)
+            )
+            self.assertEqual(
+                legacy_file.resolve(), model_store._allowed_source(legacy_file)
+            )
+            with self.assertRaises(common.PiDeckError) as raised:
+                model_store._allowed_source(outside_file)
+        self.assertEqual("SOURCE_OUTSIDE_INCOMING", raised.exception.code)
+
     def test_private_install_sha_mismatch_never_commits(self) -> None:
         content = b"bad artifact"
         model = tiny_model(content, expected_sha="0" * 64)
@@ -251,6 +277,111 @@ class RuntimeTestCase(unittest.TestCase):
                 unsafe, Path("/private/model.gguf"), 4, 8080, "secret"
             )
         self.assertEqual("INVALID_CATALOG", raised.exception.code)
+
+    def test_legacy_server_takeover_matches_only_exact_01x_command(self) -> None:
+        model = tiny_model(b"GGUF")
+        install_catalog(model)
+        arguments = [
+            "llama-server",
+            "-m",
+            str(
+                common.BASE.parent
+                / "storage"
+                / "downloads"
+                / "PiDeck"
+                / "models"
+                / model["artifact"]["file"]
+            ),
+            "--alias",
+            model["id"],
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8080",
+            "-c",
+            "8192",
+            "-np",
+            "1",
+            "-t",
+            "7",
+            "--jinja",
+            "--reasoning",
+            "off",
+            "--temp",
+            "0.7",
+            "--top-p",
+            "0.8",
+            "--top-k",
+            "20",
+            "--min-p",
+            "0.0",
+            "--presence-penalty",
+            "1.5",
+        ]
+        self.assertTrue(
+            server_supervisor._legacy_arguments_recognized(arguments, 8080)
+        )
+        for index, replacement in (
+            (6, "0.0.0.0"),
+            (8, "8081"),
+            (2, "/tmp/unmanaged.gguf"),
+        ):
+            changed = list(arguments)
+            changed[index] = replacement
+            self.assertFalse(
+                server_supervisor._legacy_arguments_recognized(changed, 8080)
+            )
+        self.assertFalse(
+            server_supervisor._legacy_arguments_recognized(arguments, 8081)
+        )
+        self.assertFalse(
+            server_supervisor._legacy_arguments_recognized(
+                [*arguments, "--api-key", "unmanaged"], 8080
+            )
+        )
+
+    def test_legacy_server_takeover_rechecks_before_signalling(self) -> None:
+        candidate = {
+            "pid": 4242,
+            "procStartTicks": 123,
+            "arguments": ["llama-server"],
+        }
+        legacy_pid = common.BASE / "legacy-server.pid"
+        legacy_pid.write_text("4242\n", encoding="ascii")
+        with (
+            mock.patch.object(
+                server_supervisor, "_legacy_candidate", return_value=candidate
+            ),
+            mock.patch.object(
+                server_supervisor, "_legacy_candidate_matches", return_value=False
+            ),
+            mock.patch.object(
+                server_supervisor, "LEGACY_SERVER_PID", legacy_pid
+            ),
+            mock.patch.object(server_supervisor, "_wake_lock") as wake_lock,
+            mock.patch.object(server_supervisor.os, "kill") as kill,
+        ):
+            self.assertTrue(server_supervisor._retire_legacy_server(8080))
+        kill.assert_not_called()
+        self.assertFalse(legacy_pid.exists())
+        wake_lock.assert_called_once_with(False)
+
+    def test_legacy_pidfile_is_bound_to_process_start_time(self) -> None:
+        with (
+            mock.patch.object(
+                server_supervisor.os, "sysconf", return_value=100
+            ),
+            mock.patch.object(server_supervisor.time, "time", return_value=10_000.0),
+            mock.patch.object(
+                server_supervisor.time, "clock_gettime", return_value=2_000.0
+            ),
+        ):
+            self.assertTrue(
+                server_supervisor._process_started_before_file(100_000, 9_000.1)
+            )
+            self.assertFalse(
+                server_supervisor._process_started_before_file(100_000, 8_990.0)
+            )
 
     def test_supervisor_failed_start_cleans_wake_lock_and_keeps_failed_state(self) -> None:
         model = tiny_model(b"GGUF")
@@ -329,6 +460,25 @@ class RuntimeTestCase(unittest.TestCase):
         )
         self.assertFalse(
             launcher._llama_in_range("version: 10093", "b10092", "b10092")
+        )
+        self.assertIsNone(launcher._llama_build("version: 0 (unknown)"))
+        self.assertEqual(
+            10092, launcher._llama_build("0.0.0-b10092-0")
+        )
+        self.assertEqual(
+            "0.0.0-b10092-0",
+            launcher._resolved_llama_version(
+                "version: 0 (unknown)", "0.0.0-b10092-0"
+            ),
+        )
+        self.assertEqual(
+            "version: 10093",
+            launcher._resolved_llama_version(
+                "version: 10093", "0.0.0-b10092-0"
+            ),
+        )
+        self.assertIsNone(
+            launcher._resolved_llama_version(None, "0.0.0-b10092-0")
         )
 
     def test_bridge_bootstrap_rejects_unknown_model_before_process_start(self) -> None:
