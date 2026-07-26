@@ -1,17 +1,19 @@
 package dev.pideck.app.ui;
 
-import android.annotation.SuppressLint;
 import android.animation.ObjectAnimator;
+import android.annotation.SuppressLint;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Insets;
-import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.Paint;
 import android.os.Build;
+import android.text.Editable;
 import android.text.InputType;
 import android.text.SpannableString;
 import android.text.Spanned;
+import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -21,7 +23,6 @@ import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -33,38 +34,59 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-import dev.pideck.app.core.ModelSpec;
-
+/**
+ * The shell of the deck: header, the three roots the tab bar switches between, the prompt field
+ * and the tab bar itself.
+ *
+ * <p>Only the console root owns a prompt field, so the field and the deck's busy state hide with
+ * it. Each root keeps its own scroll position and content across switches — switching is free.
+ */
 @SuppressLint("ViewConstructor")
-public final class DeckView extends FrameLayout {
+public final class DeckView extends FrameLayout implements CoreRootView.Listener {
+    /** The one thing the header reports: whether the core can answer right now. */
+    public enum CoreStatus {
+        SLEEPING,
+        STARTING,
+        READY,
+        BUSY,
+        AWAITING_USER,
+        FAILED
+    }
+
     public interface Listener {
         void onSend(String prompt);
 
-        void onModels();
+        void onTabSelected(int tab);
 
-        void onCore();
+        void onSchemeChosen(String schemeId);
 
-        void onTermux();
-
-        void onClear();
+        void onTextScaleChosen(float scale);
     }
 
-    private final float density;
+    private final DeckStyle style;
     private final Listener listener;
     private final Palette p;
-    private final LinearLayout statusRail;
-    private final LinearLayout bootPanel;
-    private final TextView bootKicker;
-    private final TextView bootTitle;
-    private final TextView bootBody;
-    private final LinearLayout bootActions;
-    private final ScrollView terminalScroll;
-    private final LinearLayout transcript;
-    private final TextView busyLine;
+
+    private final TextView coreStatusLabel;
+    private final StatusDot coreStatusDot;
+    private final FrameLayout contentHost;
+    private final LinearLayout consoleRoot;
+    private final CoreRootView coreRoot;
+    private final SessionsRootView sessionsRoot;
+    private final LinearLayout inputRow;
+    private final TabBarView tabBar;
+
+    private LinearLayout bootPanel;
+    private TextView bootKicker;
+    private TextView bootTitle;
+    private TextView bootBody;
+    private LinearLayout bootActions;
+    private ScrollView terminalScroll;
+    private LinearLayout transcript;
+    private TextView busyLine;
     private EditText promptInput;
     private TextView sendButton;
-    private final TextView engineLine;
-    private TextView privacyLine;
+
     private final List<ConsoleEntry> entries = new ArrayList<>();
     private final SimpleDateFormat clock = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
     private ObjectAnimator pulse;
@@ -73,208 +95,180 @@ public final class DeckView extends FrameLayout {
     private long streamingEntryTime;
     private final StringBuilder streamingText = new StringBuilder();
 
-    public DeckView(Context context, Listener listener, Palette palette) {
+    public DeckView(Context context, Listener listener, Palette palette, float textScale) {
         super(context);
         this.listener = listener;
         this.p = palette;
-        this.density = getResources().getDisplayMetrics().density;
+        this.style = new DeckStyle(context, palette, textScale);
         setBackgroundColor(p.background);
 
         addView(new GridBackdropView(context, p), match());
 
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        int contentLeft = dp(14);
-        int contentTop = dp(11);
-        int contentRight = dp(14);
-        int contentBottom = dp(9);
-        root.setPadding(contentLeft, contentTop, contentRight, contentBottom);
         addView(root, match());
+
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(style.dp(22), style.dp(12), style.dp(22), style.dp(12));
+        header.setMinimumHeight(style.dp(48));
+
+        SpannableString brandText = new SpannableString("π//DECK");
+        brandText.setSpan(
+                new ForegroundColorSpan(p.accentAlt), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        brandText.setSpan(
+                new ForegroundColorSpan(p.accent), 1, brandText.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        TextView brand = style.wordmark("π//DECK");
+        brand.setText(brandText);
+        header.addView(brand, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ));
+
+        coreStatusDot = new StatusDot(context, p.error);
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(
+                style.dp(6), style.dp(6)
+        );
+        dotLp.rightMargin = style.dp(6);
+        header.addView(coreStatusDot, dotLp);
+        coreStatusLabel = style.monoAt("Ядро спит", 11f, p.error, true);
+        header.addView(coreStatusLabel);
+        root.addView(header, matchWidth());
+        root.addView(divider(), dividerLp());
+
+        contentHost = new FrameLayout(context);
+        root.addView(contentHost, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ));
+
+        consoleRoot = buildConsoleRoot(context);
+        contentHost.addView(consoleRoot, match());
+        coreRoot = new CoreRootView(context, style, this);
+        coreRoot.setVisibility(GONE);
+        contentHost.addView(coreRoot, match());
+        sessionsRoot = new SessionsRootView(context, style);
+        sessionsRoot.setVisibility(GONE);
+        contentHost.addView(sessionsRoot, match());
+
+        inputRow = buildInput(context);
+        root.addView(inputRow, matchWidth());
+
+        root.addView(divider(), dividerLp());
+        tabBar = new TabBarView(context, style, listener::onTabSelected);
+        root.addView(tabBar, matchWidth());
+
+        addView(new ScanlineView(context, p), match());
+
         if (Build.VERSION.SDK_INT >= 35) {
             setOnApplyWindowInsetsListener((view, windowInsets) -> {
                 Insets safe = windowInsets.getInsets(
                         WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
                 );
-                root.setPadding(
-                        contentLeft + safe.left,
-                        contentTop + safe.top,
-                        contentRight + safe.right,
-                        contentBottom + safe.bottom
-                );
+                root.setPadding(safe.left, safe.top, safe.right, 0);
+                tabBar.setPadding(0, 0, 0, Math.max(safe.bottom, style.dp(22)));
                 return windowInsets;
             });
+        } else {
+            tabBar.setPadding(0, 0, 0, style.dp(22));
         }
+        setCoreStatus(CoreStatus.SLEEPING, null);
+    }
 
-        root.addView(buildHeader(), new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-
-        statusRail = new LinearLayout(context);
-        statusRail.setOrientation(LinearLayout.HORIZONTAL);
-        statusRail.setGravity(Gravity.CENTER_VERTICAL);
-        statusRail.setPadding(0, dp(8), 0, dp(8));
-        root.addView(statusRail, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+    private LinearLayout buildConsoleRoot(Context context) {
+        LinearLayout console = new LinearLayout(context);
+        console.setOrientation(LinearLayout.VERTICAL);
+        console.setPadding(style.dp(22), style.dp(14), style.dp(22), 0);
 
         bootPanel = new LinearLayout(context);
         bootPanel.setOrientation(LinearLayout.VERTICAL);
-        bootPanel.setPadding(dp(14), dp(12), dp(14), dp(13));
-        bootPanel.setBackground(panel(p.accent, p.fill(0xD8), 1, 6));
+        bootPanel.setPadding(style.dp(16), style.dp(14), style.dp(16), style.dp(14));
+        bootPanel.setBackground(style.outlined(p.panel, p.accent, 7));
 
-        bootKicker = text("BOOT SEQUENCE // 00", 10, p.accent, Typeface.BOLD);
-        bootKicker.setLetterSpacing(0.16f);
+        bootKicker = style.monoLabel("BOOT SEQUENCE // 00", p.accent);
         bootPanel.addView(bootKicker);
 
-        bootTitle = text("ЛОКАЛЬНОЕ ЯДРО", 17, p.text, Typeface.BOLD);
+        bootTitle = style.cardTitle("ЛОКАЛЬНОЕ ЯДРО");
         LinearLayout.LayoutParams titleLp = wrap();
-        titleLp.topMargin = dp(4);
+        titleLp.topMargin = style.dp(8);
         bootPanel.addView(bootTitle, titleLp);
 
-        bootBody = text("", 12, p.muted, Typeface.NORMAL);
-        bootBody.setLineSpacing(0, 1.17f);
+        bootBody = style.bodySecondary("");
         LinearLayout.LayoutParams bodyLp = wrap();
-        bodyLp.topMargin = dp(6);
+        bodyLp.topMargin = style.dp(8);
         bootPanel.addView(bootBody, bodyLp);
 
         bootActions = new LinearLayout(context);
         bootActions.setOrientation(LinearLayout.HORIZONTAL);
-        bootActions.setGravity(Gravity.START);
         LinearLayout.LayoutParams actionsLp = wrap();
-        actionsLp.topMargin = dp(10);
+        actionsLp.topMargin = style.dp(14);
         bootPanel.addView(bootActions, actionsLp);
 
         LinearLayout.LayoutParams bootLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        bootLp.bottomMargin = dp(8);
-        root.addView(bootPanel, bootLp);
+        bootLp.bottomMargin = style.dp(14);
+        console.addView(bootPanel, bootLp);
 
         FrameLayout terminalFrame = new FrameLayout(context);
-        terminalFrame.setBackground(panel(p.accent, p.fill(0xB8), 1, 4));
-        LinearLayout.LayoutParams terminalLp = new LinearLayout.LayoutParams(
+        console.addView(terminalFrame, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
-        );
-        root.addView(terminalFrame, terminalLp);
+        ));
 
         terminalScroll = new ScrollView(context);
         terminalScroll.setFillViewport(true);
         terminalScroll.setVerticalScrollBarEnabled(false);
         terminalScroll.setClipToPadding(false);
-        terminalScroll.setPadding(dp(10), dp(7), dp(8), dp(9));
         transcript = new LinearLayout(context);
         transcript.setOrientation(LinearLayout.VERTICAL);
         terminalScroll.addView(transcript, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
-        terminalFrame.addView(terminalScroll, match());
+        terminalFrame.addView(terminalScroll, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
 
-        busyLine = text("◆ PI CORE THINKING", 10, p.ok, Typeface.BOLD);
-        busyLine.setLetterSpacing(0.16f);
-        busyLine.setPadding(dp(10), dp(6), dp(10), dp(6));
-        busyLine.setBackground(panel(p.ok, p.fill(p.ok, 0.08f, 0xEA), 1, 0));
+        busyLine = style.monoLabel("◆ PI CORE THINKING", p.ok);
+        busyLine.setPadding(style.dp(13), style.dp(11), style.dp(13), style.dp(11));
+        busyLine.setBackground(style.round(p.cardFill, 8));
         busyLine.setVisibility(GONE);
-        FrameLayout.LayoutParams busyLp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+        terminalFrame.addView(busyLine, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM
-        );
-        terminalFrame.addView(busyLine, busyLp);
-
-        root.addView(buildQuickActions(), new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
-        root.addView(buildInput(), new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-
-        engineLine = text("NO LINK // SELECT RUNTIME", 9, p.muted, Typeface.BOLD);
-        engineLine.setGravity(Gravity.CENTER_VERTICAL);
-        engineLine.setLetterSpacing(0.12f);
-        engineLine.setPadding(dp(2), dp(6), dp(2), 0);
-        root.addView(engineLine);
-
-        addView(new ScanlineView(context, p), match());
-        setStatus(false, false, null, false, false);
+        return console;
     }
 
-    private View buildHeader() {
-        LinearLayout header = new LinearLayout(getContext());
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-
-        LinearLayout identity = new LinearLayout(getContext());
-        identity.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams identityLp = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        header.addView(identity, identityLp);
-
-        SpannableString brandText = new SpannableString("π//DECK");
-        brandText.setSpan(new ForegroundColorSpan(p.accentAlt), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        brandText.setSpan(new ForegroundColorSpan(p.accent), 1, brandText.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        TextView brand = text("", 24, p.accent, Typeface.BOLD);
-        brand.setText(brandText);
-        brand.setLetterSpacing(0.08f);
-        identity.addView(brand);
-
-        TextView subtitle = text("POCKET INTELLIGENCE TERMINAL", 9, p.muted, Typeface.BOLD);
-        subtitle.setLetterSpacing(0.15f);
-        identity.addView(subtitle);
-
-        LinearLayout local = new LinearLayout(getContext());
-        local.setOrientation(LinearLayout.VERTICAL);
-        local.setGravity(Gravity.END);
-        TextView offline = text("LOCAL", 11, p.ok, Typeface.BOLD);
-        offline.setGravity(Gravity.END);
-        privacyLine = text("TOOLS: NO SHELL", 8, p.muted, Typeface.BOLD);
-        privacyLine.setGravity(Gravity.END);
-        privacyLine.setLetterSpacing(0.12f);
-        local.addView(offline);
-        local.addView(privacyLine);
-        header.addView(local);
-        return header;
-    }
-
-    private View buildQuickActions() {
-        HorizontalScrollView scroll = new HorizontalScrollView(getContext());
-        scroll.setHorizontalScrollBarEnabled(false);
-        scroll.setFillViewport(true);
-        scroll.setPadding(0, dp(7), 0, dp(6));
-        LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(action("◫ MODELS", p.accent, listener::onModels));
-        row.addView(action("⌁ CORE", p.accentAlt, listener::onCore));
-        row.addView(action(">_ TERMUX", p.ok, listener::onTermux));
-        row.addView(action("× CLEAR", p.muted, listener::onClear));
-        scroll.addView(row);
-        return scroll;
-    }
-
-    private View buildInput() {
-        LinearLayout row = new LinearLayout(getContext());
+    private LinearLayout buildInput(Context context) {
+        LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.BOTTOM);
+        row.setPadding(style.dp(18), style.dp(14), style.dp(18), style.dp(14));
 
-        promptInput = new EditText(getContext());
-        promptInput.setTextColor(p.text);
-        promptInput.setHintTextColor(p.hint);
-        promptInput.setHint("› опиши, что нужно создать…");
-        promptInput.setTextSize(14);
-        promptInput.setTypeface(Typeface.MONOSPACE);
-        promptInput.setGravity(Gravity.TOP | Gravity.START);
-        promptInput.setPadding(dp(12), dp(10), dp(10), dp(9));
-        promptInput.setMinHeight(dp(48));
-        promptInput.setMaxHeight(dp(128));
-        promptInput.setSingleLine(false);
-        promptInput.setInputType(
+        EditText field = new EditText(context);
+        promptInput = field;
+        field.setTextColor(p.text);
+        field.setHintTextColor(p.muted);
+        field.setHint("Что сделать?");
+        field.setTextSize(14.5f * style.textScale());
+        field.setLineSpacing(0f, 1.4f);
+        field.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+        field.setPadding(style.dp(16), style.dp(13), style.dp(16), style.dp(13));
+        field.setMinHeight(style.dp(44));
+        field.setMaxHeight(style.dp(128));
+        field.setSingleLine(false);
+        field.setInputType(
                 InputType.TYPE_CLASS_TEXT
                         | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                         | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                         | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
         );
-        promptInput.setImeOptions(EditorInfo.IME_ACTION_SEND | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        promptInput.setBackground(panel(p.accent, p.fill(0xE8), 1, 5));
-        promptInput.setOnEditorActionListener((view, actionId, event) -> {
+        field.setImeOptions(EditorInfo.IME_ACTION_SEND | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        field.setBackground(style.round(p.panel, 22));
+        field.setOnEditorActionListener((view, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEND) {
                 emitPrompt();
                 return true;
@@ -288,28 +282,92 @@ public final class DeckView extends FrameLayout {
             }
             return false;
         });
-        row.addView(promptInput, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(field, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ));
 
-        sendButton = button("RUN ↗", p.accent, this::emitPrompt);
-        sendButton.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams sendLp = new LinearLayout.LayoutParams(dp(78), dp(48));
-        sendLp.leftMargin = dp(7);
-        row.addView(sendButton, sendLp);
+        TextView send = style.monoAt("↑", 17f, p.muted, false);
+        sendButton = send;
+        send.setGravity(Gravity.CENTER);
+        send.setBackground(style.round(p.panel, 22));
+        style.clickable(send, this::emitPrompt);
+        LinearLayout.LayoutParams sendLp = new LinearLayout.LayoutParams(
+                style.dp(44), style.dp(44)
+        );
+        sendLp.leftMargin = style.dp(11);
+        row.addView(send, sendLp);
+
+        field.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                updateSendAffordance(editable.toString().trim().isEmpty());
+            }
+        });
         return row;
     }
 
-    public void setStatus(
-            boolean termuxLinked,
-            boolean coreReady,
-            ModelSpec model,
-            boolean serverReady,
-            boolean busy
-    ) {
-        statusRail.removeAllViews();
-        statusRail.addView(chip(termuxLinked ? "TERMUX LINK" : "NO LINK", termuxLinked ? p.ok : p.error));
-        statusRail.addView(chip(coreReady ? "PI READY" : "PI ABSENT", coreReady ? p.accent : p.warn));
-        statusRail.addView(chip(model == null ? "NO MODEL" : model.tier, model == null ? p.muted : p.accentAlt));
-        statusRail.addView(chip(busy ? "WORKING" : serverReady ? "LLM LIVE" : "LLM COLD", busy ? p.ok : serverReady ? p.accent : p.muted));
+    private void updateSendAffordance(boolean empty) {
+        sendButton.setBackground(style.round(empty ? p.panel : p.accent, 22));
+        sendButton.setTextColor(empty ? p.muted : p.background);
+    }
+
+    public void setActiveTab(int tab) {
+        tabBar.setSelectedTab(tab);
+        consoleRoot.setVisibility(tab == TabBarView.TAB_CONSOLE ? VISIBLE : GONE);
+        coreRoot.setVisibility(tab == TabBarView.TAB_CORE ? VISIBLE : GONE);
+        sessionsRoot.setVisibility(tab == TabBarView.TAB_SESSIONS ? VISIBLE : GONE);
+        inputRow.setVisibility(tab == TabBarView.TAB_CONSOLE ? VISIBLE : GONE);
+    }
+
+    public int activeTab() {
+        return tabBar.selectedTab();
+    }
+
+    public void renderCore(CoreRootView.State state) {
+        coreRoot.render(state);
+    }
+
+    public void renderSessions(SessionsRootView.State state) {
+        sessionsRoot.render(state);
+    }
+
+    @Override
+    public void onSchemeChosen(String schemeId) {
+        listener.onSchemeChosen(schemeId);
+    }
+
+    @Override
+    public void onTextScaleChosen(float scale) {
+        listener.onTextScaleChosen(scale);
+    }
+
+    /** The header says one thing at a time: can the core answer, or what is it waiting on. */
+    public void setCoreStatus(CoreStatus status, String detail) {
+        int color = switch (status) {
+            case READY, BUSY -> p.ok;
+            case AWAITING_USER, STARTING -> p.warn;
+            case FAILED -> p.errorText;
+            case SLEEPING -> p.error;
+        };
+        String label = switch (status) {
+            case READY -> detail == null || detail.isBlank() ? "Ядро живо" : detail;
+            case BUSY -> "Работает";
+            case STARTING -> "Поднимаю ядро";
+            case AWAITING_USER -> "Ждёт вас";
+            case FAILED -> "Ядро упало";
+            case SLEEPING -> "Ядро спит";
+        };
+        coreStatusDot.setColor(color);
+        coreStatusLabel.setTextColor(color);
+        coreStatusLabel.setText(label.toUpperCase(Locale.getDefault()));
     }
 
     public void setBootState(
@@ -322,23 +380,27 @@ public final class DeckView extends FrameLayout {
             Runnable secondary
     ) {
         bootPanel.setVisibility(VISIBLE);
-        bootKicker.setText(kicker);
+        bootKicker.setText(kicker.toUpperCase(Locale.getDefault()));
         bootTitle.setText(title);
         bootBody.setText(body);
         bootActions.removeAllViews();
         if (primaryLabel != null && primary != null) {
-            bootActions.addView(button(primaryLabel, p.accent, primary));
+            bootActions.addView(style.primaryButton(primaryLabel, primary));
         }
         if (secondaryLabel != null && secondary != null) {
-            TextView second = button(secondaryLabel, p.accentAlt, secondary);
+            TextView second = style.outlinedButton(secondaryLabel, p.accent, secondary);
             LinearLayout.LayoutParams lp = wrap();
-            lp.leftMargin = dp(8);
+            lp.leftMargin = style.dp(9);
             bootActions.addView(second, lp);
         }
     }
 
     public void hideBootPanel() {
         bootPanel.setVisibility(GONE);
+    }
+
+    public boolean isBootPanelVisible() {
+        return bootPanel.getVisibility() == VISIBLE;
     }
 
     public void setBusy(boolean busy, String label) {
@@ -352,9 +414,9 @@ public final class DeckView extends FrameLayout {
         sendButton.setEnabled(!busy);
         sendButton.setAlpha(busy ? 0.4f : 1f);
         if (pulse != null) pulse.cancel();
-        if (busy) {
-            pulse = ObjectAnimator.ofFloat(busyLine, View.ALPHA, 0.42f, 1f);
-            pulse.setDuration(780);
+        if (busy && style.animationsEnabled()) {
+            pulse = ObjectAnimator.ofFloat(busyLine, View.ALPHA, 0.35f, 1f);
+            pulse.setDuration(1_200);
             pulse.setRepeatMode(ObjectAnimator.REVERSE);
             pulse.setRepeatCount(ObjectAnimator.INFINITE);
             pulse.start();
@@ -364,24 +426,10 @@ public final class DeckView extends FrameLayout {
         }
     }
 
-    public void setEngineLine(String value) {
-        engineLine.setText(value == null ? "" : value.toUpperCase(Locale.ROOT));
-    }
-
-    public void setPrivacyLine(String value) {
-        privacyLine.setText(value == null ? "" : value.toUpperCase(Locale.ROOT));
-    }
-
     public void setEntries(List<ConsoleEntry> restored) {
         entries.clear();
         transcript.removeAllViews();
         for (ConsoleEntry entry : restored) addEntryInternal(entry, false);
-        if (entries.isEmpty()) {
-            addEntryInternal(new ConsoleEntry(
-                    ConsoleEntry.Channel.SYSTEM,
-                    "Канал открыт. Здесь будет жить локальный Pi: писать программы, запускать Python, читать файлы и работать с сетью."
-            ), false);
-        }
         scrollToEnd();
     }
 
@@ -399,33 +447,37 @@ public final class DeckView extends FrameLayout {
 
         LinearLayout box = new LinearLayout(getContext());
         box.setOrientation(LinearLayout.HORIZONTAL);
-        box.setPadding(dp(8), dp(8), dp(9), dp(8));
+        box.setPadding(style.dp(11), style.dp(11), style.dp(13), style.dp(11));
         int color = channelColor(entry.channel);
-        box.setBackground(panel(color, channelFill(entry.channel), 1, 3));
+        box.setBackground(style.outlined(p.fill(color, 0.09f, 0xBC), color, 7));
 
         View stripe = new View(getContext());
         stripe.setBackgroundColor(color);
-        LinearLayout.LayoutParams stripeLp = new LinearLayout.LayoutParams(dp(2), ViewGroup.LayoutParams.MATCH_PARENT);
-        stripeLp.rightMargin = dp(9);
+        LinearLayout.LayoutParams stripeLp = new LinearLayout.LayoutParams(
+                style.dp(2), ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        stripeLp.rightMargin = style.dp(11);
         box.addView(stripe, stripeLp);
 
         LinearLayout content = new LinearLayout(getContext());
         content.setOrientation(LinearLayout.VERTICAL);
-        box.addView(content, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        box.addView(content, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ));
 
-        TextView label = text(
+        TextView label = style.monoLabel(
                 channelLabel(entry.channel) + "  " + time(entry.time),
-                9, channelTextColor(entry.channel), Typeface.BOLD
+                channelTextColor(entry.channel)
         );
-        label.setLetterSpacing(0.11f);
         content.addView(label);
 
-        TextView message = text(entry.text, 13, entry.channel == ConsoleEntry.Channel.ERROR ? p.errorText : p.text, Typeface.NORMAL);
+        TextView message = style.body(entry.text);
+        if (entry.channel == ConsoleEntry.Channel.ERROR) message.setTextColor(p.errorText);
         message.setTextIsSelectable(true);
-        message.setLineSpacing(0, 1.16f);
-        message.setPadding(0, dp(4), 0, 0);
+        message.setPadding(0, style.dp(6), 0, 0);
         message.setOnLongClickListener(view -> {
-            ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipboardManager clipboard =
+                    (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
             clipboard.setPrimaryClip(ClipData.newPlainText(
                     "PI//DECK", ((TextView) view).getText()
             ));
@@ -437,12 +489,12 @@ public final class DeckView extends FrameLayout {
         LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        boxLp.bottomMargin = dp(6);
+        boxLp.bottomMargin = style.dp(8);
         transcript.addView(box, boxLp);
-        if (animate) {
+        if (animate && style.animationsEnabled()) {
             box.setAlpha(0f);
-            box.setTranslationY(dp(8));
-            box.animate().alpha(1f).translationY(0).setDuration(180).start();
+            box.setTranslationY(style.dpf(10));
+            box.animate().alpha(1f).translationY(0).setDuration(500).start();
         }
         scrollToEnd();
         return message;
@@ -518,6 +570,10 @@ public final class DeckView extends FrameLayout {
         return p;
     }
 
+    public DeckStyle style() {
+        return style;
+    }
+
     public List<ConsoleEntry> entries() {
         return new ArrayList<>(entries);
     }
@@ -525,7 +581,15 @@ public final class DeckView extends FrameLayout {
     public void clearEntries() {
         entries.clear();
         transcript.removeAllViews();
-        addEntry(new ConsoleEntry(ConsoleEntry.Channel.SYSTEM, "Терминал очищен. Сессия Pi сохранена."));
+        addEntry(new ConsoleEntry(
+                ConsoleEntry.Channel.SYSTEM, "Терминал очищен. Сессия Pi сохранена."
+        ));
+    }
+
+    public void setPrompt(String value) {
+        promptInput.setText(value);
+        promptInput.setSelection(promptInput.getText().length());
+        promptInput.requestFocus();
     }
 
     private void emitPrompt() {
@@ -539,55 +603,16 @@ public final class DeckView extends FrameLayout {
         terminalScroll.post(() -> terminalScroll.fullScroll(View.FOCUS_DOWN));
     }
 
-    private TextView action(String label, int color, Runnable action) {
-        TextView view = button(label, color, action);
-        LinearLayout.LayoutParams lp = wrap();
-        lp.rightMargin = dp(7);
-        view.setLayoutParams(lp);
+    private View divider() {
+        View view = new View(getContext());
+        view.setBackgroundColor(p.strokeFaint);
         return view;
     }
 
-    public TextView button(String label, int color, Runnable action) {
-        TextView view = text(label, 11, color, Typeface.BOLD);
-        view.setGravity(Gravity.CENTER);
-        view.setLetterSpacing(0.07f);
-        view.setPadding(dp(12), dp(9), dp(12), dp(9));
-        view.setMinHeight(dp(38));
-        view.setBackground(panel(color, p.fill(color, 0.06f, 0xD9), 1, 4));
-        view.setClickable(true);
-        view.setFocusable(true);
-        view.setOnClickListener(ignored -> action.run());
-        return view;
-    }
-
-    public TextView text(String value, float size, int color, int style) {
-        TextView view = new TextView(getContext());
-        view.setText(value);
-        view.setTextSize(size);
-        view.setTextColor(color);
-        view.setTypeface(Typeface.MONOSPACE, style);
-        view.setIncludeFontPadding(false);
-        return view;
-    }
-
-    public GradientDrawable panel(int stroke, int fill, int strokeDp, int radiusDp) {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(fill);
-        drawable.setCornerRadius(dp(radiusDp));
-        drawable.setStroke(dp(strokeDp), stroke);
-        return drawable;
-    }
-
-    private TextView chip(String value, int color) {
-        TextView chip = text("● " + value, 8, color, Typeface.BOLD);
-        chip.setGravity(Gravity.CENTER);
-        chip.setLetterSpacing(0.07f);
-        chip.setPadding(dp(7), dp(5), dp(7), dp(5));
-        chip.setBackground(panel(color, p.fill(color, 0.05f, 0xA6), 1, 10));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        lp.rightMargin = dp(5);
-        chip.setLayoutParams(lp);
-        return chip;
+    private LinearLayout.LayoutParams dividerLp() {
+        return new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, style.dp(1)
+        );
     }
 
     private int channelColor(ConsoleEntry.Channel channel) {
@@ -600,17 +625,13 @@ public final class DeckView extends FrameLayout {
         };
     }
 
-    private int channelFill(ConsoleEntry.Channel channel) {
-        return p.fill(channelColor(channel), 0.09f, 0xBC);
-    }
-
     private int channelTextColor(ConsoleEntry.Channel channel) {
         return channel == ConsoleEntry.Channel.ERROR ? p.errorText : channelColor(channel);
     }
 
     private String channelLabel(ConsoleEntry.Channel channel) {
         return switch (channel) {
-            case USER -> "YOU // UPLINK";
+            case USER -> "ВЫ";
             case AGENT -> "PI // LOCAL";
             case SYSTEM -> "SYS // DECK";
             case TOOL -> "TOOL // TRACE";
@@ -622,17 +643,43 @@ public final class DeckView extends FrameLayout {
         return clock.format(new Date(value));
     }
 
-    public int dp(int value) {
-        return Math.round(value * density);
+    private LayoutParams match() {
+        return new LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        );
     }
 
-    private LayoutParams match() {
-        return new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+    private LinearLayout.LayoutParams matchWidth() {
+        return new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
     }
 
     private LinearLayout.LayoutParams wrap() {
         return new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
+    }
+
+    /** The 6 dp core indicator in the header. */
+    private static final class StatusDot extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        StatusDot(Context context, int color) {
+            super(context);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(color);
+        }
+
+        void setColor(int color) {
+            paint.setColor(color);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float radius = Math.min(getWidth(), getHeight()) / 2f;
+            canvas.drawCircle(getWidth() / 2f, getHeight() / 2f, radius, paint);
+        }
     }
 }

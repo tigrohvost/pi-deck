@@ -3,14 +3,10 @@ package dev.pideck.app;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
-import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
-import android.graphics.Typeface;
-import android.graphics.drawable.ColorDrawable;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.os.Bundle;
@@ -18,15 +14,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.StatFs;
-import android.view.Gravity;
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.Window;
 import android.view.WindowManager;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.ScrollView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONException;
@@ -61,8 +49,12 @@ import dev.pideck.app.core.RuntimeScripts;
 import dev.pideck.app.core.TermuxBridge;
 import dev.pideck.app.core.TermuxEnvironment;
 import dev.pideck.app.ui.ConsoleEntry;
+import dev.pideck.app.ui.CoreRootView;
+import dev.pideck.app.ui.DeckStyle;
 import dev.pideck.app.ui.DeckView;
 import dev.pideck.app.ui.Palette;
+import dev.pideck.app.ui.SessionsRootView;
+import dev.pideck.app.ui.TabBarView;
 
 public final class MainActivity extends Activity implements DeckView.Listener, CommandEvents.Listener {
     private static final int REQUEST_RUN_COMMAND = 41;
@@ -108,9 +100,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private boolean verifying;
     private int verificationPercent;
     private String verificationFault = "";
-    private Dialog modelsDialog;
-    private LinearLayout modelRows;
-    private Dialog coreDialog;
+    private float textScale;
     private Runnable watchdog;
     private OperationId watchdogOperationId;
     private int heartbeatTick;
@@ -126,7 +116,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             if (heartbeatTick % 4 == 0) updateCapacity();
             heartbeatTick++;
             refreshUi();
-            if (modelsDialog != null && modelsDialog.isShowing()) renderModelRows();
             main.postDelayed(this, heartbeatDelay());
         }
     };
@@ -166,11 +155,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         OperationRecord restored = operations.active();
         busy = restored != null && !restored.state.isTerminal();
 
-        deck = new DeckView(this, this, palette);
+        textScale = DeckStyle.normalizeScale(prefs.textScale());
+        deck = new DeckView(this, this, palette, textScale);
         setContentView(deck);
         deck.setEntries(prefs.loadTranscript());
-        deck.setEngineLine(deviceLine());
-        updatePrivacyIndicator();
+        deck.setActiveTab(prefs.activeTab());
         refreshUi();
         if (restored != null && !restored.state.isTerminal()) {
             OperationRecord active = operations.active();
@@ -207,8 +196,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     @Override
     protected void onDestroy() {
-        if (modelsDialog != null) modelsDialog.dismiss();
-        if (coreDialog != null) coreDialog.dismiss();
         if (approvalDialog != null) approvalDialog.dismiss();
         cancelWatchdog(null);
         if (rpc != null) rpc.close();
@@ -251,23 +238,34 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     @Override
-    public void onModels() {
-        showModelsDialog();
+    public void onTabSelected(int tab) {
+        deck.setActiveTab(tab);
+        prefs.setActiveTab(tab);
+        refreshUi();
     }
 
     @Override
-    public void onCore() {
-        showCoreDialog();
+    public void onSchemeChosen(String schemeId) {
+        switchColorScheme(schemeId);
     }
 
     @Override
-    public void onTermux() {
+    public void onTextScaleChosen(float scale) {
+        if (busy) {
+            toast("Дождитесь завершения текущей команды");
+            return;
+        }
+        prefs.setTextScale(DeckStyle.normalizeScale(scale));
+        prefs.saveTranscript(deck.entries());
+        recreate();
+    }
+
+    private void openTermux() {
         if (termux.isInstalled()) termux.openTermux();
         else termux.openTermuxPage();
     }
 
-    @Override
-    public void onClear() {
+    private void clearConsole() {
         deck.clearEntries();
         prefs.saveTranscript(deck.entries());
     }
@@ -441,10 +439,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
         operations.markConsumed(result.operationId);
         refreshUi();
-        if (coreDialog != null && coreDialog.isShowing()) {
-            coreDialog.dismiss();
-            coreDialog = null;
-        }
     }
 
     private void handleAgentResult(CommandResult result) {
@@ -480,6 +474,23 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
     }
 
+    /**
+     * The single fact the header carries. Order matters: a turn in flight outranks a healthy
+     * core, and a question to the user outranks the turn that asked it.
+     */
+    private DeckView.CoreStatus coreStatus() {
+        if (currentApprovalId != null) return DeckView.CoreStatus.AWAITING_USER;
+        if (busy) return DeckView.CoreStatus.BUSY;
+        if (serverReady && bridgeReady && bridgeConnected) return DeckView.CoreStatus.READY;
+        if (verifying || modelDownloads.state(selectedModel).isActive()) {
+            return DeckView.CoreStatus.STARTING;
+        }
+        if (!bridgeFault.isBlank() || !verificationFault.isBlank()) {
+            return DeckView.CoreStatus.FAILED;
+        }
+        return DeckView.CoreStatus.SLEEPING;
+    }
+
     private void refreshUi() {
         boolean installed = termuxEnvironment.installed;
         boolean permission = termux.hasRunPermission();
@@ -488,11 +499,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         boolean incomingAvailable = modelDownloads.isDownloaded(selectedModel);
         boolean verified = prefs.isModelVerified(selectedModel);
         boolean privateReady = prefs.isPrivateModelInstalled(selectedModel);
-        boolean linked = installed && permission && linkConfirmed;
 
-        deck.setStatus(linked, core, privateReady ? selectedModel : null, serverReady && bridgeReady, busy);
-        deck.setEngineLine(deviceLine());
-        updatePrivacyIndicator();
+        deck.setCoreStatus(coreStatus(), "Ядро · " + selectedModel.tier);
+        if (deck.activeTab() == TabBarView.TAB_CORE) renderCoreRoot();
+        if (deck.activeTab() == TabBarView.TAB_SESSIONS) renderSessionsRoot();
 
         if (android.os.Build.SUPPORTED_64_BIT_ABIS.length == 0) {
             deck.setBootState(
@@ -575,7 +585,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "ВЫБЕРИТЕ ПРОФИЛЬ МОДЕЛИ",
                     "Сохранённая модель отсутствует в проверенном каталоге. Рекомендация по "
                             + "доступной памяти: " + selectedModel.title + ". Выбор не применяется скрыто.",
-                    "CHOOSE MODEL", this::showModelsDialog,
+                    "CHOOSE MODEL", this::openCoreRoot,
                     null, null
             );
             return;
@@ -590,7 +600,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         + " (" + humanBytes(modelState.downloadedBytes) + " / "
                         + humanBytes(modelState.totalBytes) + ")";
                 primaryLabel = "MODELS";
-                primary = this::showModelsDialog;
+                primary = this::openCoreRoot;
             } else if (modelState.phase == ModelDownloadManager.Phase.FAILED) {
                 body = "Загрузка остановилась: "
                         + ModelDownloadManager.failureLabel(modelState.reason)
@@ -609,7 +619,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "ЗАГРУЗИТЬ ЛОКАЛЬНЫЙ МОЗГ",
                     body,
                     primaryLabel, primary,
-                    "CHOOSE", this::showModelsDialog
+                    "CHOOSE", this::openCoreRoot
             );
             return;
         }
@@ -626,10 +636,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     body,
                     verificationFault.isBlank() ? "VERIFYING…" : "RE-DOWNLOAD",
                     verificationFault.isBlank()
-                            ? this::showModelsDialog
+                            ? this::openCoreRoot
                             : () -> confirmDownload(selectedModel),
                     verificationFault.isBlank() ? null : "MODELS",
-                    verificationFault.isBlank() ? null : this::showModelsDialog
+                    verificationFault.isBlank() ? null : this::openCoreRoot
             );
             return;
         }
@@ -640,8 +650,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "Android SHA-256 пройден. Termux повторно проверит hash во время копирования, "
                             + "выполнит fsync и atomic rename в ~/.pideck/models.",
                     busy ? "INSTALLING…" : "INSTALL PRIVATE",
-                    busy ? this::showModelsDialog : () -> installPrivateModel(selectedModel),
-                    "MODELS", this::showModelsDialog
+                    busy ? this::openCoreRoot : () -> installPrivateModel(selectedModel),
+                    "MODELS", this::openCoreRoot
             );
             return;
         }
@@ -656,7 +666,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             + humanBytes(selectedModel.estimatedPeakBytes())
                             + "; доступно " + humanBytes(availableRam) + ".",
                     "IGNITE LLM", this::startServer,
-                    "MODELS", this::showModelsDialog
+                    "MODELS", this::openCoreRoot
             );
             return;
         }
@@ -667,7 +677,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "Локальный bridge использует 256-bit token и слушает только 127.0.0.1. "
                             + (bridgeFault.isBlank() ? accessProfile.description : bridgeFault),
                     "START BRIDGE", this::startBridge,
-                    "ACCESS", this::showCoreDialog
+                    "ACCESS", this::openCoreRoot
             );
             return;
         }
@@ -1044,7 +1054,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                 model.title + " не прошла проверку целостности: " + verificationFault);
                     }
                     refreshUi();
-                    if (modelsDialog != null && modelsDialog.isShowing()) renderModelRows();
                 });
             }
         });
@@ -1093,7 +1102,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         append(ConsoleEntry.Channel.ERROR, "DownloadManager: " + readableException(error));
                     }
                     refreshUi();
-                    if (modelsDialog != null && modelsDialog.isShowing()) renderModelRows();
                 })
                 .show();
     }
@@ -1117,7 +1125,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
         append(ConsoleEntry.Channel.SYSTEM,
                 "Активный профиль → " + model.title + ". Перезапустите LLM-ядро.");
-        if (modelsDialog != null) modelsDialog.dismiss();
         refreshUi();
     }
 
@@ -1142,350 +1149,207 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         append(ConsoleEntry.Channel.ERROR,
                                 "Android не разрешил удалить " + model.fileName + ".");
                     }
-                    if (modelsDialog != null && modelsDialog.isShowing()) renderModelRows();
                     refreshUi();
                 })
                 .show();
     }
 
-    private void showModelsDialog() {
-        if (modelsDialog != null && modelsDialog.isShowing()) {
-            renderModelRows();
-            return;
-        }
-        DialogShell shell = dialogShell(
-                "MODEL MATRIX",
-                "GGUF // HUGGING FACE // SHA-256 PINNED"
-        );
-        modelsDialog = shell.dialog;
-        modelRows = shell.body;
-        renderModelRows();
-        modelsDialog.setOnDismissListener(ignored -> {
-            modelsDialog = null;
-            modelRows = null;
-        });
-        modelsDialog.show();
-        sizeDialog(modelsDialog, 0.95f, 0.88f);
+    /** ЯДРО now owns the model matrix and the core controls; boot steps deep-link into it. */
+    private void openCoreRoot() {
+        onTabSelected(TabBarView.TAB_CORE);
     }
 
-    private void renderModelRows() {
-        if (modelRows == null) return;
-        modelRows.removeAllViews();
-        ModelSpec recommended = modelCatalog.recommend(availableRam, lowMemory, freeStorage);
-        for (ModelSpec model : modelCatalog.all()) {
-            ModelDownloadManager.State state = modelDownloads.state(model);
-            boolean selected = model.equals(selectedModel);
-            boolean verified = prefs.isModelVerified(model);
-            boolean privateReady = prefs.isPrivateModelInstalled(model);
-            boolean incomingReady = modelDownloads.isDownloaded(model);
+    private void renderCoreRoot() {
+        CoreRootView.State state = new CoreRootView.State();
+        state.schemeId = palette.id;
+        state.textScale = textScale;
 
-            LinearLayout card = new LinearLayout(this);
-            card.setOrientation(LinearLayout.VERTICAL);
-            card.setPadding(deck.dp(12), deck.dp(11), deck.dp(12), deck.dp(11));
-            card.setBackground(deck.panel(
-                    selected ? palette.accentAlt : palette.accent,
-                    palette.fill(0xE4), 1, 5
+        for (ModelSpec model : modelCatalog.all()) state.models.add(modelRow(model));
+
+        state.accessProfileLabel = accessProfile.label;
+        state.accessProfileNote = accessProfile.description;
+        for (AccessProfile profile : AccessProfile.values()) {
+            if (profile == accessProfile) continue;
+            state.accessProfiles.add(new CoreRootView.ActionRow(
+                    "Доступ → " + profile.label,
+                    profile == AccessProfile.AUTONOMOUS
+                            ? "явное согласие на высокий риск"
+                            : profile.description,
+                    profile == AccessProfile.AUTONOMOUS ? palette.warn : palette.accent,
+                    () -> changeAccessProfile(profile)
             ));
-
-            LinearLayout titleRow = new LinearLayout(this);
-            titleRow.setGravity(Gravity.CENTER_VERTICAL);
-            TextView title = deck.text(model.title, 15, palette.text, Typeface.BOLD);
-            titleRow.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            TextView tier = deck.text(model.tier, 10, selected ? palette.accentAlt : palette.accent, Typeface.BOLD);
-            tier.setLetterSpacing(0.12f);
-            titleRow.addView(tier);
-            card.addView(titleRow);
-
-            String flags = model.humanSize() + " // ≥"
-                    + model.minimumAvailableMiB + " MiB AVAILABLE";
-            if (model.equals(recommended)) flags += " // RECOMMENDED";
-            if (selected) flags += " // ACTIVE";
-            TextView meta = deck.text(flags, 9, palette.ok, Typeface.BOLD);
-            meta.setPadding(0, deck.dp(4), 0, 0);
-            card.addView(meta);
-
-            TextView note = deck.text(model.note, 11, palette.muted, Typeface.NORMAL);
-            note.setPadding(0, deck.dp(6), 0, deck.dp(7));
-            card.addView(note);
-
-            if (privateReady) {
-                card.addView(deck.text(
-                        "✓ PRIVATE READY // FULL SHA BEFORE EACH START",
-                        9, palette.ok, Typeface.BOLD
-                ));
-            } else if (state.isActive()) {
-                ProgressBar progress = new ProgressBar(
-                        this, null, android.R.attr.progressBarStyleHorizontal
-                );
-                progress.setMax(100);
-                progress.setProgress(state.percent());
-                progress.setProgressTintList(android.content.res.ColorStateList.valueOf(palette.accent));
-                card.addView(progress, new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, deck.dp(4)
-                ));
-                TextView progressText = deck.text(
-                        state.percent() + "% // " + humanBytes(state.downloadedBytes)
-                                + " / " + humanBytes(state.totalBytes),
-                        9, palette.accent, Typeface.BOLD
-                );
-                progressText.setPadding(0, deck.dp(5), 0, 0);
-                card.addView(progressText);
-            } else if (incomingReady) {
-                card.addView(deck.text(
-                        verified ? "✓ INCOMING // ANDROID SHA-256 VERIFIED"
-                                : "◇ INCOMING // VERIFY PENDING",
-                        9, verified ? palette.ok : palette.warn, Typeface.BOLD
-                ));
-            } else if (state.phase == ModelDownloadManager.Phase.FAILED) {
-                card.addView(deck.text(
-                        "FAULT // " + ModelDownloadManager.failureLabel(state.reason),
-                        9, palette.errorText, Typeface.BOLD
-                ));
-            }
-
-            LinearLayout actions = new LinearLayout(this);
-            actions.setOrientation(LinearLayout.HORIZONTAL);
-            actions.setPadding(0, deck.dp(9), 0, 0);
-            if (privateReady) {
-                if (!selected || !serverReady) {
-                    actions.addView(deck.button(
-                            selected ? "RESTART CORE" : "SELECT",
-                            selected ? palette.accent : palette.accentAlt,
-                            () -> {
-                                chooseModel(model);
-                                if (selected) startServer();
-                            }
-                    ));
-                }
-                if (incomingReady) {
-                    TextView removeSource = deck.button(
-                            "DELETE SOURCE", palette.muted, () -> confirmDeleteModel(model)
-                    );
-                    LinearLayout.LayoutParams sourceLp = new LinearLayout.LayoutParams(
-                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                    );
-                    sourceLp.leftMargin = deck.dp(7);
-                    actions.addView(removeSource, sourceLp);
-                }
-            } else if (state.isActive()) {
-                actions.addView(deck.button("CANCEL", palette.errorText, () -> {
-                    modelDownloads.cancel(model);
-                    renderModelRows();
-                    refreshUi();
-                }));
-            } else if (incomingReady) {
-                if (!selected || !serverReady) {
-                    actions.addView(deck.button(
-                            selected ? "RESTART CORE" : "SELECT",
-                            selected ? palette.accent : palette.accentAlt,
-                            () -> {
-                                chooseModel(model);
-                                if (selected) startServer();
-                            }
-                    ));
-                }
-                TextView remove = deck.button("DELETE", palette.errorText, () -> confirmDeleteModel(model));
-                LinearLayout.LayoutParams removeLp = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-                );
-                removeLp.leftMargin = deck.dp(7);
-                actions.addView(remove, removeLp);
-            } else {
-                actions.addView(deck.button(
-                        state.phase == ModelDownloadManager.Phase.FAILED ? "RETRY" : "DOWNLOAD",
-                        palette.accent,
-                        () -> confirmDownload(model)
-                ));
-            }
-            card.addView(actions);
-
-            LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            cardLp.bottomMargin = deck.dp(9);
-            modelRows.addView(card, cardLp);
         }
-    }
 
-    private void showCoreDialog() {
-        if (coreDialog != null && coreDialog.isShowing()) return;
-        DialogShell shell = dialogShell(
-                "CORE CONTROL",
-                "PI AGENT // TERMUX RUNTIME // LOCALHOST"
-        );
-        coreDialog = shell.dialog;
-        LinearLayout body = shell.body;
-        body.addView(infoLine("TERMUX", termux.isInstalled() ? "INSTALLED" : "ABSENT",
-                termux.isInstalled() ? palette.ok : palette.errorText));
-        body.addView(infoLine(
-                "TERMUX BUILD",
-                termuxEnvironment.version + " / " + termuxEnvironment.sourceLabel(),
+        state.maintenance.add(new CoreRootView.ActionRow(
+                "Обновить Pi", "восстановить закреплённую сборку и проверить целостность",
+                palette.text, this::updateAgent
+        ));
+        state.maintenance.add(new CoreRootView.ActionRow(
+                "Перезапустить LLM", "перечитать выбранный GGUF", palette.text, this::startServer
+        ));
+        state.maintenance.add(new CoreRootView.ActionRow(
+                "Новая сессия", "прошлая уезжает в ~/.pideck/session-archive",
+                palette.text, this::newSession
+        ));
+        state.maintenance.add(new CoreRootView.ActionRow(
+                "Открыть Termux", "runtime-контур деки", palette.text, this::openTermux
+        ));
+        state.maintenance.add(new CoreRootView.ActionRow(
+                "Скопировать команду связи", "починить handshake Termux",
+                palette.text, this::copyHandshakeAndOpen
+        ));
+        state.maintenance.add(new CoreRootView.ActionRow(
+                "Очистить консоль", "сессия Pi при этом сохраняется",
+                palette.text, this::clearConsole
+        ));
+        if (busy) {
+            state.maintenance.add(new CoreRootView.ActionRow(
+                    "Прервать задачу", "структурный RPC abort",
+                    palette.errorText, this::abortAgent
+            ));
+        }
+
+        state.info.add(new CoreRootView.InfoRow("рабочая папка", "~/.pideck/workspace", palette.text));
+        state.info.add(new CoreRootView.InfoRow(
+                "termux", termuxEnvironment.installed
+                ? termuxEnvironment.version + " / " + termuxEnvironment.sourceLabel()
+                : "не установлен",
                 termuxEnvironment.signerTrusted() ? palette.ok : palette.warn
         ));
-        body.addView(infoLine(
-                "TERMUX:API",
+        state.info.add(new CoreRootView.InfoRow(
+                "termux:api",
                 termuxEnvironment.apiCompatible
-                        ? termuxEnvironment.apiVersion + " / WAKE-LOCK READY"
+                        ? termuxEnvironment.apiVersion + " / wake-lock"
                         : termuxEnvironment.apiInstalled
-                        ? termuxEnvironment.apiVersion + " / INCOMPATIBLE"
-                        : "OPTIONAL / ABSENT",
+                        ? termuxEnvironment.apiVersion + " / несовместим"
+                        : "не установлен",
                 termuxEnvironment.apiCompatible ? palette.ok : palette.warn
         ));
-        body.addView(infoLine("TRANSPORT", linkConfirmed ? "LINKED" : "OFFLINE",
-                linkConfirmed ? palette.accent : palette.warn));
-        body.addView(infoLine("PI RUNTIME", prefs.isCoreReady() ? "READY" : "NOT INSTALLED",
-                prefs.isCoreReady() ? palette.ok : palette.warn));
-        body.addView(infoLine("LLM SERVER", serverReady ? "127.0.0.1:8080 LIVE" : "STOPPED",
-                serverReady ? palette.accent : palette.muted));
-        body.addView(infoLine("RPC BRIDGE", bridgeReady ? "AUTHENTICATED / 127.0.0.1" : "STOPPED",
-                bridgeReady ? palette.ok : palette.muted));
-        body.addView(infoLine("ACCESS", accessProfile.label,
-                accessProfile == AccessProfile.AUTONOMOUS ? palette.warn : palette.accent));
-        body.addView(infoLine("MODEL", selectedModel.title + " / " + selectedModel.tier, palette.accentAlt));
-        body.addView(infoLine("WORKSPACE", "~/.pideck/workspace", palette.text));
-        body.addView(infoLine("LOCAL INFERENCE", "YES", palette.ok));
-        body.addView(infoLine("TOOL NETWORK", accessProfile.toolNetworkPossible ? "POSSIBLE" : "NO SHELL",
-                accessProfile.toolNetworkPossible ? palette.warn : palette.ok));
-        body.addView(infoLine("OS ISOLATION", "NOT IMPLEMENTED", palette.warn));
-        body.addView(infoLine("SCHEME", palette.label, palette.accent));
+        state.info.add(new CoreRootView.InfoRow(
+                "канал управления", linkConfirmed ? "связан" : "нет связи",
+                linkConfirmed ? palette.accent : palette.warn
+        ));
+        state.info.add(new CoreRootView.InfoRow(
+                "pi runtime", prefs.isCoreReady() ? "готов" : "не установлен",
+                prefs.isCoreReady() ? palette.ok : palette.warn
+        ));
+        state.info.add(new CoreRootView.InfoRow(
+                "llm сервер", serverReady ? "127.0.0.1:8080" : "остановлен",
+                serverReady ? palette.accent : palette.muted
+        ));
+        state.info.add(new CoreRootView.InfoRow(
+                "rpc bridge", bridgeReady ? "authenticated / 127.0.0.1" : "остановлен",
+                bridgeReady ? palette.ok : palette.muted
+        ));
+        state.info.add(new CoreRootView.InfoRow(
+                "сеть инструментов",
+                accessProfile.toolNetworkPossible ? "возможна" : "нет shell",
+                accessProfile.toolNetworkPossible ? palette.warn : palette.ok
+        ));
+        state.info.add(new CoreRootView.InfoRow("изоляция ОС", "не реализована", palette.warn));
+        state.info.add(new CoreRootView.InfoRow(
+                "телефон",
+                humanBytes(totalRam) + " RAM · " + cpuThreads + " CPU · "
+                        + humanBytes(freeStorage) + " свободно · "
+                        + (isMetered() ? "сеть тарифицируется" : "сеть без лимита"),
+                palette.muted
+        ));
 
-        TextView explanation = deck.text(
-                accessProfile.description + " Local inference означает выполнение модели на телефоне, "
-                        + "но не является сетевой песочницей. Loopback защищён token-ом bridge."
-                        + (termuxEnvironment.source
-                        == TermuxEnvironment.Source.GITHUB_SHARED_TEST_KEY
-                        ? " У этой Termux-сборки публичный shared test key; доверять можно только APK "
-                        + "из официального GitHub release."
-                        : ""),
-                11, palette.muted, Typeface.NORMAL
-        );
-        explanation.setLineSpacing(0, 1.18f);
-        LinearLayout.LayoutParams explanationLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        explanationLp.topMargin = deck.dp(12);
-        body.addView(explanation, explanationLp);
-
-        body.addView(dialogAction("ACCESS → READ ONLY", "no mutating tools", palette.ok,
-                () -> changeAccessProfile(AccessProfile.READ_ONLY)));
-        body.addView(dialogAction("ACCESS → CONFIRM", "one-time Android approval", palette.accent,
-                () -> changeAccessProfile(AccessProfile.CONFIRM_CHANGES)));
-        body.addView(dialogAction("ACCESS → AUTONOMOUS", "explicit high-risk opt-in", palette.warn,
-                () -> changeAccessProfile(AccessProfile.AUTONOMOUS)));
-        body.addView(dialogAction("RESTORE PINNED PI", "0.82.1 + integrity check", palette.accent,
-                this::updateAgent));
-        body.addView(dialogAction("RESTART LLM", "reload selected GGUF", palette.accentAlt, this::startServer));
-        body.addView(dialogAction("NEW SESSION", "start a separate Pi conversation", palette.ok, this::newSession));
-        if (busy) {
-            body.addView(dialogAction(
-                    "ABORT CURRENT TASK",
-                    "structured RPC; exact-process fallback",
-                    palette.errorText,
-                    this::abortAgent
-            ));
+        if (serverReady) {
+            state.stopCoreLabel = "Остановить ядро · освободить "
+                    + humanBytes(selectedModel.estimatedPeakBytes());
+            state.onStopCore = this::stopServer;
         }
-        Palette next = nextScheme();
-        body.addView(dialogAction(
-                "COLOR SCHEME → " + next.id.toUpperCase(Locale.ROOT),
-                next.label.toLowerCase(Locale.ROOT),
-                palette.accentAlt,
-                this::switchColorScheme
-        ));
-        body.addView(dialogAction("COPY LINK COMMAND", "repair Termux handshake", palette.warn, this::copyHandshakeAndOpen));
-        body.addView(dialogAction("STOP LOCAL CORE", "release model RAM and wake-lock", palette.errorText, this::stopServer));
-
-        coreDialog.setOnDismissListener(ignored -> coreDialog = null);
-        coreDialog.show();
-        sizeDialog(coreDialog, 0.94f, 0.86f);
+        deck.renderCore(state);
     }
 
-    private View infoLine(String label, String value, int color) {
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, deck.dp(6), 0, deck.dp(6));
-        TextView left = deck.text(label, 10, palette.muted, Typeface.BOLD);
-        left.setLetterSpacing(0.1f);
-        TextView right = deck.text(value, 10, color, Typeface.BOLD);
-        right.setGravity(Gravity.END);
-        row.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.4f));
-        row.addView(right, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.6f));
-        return row;
-    }
+    private CoreRootView.ModelRow modelRow(ModelSpec model) {
+        ModelDownloadManager.State download = modelDownloads.state(model);
+        boolean privateReady = prefs.isPrivateModelInstalled(model);
+        boolean incoming = modelDownloads.isDownloaded(model);
+        boolean verified = prefs.isModelVerified(model);
+        boolean selected = model.equals(selectedModel);
+        boolean fits = totalRam >= model.minimumAvailableMiB * 1_048_576L;
 
-    private View dialogAction(String title, String subtitle, int color, Runnable action) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(deck.dp(11), deck.dp(9), deck.dp(11), deck.dp(9));
-        row.setBackground(deck.panel(color, palette.fill(color, 0.06f, 0xC7), 1, 4));
-        row.setClickable(true);
-        row.setOnClickListener(ignored -> {
-            if (coreDialog != null) coreDialog.dismiss();
-            action.run();
-        });
-        row.addView(deck.text(title, 11, color, Typeface.BOLD));
-        row.addView(deck.text(subtitle, 9, palette.muted, Typeface.NORMAL));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        String meta = model.humanSize() + " · контекст " + model.recommendedContext;
+        if (model.equals(modelCatalog.recommend(availableRam, lowMemory, freeStorage))) {
+            meta += " · рекомендуем";
+        }
+
+        String state;
+        int stateColor = palette.muted;
+        int percent = -1;
+        String actionLabel = null;
+        Runnable action = null;
+
+        if (!fits) {
+            // Nothing else about the row matters if the phone cannot hold the weights.
+            state = "не хватит RAM (" + humanBytes(totalRam) + ")";
+        } else if (privateReady && selected && serverReady) {
+            state = "активна";
+            stateColor = palette.ok;
+        } else if (privateReady) {
+            state = "загружена, готова к запуску";
+            stateColor = palette.ok;
+            actionLabel = selected ? "Перезапустить" : "Выбрать";
+            action = () -> {
+                chooseModel(model);
+                if (selected) startServer();
+            };
+        } else if (download.isActive()) {
+            state = "скачивается · " + humanBytes(download.downloadedBytes)
+                    + " из " + humanBytes(download.totalBytes);
+            stateColor = palette.accent;
+            percent = download.percent();
+            actionLabel = "Отменить";
+            action = () -> {
+                modelDownloads.cancel(model);
+                refreshUi();
+            };
+        } else if (download.phase == ModelDownloadManager.Phase.FAILED) {
+            state = "сбой загрузки: "
+                    + ModelDownloadManager.failureLabel(download.reason).toLowerCase(Locale.ROOT);
+            stateColor = palette.errorText;
+            actionLabel = "Повторить";
+            action = () -> confirmDownload(model);
+        } else if (incoming && verified) {
+            state = "проверена, ждёт приватной установки";
+            stateColor = palette.warn;
+            actionLabel = "Установить";
+            action = () -> installPrivateModel(model);
+        } else if (incoming) {
+            state = "ждёт проверки SHA-256";
+            stateColor = palette.warn;
+            actionLabel = "Проверить";
+            action = () -> verifyModel(model);
+        } else {
+            state = "не скачана";
+            actionLabel = "Скачать";
+            action = () -> confirmDownload(model);
+        }
+
+        return new CoreRootView.ModelRow(
+                model.title,
+                meta,
+                state,
+                stateColor,
+                selected,
+                fits,
+                percent,
+                actionLabel,
+                action,
+                incoming ? "Удалить исходник" : null,
+                incoming ? () -> confirmDeleteModel(model) : null
         );
-        lp.topMargin = deck.dp(8);
-        row.setLayoutParams(lp);
-        return row;
     }
 
-    private DialogShell dialogShell(String title, String subtitle) {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(deck.dp(14), deck.dp(14), deck.dp(14), deck.dp(14));
-        root.setBackground(deck.panel(palette.accent, palette.fill(0xFB), 1, 7));
-
-        TextView kicker = deck.text(subtitle, 9, palette.accentAlt, Typeface.BOLD);
-        kicker.setLetterSpacing(0.11f);
-        root.addView(kicker);
-
-        LinearLayout heading = new LinearLayout(this);
-        heading.setGravity(Gravity.CENTER_VERTICAL);
-        heading.setPadding(0, deck.dp(4), 0, deck.dp(10));
-        TextView titleView = deck.text(title, 20, palette.accent, Typeface.BOLD);
-        heading.addView(titleView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView close = deck.button("×", palette.muted, dialog::dismiss);
-        heading.addView(close, new LinearLayout.LayoutParams(deck.dp(42), deck.dp(38)));
-        root.addView(heading);
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setVerticalScrollBarEnabled(false);
-        LinearLayout body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(body, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        root.addView(scroll, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
-        ));
-        dialog.setContentView(root);
-        return new DialogShell(dialog, body);
-    }
-
-    private void sizeDialog(Dialog dialog, float widthRatio, float heightRatio) {
-        Window window = dialog.getWindow();
-        if (window == null) return;
-        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        WindowManager.LayoutParams params = new WindowManager.LayoutParams();
-        params.copyFrom(window.getAttributes());
-        params.width = (int) (getResources().getDisplayMetrics().widthPixels * widthRatio);
-        params.height = (int) (getResources().getDisplayMetrics().heightPixels * heightRatio);
-        params.gravity = Gravity.CENTER;
-        window.setAttributes(params);
-        window.setDimAmount(0.72f);
-        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-    }
-
-    private Palette nextScheme() {
-        return Palette.SCHEME_NORD.equals(palette.id)
-                ? Palette.deck()
-                : Palette.nord();
+    private void renderSessionsRoot() {
+        SessionsRootView.State state = new SessionsRootView.State();
+        state.onNewSession = bridgeReady && !busy ? this::newSession : null;
+        state.emptyNote = "Список сессий читается из Termux и появится здесь, "
+                + "когда дека сможет опросить ~/.pideck/sessions.";
+        state.footer = "~/.pideck/sessions";
+        deck.renderSessions(state);
     }
 
     /**
@@ -1493,12 +1357,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
      * walking the hierarchy. The transcript already lives in preferences, and a result that lands
      * during the restart is recovered from the durable per-operation store in {@link #onResume()}.
      */
-    private void switchColorScheme() {
+    private void switchColorScheme(String schemeId) {
         if (busy) {
             toast("Дождитесь завершения текущей команды");
             return;
         }
-        prefs.setColorScheme(nextScheme().id);
+        if (palette.id.equals(schemeId)) return;
+        prefs.setColorScheme(Palette.forId(schemeId).id);
         prefs.saveTranscript(deck.entries());
         recreate();
     }
@@ -1920,17 +1785,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         prefs.setAccessProfile(target);
         bridgeReady = false;
         bridgeConnected = false;
-        updatePrivacyIndicator();
         append(ConsoleEntry.Channel.SYSTEM, "Access profile → " + target.label + ".");
         if (serverReady) main.post(this::startBridge);
         else refreshUi();
-    }
-
-    private void updatePrivacyIndicator() {
-        if (deck == null) return;
-        deck.setPrivacyLine(accessProfile.toolNetworkPossible
-                ? "TOOLS: NETWORK POSSIBLE"
-                : "TOOLS: NO SHELL");
     }
 
     @FunctionalInterface
@@ -2125,13 +1982,4 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         Toast.makeText(this, value, Toast.LENGTH_LONG).show();
     }
 
-    private static final class DialogShell {
-        final Dialog dialog;
-        final LinearLayout body;
-
-        DialogShell(Dialog dialog, LinearLayout body) {
-            this.dialog = dialog;
-            this.body = body;
-        }
-    }
 }

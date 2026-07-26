@@ -23,6 +23,8 @@ public final class DeckPreferences {
     private static final String KEY_HAS_SESSION = "has_session";
     private static final String KEY_TRANSCRIPT = "transcript";
     private static final String KEY_COLOR_SCHEME = "color_scheme";
+    private static final String KEY_TEXT_SCALE = "text_scale";
+    private static final String KEY_ACTIVE_TAB = "active_tab";
     private static final String KEY_ACCESS_PROFILE = "access_profile_v1";
     private static final String KEY_SESSION_ID = "session_id_v1";
     private static final String KEY_BRIDGE_INSTANCE = "bridge_instance";
@@ -52,6 +54,24 @@ public final class DeckPreferences {
 
     public void setColorScheme(String scheme) {
         prefs.edit().putString(KEY_COLOR_SCHEME, scheme).apply();
+    }
+
+    /** Multiplier applied to every text size in the deck; 1.0 unless CORE changed it. */
+    public float textScale() {
+        return prefs.getFloat(KEY_TEXT_SCALE, 1f);
+    }
+
+    public void setTextScale(float scale) {
+        prefs.edit().putFloat(KEY_TEXT_SCALE, scale).apply();
+    }
+
+    /** Which root the deck reopens on. */
+    public int activeTab() {
+        return prefs.getInt(KEY_ACTIVE_TAB, 0);
+    }
+
+    public void setActiveTab(int tab) {
+        prefs.edit().putInt(KEY_ACTIVE_TAB, tab).apply();
     }
 
     public AccessProfile accessProfile() {
