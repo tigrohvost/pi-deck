@@ -159,6 +159,108 @@ def archive_sessions() -> dict[str, Any]:
     return {"state": "READY", "archivedEntries": moved, "archive": str(archive) if moved else None}
 
 
+MAX_LISTED_SESSIONS = 64
+MAX_SESSION_SCAN_BYTES = 256 * 1024
+
+
+def _session_transcript(entry: Path) -> Path | None:
+    """The file a session's messages live in, whether the session is a file or a directory."""
+    if entry.is_file():
+        return entry
+    if not entry.is_dir():
+        return None
+    candidates = [child for child in entry.iterdir() if child.is_file()]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda child: child.stat().st_size)
+
+
+def _session_summary(entry: Path) -> tuple[str, int]:
+    """First user message and message count, or empty when the format is not ours to read."""
+    transcript = _session_transcript(entry)
+    if transcript is None:
+        return "", 0
+    title = ""
+    messages = 0
+    try:
+        with transcript.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle.read(MAX_SESSION_SCAN_BYTES).splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(value, dict):
+                    continue
+                role = value.get("role") or (value.get("message") or {}).get("role")
+                if not role:
+                    continue
+                messages += 1
+                if title or role != "user":
+                    continue
+                content = value.get("content")
+                if isinstance(content, list):
+                    parts = [
+                        part.get("text", "")
+                        for part in content
+                        if isinstance(part, dict) and part.get("type") == "text"
+                    ]
+                    content = " ".join(part for part in parts if part)
+                if isinstance(content, str) and content.strip():
+                    title = bounded_text(content.strip(), 160)
+    except OSError:
+        return title, messages
+    return title, messages
+
+
+def _session_bytes(entry: Path) -> int:
+    if entry.is_file():
+        return entry.stat().st_size
+    total = 0
+    for child in entry.rglob("*"):
+        if child.is_file():
+            total += child.stat().st_size
+    return total
+
+
+def list_sessions() -> dict[str, Any]:
+    """What is on disk under ~/.pideck/sessions, newest first."""
+    source = BASE / "sessions"
+    if not source.is_dir():
+        return {"state": "READY", "sessions": [], "count": 0, "totalBytes": 0}
+
+    entries = []
+    total_bytes = 0
+    for entry in source.iterdir():
+        try:
+            entries.append((entry, entry.stat().st_mtime, _session_bytes(entry)))
+        except OSError:
+            continue
+    total_bytes = sum(size for _, _, size in entries)
+    entries.sort(key=lambda item: item[1], reverse=True)
+
+    sessions = []
+    for entry, modified, size in entries[:MAX_LISTED_SESSIONS]:
+        title, messages = _session_summary(entry)
+        sessions.append(
+            {
+                "id": entry.stem if entry.is_file() else entry.name,
+                "title": title,
+                "messages": messages,
+                "bytes": size,
+                "updatedAtEpochMs": int(modified * 1000),
+            }
+        )
+    return {
+        "state": "READY",
+        "sessions": sessions,
+        "count": len(entries),
+        "totalBytes": total_bytes,
+    }
+
+
 def probe() -> dict[str, Any]:
     def version(arguments: list[str]) -> str | None:
         try:
@@ -363,6 +465,8 @@ def dispatch(command: str) -> dict[str, Any]:
         return result_ok(**abort_agent(read_stdin_json()))
     if command == "archive-sessions":
         return result_ok(**archive_sessions())
+    if command == "list-sessions":
+        return result_ok(**list_sessions())
     if command == "reconcile":
         return result_ok(**reconcile())
     raise PiDeckError("UNKNOWN_COMMAND", f"Unknown runtime command: {command}")

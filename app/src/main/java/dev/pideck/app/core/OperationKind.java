@@ -14,6 +14,8 @@ public enum OperationKind {
     AGENT_TURN(true, 2_700_000L),
     ABORT_AGENT(false, 60_000L),
     NEW_SESSION(true, 60_000L),
+    LIST_SESSIONS(false, 45_000L),
+    ARCHIVE_SESSIONS(true, 300_000L),
     RECONCILE(false, 60_000L);
 
     private final boolean mutating;

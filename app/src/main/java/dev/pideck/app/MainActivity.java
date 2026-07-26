@@ -18,6 +18,7 @@ import android.os.StatFs;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -107,6 +108,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private String queuedPrompt;
     /** The heat warning is worth one line per turn, not one per event. */
     private boolean thermalWarned;
+    /** Last listing of ~/.pideck/sessions, as the Termux runtime reported it. */
+    private JSONArray sessions = new JSONArray();
+    private int sessionCount;
+    private long sessionBytes;
+    private boolean sessionsRequested;
+    private String sessionsFault = "";
     private Runnable watchdog;
     private OperationId watchdogOperationId;
     private int heartbeatTick;
@@ -304,6 +311,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     public void onTabSelected(int tab) {
         deck.setActiveTab(tab);
         prefs.setActiveTab(tab);
+        if (tab == TabBarView.TAB_SESSIONS) listSessions(false);
         refreshUi();
     }
 
@@ -502,6 +510,34 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "Открыта новая ветка. Предыдущая сессия перемещена в ~/.pideck/session-archive.");
                 } else {
                     append(ConsoleEntry.Channel.ERROR, result.usefulError());
+                }
+            }
+            case LIST_SESSIONS -> {
+                setBusy(false, null);
+                JSONObject value = RuntimeScripts.finalJsonObject(result.stdout);
+                if (runtimeState(result, "READY") && value != null) {
+                    JSONArray listed = value.optJSONArray("sessions");
+                    sessions = listed == null ? new JSONArray() : listed;
+                    sessionCount = value.optInt("count", sessions.length());
+                    sessionBytes = value.optLong("totalBytes", 0L);
+                    sessionsFault = "";
+                } else {
+                    sessionsFault = runtimeError(result);
+                }
+            }
+            case ARCHIVE_SESSIONS -> {
+                setBusy(false, null);
+                JSONObject value = RuntimeScripts.finalJsonObject(result.stdout);
+                if (runtimeState(result, "READY") && value != null) {
+                    int moved = value.optInt("archivedEntries", 0);
+                    append(ConsoleEntry.Channel.SYSTEM, moved == 0
+                            ? "Архивировать нечего: ~/.pideck/sessions пуст."
+                            : "Перенесено в ~/.pideck/session-archive: "
+                            + moved + " " + sessionsLabel(moved) + ".");
+                    main.post(() -> listSessions(true));
+                } else {
+                    append(ConsoleEntry.Channel.ERROR,
+                            "Архивация сессий не завершилась.\n" + runtimeError(result));
                 }
             }
             case ABORT_AGENT -> {
@@ -1524,13 +1560,155 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
     }
 
+    /** The listing is a Termux round trip, so it is asked for once per visit unless forced. */
+    private void listSessions(boolean force) {
+        if (busy || !prefs.isCoreReady() || !termuxEnvironment.canRunCommands()) return;
+        if (sessionsRequested && !force) return;
+        sessionsRequested = true;
+        dispatchOperation(
+                OperationKind.LIST_SESSIONS,
+                new JSONObject(),
+                "Читаю сессии",
+                operationId -> termux.runRuntime(
+                        operationId, OperationKind.LIST_SESSIONS, "list-sessions", "{}"
+                )
+        );
+    }
+
+    private void archiveSessions() {
+        if (busy) {
+            toast("Дождитесь завершения текущей операции");
+            return;
+        }
+        dispatchOperation(
+                OperationKind.ARCHIVE_SESSIONS,
+                new JSONObject(),
+                "Архивирую сессии",
+                operationId -> termux.runRuntime(
+                        operationId, OperationKind.ARCHIVE_SESSIONS, "archive-sessions", "{}"
+                )
+        );
+    }
+
     private void renderSessionsRoot() {
         SessionsRootView.State state = new SessionsRootView.State();
         state.onNewSession = bridgeReady && !busy ? this::newSession : null;
-        state.emptyNote = "Список сессий читается из Termux и появится здесь, "
-                + "когда дека сможет опросить ~/.pideck/sessions.";
-        state.footer = "~/.pideck/sessions";
+
+        String activeSession = prefs.sessionId();
+        long now = System.currentTimeMillis();
+        SessionsRootView.Group today = new SessionsRootView.Group("Сегодня");
+        SessionsRootView.Group earlier = new SessionsRootView.Group("Раньше");
+        for (int index = 0; index < sessions.length(); index++) {
+            JSONObject value = sessions.optJSONObject(index);
+            if (value == null) continue;
+            String id = value.optString("id", "");
+            long updated = value.optLong("updatedAtEpochMs", 0L);
+            long age = now - updated;
+            boolean current = !id.isEmpty() && id.equals(activeSession);
+            String title = value.optString("title", "");
+            if (title.isBlank()) title = "Сессия " + shortId(id);
+
+            String meta = messagesLabel(value.optInt("messages", 0))
+                    + " · " + humanBytes(value.optLong("bytes", 0L))
+                    + " · " + (age < 86_400_000L ? clockTime(updated) : calendarDate(updated));
+
+            SessionsRootView.SessionRow row = new SessionsRootView.SessionRow(
+                    title,
+                    meta,
+                    current,
+                    age > 7L * 86_400_000L,
+                    current || !isResumable(id) ? null : () -> resumeSession(id)
+            );
+            (age < 86_400_000L ? today : earlier).rows.add(row);
+        }
+        if (!today.rows.isEmpty()) state.groups.add(today);
+        if (!earlier.rows.isEmpty()) state.groups.add(earlier);
+
+        if (!sessionsFault.isBlank()) {
+            state.emptyNote = "Список сессий прочитать не удалось: " + sessionsFault;
+        } else if (state.groups.isEmpty()) {
+            state.emptyNote = sessionsRequested
+                    ? "В ~/.pideck/sessions пока пусто — первая сессия появится после "
+                    + "первого разговора."
+                    : "Список читается из Termux при открытии этого экрана.";
+        } else {
+            state.emptyNote = "Тап по сессии переключает на неё Pi. Локальный транскрипт при "
+                    + "этом не подменяется: дека не переписывает то, что вы уже видели.";
+        }
+
+        state.footer = sessionCount + " " + sessionsLabel(sessionCount)
+                + " · " + humanBytes(sessionBytes);
+        if (sessionCount > 0) {
+            state.archiveLabel = "Архивировать старые";
+            state.onArchive = this::archiveSessions;
+        }
         deck.renderSessions(state);
+    }
+
+    /**
+     * The bridge keys a session by the UUID the deck handed it, so a listing entry can only be
+     * resumed when its name is still one of those.
+     */
+    private boolean isResumable(String id) {
+        if (id == null || id.isBlank()) return false;
+        try {
+            OperationId.parse(id);
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private void resumeSession(String id) {
+        if (busy) {
+            toast("Дождитесь завершения текущей операции");
+            return;
+        }
+        try {
+            prefs.setSessionId(id, true);
+        } catch (RuntimeException error) {
+            toast("Эту сессию нельзя продолжить: " + readableException(error));
+            return;
+        }
+        onTabSelected(TabBarView.TAB_CONSOLE);
+        append(ConsoleEntry.Channel.SYSTEM,
+                "Продолжаю сессию " + shortId(id) + ". Прошлые сообщения остались в Pi; "
+                        + "в консоли они не воспроизводятся.");
+        if (serverReady) main.post(this::restartBridge);
+    }
+
+    private String shortId(String id) {
+        if (id == null || id.isEmpty()) return "без имени";
+        return id.length() <= 8 ? id : id.substring(0, 8);
+    }
+
+    private String messagesLabel(int count) {
+        String noun = plural(count, "сообщение", "сообщения", "сообщений");
+        return count + " " + noun;
+    }
+
+    private String sessionsLabel(int count) {
+        return plural(count, "сессия", "сессии", "сессий");
+    }
+
+    private String plural(int count, String one, String few, String many) {
+        int mod100 = count % 100;
+        if (mod100 >= 11 && mod100 <= 14) return many;
+        return switch (count % 10) {
+            case 1 -> one;
+            case 2, 3, 4 -> few;
+            default -> many;
+        };
+    }
+
+    private String clockTime(long epochMs) {
+        return new java.text.SimpleDateFormat("HH:mm", Locale.getDefault())
+                .format(new java.util.Date(epochMs));
+    }
+
+    private String calendarDate(long epochMs) {
+        return new java.text.SimpleDateFormat("d MMM", Locale.getDefault())
+                .format(new java.util.Date(epochMs));
     }
 
     /**

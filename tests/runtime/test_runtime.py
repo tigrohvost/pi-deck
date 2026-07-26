@@ -763,5 +763,94 @@ class RuntimeTestCase(unittest.TestCase):
             thread.join(timeout=3)
 
 
+class SessionListingTestCase(unittest.TestCase):
+    def setUp(self) -> None:
+        shutil.rmtree(common.BASE, ignore_errors=True)
+        common.ensure_private_layout()
+
+    def test_empty_session_directory_lists_nothing(self) -> None:
+        listing = launcher.list_sessions()
+        self.assertEqual("READY", listing["state"])
+        self.assertEqual([], listing["sessions"])
+        self.assertEqual(0, listing["count"])
+        self.assertEqual(0, listing["totalBytes"])
+
+    def test_listing_titles_a_session_from_its_first_user_message(self) -> None:
+        identifier = str(uuid.uuid4())
+        transcript = common.BASE / "sessions" / f"{identifier}.jsonl"
+        transcript.write_text(
+            "\n".join(
+                [
+                    json.dumps({"role": "user", "content": "объясни, что делает этот проект"}),
+                    json.dumps({"role": "assistant", "content": "Читаю README."}),
+                    json.dumps({"role": "user", "content": "а тесты?"}),
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        listing = launcher.list_sessions()
+
+        self.assertEqual(1, listing["count"])
+        session = listing["sessions"][0]
+        self.assertEqual(identifier, session["id"])
+        self.assertEqual("объясни, что делает этот проект", session["title"])
+        self.assertEqual(3, session["messages"])
+        self.assertEqual(transcript.stat().st_size, session["bytes"])
+        self.assertEqual(session["bytes"], listing["totalBytes"])
+
+    def test_unreadable_session_still_appears_with_its_size(self) -> None:
+        # Pi may change its transcript format; a session must not vanish because of it.
+        opaque = common.BASE / "sessions" / "not-json.bin"
+        opaque.write_bytes(b"\x00\x01\x02binary")
+
+        listing = launcher.list_sessions()
+
+        self.assertEqual(1, listing["count"])
+        session = listing["sessions"][0]
+        self.assertEqual("not-json", session["id"])
+        self.assertEqual("", session["title"])
+        self.assertEqual(0, session["messages"])
+        self.assertEqual(opaque.stat().st_size, session["bytes"])
+
+    def test_listing_is_newest_first_and_bounded(self) -> None:
+        for index in range(launcher.MAX_LISTED_SESSIONS + 5):
+            entry = common.BASE / "sessions" / f"session-{index:03d}.jsonl"
+            entry.write_text(json.dumps({"role": "user", "content": f"n{index}"}), "utf-8")
+            os.utime(entry, (1_700_000_000 + index, 1_700_000_000 + index))
+
+        listing = launcher.list_sessions()
+
+        self.assertEqual(launcher.MAX_LISTED_SESSIONS + 5, listing["count"])
+        self.assertEqual(launcher.MAX_LISTED_SESSIONS, len(listing["sessions"]))
+        self.assertEqual("session-068", listing["sessions"][0]["id"])
+        updates = [session["updatedAtEpochMs"] for session in listing["sessions"]]
+        self.assertEqual(sorted(updates, reverse=True), updates)
+
+    def test_directory_session_is_measured_and_summarised(self) -> None:
+        folder = common.BASE / "sessions" / str(uuid.uuid4())
+        folder.mkdir()
+        (folder / "meta.json").write_text("{}", encoding="utf-8")
+        (folder / "messages.jsonl").write_text(
+            json.dumps(
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "найди все TODO"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        listing = launcher.list_sessions()
+
+        session = listing["sessions"][0]
+        self.assertEqual(folder.name, session["id"])
+        self.assertEqual("найди все TODO", session["title"])
+        self.assertEqual(1, session["messages"])
+        self.assertEqual(
+            sum(child.stat().st_size for child in folder.iterdir()), session["bytes"]
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
