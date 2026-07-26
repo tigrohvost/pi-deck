@@ -19,6 +19,7 @@ public final class DeckPreferences {
     private static final String KEY_HAS_SESSION = "has_session";
     private static final String KEY_TRANSCRIPT = "transcript";
     private static final String KEY_PENDING_RESULT = "pending_result";
+    private static final String KEY_COLOR_SCHEME = "color_scheme";
 
     private final SharedPreferences prefs;
 
@@ -32,6 +33,14 @@ public final class DeckPreferences {
 
     public void setSelectedModelId(String id) {
         prefs.edit().putString(KEY_MODEL, id).apply();
+    }
+
+    public String colorScheme() {
+        return prefs.getString(KEY_COLOR_SCHEME, null);
+    }
+
+    public void setColorScheme(String scheme) {
+        prefs.edit().putString(KEY_COLOR_SCHEME, scheme).apply();
     }
 
     public boolean isCoreReady() {

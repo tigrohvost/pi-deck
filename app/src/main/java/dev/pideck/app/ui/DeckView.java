@@ -5,7 +5,6 @@ import android.animation.ObjectAnimator;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.InputType;
@@ -35,16 +34,6 @@ import dev.pideck.app.core.ModelSpec;
 
 @SuppressLint("ViewConstructor")
 public final class DeckView extends FrameLayout {
-    public static final int BLACK = Color.rgb(3, 5, 9);
-    public static final int PANEL = Color.rgb(7, 12, 19);
-    public static final int CYAN = Color.rgb(64, 247, 255);
-    public static final int MAGENTA = Color.rgb(255, 43, 214);
-    public static final int LIME = Color.rgb(214, 255, 57);
-    public static final int ORANGE = Color.rgb(255, 170, 54);
-    public static final int RED = Color.rgb(255, 79, 116);
-    public static final int TEXT = Color.rgb(218, 233, 238);
-    public static final int MUTED = Color.rgb(113, 139, 150);
-
     public interface Listener {
         void onSend(String prompt);
 
@@ -59,6 +48,7 @@ public final class DeckView extends FrameLayout {
 
     private final float density;
     private final Listener listener;
+    private final Palette p;
     private final LinearLayout statusRail;
     private final LinearLayout bootPanel;
     private final TextView bootKicker;
@@ -75,13 +65,14 @@ public final class DeckView extends FrameLayout {
     private final SimpleDateFormat clock = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
     private ObjectAnimator pulse;
 
-    public DeckView(Context context, Listener listener) {
+    public DeckView(Context context, Listener listener, Palette palette) {
         super(context);
         this.listener = listener;
+        this.p = palette;
         this.density = getResources().getDisplayMetrics().density;
-        setBackgroundColor(BLACK);
+        setBackgroundColor(p.background);
 
-        addView(new GridBackdropView(context), match());
+        addView(new GridBackdropView(context, p), match());
 
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -103,18 +94,18 @@ public final class DeckView extends FrameLayout {
         bootPanel = new LinearLayout(context);
         bootPanel.setOrientation(LinearLayout.VERTICAL);
         bootPanel.setPadding(dp(14), dp(12), dp(14), dp(13));
-        bootPanel.setBackground(panel(CYAN, 0xD8080E16, 1, 6));
+        bootPanel.setBackground(panel(p.accent, p.fill(0xD8), 1, 6));
 
-        bootKicker = text("BOOT SEQUENCE // 00", 10, CYAN, Typeface.BOLD);
+        bootKicker = text("BOOT SEQUENCE // 00", 10, p.accent, Typeface.BOLD);
         bootKicker.setLetterSpacing(0.16f);
         bootPanel.addView(bootKicker);
 
-        bootTitle = text("ЛОКАЛЬНОЕ ЯДРО", 17, TEXT, Typeface.BOLD);
+        bootTitle = text("ЛОКАЛЬНОЕ ЯДРО", 17, p.text, Typeface.BOLD);
         LinearLayout.LayoutParams titleLp = wrap();
         titleLp.topMargin = dp(4);
         bootPanel.addView(bootTitle, titleLp);
 
-        bootBody = text("", 12, MUTED, Typeface.NORMAL);
+        bootBody = text("", 12, p.muted, Typeface.NORMAL);
         bootBody.setLineSpacing(0, 1.17f);
         LinearLayout.LayoutParams bodyLp = wrap();
         bodyLp.topMargin = dp(6);
@@ -134,7 +125,7 @@ public final class DeckView extends FrameLayout {
         root.addView(bootPanel, bootLp);
 
         FrameLayout terminalFrame = new FrameLayout(context);
-        terminalFrame.setBackground(panel(CYAN, 0xB8050A10, 1, 4));
+        terminalFrame.setBackground(panel(p.accent, p.fill(0xB8), 1, 4));
         LinearLayout.LayoutParams terminalLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         );
@@ -152,10 +143,10 @@ public final class DeckView extends FrameLayout {
         ));
         terminalFrame.addView(terminalScroll, match());
 
-        busyLine = text("◆ PI CORE THINKING", 10, LIME, Typeface.BOLD);
+        busyLine = text("◆ PI CORE THINKING", 10, p.ok, Typeface.BOLD);
         busyLine.setLetterSpacing(0.16f);
         busyLine.setPadding(dp(10), dp(6), dp(10), dp(6));
-        busyLine.setBackground(panel(LIME, 0xEA0A1011, 1, 0));
+        busyLine.setBackground(panel(p.ok, p.fill(p.ok, 0.08f, 0xEA), 1, 0));
         busyLine.setVisibility(GONE);
         FrameLayout.LayoutParams busyLp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -170,13 +161,13 @@ public final class DeckView extends FrameLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        engineLine = text("NO LINK // SELECT RUNTIME", 9, MUTED, Typeface.BOLD);
+        engineLine = text("NO LINK // SELECT RUNTIME", 9, p.muted, Typeface.BOLD);
         engineLine.setGravity(Gravity.CENTER_VERTICAL);
         engineLine.setLetterSpacing(0.12f);
         engineLine.setPadding(dp(2), dp(6), dp(2), 0);
         root.addView(engineLine);
 
-        addView(new ScanlineView(context), match());
+        addView(new ScanlineView(context, p), match());
         setStatus(false, false, null, false, false);
     }
 
@@ -193,23 +184,23 @@ public final class DeckView extends FrameLayout {
         header.addView(identity, identityLp);
 
         SpannableString brandText = new SpannableString("π//DECK");
-        brandText.setSpan(new ForegroundColorSpan(MAGENTA), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        brandText.setSpan(new ForegroundColorSpan(CYAN), 1, brandText.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        TextView brand = text("", 24, CYAN, Typeface.BOLD);
+        brandText.setSpan(new ForegroundColorSpan(p.accentAlt), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        brandText.setSpan(new ForegroundColorSpan(p.accent), 1, brandText.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        TextView brand = text("", 24, p.accent, Typeface.BOLD);
         brand.setText(brandText);
         brand.setLetterSpacing(0.08f);
         identity.addView(brand);
 
-        TextView subtitle = text("POCKET INTELLIGENCE TERMINAL", 9, MUTED, Typeface.BOLD);
+        TextView subtitle = text("POCKET INTELLIGENCE TERMINAL", 9, p.muted, Typeface.BOLD);
         subtitle.setLetterSpacing(0.15f);
         identity.addView(subtitle);
 
         LinearLayout local = new LinearLayout(getContext());
         local.setOrientation(LinearLayout.VERTICAL);
         local.setGravity(Gravity.END);
-        TextView offline = text("LOCAL", 11, LIME, Typeface.BOLD);
+        TextView offline = text("LOCAL", 11, p.ok, Typeface.BOLD);
         offline.setGravity(Gravity.END);
-        TextView privacy = text("ZERO CLOUD", 8, MUTED, Typeface.BOLD);
+        TextView privacy = text("ZERO CLOUD", 8, p.muted, Typeface.BOLD);
         privacy.setGravity(Gravity.END);
         privacy.setLetterSpacing(0.12f);
         local.addView(offline);
@@ -225,10 +216,10 @@ public final class DeckView extends FrameLayout {
         scroll.setPadding(0, dp(7), 0, dp(6));
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(action("◫ MODELS", CYAN, listener::onModels));
-        row.addView(action("⌁ CORE", MAGENTA, listener::onCore));
-        row.addView(action(">_ TERMUX", LIME, listener::onTermux));
-        row.addView(action("× CLEAR", MUTED, listener::onClear));
+        row.addView(action("◫ MODELS", p.accent, listener::onModels));
+        row.addView(action("⌁ CORE", p.accentAlt, listener::onCore));
+        row.addView(action(">_ TERMUX", p.ok, listener::onTermux));
+        row.addView(action("× CLEAR", p.muted, listener::onClear));
         scroll.addView(row);
         return scroll;
     }
@@ -239,8 +230,8 @@ public final class DeckView extends FrameLayout {
         row.setGravity(Gravity.BOTTOM);
 
         promptInput = new EditText(getContext());
-        promptInput.setTextColor(TEXT);
-        promptInput.setHintTextColor(Color.rgb(77, 103, 114));
+        promptInput.setTextColor(p.text);
+        promptInput.setHintTextColor(p.hint);
         promptInput.setHint("› опиши, что нужно создать…");
         promptInput.setTextSize(14);
         promptInput.setTypeface(Typeface.MONOSPACE);
@@ -256,7 +247,7 @@ public final class DeckView extends FrameLayout {
                         | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
         );
         promptInput.setImeOptions(EditorInfo.IME_ACTION_SEND | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
-        promptInput.setBackground(panel(CYAN, 0xE8070D14, 1, 5));
+        promptInput.setBackground(panel(p.accent, p.fill(0xE8), 1, 5));
         promptInput.setOnEditorActionListener((view, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEND) {
                 emitPrompt();
@@ -273,7 +264,7 @@ public final class DeckView extends FrameLayout {
         });
         row.addView(promptInput, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        sendButton = button("RUN ↗", CYAN, this::emitPrompt);
+        sendButton = button("RUN ↗", p.accent, this::emitPrompt);
         sendButton.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams sendLp = new LinearLayout.LayoutParams(dp(78), dp(48));
         sendLp.leftMargin = dp(7);
@@ -289,10 +280,10 @@ public final class DeckView extends FrameLayout {
             boolean busy
     ) {
         statusRail.removeAllViews();
-        statusRail.addView(chip(termuxLinked ? "TERMUX LINK" : "NO LINK", termuxLinked ? LIME : RED));
-        statusRail.addView(chip(coreReady ? "PI READY" : "PI ABSENT", coreReady ? CYAN : ORANGE));
-        statusRail.addView(chip(model == null ? "NO MODEL" : model.tier, model == null ? MUTED : MAGENTA));
-        statusRail.addView(chip(busy ? "WORKING" : serverReady ? "LLM LIVE" : "LLM COLD", busy ? LIME : serverReady ? CYAN : MUTED));
+        statusRail.addView(chip(termuxLinked ? "TERMUX LINK" : "NO LINK", termuxLinked ? p.ok : p.error));
+        statusRail.addView(chip(coreReady ? "PI READY" : "PI ABSENT", coreReady ? p.accent : p.warn));
+        statusRail.addView(chip(model == null ? "NO MODEL" : model.tier, model == null ? p.muted : p.accentAlt));
+        statusRail.addView(chip(busy ? "WORKING" : serverReady ? "LLM LIVE" : "LLM COLD", busy ? p.ok : serverReady ? p.accent : p.muted));
     }
 
     public void setBootState(
@@ -310,10 +301,10 @@ public final class DeckView extends FrameLayout {
         bootBody.setText(body);
         bootActions.removeAllViews();
         if (primaryLabel != null && primary != null) {
-            bootActions.addView(button(primaryLabel, CYAN, primary));
+            bootActions.addView(button(primaryLabel, p.accent, primary));
         }
         if (secondaryLabel != null && secondary != null) {
-            TextView second = button(secondaryLabel, MAGENTA, secondary);
+            TextView second = button(secondaryLabel, p.accentAlt, secondary);
             LinearLayout.LayoutParams lp = wrap();
             lp.leftMargin = dp(8);
             bootActions.addView(second, lp);
@@ -391,11 +382,14 @@ public final class DeckView extends FrameLayout {
         content.setOrientation(LinearLayout.VERTICAL);
         box.addView(content, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView label = text(channelLabel(entry.channel) + "  " + time(entry.time), 9, color, Typeface.BOLD);
+        TextView label = text(
+                channelLabel(entry.channel) + "  " + time(entry.time),
+                9, channelTextColor(entry.channel), Typeface.BOLD
+        );
         label.setLetterSpacing(0.11f);
         content.addView(label);
 
-        TextView message = text(entry.text, 13, entry.channel == ConsoleEntry.Channel.ERROR ? Color.rgb(255, 190, 202) : TEXT, Typeface.NORMAL);
+        TextView message = text(entry.text, 13, entry.channel == ConsoleEntry.Channel.ERROR ? p.errorText : p.text, Typeface.NORMAL);
         message.setTextIsSelectable(true);
         message.setLineSpacing(0, 1.16f);
         message.setPadding(0, dp(4), 0, 0);
@@ -418,6 +412,10 @@ public final class DeckView extends FrameLayout {
             box.animate().alpha(1f).translationY(0).setDuration(180).start();
         }
         scrollToEnd();
+    }
+
+    public Palette palette() {
+        return p;
     }
 
     public List<ConsoleEntry> entries() {
@@ -455,7 +453,7 @@ public final class DeckView extends FrameLayout {
         view.setLetterSpacing(0.07f);
         view.setPadding(dp(12), dp(9), dp(12), dp(9));
         view.setMinHeight(dp(38));
-        view.setBackground(panel(color, 0xD90A1118, 1, 4));
+        view.setBackground(panel(color, p.fill(color, 0.06f, 0xD9), 1, 4));
         view.setClickable(true);
         view.setFocusable(true);
         view.setOnClickListener(ignored -> action.run());
@@ -485,7 +483,7 @@ public final class DeckView extends FrameLayout {
         chip.setGravity(Gravity.CENTER);
         chip.setLetterSpacing(0.07f);
         chip.setPadding(dp(7), dp(5), dp(7), dp(5));
-        chip.setBackground(panel(color, 0xA6080D13, 1, 10));
+        chip.setBackground(panel(color, p.fill(color, 0.05f, 0xA6), 1, 10));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         lp.rightMargin = dp(5);
         chip.setLayoutParams(lp);
@@ -494,22 +492,20 @@ public final class DeckView extends FrameLayout {
 
     private int channelColor(ConsoleEntry.Channel channel) {
         return switch (channel) {
-            case USER -> MAGENTA;
-            case AGENT -> CYAN;
-            case SYSTEM -> LIME;
-            case TOOL -> ORANGE;
-            case ERROR -> RED;
+            case USER -> p.accentAlt;
+            case AGENT -> p.accent;
+            case SYSTEM -> p.ok;
+            case TOOL -> p.warn;
+            case ERROR -> p.error;
         };
     }
 
     private int channelFill(ConsoleEntry.Channel channel) {
-        return switch (channel) {
-            case USER -> 0xB50E0714;
-            case AGENT -> 0xC0051015;
-            case SYSTEM -> 0xA40B100A;
-            case TOOL -> 0xA6120D08;
-            case ERROR -> 0xB516080D;
-        };
+        return p.fill(channelColor(channel), 0.09f, 0xBC);
+    }
+
+    private int channelTextColor(ConsoleEntry.Channel channel) {
+        return channel == ConsoleEntry.Channel.ERROR ? p.errorText : channelColor(channel);
     }
 
     private String channelLabel(ConsoleEntry.Channel channel) {

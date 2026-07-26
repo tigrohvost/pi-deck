@@ -8,18 +8,18 @@
 Нативная киберпанк-консоль управляет настоящим [Pi](https://github.com/earendil-works/pi),<br/>
 а GGUF-модель работает на телефоне через `llama.cpp`. Промпты не покидают устройство.
 
-[![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main&style=for-the-badge&labelColor=030509&color=40F7FF)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
-[![release](https://img.shields.io/github/v/release/tigrohvost/pi-deck?style=for-the-badge&labelColor=030509&color=FF2BD6)](https://github.com/tigrohvost/pi-deck/releases/latest)
-[![downloads](https://img.shields.io/github/downloads/tigrohvost/pi-deck/total?style=for-the-badge&labelColor=030509&color=D6FF39)](https://github.com/tigrohvost/pi-deck/releases)
-[![license](https://img.shields.io/github/license/tigrohvost/pi-deck?style=for-the-badge&labelColor=030509&color=40F7FF)](LICENSE)
+[![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main&style=for-the-badge&labelColor=2E3440&color=88C0D0)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
+[![release](https://img.shields.io/github/v/release/tigrohvost/pi-deck?style=for-the-badge&labelColor=2E3440&color=B48EAD)](https://github.com/tigrohvost/pi-deck/releases/latest)
+[![downloads](https://img.shields.io/github/downloads/tigrohvost/pi-deck/total?style=for-the-badge&labelColor=2E3440&color=A3BE8C)](https://github.com/tigrohvost/pi-deck/releases)
+[![license](https://img.shields.io/github/license/tigrohvost/pi-deck?style=for-the-badge&labelColor=2E3440&color=88C0D0)](LICENSE)
 
-![android](https://img.shields.io/badge/Android-8.0%2B%20·%20API%2026-030509?style=flat-square&logo=android&logoColor=D6FF39)
-![apk](https://img.shields.io/badge/APK-47%20KB-030509?style=flat-square&color=FF2BD6)
-![deps](https://img.shields.io/badge/runtime%20dependencies-0-030509?style=flat-square&color=40F7FF)
-![lang](https://img.shields.io/badge/Java-17-030509?style=flat-square&logo=openjdk&logoColor=40F7FF)
-![offline](https://img.shields.io/badge/inference-100%25%20on--device-030509?style=flat-square&color=D6FF39)
+![android](https://img.shields.io/badge/Android-8.0%2B%20·%20API%2026-2E3440?style=flat-square&logo=android&logoColor=A3BE8C)
+![apk](https://img.shields.io/badge/APK-48%20KB-2E3440?style=flat-square&color=B48EAD)
+![deps](https://img.shields.io/badge/runtime%20dependencies-0-2E3440?style=flat-square&color=88C0D0)
+![lang](https://img.shields.io/badge/Java-17-2E3440?style=flat-square&logo=openjdk&logoColor=88C0D0)
+![offline](https://img.shields.io/badge/inference-100%25%20on--device-2E3440?style=flat-square&color=A3BE8C)
 
-**[Русский](#-русский) · [English](#-english) · [Архитектура / Architecture](#-архитектура--architecture)**
+**[Русский](#-русский) · [English](#-english) · [Цвета / Colours](#-цветовые-схемы--colour-schemes) · [Архитектура / Architecture](#-архитектура--architecture)**
 
 </div>
 
@@ -27,7 +27,7 @@
 
 ## 🇷🇺 Русский
 
-APK не содержит многогигабайтную модель — весит 47 KB. При первом запуске деку
+APK не содержит многогигабайтную модель — весит 48 KB. При первом запуске деку
 проведёт через семь шагов, и она сама:
 
 1. связывается с Termux из F-Droid через защищённый `RUN_COMMAND`;
@@ -53,6 +53,7 @@ APK не содержит многогигабайтную модель — ве
 | 📱 телефон | общие файлы через `~/storage` |
 | 💾 сессии | сохранение и продолжение диалога |
 | 🧠 модели | смена профиля, освобождение RAM, обновление Pi из интерфейса |
+| 🎨 темы | Nord (по умолчанию) и приглушённый DECK, переключение в `CORE` |
 
 Рабочая директория — `~/.pideck/workspace`, сессии — `~/.pideck/sessions`;
 всё в приватном хранилище Termux.
@@ -144,7 +145,7 @@ wake-lock; `CORE → STOP LOCAL CORE` освобождает RAM и wake-lock.
 
 ## 🇬🇧 English
 
-The APK ships without the model and weighs 47 KB. A seven-step boot sequence
+The APK ships without the model and weighs 48 KB. A seven-step boot sequence
 walks you through everything, then the deck:
 
 1. links to Termux from F-Droid over the permission-gated `RUN_COMMAND` channel;
@@ -170,6 +171,7 @@ walks you through everything, then the deck:
 | 📱 phone | shared storage through `~/storage` |
 | 💾 sessions | save and continue a conversation |
 | 🧠 models | switch profile, free RAM, update Pi from the UI |
+| 🎨 themes | Nord by default and a dimmed DECK scheme, switched from `CORE` |
 
 The workspace is `~/.pideck/workspace` and sessions live in
 `~/.pideck/sessions`, both inside Termux private storage.
@@ -258,6 +260,29 @@ system `java` is newer, point Gradle at a supported JDK:
 
 ---
 
+## 🎨 Цветовые схемы / Colour schemes
+
+Обе схемы живут в одном `ui/Palette` — единственном месте с цветовыми литералами. Выбор
+переключается в `CORE → COLOR SCHEME` и сохраняется между запусками.
+*Both schemes live in a single `ui/Palette`, the only place colour literals exist. Switch them from
+`CORE → COLOR SCHEME`; the choice persists across launches.*
+
+| Роль / Role | `nord` (default) | `deck` (dimmed neon) |
+|:--|:--|:--|
+| background · panel · stroke | `#2E3440` `#3B4252` `#4C566A` | `#070B10` `#0B1119` `#1D2A33` |
+| accent | `#88C0D0` nord8 | `#46C6CE` |
+| accentAlt | `#B48EAD` nord15 | `#C24BA6` |
+| ok | `#A3BE8C` nord14 | `#A8C24A` |
+| warn | `#EBCB8B` nord13 | `#C98A3C` |
+| error | `#BF616A` nord11 | `#C9566E` |
+| text · muted | `#ECEFF4` · `#8A97B0` | `#C3D2D8` · `#6A808A` |
+
+> [!NOTE]
+> Контраст проверяется тестами: основной текст ≥ 7:1 к своей панели, каждый акцент ≥ 3:1, а пиковый
+> контраст акцента к фону ниже прежней неоновой палитры у обеих схем.
+> *Contrast is enforced by tests: body text ≥ 7:1 against its panel, every accent ≥ 3:1, and peak
+> accent contrast against the background below the original neon for both schemes.*
+
 ## 🧠 Архитектура / Architecture
 
 Ни Compose, ни сторонних UI-библиотек: консоль рисуется обычными Android View,
@@ -267,7 +292,7 @@ which keeps the APK tiny and startup instant.*
 
 ```mermaid
 flowchart LR
-    subgraph APK["π//DECK APK · 47 KB · no model inside"]
+    subgraph APK["π//DECK APK · 48 KB · no model inside"]
         direction TB
         UI["ui/DeckView<br/>console · boot panel · dialogs"]
         MA["MainActivity<br/>7-step boot state machine<br/>+ command watchdog"]
@@ -328,6 +353,7 @@ sequenceDiagram
 | `core/PiJsonOutput` | Разбор JSONL-событий Pi, устойчивый к обрезанным строкам · Pi JSONL event parsing, tolerant of truncated lines |
 | `core/CommandResult*` · `CommandEvents` | Доставка результата из broadcast-приёмника в активность · Result delivery from the broadcast receiver to the activity |
 | `core/DeckPreferences` | Транскрипт, выбранная модель, отложенный результат, флаги проверки · Transcript, selected model, pending result, verification flags |
+| `ui/Palette` | Все цветовые роли двух схем, производные заливки; без зависимостей от `android.graphics` · Every colour role of both schemes plus derived fills, with no `android.graphics` dependency |
 | `ui/DeckView` | Консоль, статус-рейл, boot-панель, ввод · Console, status rail, boot panel, input |
 | `ui/GridBackdropView` · `ScanlineView` | Киберпанк-фон и scanline-оверлей · Cyberpunk backdrop and scanline overlay |
 
@@ -341,19 +367,20 @@ sequenceDiagram
 | Watchdog на каждую команду · A watchdog per command | Termux может быть убит Android; без таймаута дека навсегда осталась бы в busy-состоянии · Android can kill Termux; without a timeout the deck would stay busy forever |
 | Cleartext только на loopback · Loopback-only cleartext | `llama-server` живёт на HTTP, всё остальное обязано быть TLS · `llama-server` speaks HTTP, everything else must be TLS |
 | Скрипты в одном классе · Scripts in a single class | `RuntimeScripts` целиком покрыт `bash -n` и функциональными тестами · `RuntimeScripts` is fully covered by `bash -n` and functional tests |
-| Только Android View · Plain Android Views | 47 KB APK, мгновенный старт, никаких транзитивных зависимостей · A 47 KB APK, instant startup, zero transitive dependencies |
+| Одна палитра + `recreate()` для смены схемы · One palette object, `recreate()` to switch | Цвета запекаются в вью при построении; пересборка активности дешевле и надёжнее обхода иерархии, транскрипт уже персистится · Colours are baked into views as they are built, so recreating the activity beats walking the hierarchy; the transcript is already persisted |
+| Только Android View · Plain Android Views | 48 KB APK, мгновенный старт, никаких транзитивных зависимостей · A 48 KB APK, instant startup, zero transitive dependencies |
 
 ### Тесты / Tests
 
-`./gradlew testDebugUnitTest` — 15 JVM-тестов без эмулятора: синтаксис всех
+`./gradlew testDebugUnitTest` — 29 JVM-тестов без эмулятора: синтаксис всех
 генерируемых скриптов (`bash -n`), реальный прогон архивации сессий во временном
 `HOME`, валидность `models.json` для Pi, разбор JSONL, подбор профиля по RAM и
 месту, целостность пинов каталога.
 
-*15 JVM tests, no emulator required: `bash -n` over every generated script, a
+*29 JVM tests, no emulator required: `bash -n` over every generated script, a
 real run of the session-archive script against a temporary `HOME`, `models.json`
-validity for Pi, JSONL parsing, RAM/storage-aware profile selection, and catalog
-pin integrity.*
+validity for Pi, JSONL parsing, RAM/storage-aware profile selection, catalog
+pin integrity, and the contrast and canonical values of both colour schemes.*
 
 ---
 

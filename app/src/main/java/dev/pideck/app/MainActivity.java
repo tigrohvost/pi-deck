@@ -51,6 +51,7 @@ import dev.pideck.app.core.RuntimeScripts;
 import dev.pideck.app.core.TermuxBridge;
 import dev.pideck.app.ui.ConsoleEntry;
 import dev.pideck.app.ui.DeckView;
+import dev.pideck.app.ui.Palette;
 
 public final class MainActivity extends Activity implements DeckView.Listener, CommandEvents.Listener {
     private static final int REQUEST_RUN_COMMAND = 41;
@@ -67,6 +68,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private final ExecutorService io = Executors.newSingleThreadExecutor();
 
     private DeckView deck;
+    private Palette palette;
     private DeckPreferences prefs;
     private TermuxBridge termux;
     private ModelDownloadManager modelDownloads;
@@ -107,15 +109,17 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        prefs = new DeckPreferences(this);
+        palette = Palette.forId(prefs.colorScheme());
+
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        getWindow().setStatusBarColor(DeckView.BLACK);
-        getWindow().setNavigationBarColor(DeckView.BLACK);
+        getWindow().setStatusBarColor(palette.background);
+        getWindow().setNavigationBarColor(palette.background);
         if (android.os.Build.VERSION.SDK_INT >= 29) {
             getWindow().setStatusBarContrastEnforced(false);
             getWindow().setNavigationBarContrastEnforced(false);
         }
 
-        prefs = new DeckPreferences(this);
         termux = new TermuxBridge(this);
         modelDownloads = new ModelDownloadManager(this, prefs);
         updateCapacity();
@@ -126,7 +130,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         prefs.setSelectedModelId(selectedModel.id);
         linkConfirmed = prefs.isCoreReady();
 
-        deck = new DeckView(this, this);
+        deck = new DeckView(this, this, palette);
         setContentView(deck);
         deck.setEntries(prefs.loadTranscript());
         deck.setEngineLine(deviceLine());
@@ -843,15 +847,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             card.setOrientation(LinearLayout.VERTICAL);
             card.setPadding(deck.dp(12), deck.dp(11), deck.dp(12), deck.dp(11));
             card.setBackground(deck.panel(
-                    selected ? DeckView.MAGENTA : DeckView.CYAN,
-                    0xE4070C13, 1, 5
+                    selected ? palette.accentAlt : palette.accent,
+                    palette.fill(0xE4), 1, 5
             ));
 
             LinearLayout titleRow = new LinearLayout(this);
             titleRow.setGravity(Gravity.CENTER_VERTICAL);
-            TextView title = deck.text(model.title, 15, DeckView.TEXT, Typeface.BOLD);
+            TextView title = deck.text(model.title, 15, palette.text, Typeface.BOLD);
             titleRow.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            TextView tier = deck.text(model.tier, 10, selected ? DeckView.MAGENTA : DeckView.CYAN, Typeface.BOLD);
+            TextView tier = deck.text(model.tier, 10, selected ? palette.accentAlt : palette.accent, Typeface.BOLD);
             tier.setLetterSpacing(0.12f);
             titleRow.addView(tier);
             card.addView(titleRow);
@@ -859,11 +863,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             String flags = model.humanSize() + " // ≥" + model.minimumRamGb + " GB RAM";
             if (model.equals(recommended)) flags += " // RECOMMENDED";
             if (selected) flags += " // ACTIVE";
-            TextView meta = deck.text(flags, 9, DeckView.LIME, Typeface.BOLD);
+            TextView meta = deck.text(flags, 9, palette.ok, Typeface.BOLD);
             meta.setPadding(0, deck.dp(4), 0, 0);
             card.addView(meta);
 
-            TextView note = deck.text(model.note, 11, DeckView.MUTED, Typeface.NORMAL);
+            TextView note = deck.text(model.note, 11, palette.muted, Typeface.NORMAL);
             note.setPadding(0, deck.dp(6), 0, deck.dp(7));
             card.addView(note);
 
@@ -873,26 +877,26 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 );
                 progress.setMax(100);
                 progress.setProgress(state.percent());
-                progress.setProgressTintList(android.content.res.ColorStateList.valueOf(DeckView.CYAN));
+                progress.setProgressTintList(android.content.res.ColorStateList.valueOf(palette.accent));
                 card.addView(progress, new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, deck.dp(4)
                 ));
                 TextView progressText = deck.text(
                         state.percent() + "% // " + humanBytes(state.downloadedBytes)
                                 + " / " + humanBytes(state.totalBytes),
-                        9, DeckView.CYAN, Typeface.BOLD
+                        9, palette.accent, Typeface.BOLD
                 );
                 progressText.setPadding(0, deck.dp(5), 0, 0);
                 card.addView(progressText);
             } else if (state.phase == ModelDownloadManager.Phase.COMPLETE) {
                 card.addView(deck.text(
                         verified ? "✓ DOWNLOADED // SHA-256 VERIFIED" : "◇ DOWNLOADED // VERIFY PENDING",
-                        9, verified ? DeckView.LIME : DeckView.ORANGE, Typeface.BOLD
+                        9, verified ? palette.ok : palette.warn, Typeface.BOLD
                 ));
             } else if (state.phase == ModelDownloadManager.Phase.FAILED) {
                 card.addView(deck.text(
                         "FAULT // " + ModelDownloadManager.failureLabel(state.reason),
-                        9, DeckView.RED, Typeface.BOLD
+                        9, palette.errorText, Typeface.BOLD
                 ));
             }
 
@@ -900,7 +904,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             actions.setOrientation(LinearLayout.HORIZONTAL);
             actions.setPadding(0, deck.dp(9), 0, 0);
             if (state.isActive()) {
-                actions.addView(deck.button("CANCEL", DeckView.RED, () -> {
+                actions.addView(deck.button("CANCEL", palette.errorText, () -> {
                     modelDownloads.cancel(model);
                     renderModelRows();
                     refreshUi();
@@ -909,14 +913,14 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (!selected || !serverReady) {
                     actions.addView(deck.button(
                             selected ? "RESTART CORE" : "SELECT",
-                            selected ? DeckView.CYAN : DeckView.MAGENTA,
+                            selected ? palette.accent : palette.accentAlt,
                             () -> {
                                 chooseModel(model);
                                 if (selected) startServer();
                             }
                     ));
                 }
-                TextView remove = deck.button("DELETE", DeckView.RED, () -> confirmDeleteModel(model));
+                TextView remove = deck.button("DELETE", palette.errorText, () -> confirmDeleteModel(model));
                 LinearLayout.LayoutParams removeLp = new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
                 );
@@ -925,7 +929,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             } else {
                 actions.addView(deck.button(
                         state.phase == ModelDownloadManager.Phase.FAILED ? "RETRY" : "DOWNLOAD",
-                        DeckView.CYAN,
+                        palette.accent,
                         () -> confirmDownload(model)
                 ));
             }
@@ -948,20 +952,21 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         coreDialog = shell.dialog;
         LinearLayout body = shell.body;
         body.addView(infoLine("TERMUX", termux.isInstalled() ? "INSTALLED" : "ABSENT",
-                termux.isInstalled() ? DeckView.LIME : DeckView.RED));
+                termux.isInstalled() ? palette.ok : palette.errorText));
         body.addView(infoLine("TRANSPORT", linkConfirmed ? "LINKED" : "OFFLINE",
-                linkConfirmed ? DeckView.CYAN : DeckView.ORANGE));
+                linkConfirmed ? palette.accent : palette.warn));
         body.addView(infoLine("PI RUNTIME", prefs.isCoreReady() ? "READY" : "NOT INSTALLED",
-                prefs.isCoreReady() ? DeckView.LIME : DeckView.ORANGE));
+                prefs.isCoreReady() ? palette.ok : palette.warn));
         body.addView(infoLine("LLM SERVER", serverReady ? "127.0.0.1:8080 LIVE" : "STOPPED",
-                serverReady ? DeckView.CYAN : DeckView.MUTED));
-        body.addView(infoLine("MODEL", selectedModel.title + " / " + selectedModel.tier, DeckView.MAGENTA));
-        body.addView(infoLine("WORKSPACE", "~/.pideck/workspace", DeckView.TEXT));
+                serverReady ? palette.accent : palette.muted));
+        body.addView(infoLine("MODEL", selectedModel.title + " / " + selectedModel.tier, palette.accentAlt));
+        body.addView(infoLine("WORKSPACE", "~/.pideck/workspace", palette.text));
+        body.addView(infoLine("SCHEME", palette.label, palette.accent));
 
         TextView explanation = deck.text(
                 "Pi работает как настоящий coding agent: read, write, edit, grep, find, ls и bash. "
                         + "Python и интернет доступны внутри Termux; общие файлы телефона — через ~/storage.",
-                11, DeckView.MUTED, Typeface.NORMAL
+                11, palette.muted, Typeface.NORMAL
         );
         explanation.setLineSpacing(0, 1.18f);
         LinearLayout.LayoutParams explanationLp = new LinearLayout.LayoutParams(
@@ -970,14 +975,21 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         explanationLp.topMargin = deck.dp(12);
         body.addView(explanation, explanationLp);
 
-        body.addView(dialogAction("UPDATE PI AGENT", "npm latest // keeps workspace", DeckView.CYAN, this::updateAgent));
-        body.addView(dialogAction("RESTART LLM", "reload selected GGUF", DeckView.MAGENTA, this::startServer));
-        body.addView(dialogAction("NEW SESSION", "archives current Pi conversation", DeckView.LIME, this::newSession));
+        body.addView(dialogAction("UPDATE PI AGENT", "npm latest // keeps workspace", palette.accent, this::updateAgent));
+        body.addView(dialogAction("RESTART LLM", "reload selected GGUF", palette.accentAlt, this::startServer));
+        body.addView(dialogAction("NEW SESSION", "archives current Pi conversation", palette.ok, this::newSession));
         if (busy) {
-            body.addView(dialogAction("ABORT CURRENT TASK", "send SIGINT to Pi process", DeckView.RED, this::abortAgent));
+            body.addView(dialogAction("ABORT CURRENT TASK", "send SIGINT to Pi process", palette.errorText, this::abortAgent));
         }
-        body.addView(dialogAction("COPY LINK COMMAND", "repair Termux handshake", DeckView.ORANGE, this::copyHandshakeAndOpen));
-        body.addView(dialogAction("STOP LOCAL CORE", "release model RAM and wake-lock", DeckView.RED, this::stopServer));
+        Palette next = nextScheme();
+        body.addView(dialogAction(
+                "COLOR SCHEME → " + next.id.toUpperCase(Locale.ROOT),
+                next.label.toLowerCase(Locale.ROOT),
+                palette.accentAlt,
+                this::switchColorScheme
+        ));
+        body.addView(dialogAction("COPY LINK COMMAND", "repair Termux handshake", palette.warn, this::copyHandshakeAndOpen));
+        body.addView(dialogAction("STOP LOCAL CORE", "release model RAM and wake-lock", palette.errorText, this::stopServer));
 
         coreDialog.setOnDismissListener(ignored -> coreDialog = null);
         coreDialog.show();
@@ -988,7 +1000,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, deck.dp(6), 0, deck.dp(6));
-        TextView left = deck.text(label, 10, DeckView.MUTED, Typeface.BOLD);
+        TextView left = deck.text(label, 10, palette.muted, Typeface.BOLD);
         left.setLetterSpacing(0.1f);
         TextView right = deck.text(value, 10, color, Typeface.BOLD);
         right.setGravity(Gravity.END);
@@ -1001,14 +1013,14 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(deck.dp(11), deck.dp(9), deck.dp(11), deck.dp(9));
-        row.setBackground(deck.panel(color, 0xC7080E15, 1, 4));
+        row.setBackground(deck.panel(color, palette.fill(color, 0.06f, 0xC7), 1, 4));
         row.setClickable(true);
         row.setOnClickListener(ignored -> {
             if (coreDialog != null) coreDialog.dismiss();
             action.run();
         });
         row.addView(deck.text(title, 11, color, Typeface.BOLD));
-        row.addView(deck.text(subtitle, 9, DeckView.MUTED, Typeface.NORMAL));
+        row.addView(deck.text(subtitle, 9, palette.muted, Typeface.NORMAL));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
@@ -1023,18 +1035,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(deck.dp(14), deck.dp(14), deck.dp(14), deck.dp(14));
-        root.setBackground(deck.panel(DeckView.CYAN, 0xFB050A10, 1, 7));
+        root.setBackground(deck.panel(palette.accent, palette.fill(0xFB), 1, 7));
 
-        TextView kicker = deck.text(subtitle, 9, DeckView.MAGENTA, Typeface.BOLD);
+        TextView kicker = deck.text(subtitle, 9, palette.accentAlt, Typeface.BOLD);
         kicker.setLetterSpacing(0.11f);
         root.addView(kicker);
 
         LinearLayout heading = new LinearLayout(this);
         heading.setGravity(Gravity.CENTER_VERTICAL);
         heading.setPadding(0, deck.dp(4), 0, deck.dp(10));
-        TextView titleView = deck.text(title, 20, DeckView.CYAN, Typeface.BOLD);
+        TextView titleView = deck.text(title, 20, palette.accent, Typeface.BOLD);
         heading.addView(titleView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView close = deck.button("×", DeckView.MUTED, dialog::dismiss);
+        TextView close = deck.button("×", palette.muted, dialog::dismiss);
         heading.addView(close, new LinearLayout.LayoutParams(deck.dp(42), deck.dp(38)));
         root.addView(heading);
 
@@ -1064,6 +1076,27 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         window.setAttributes(params);
         window.setDimAmount(0.72f);
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+    }
+
+    private Palette nextScheme() {
+        return Palette.SCHEME_NORD.equals(palette.id)
+                ? Palette.deck()
+                : Palette.nord();
+    }
+
+    /**
+     * Colours are baked into the views as they are built, so the activity is recreated instead of
+     * walking the hierarchy. The transcript already lives in preferences, and a result that lands
+     * during the restart is picked up from the pending slot in {@link #onResume()}.
+     */
+    private void switchColorScheme() {
+        if (busy) {
+            toast("Дождитесь завершения текущей команды");
+            return;
+        }
+        prefs.setColorScheme(nextScheme().id);
+        prefs.saveTranscript(deck.entries());
+        recreate();
     }
 
     private void copyHandshakeAndOpen() {

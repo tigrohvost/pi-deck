@@ -1,4 +1,6 @@
 <resources>
-    <color name="deck_black">#030509</color>
-    <color name="deck_cyan">#40F7FF</color>
+    <!-- Static resources cannot follow the runtime scheme, so they carry the Nord default.
+         Palette.java stays the source of truth for everything the deck draws itself. -->
+    <color name="deck_background">#2E3440</color>
+    <color name="deck_accent">#88C0D0</color>
 </resources>

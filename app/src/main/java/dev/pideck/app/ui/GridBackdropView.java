@@ -1,5 +1,6 @@
 package dev.pideck.app.ui;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -8,21 +9,18 @@ import android.graphics.Paint;
 import android.graphics.Shader;
 import android.view.View;
 
+@SuppressLint("ViewConstructor")
 public final class GridBackdropView extends View {
-    private static final int[] BACKGROUND_COLORS = {
-            Color.rgb(2, 5, 10), Color.rgb(7, 3, 19), Color.rgb(2, 10, 13)
-    };
     private static final float[] BACKGROUND_STOPS = {0f, 0.58f, 1f};
-    private static final int[] GLOW_COLORS = {
-            Color.TRANSPARENT, Color.argb(18, 255, 43, 214), Color.TRANSPARENT
-    };
     private final Paint background = new Paint();
     private final Paint grid = new Paint();
     private final Paint glow = new Paint();
+    private final Palette palette;
     private final float density;
 
-    public GridBackdropView(Context context) {
+    public GridBackdropView(Context context, Palette palette) {
         super(context);
+        this.palette = palette;
         density = getResources().getDisplayMetrics().density;
         grid.setStrokeWidth(Math.max(1f, density * 0.4f));
         glow.setStyle(Paint.Style.FILL);
@@ -32,13 +30,13 @@ public final class GridBackdropView extends View {
     protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
         background.setShader(new LinearGradient(
                 0, 0, width, height,
-                BACKGROUND_COLORS,
+                new int[]{palette.backdropStart, palette.backdropMid, palette.backdropEnd},
                 BACKGROUND_STOPS,
                 Shader.TileMode.CLAMP
         ));
         glow.setShader(new LinearGradient(
                 0, height * 0.15f, width, height * 0.82f,
-                GLOW_COLORS,
+                new int[]{Color.TRANSPARENT, palette.glow, Color.TRANSPARENT},
                 null,
                 Shader.TileMode.CLAMP
         ));
@@ -52,7 +50,7 @@ public final class GridBackdropView extends View {
 
         float step = 34f * density;
         float vanishingX = width * 0.74f;
-        grid.setColor(Color.argb(19, 64, 247, 255));
+        grid.setColor(palette.gridLine);
         for (float y = height % step; y < height; y += step) {
             canvas.drawLine(0, y, width, y, grid);
         }
