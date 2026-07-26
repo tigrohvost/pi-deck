@@ -8,6 +8,8 @@ import java.util.List;
 
 /** Small bootstrap scripts and argument arrays; operational logic lives in versioned Python. */
 public final class RuntimeScripts {
+    private static final int RUNTIME_CONTRACT_VERSION = 2;
+
     private RuntimeScripts() {
     }
 
@@ -44,6 +46,7 @@ public final class RuntimeScripts {
                 && result.optInt("schemaVersion", -1) == 1
                 && result.optBoolean("ok", false)
                 && "READY".equals(result.optString("state"))
+                && result.optInt("runtimeContractVersion", -1) == RUNTIME_CONTRACT_VERSION
                 && result.optBoolean("layoutReady", false)
                 && result.optBoolean("versionsCompatible", false)
                 && "0.82.1".equals(result.optString("piVersion"))

@@ -125,6 +125,10 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private TraceFeedView openTrace;
     private DecisionCardView decisionCard;
     private ConsentView consentView;
+    private int safeInsetLeft;
+    private int safeInsetTop;
+    private int safeInsetRight;
+    private int safeInsetBottom;
     private TextView streamingMessage;
     private LinearLayout streamingAnswer;
     private int streamingEntryIndex = -1;
@@ -204,8 +208,13 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 Insets safe = windowInsets.getInsets(
                         WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
                 );
+                safeInsetLeft = safe.left;
+                safeInsetTop = safe.top;
+                safeInsetRight = safe.right;
+                safeInsetBottom = safe.bottom;
                 root.setPadding(safe.left, safe.top, safe.right, 0);
                 tabBar.setPadding(0, 0, 0, Math.max(safe.bottom, style.dp(22)));
+                applyConsentInsets();
                 return windowInsets;
             });
         } else {
@@ -469,7 +478,18 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                     listener.onConsentGranted(askBeforeOverwrite);
                 }
         );
+        applyConsentInsets();
         addView(consentView, match());
+    }
+
+    private void applyConsentInsets() {
+        if (consentView == null) return;
+        consentView.setPadding(
+                safeInsetLeft,
+                safeInsetTop,
+                safeInsetRight,
+                safeInsetBottom
+        );
     }
 
     public boolean isConsentVisible() {

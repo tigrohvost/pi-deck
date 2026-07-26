@@ -73,6 +73,7 @@ public class RuntimeScriptsTest {
         String ready = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
+                 "runtimeContractVersion":2,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
                  "pythonVersion":"3.13","llamaVersion":"b10092"}
                 """.replace("\n ", "");
@@ -80,6 +81,12 @@ public class RuntimeScriptsTest {
         assertTrue(RuntimeScripts.isReadyProbeOutput(ready));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 ready.replace("\"state\":\"READY\"", "\"state\":\"NOT_READY\"")
+        ));
+        assertFalse(RuntimeScripts.isReadyProbeOutput(
+                ready.replace("\"runtimeContractVersion\":2", "\"runtimeContractVersion\":1")
+        ));
+        assertFalse(RuntimeScripts.isReadyProbeOutput(
+                ready.replace("\"runtimeContractVersion\":2,", "")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 "noise {\"schemaVersion\":1,\"ok\":true,\"state\":\"READY\"}"

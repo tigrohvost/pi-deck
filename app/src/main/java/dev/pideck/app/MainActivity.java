@@ -389,8 +389,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         serverReady = server != null && "READY".equals(server.optString("state"));
                     }
                     if (!startup) {
-                        append(ConsoleEntry.Channel.TOOL,
-                                "Termux bridge online.\n" + clean(result.stdout).trim());
+                        append(ConsoleEntry.Channel.TOOL, "Termux bridge online.");
                     } else if (wasCoreReady && !runtimeFound) {
                         append(ConsoleEntry.Channel.ERROR,
                                 "Pi runtime в Termux неполон. Нажмите INSTALL CORE; "
@@ -410,8 +409,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (result.isSuccess() && RuntimeScripts.isReadyProbeOutput(result.stdout)) {
                     prefs.setCoreReady(true);
                     linkConfirmed = true;
-                    append(ConsoleEntry.Channel.SYSTEM,
-                            "Pi runtime развёрнут.\n" + tail(clean(result.stdout), 9));
+                    append(ConsoleEntry.Channel.SYSTEM, "Pi runtime развёрнут и проверен.");
                 } else {
                     prefs.setCoreReady(false);
                     append(ConsoleEntry.Channel.ERROR,
@@ -498,8 +496,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 setBusy(false, null);
                 append(result.isSuccess() ? ConsoleEntry.Channel.SYSTEM : ConsoleEntry.Channel.ERROR,
                         result.isSuccess()
-                                ? "Закреплённый Pi/runtime восстановлен.\n"
-                                + tail(clean(result.stdout), 5)
+                                ? "Закреплённый Pi/runtime восстановлен и проверен."
                                 : "Обновление Pi не завершилось.\n" + runtimeError(result));
                 if (result.isSuccess() && serverReady) main.post(this::restartBridge);
             }
@@ -1626,7 +1623,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (!earlier.rows.isEmpty()) state.groups.add(earlier);
 
         if (!sessionsFault.isBlank()) {
-            state.emptyNote = "Список сессий прочитать не удалось: " + sessionsFault;
+            state.emptyNote = sessionsFault.contains("UNKNOWN_COMMAND")
+                    && sessionsFault.contains("list-sessions")
+                    ? "Установленный Pi runtime нужно обновить. Откройте Ядро → "
+                    + "Обновить Pi, затем вернитесь в Сессии."
+                    : "Список сессий прочитать не удалось: " + sessionsFault;
         } else if (state.groups.isEmpty()) {
             state.emptyNote = sessionsRequested
                     ? "В ~/.pideck/sessions пока пусто — первая сессия появится после "

@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from . import RUNTIME_VERSION
+from . import RUNTIME_CONTRACT_VERSION, RUNTIME_VERSION
 from .bridge import bootstrap_bridge, serve, stop_bridge
 from .common import (
     BASE,
@@ -335,6 +335,7 @@ def probe() -> dict[str, Any]:
             else "INCOMPLETE"
         ),
         "runtimeVersion": RUNTIME_VERSION,
+        "runtimeContractVersion": RUNTIME_CONTRACT_VERSION,
         "piVersion": pi_version,
         "nodeVersion": node_version,
         "pythonVersion": python_version,

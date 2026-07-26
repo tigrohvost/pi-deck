@@ -17,10 +17,21 @@ phone through `llama-server`; the agent runtime lives in Termux without root.
 > Local inference is not network isolation. Depending on the selected access
 > profile, tools running as the Termux user may access files and the network.
 
+## Интерфейс · Interface
+
+| Nord — локальное ядро | DECK — локальное ядро |
+|:--:|:--:|
+| <img src="docs/screenshots/nord-core.png" alt="PI//DECK Nord interface showing the local model matrix" width="360"> | <img src="docs/screenshots/deck-core.png" alt="PI//DECK DECK interface showing the local model matrix" width="360"> |
+
 ## Русский
 
 ### Что изменено в 0.3.0-alpha1
 
+- нативный интерфейс полностью переработан: доступны палитры `NORD` и `DECK`,
+  нижняя навигация `КОНСОЛЬ` / `ЯДРО` / `СЕССИИ`, живой статус ядра и единый
+  язык карточек для действий, решений и ошибок;
+- экран сессий читает реальный список из Termux, а служебные JSON-ответы
+  runtime больше не попадают в пользовательскую консоль;
 - каждый callback, event, watchdog и abort связан с полным UUIDv4
   `operationId`;
 - операции сохраняются атомарно по отдельным app-private файлам, поздний
@@ -32,7 +43,10 @@ phone through `llama-server`; the agent runtime lives in Termux without root.
   identity; чужой процесс на порту не завершается;
 - GGUF копируется из shared incoming в приватный Termux store с повторным
   SHA-256, fsync, atomic rename и полным hash перед каждым новым стартом;
-- Android UI учитывает нижний system-bar inset на edge-to-edge Android;
+- Android UI и consent-экран учитывают верхний и нижний system-bar inset на
+  edge-to-edge Android 15/16;
+- versioned runtime публикует строгую версию контракта: старая сборка больше не
+  считается готовой, если в ней ещё нет команд нового интерфейса;
 - один строгий `models-v2.json` задаёт artifact, runtime и sampling;
 - потоковые ответы, reconnect/event journal и структурированный abort работают
   через локальный Pi RPC bridge;
@@ -123,6 +137,11 @@ GGUF installation and runtime updates, then moves interactive turns to Pi
 0.82.1's authenticated JSONL RPC bridge. Prompts are sent in request bodies,
 not process arguments. Streaming events survive Activity recreation, and
 unknown outcomes are reconciled without automatic replay.
+
+The native UI now ships with switchable `NORD` and `DECK` palettes, dedicated
+Console, Core and Sessions tabs, live core state, and consistent action,
+decision and failure cards. The runtime contract is versioned so an older
+Termux bundle cannot be mistaken for one that supports the new screens.
 
 The default `READ_ONLY` profile has no mutating tools. `CONFIRM_CHANGES`
 disables the built-in mutators and exposes one-time approval-gated equivalents.
