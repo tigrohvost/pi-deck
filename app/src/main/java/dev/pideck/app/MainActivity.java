@@ -13,6 +13,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.StatFs;
 import android.view.WindowManager;
 import android.widget.Toast;
@@ -52,6 +53,7 @@ import dev.pideck.app.ui.ConsoleEntry;
 import dev.pideck.app.ui.CoreRootView;
 import dev.pideck.app.ui.DeckStyle;
 import dev.pideck.app.ui.DeckView;
+import dev.pideck.app.ui.FailureCardView;
 import dev.pideck.app.ui.Palette;
 import dev.pideck.app.ui.SessionsRootView;
 import dev.pideck.app.ui.TabBarView;
@@ -103,6 +105,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private float textScale;
     /** A prompt typed while a turn was running; dispatched when the deck frees up. */
     private String queuedPrompt;
+    /** The heat warning is worth one line per turn, not one per event. */
+    private boolean thermalWarned;
     private Runnable watchdog;
     private OperationId watchdogOperationId;
     private int heartbeatTick;
@@ -214,8 +218,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             toast("Транспорт Termux разрешён");
             refreshUi();
         } else {
-            append(ConsoleEntry.Channel.ERROR,
-                    "Android не выдал RUN_COMMAND. Откройте сведения о PI//DECK → разрешения → дополнительные разрешения.");
+            FailureCardView.Failure failure = new FailureCardView.Failure(
+                    "Разрешение отозвано",
+                    "Termux больше не пускает",
+                    "Android не выдал RUN_COMMAND, без которого дека не может запустить ни одной "
+                            + "команды в Termux. Разрешение выдаётся в сведениях о приложении, "
+                            + "в разделе дополнительных разрешений.",
+                    true
+            );
+            failure.recovered("сессия и весь диалог сохранены", "файлы в рабочей папке не тронуты");
+            failure.primary(
+                    "Повторить настройку",
+                    () -> termux.requestRunPermission(this, REQUEST_RUN_COMMAND)
+            );
+            failure.secondary("Открыть настройки приложения", termux::openAppSettings);
+            deck.addFailure(failure);
+            prefs.saveTranscript(deck.entries());
             refreshUi();
         }
     }
@@ -244,7 +262,25 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
 
         append(ConsoleEntry.Channel.USER, prompt);
+        warnIfHot();
         dispatchRpcTurn(prompt);
+    }
+
+    /**
+     * A hot phone halves the token rate, and the drop is otherwise indistinguishable from the
+     * deck hanging. Said once per turn, and never made sticky.
+     */
+    private void warnIfHot() {
+        if (thermalWarned || android.os.Build.VERSION.SDK_INT < 29) return;
+        PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+        if (power == null) return;
+        int status = power.getCurrentThermalStatus();
+        if (status < PowerManager.THERMAL_STATUS_MODERATE) return;
+        thermalWarned = true;
+        deck.addThermalNotice(status >= PowerManager.THERMAL_STATUS_SEVERE
+                ? "Телефон сильно нагрелся — Android режет частоту, ответ будет заметно дольше."
+                : "Телефон нагрелся — скорость упала примерно вдвое.");
+        prefs.saveTranscript(deck.entries());
     }
 
     @Override
@@ -780,11 +816,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             if (!busy || !operationId.equals(active)) return;
             operations.timeout(operationId);
             watchdogOperationId = null;
-            setBusy(true, "OPERATION STATE // UNKNOWN");
-            append(ConsoleEntry.Channel.ERROR,
-                    "Результат операции неизвестен; часть изменений могла быть применена. "
-                            + "Проверьте состояние workspace перед повтором. Operation ID: "
-                            + operationId);
+            setBusy(true, "Ответа нет");
+            reportWatchdog(operationId, kind, timeout);
             if (kind == OperationKind.AGENT_TURN || kind == OperationKind.NEW_SESSION) {
                 io.execute(() -> {
                     try {
@@ -797,6 +830,35 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
         };
         main.postDelayed(watchdog, timeout);
+    }
+
+    /**
+     * A silent Termux is the deck's most common failure, and the honest report is that the result
+     * is unknown — so the card offers both readings: wait longer, or stop and take the loss.
+     */
+    private void reportWatchdog(OperationId operationId, OperationKind kind, long waited) {
+        FailureCardView.Failure failure = new FailureCardView.Failure(
+                "Связь потеряна",
+                "Команда идёт слишком долго",
+                "Termux не ответил за " + (waited / 60_000L) + " мин. Так бывает, когда Android "
+                        + "выгружает его ради экономии батареи. Часть изменений могла быть уже "
+                        + "применена — проверьте рабочую папку перед повтором.",
+                false
+        );
+        failure.recovered(
+                "вывод, который уже пришёл, сохранён",
+                "сессия и весь диалог сохранены",
+                "запрос не повторялся автоматически"
+        );
+        failure.primary("Ждать ещё", () -> {
+            append(ConsoleEntry.Channel.SYSTEM, "Жду ещё; операция " + operationId + ".");
+            armWatchdog(operationId, kind, kind.timeoutMs());
+        });
+        if (kind == OperationKind.AGENT_TURN) {
+            failure.secondary("Прервать задачу", this::abortAgent);
+        }
+        deck.addFailure(failure);
+        prefs.saveTranscript(deck.entries());
     }
 
     private void cancelWatchdog(OperationId completedOperationId) {
@@ -1113,8 +1175,25 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         verificationFault = error == null || error.isBlank()
                                 ? "SHA‑256 не совпал (" + actualHash.substring(0, Math.min(12, actualHash.length())) + "…)"
                                 : error;
-                        append(ConsoleEntry.Channel.ERROR,
-                                model.title + " не прошла проверку целостности: " + verificationFault);
+                        // The claim below has to be true before it is made.
+                        boolean removed = modelDownloads.delete(model);
+                        FailureCardView.Failure failure = new FailureCardView.Failure(
+                                "Файл повреждён",
+                                "Файл модели повреждён",
+                                model.title + " не сошлась с закреплённым SHA-256: "
+                                        + verificationFault
+                                        + " Так бывает при обрыве загрузки или подмене зеркала.",
+                                true
+                        );
+                        failure.recovered(
+                                removed
+                                        ? "битый файл удалён, место освобождено"
+                                        : "битый файл помечен непроверенным",
+                                "модели и сессии на диске не тронуты"
+                        );
+                        failure.primary("Скачать заново", () -> confirmDownload(model));
+                        deck.addFailure(failure);
+                        prefs.saveTranscript(deck.entries());
                     }
                     refreshUi();
                 });
@@ -1130,10 +1209,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         // The current target is dropped before the transfer starts, so its bytes count as free.
         long available = freeStorage + modelDownloads.reclaimableBytes(model);
         if (available < ModelCatalog.requiredStorageForFreshInstall(model)) {
-            append(ConsoleEntry.Channel.ERROR,
-                    "Для " + model.title + " нужно минимум "
-                            + humanBytes(ModelCatalog.requiredStorageForFreshInstall(model))
-                            + " свободного места. Сейчас доступно " + humanBytes(available) + ".");
+            reportNoRoomFor(model, available);
             return;
         }
         String networkNote = isMetered()
@@ -1167,6 +1243,47 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     refreshUi();
                 })
                 .show();
+    }
+
+    /**
+     * Running out of space is a choice, not a breakage: the deck offers the largest profile that
+     * still fits rather than telling the user to go and delete things.
+     */
+    private void reportNoRoomFor(ModelSpec model, long available) {
+        FailureCardView.Failure failure = new FailureCardView.Failure(
+                "Не хватает места",
+                "Не хватит места на " + model.tier,
+                model.title + " просит " + humanBytes(
+                        ModelCatalog.requiredStorageForFreshInstall(model)
+                ) + " вместе с приватной копией; свободно " + humanBytes(available) + ".",
+                false
+        );
+        failure.recovered("загрузка не начата", "уже скачанные модели не тронуты");
+        ModelSpec fallback = largestModelThatFits(available, model);
+        if (fallback == null) {
+            failure.primary("Проверить место снова", () -> {
+                updateCapacity();
+                refreshUi();
+            });
+        } else {
+            failure.primary(
+                    "Взять " + fallback.tier + " · " + fallback.humanSize(),
+                    () -> confirmDownload(fallback)
+            );
+        }
+        deck.addFailure(failure);
+        prefs.saveTranscript(deck.entries());
+    }
+
+    private ModelSpec largestModelThatFits(long available, ModelSpec rejected) {
+        ModelSpec best = null;
+        for (ModelSpec candidate : modelCatalog.all()) {
+            if (candidate.equals(rejected)) continue;
+            if (available < ModelCatalog.requiredStorageForFreshInstall(candidate)) continue;
+            if (totalRam < candidate.minimumAvailableMiB * 1_048_576L) continue;
+            if (best == null || candidate.bytes > best.bytes) best = candidate;
+        }
+        return best;
     }
 
     private void chooseModel(ModelSpec model) {
@@ -1743,6 +1860,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
         cancelWatchdog(event.operationId);
         setBusy(false, null);
+        thermalWarned = false;
         if (record.kind == OperationKind.NEW_SESSION) {
             if (success) {
                 String actualSession = event.payload.optString("sessionId", event.sessionId);

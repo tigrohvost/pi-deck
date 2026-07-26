@@ -574,6 +574,48 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         scrollToEnd();
     }
 
+    /**
+     * A failure card takes over the stream: everything above it drops to 60% so the card is read
+     * first. The next thing the user says brings the history back.
+     */
+    public void addFailure(FailureCardView.Failure failure) {
+        openTrace = null;
+        ConsoleEntry entry = new ConsoleEntry(
+                ConsoleEntry.Channel.ERROR, failure.transcriptText()
+        );
+        View card = new FailureCardView(getContext(), style, failure);
+        for (int index = 0; index < stream.getChildCount(); index++) {
+            stream.getChildAt(index).setAlpha(0.6f);
+        }
+        attachBlock(card, true);
+        entries.add(entry);
+        blocks.add(card);
+        trimToCap();
+        updateEmptyState();
+        scrollToEnd();
+    }
+
+    /** A one-per-turn warning that is not a failure: the phone is hot and the deck is slower. */
+    public void addThermalNotice(String text) {
+        LinearLayout notice = new LinearLayout(getContext());
+        notice.setOrientation(LinearLayout.HORIZONTAL);
+        notice.setBackground(style.outlined(p.background, p.stroke, 7));
+        notice.setPadding(style.dp(15), style.dp(13), style.dp(15), style.dp(13));
+        notice.addView(style.monoTrace("!", p.warn), new LinearLayout.LayoutParams(
+                style.dp(16), ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        notice.addView(style.caption(text), new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ));
+        openTrace = null;
+        attachBlock(notice, true);
+        entries.add(new ConsoleEntry(ConsoleEntry.Channel.SYSTEM, text));
+        blocks.add(notice);
+        trimToCap();
+        updateEmptyState();
+        scrollToEnd();
+    }
+
     /** Convenience for the bridge's tool events. */
     public void addTrace(String verb, String argument, String detail) {
         addEntry(ConsoleEntry.trace(verb, argument, detail));
@@ -608,6 +650,10 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
             block = switch (entry.channel) {
                 case USER -> {
                     lastWrittenPath = "";
+                    // A new turn ends the dimming a failure card imposed on the history.
+                    for (int index = 0; index < stream.getChildCount(); index++) {
+                        stream.getChildAt(index).setAlpha(1f);
+                    }
                     yield userBubble(entry.text);
                 }
                 case AGENT -> answerBlock(entry.text, true);
