@@ -33,6 +33,20 @@ public final class Palette {
     public final int muted;
     public final int hint;
 
+    /** Unselected list row: one step off the background, one short of the panel. */
+    public final int cardFill;
+    /** Pressed state of a list row or scenario card. */
+    public final int cardFillHover;
+    /** Explanatory paragraphs: lighter than muted, short of full body text. */
+    public final int textSecondary;
+    /** Divider inside a list, where a full stroke would cut the column in two. */
+    public final int strokeFaint;
+    /**
+     * Timings and the "⋯ ещё N" affordance in the tool trace. Deliberately recessive — it sits
+     * below the label contrast bar and carries no information the trace line does not repeat.
+     */
+    public final int traceIdle;
+
     public final int backdropStart;
     public final int backdropMid;
     public final int backdropEnd;
@@ -60,6 +74,11 @@ public final class Palette {
             int text,
             int muted,
             int hint,
+            int cardFill,
+            int cardFillHover,
+            int textSecondary,
+            int strokeFaint,
+            int traceIdle,
             int backdropStart,
             int backdropMid,
             int backdropEnd,
@@ -82,6 +101,11 @@ public final class Palette {
         this.text = text;
         this.muted = muted;
         this.hint = hint;
+        this.cardFill = cardFill;
+        this.cardFillHover = cardFillHover;
+        this.textSecondary = textSecondary;
+        this.strokeFaint = strokeFaint;
+        this.traceIdle = traceIdle;
         this.backdropStart = backdropStart;
         this.backdropMid = backdropMid;
         this.backdropEnd = backdropEnd;
@@ -112,6 +136,11 @@ public final class Palette {
                 0xFFECEFF4,          // text        nord6
                 0xFF8A97B0,          // muted       between nord3 and nord4
                 0xFF6C7893,          // hint
+                0xFF353C49,          // cardFill      between nord0 and nord1
+                0xFF3F4756,          // cardFillHover nord1 lifted
+                0xFFB8C2D4,          // textSecondary between nord4 and nord6
+                0xFF3B4252,          // strokeFaint   nord1
+                0xFF4C566A,          // traceIdle     nord3
                 0xFF2E3440,
                 0xFF333B4A,
                 0xFF3B4252,
@@ -139,6 +168,11 @@ public final class Palette {
                 0xFFC3D2D8,          // was DAE9EE
                 0xFF6A808A,          // was 718B96
                 0xFF465C66,
+                0xFF070B10,          // cardFill      the deck scheme keeps rows on the background
+                0xFF0B1119,          // cardFillHover panel
+                0xFFC3D2D8,          // textSecondary already dim enough to double as body
+                0xFF1D2A33,          // strokeFaint   stroke
+                0xFF334552,          // traceIdle     between stroke and muted
                 0xFF04070C,
                 0xFF080513,
                 0xFF04090C,

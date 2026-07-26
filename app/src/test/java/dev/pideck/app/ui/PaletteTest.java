@@ -44,6 +44,8 @@ public class PaletteTest {
                     palette.background, palette.panel, palette.stroke,
                     palette.accent, palette.accentAlt, palette.ok, palette.warn,
                     palette.error, palette.errorText, palette.text, palette.muted, palette.hint,
+                    palette.cardFill, palette.cardFillHover, palette.textSecondary,
+                    palette.strokeFaint, palette.traceIdle,
                     palette.backdropStart, palette.backdropMid, palette.backdropEnd
             )) {
                 assertEquals(palette.id, 0xFF, (color >>> 24) & 0xFF);
@@ -71,6 +73,49 @@ public class PaletteTest {
     }
 
     @Test
+    public void bodyTextClearsTheEnhancedContrastBarOnListRowsToo() {
+        // A list row is the second surface body text lands on, so it carries the same 7:1 bar.
+        for (Palette palette : List.of(Palette.nord(), Palette.deck())) {
+            assertContrast(palette.id + " text on cardFill", palette.text, palette.cardFill, 7.0);
+            assertContrast(
+                    palette.id + " text on cardFillHover", palette.text, palette.cardFillHover, 7.0
+            );
+        }
+    }
+
+    @Test
+    public void secondaryTextClearsTheNormalContrastBar() {
+        // Explanatory paragraphs are deliberately below body text, but stay above WCAG AA.
+        for (Palette palette : List.of(Palette.nord(), Palette.deck())) {
+            assertContrast(
+                    palette.id + " textSecondary on panel",
+                    palette.textSecondary, palette.panel, 4.5
+            );
+            assertContrast(
+                    palette.id + " textSecondary on cardFill",
+                    palette.textSecondary, palette.cardFill, 4.5
+            );
+        }
+    }
+
+    @Test
+    public void traceIdleRecedesBehindEveryTextRole() {
+        // traceIdle is scenery, not text: it must read as dimmer than muted, and nothing that
+        // carries unique information may be drawn in it.
+        for (Palette palette : List.of(Palette.nord(), Palette.deck())) {
+            assertTrue(
+                    palette.id + " traceIdle " + luminance(palette.traceIdle)
+                            + " should sit below muted " + luminance(palette.muted),
+                    luminance(palette.traceIdle) < luminance(palette.muted)
+            );
+            assertTrue(
+                    palette.id + " traceIdle should stay above the stroke it borders",
+                    luminance(palette.traceIdle) >= luminance(palette.stroke)
+            );
+        }
+    }
+
+    @Test
     public void everyLabelColorStaysReadableOnItsPanel() {
         for (Palette palette : List.of(Palette.nord(), Palette.deck())) {
             assertContrast(palette.id + " accent", palette.accent, palette.panel, 3.0);
@@ -79,6 +124,14 @@ public class PaletteTest {
             assertContrast(palette.id + " warn", palette.warn, palette.panel, 3.0);
             assertContrast(palette.id + " errorText", palette.errorText, palette.panel, 3.0);
             assertContrast(palette.id + " muted", palette.muted, palette.panel, 3.0);
+
+            assertContrast(palette.id + " accent on row", palette.accent, palette.cardFill, 3.0);
+            assertContrast(
+                    palette.id + " accentAlt on row", palette.accentAlt, palette.cardFill, 3.0
+            );
+            assertContrast(palette.id + " ok on row", palette.ok, palette.cardFill, 3.0);
+            assertContrast(palette.id + " warn on row", palette.warn, palette.cardFill, 3.0);
+            assertContrast(palette.id + " muted on row", palette.muted, palette.cardFill, 3.0);
         }
     }
 
