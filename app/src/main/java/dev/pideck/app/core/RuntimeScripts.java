@@ -1,9 +1,12 @@
 package dev.pideck.app.core;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
+/** Small bootstrap scripts and argument arrays; operational logic lives in versioned Python. */
 public final class RuntimeScripts {
     private RuntimeScripts() {
     }
@@ -12,248 +15,79 @@ public final class RuntimeScripts {
         return """
                 set -eu
                 printf 'PIDECK_LINK_OK\\n'
-                command -v pi >/dev/null 2>&1 && printf 'PI=' && pi --version || true
-                command -v llama-server >/dev/null 2>&1 && printf 'LLAMA=ready\\n' || true
-                command -v python >/dev/null 2>&1 && printf 'PYTHON=' && python --version || true
-                """;
-    }
-
-    public static String installCore() {
-        return """
-                set -eu
-                export DEBIAN_FRONTEND=noninteractive
-                printf '[01/05] synchronizing Termux packages\\n'
-                pkg update -y
-                printf '[02/05] installing native runtime\\n'
-                # An app-shell has no tty, so dpkg must never stop on a conffile prompt.
-                pkg install -y -o Dpkg::Options::=--force-confold \
-                  nodejs python llama-cpp curl git ripgrep jq procps
-                printf '[03/05] installing Pi coding agent\\n'
-                if npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.82.1; then
-                  PI_PACKAGE='@earendil-works/pi-coding-agent@0.82.1'
-                else
-                  npm install -g --ignore-scripts @mariozechner/pi-coding-agent@0.73.1
-                  PI_PACKAGE='@mariozechner/pi-coding-agent@0.73.1'
-                fi
-                printf '[04/05] creating deck workspace\\n'
-                mkdir -p "$HOME/.pideck/workspace" "$HOME/.pideck/sessions" "$HOME/.pideck/pi"
-                cat > "$HOME/.pideck/workspace/AGENTS.md" <<'PIDECK_AGENTS'
-                # PI//DECK phone workspace
-
-                You are Pi running locally on this Android phone through Termux.
-
-                - Work inside this workspace unless the user explicitly asks for another local path.
-                - Python, shell, git, curl, and ripgrep are available.
-                - Internet access is available through normal command-line tools.
-                - Shared phone files are under `~/storage/shared`; downloads are under `~/storage/downloads`.
-                - Preserve existing phone files. Before overwriting or deleting user data, explain the exact target.
-                - Prefer small, runnable programs and verify them locally before reporting completion.
-                PIDECK_AGENTS
-                cat > "$HOME/.pideck/pi/models.json" <<'PIDECK_MODELS'
-                {
-                  "providers": {
-                    "pideck": {
-                      "baseUrl": "http://127.0.0.1:8080/v1",
-                      "api": "openai-completions",
-                      "apiKey": "pideck-local",
-                      "compat": {
-                        "supportsDeveloperRole": false,
-                        "supportsReasoningEffort": false,
-                        "supportsStore": false,
-                        "supportsUsageInStreaming": false,
-                        "maxTokensField": "max_tokens"
-                      },
-                      "models": [
-                        {
-                          "id": "qwen3.5-0.8b",
-                          "name": "Qwen3.5 0.8B · PI//DECK NANO",
-                          "reasoning": false,
-                          "input": ["text"],
-                          "contextWindow": 8192,
-                          "maxTokens": 1024,
-                          "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
-                        },
-                        {
-                          "id": "qwen3.5-2b",
-                          "name": "Qwen3.5 2B · PI//DECK EDGE",
-                          "reasoning": false,
-                          "input": ["text"],
-                          "contextWindow": 8192,
-                          "maxTokens": 1536,
-                          "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
-                        },
-                        {
-                          "id": "qwen3.5-4b",
-                          "name": "Qwen3.5 4B · PI//DECK CORE",
-                          "reasoning": false,
-                          "input": ["text"],
-                          "contextWindow": 8192,
-                          "maxTokens": 2048,
-                          "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
-                        },
-                        {
-                          "id": "qwen3.5-9b",
-                          "name": "Qwen3.5 9B · PI//DECK MAX",
-                          "reasoning": false,
-                          "input": ["text"],
-                          "contextWindow": 8192,
-                          "maxTokens": 2048,
-                          "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}
-                        }
-                      ]
-                    }
-                  }
-                }
-                PIDECK_MODELS
-                printf '[05/05] runtime self-check\\n'
-                printf 'PI_PACKAGE=%s\\n' "$PI_PACKAGE"
-                printf 'PI_VERSION='
-                PI_CODING_AGENT_DIR="$HOME/.pideck/pi" pi --version
-                printf 'PYTHON_VERSION='
-                python --version
-                printf 'LLAMA_SERVER='
-                command -v llama-server
-                printf 'PIDECK_CORE_READY\\n'
-                """;
-    }
-
-    public static String updateAgent() {
-        return """
-                set -eu
-                printf 'Updating Pi agent…\\n'
-                if npm install -g --ignore-scripts @earendil-works/pi-coding-agent@latest; then
-                  :
-                else
-                  npm install -g --ignore-scripts @mariozechner/pi-coding-agent@latest
-                fi
-                printf 'PI_VERSION='
-                PI_CODING_AGENT_DIR="$HOME/.pideck/pi" pi --version
-                printf 'PIDECK_AGENT_UPDATED\\n'
-                """;
-    }
-
-    public static String startServer(ModelSpec model, int threads) {
-        String safeFile = shellSingleQuote(model.fileName);
-        String safeId = shellSingleQuote(model.id);
-        int safeThreads = Math.max(2, Math.min(8, threads));
-        return String.format(Locale.US, """
-                set -eu
                 BASE="$HOME/.pideck"
-                MODEL="$HOME/storage/downloads/PiDeck/models/"%s
-                MODEL_ID=%s
-                LOG="$BASE/llama-server.log"
-                PIDFILE="$BASE/llama-server.pid"
-                test -r "$MODEL" || {
-                  printf 'GGUF is not readable at: %%s\\n' "$MODEL" >&2
-                  printf 'Run termux-setup-storage once and grant file access.\\n' >&2
-                  exit 21
-                }
-                if [ -s "$PIDFILE" ]; then
-                  OLD_PID="$(cat "$PIDFILE" 2>/dev/null || true)"
-                  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
-                    kill "$OLD_PID" 2>/dev/null || true
-                    for _ in 1 2 3 4 5; do
-                      kill -0 "$OLD_PID" 2>/dev/null || break
-                      sleep 1
-                    done
-                  fi
+                if [ -f "$BASE/runtime/pideck_runtime/launcher.py" ] \
+                  && [ -f "$BASE/runtime/models-v2.json" ]; then
+                  export PATH="$BASE/runtime/bin:$PATH"
+                  export PYTHONPATH="$BASE/runtime"
+                  export PI_CODING_AGENT_DIR="$BASE/pi"
+                  export PI_CODING_AGENT_SESSION_DIR="$BASE/sessions"
+                  export LD_PRELOAD="$PREFIX/lib/libtermux-exec.so"
+                  python -m pideck_runtime.launcher probe
+                else
+                  printf '{"schemaVersion":1,"ok":false,"state":"NOT_INSTALLED"}\\n'
                 fi
-                termux-wake-lock >/dev/null 2>&1 || true
-                : > "$LOG"
-                nohup llama-server \
-                  -m "$MODEL" \
-                  --alias "$MODEL_ID" \
-                  --host 127.0.0.1 \
-                  --port 8080 \
-                  -c 8192 \
-                  -np 1 \
-                  -t %d \
-                  --jinja \
-                  --reasoning off \
-                  --temp 0.7 \
-                  --top-p 0.8 \
-                  --top-k 20 \
-                  --min-p 0.0 \
-                  --presence-penalty 1.5 \
-                  > "$LOG" 2>&1 < /dev/null &
-                SERVER_PID=$!
-                printf '%%s\\n' "$SERVER_PID" > "$PIDFILE"
-                sleep 3
-                if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-                  tail -n 40 "$LOG" >&2 || true
-                  exit 22
-                fi
-                printf 'PIDECK_SERVER_STARTED pid=%%s model=%%s threads=%s\\n' "$SERVER_PID" "$MODEL_ID"
-                """, safeFile, safeId, safeThreads, safeThreads);
-    }
-
-    public static String stopServer() {
-        return """
-                set -eu
-                PIDFILE="$HOME/.pideck/llama-server.pid"
-                if [ -s "$PIDFILE" ]; then
-                  PID="$(cat "$PIDFILE")"
-                  kill "$PID" 2>/dev/null || true
-                  rm -f "$PIDFILE"
-                fi
-                termux-wake-unlock >/dev/null 2>&1 || true
-                printf 'PIDECK_SERVER_STOPPED\\n'
                 """;
     }
 
-    public static String newSession() {
-        return """
-                set -eu
-                SRC="$HOME/.pideck/sessions"
-                DST="$HOME/.pideck/session-archive/$(date +%Y%m%d-%H%M%S)"
-                moved=0
-                if [ -d "$SRC" ]; then
-                  mkdir -p "$DST"
-                  # Pi stores sessions as sessions/<encoded-cwd>/<id>.jsonl, so archive whole entries.
-                  for entry in "$SRC"/* "$SRC"/.[!.]*; do
-                    [ -e "$entry" ] || continue
-                    mv "$entry" "$DST/"
-                    moved=1
-                  done
-                  [ "$moved" -eq 1 ] || rmdir "$DST" 2>/dev/null || true
-                fi
-                printf 'PIDECK_NEW_SESSION\\n'
-                """;
+    public static boolean isLinkProbeOutput(String stdout) {
+        if (stdout == null) return false;
+        for (String line : stdout.split("\\R")) {
+            if ("PIDECK_LINK_OK".equals(line.trim())) return true;
+        }
+        return false;
     }
 
-    public static String abortAgent() {
-        return """
-                set -eu
-                pkill -INT -f '/data/data/com.termux/files/usr/bin/pi' 2>/dev/null || true
-                printf 'PIDECK_AGENT_ABORT_SENT\\n'
-                """;
+    public static boolean isReadyProbeOutput(String stdout) {
+        JSONObject result = finalJsonObject(stdout);
+        return result != null
+                && result.optInt("schemaVersion", -1) == 1
+                && result.optBoolean("ok", false)
+                && "READY".equals(result.optString("state"))
+                && result.optBoolean("layoutReady", false)
+                && result.optBoolean("versionsCompatible", false)
+                && "0.82.1".equals(result.optString("piVersion"))
+                && !result.isNull("nodeVersion")
+                && !result.isNull("pythonVersion")
+                && !result.isNull("llamaVersion");
     }
 
-    public static String[] agentArguments(ModelSpec model, boolean continueSession, String prompt) {
-        List<String> args = new ArrayList<>();
-        args.add("PI_CODING_AGENT_DIR=" + TermuxBridge.HOME + "/.pideck/pi");
-        args.add("PI_CODING_AGENT_SESSION_DIR=" + TermuxBridge.HOME + "/.pideck/sessions");
-        args.add("PI_OFFLINE=1");
-        args.add(TermuxBridge.PREFIX + "/bin/pi");
-        args.add("--approve");
-        args.add("--mode");
-        args.add("json");
-        args.add("--provider");
-        args.add("pideck");
-        args.add("--model");
-        args.add(model.id);
-        args.add("--thinking");
-        args.add("off");
-        args.add("--tools");
-        args.add("read,bash,edit,write,grep,find,ls");
-        args.add("--session-dir");
-        args.add(TermuxBridge.HOME + "/.pideck/sessions");
-        if (continueSession) args.add("--continue");
-        args.add(prompt);
-        return args.toArray(new String[0]);
+    public static JSONObject finalJsonObject(String stdout) {
+        if (stdout == null) return null;
+        JSONObject latest = null;
+        for (String line : stdout.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) continue;
+            try {
+                JSONObject candidate = new JSONObject(trimmed);
+                if (candidate.has("schemaVersion") && candidate.has("ok")) latest = candidate;
+            } catch (JSONException ignored) {
+                // A malformed line is not interpreted by substring; caller receives a probe error.
+            }
+        }
+        return latest;
     }
 
-    private static String shellSingleQuote(String value) {
-        return "'" + value.replace("'", "'\"'\"'") + "'";
+    public static String[] runtimeArguments(String command) {
+        if (command == null || !command.matches("^[a-z][a-z0-9-]{1,31}$")) {
+            throw new IllegalArgumentException("Unsafe runtime command");
+        }
+        String base = TermuxBridge.HOME + "/.pideck";
+        List<String> arguments = new ArrayList<>();
+        arguments.add("LD_PRELOAD=" + TermuxBridge.TERMUX_EXEC);
+        arguments.add("PYTHONPATH=" + base + "/runtime");
+        arguments.add("PATH=" + base + "/runtime/bin:" + TermuxBridge.PREFIX + "/bin");
+        arguments.add("PI_CODING_AGENT_DIR=" + base + "/pi");
+        arguments.add("PI_CODING_AGENT_SESSION_DIR=" + base + "/sessions");
+        arguments.add("PI_OFFLINE=1");
+        arguments.add(TermuxBridge.PREFIX + "/bin/python");
+        arguments.add("-m");
+        arguments.add("pideck_runtime.launcher");
+        arguments.add(command);
+        return arguments.toArray(new String[0]);
+    }
+
+    public static String jsonInput(JSONObject value) {
+        return (value == null ? new JSONObject() : value).toString();
     }
 }

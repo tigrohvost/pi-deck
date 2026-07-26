@@ -5,8 +5,10 @@ import android.animation.ObjectAnimator;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Insets;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.text.InputType;
 import android.text.SpannableString;
 import android.text.Spanned;
@@ -15,6 +17,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -61,9 +64,14 @@ public final class DeckView extends FrameLayout {
     private EditText promptInput;
     private TextView sendButton;
     private final TextView engineLine;
+    private TextView privacyLine;
     private final List<ConsoleEntry> entries = new ArrayList<>();
     private final SimpleDateFormat clock = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
     private ObjectAnimator pulse;
+    private TextView streamingMessage;
+    private int streamingEntryIndex = -1;
+    private long streamingEntryTime;
+    private final StringBuilder streamingText = new StringBuilder();
 
     public DeckView(Context context, Listener listener, Palette palette) {
         super(context);
@@ -76,8 +84,26 @@ public final class DeckView extends FrameLayout {
 
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(14), dp(11), dp(14), dp(9));
+        int contentLeft = dp(14);
+        int contentTop = dp(11);
+        int contentRight = dp(14);
+        int contentBottom = dp(9);
+        root.setPadding(contentLeft, contentTop, contentRight, contentBottom);
         addView(root, match());
+        if (Build.VERSION.SDK_INT >= 35) {
+            setOnApplyWindowInsetsListener((view, windowInsets) -> {
+                Insets safe = windowInsets.getInsets(
+                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+                );
+                root.setPadding(
+                        contentLeft + safe.left,
+                        contentTop + safe.top,
+                        contentRight + safe.right,
+                        contentBottom + safe.bottom
+                );
+                return windowInsets;
+            });
+        }
 
         root.addView(buildHeader(), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -200,11 +226,11 @@ public final class DeckView extends FrameLayout {
         local.setGravity(Gravity.END);
         TextView offline = text("LOCAL", 11, p.ok, Typeface.BOLD);
         offline.setGravity(Gravity.END);
-        TextView privacy = text("ZERO CLOUD", 8, p.muted, Typeface.BOLD);
-        privacy.setGravity(Gravity.END);
-        privacy.setLetterSpacing(0.12f);
+        privacyLine = text("TOOLS: NO SHELL", 8, p.muted, Typeface.BOLD);
+        privacyLine.setGravity(Gravity.END);
+        privacyLine.setLetterSpacing(0.12f);
         local.addView(offline);
-        local.addView(privacy);
+        local.addView(privacyLine);
         header.addView(local);
         return header;
     }
@@ -342,6 +368,10 @@ public final class DeckView extends FrameLayout {
         engineLine.setText(value == null ? "" : value.toUpperCase(Locale.ROOT));
     }
 
+    public void setPrivacyLine(String value) {
+        privacyLine.setText(value == null ? "" : value.toUpperCase(Locale.ROOT));
+    }
+
     public void setEntries(List<ConsoleEntry> restored) {
         entries.clear();
         transcript.removeAllViews();
@@ -359,10 +389,11 @@ public final class DeckView extends FrameLayout {
         addEntryInternal(entry, true);
     }
 
-    private void addEntryInternal(ConsoleEntry entry, boolean animate) {
+    private TextView addEntryInternal(ConsoleEntry entry, boolean animate) {
         entries.add(entry);
         while (entries.size() > 60) {
             entries.remove(0);
+            if (streamingEntryIndex >= 0) streamingEntryIndex--;
             if (transcript.getChildCount() > 0) transcript.removeViewAt(0);
         }
 
@@ -395,7 +426,9 @@ public final class DeckView extends FrameLayout {
         message.setPadding(0, dp(4), 0, 0);
         message.setOnLongClickListener(view -> {
             ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-            clipboard.setPrimaryClip(ClipData.newPlainText("PI//DECK", entry.text));
+            clipboard.setPrimaryClip(ClipData.newPlainText(
+                    "PI//DECK", ((TextView) view).getText()
+            ));
             Toast.makeText(getContext(), "Скопировано", Toast.LENGTH_SHORT).show();
             return true;
         });
@@ -412,6 +445,73 @@ public final class DeckView extends FrameLayout {
             box.animate().alpha(1f).translationY(0).setDuration(180).start();
         }
         scrollToEnd();
+        return message;
+    }
+
+    public void beginStreaming() {
+        if (streamingMessage != null) return;
+        streamingText.setLength(0);
+        streamingEntryTime = System.currentTimeMillis();
+        streamingEntryIndex = entries.size();
+        streamingMessage = addEntryInternal(
+                new ConsoleEntry(ConsoleEntry.Channel.AGENT, "…", streamingEntryTime),
+                true
+        );
+    }
+
+    public void appendStreaming(String delta) {
+        if (delta == null || delta.isEmpty()) return;
+        if (streamingMessage == null) beginStreaming();
+        int remaining = 256 * 1024 - streamingText.length();
+        if (remaining > 0) {
+            streamingText.append(delta, 0, Math.min(delta.length(), remaining));
+        }
+        String value = streamingText.length() == 0 ? "…" : streamingText.toString();
+        streamingMessage.setText(value);
+        if (streamingEntryIndex >= 0 && streamingEntryIndex < entries.size()) {
+            entries.set(
+                    streamingEntryIndex,
+                    new ConsoleEntry(ConsoleEntry.Channel.AGENT, value, streamingEntryTime)
+            );
+        }
+        scrollToEnd();
+    }
+
+    public String finishStreaming(String fallback) {
+        String value = streamingText.length() == 0
+                ? (fallback == null || fallback.isBlank()
+                ? "Задача завершена без текстового ответа."
+                : fallback)
+                : streamingText.toString();
+        if (streamingMessage == null) {
+            addEntry(new ConsoleEntry(ConsoleEntry.Channel.AGENT, value));
+        } else {
+            streamingMessage.setText(value);
+            if (streamingEntryIndex >= 0 && streamingEntryIndex < entries.size()) {
+                entries.set(
+                        streamingEntryIndex,
+                        new ConsoleEntry(ConsoleEntry.Channel.AGENT, value, streamingEntryTime)
+                );
+            }
+        }
+        streamingMessage = null;
+        streamingEntryIndex = -1;
+        streamingEntryTime = 0L;
+        streamingText.setLength(0);
+        return value;
+    }
+
+    public void discardStreaming() {
+        if (streamingEntryIndex >= 0 && streamingEntryIndex < entries.size()) {
+            entries.remove(streamingEntryIndex);
+            if (streamingEntryIndex < transcript.getChildCount()) {
+                transcript.removeViewAt(streamingEntryIndex);
+            }
+        }
+        streamingMessage = null;
+        streamingEntryIndex = -1;
+        streamingEntryTime = 0L;
+        streamingText.setLength(0);
     }
 
     public Palette palette() {

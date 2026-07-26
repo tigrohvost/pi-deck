@@ -1,0 +1,282 @@
+{
+  "schemaVersion": 2,
+  "catalogVersion": "2026.07.26.1",
+  "models": [
+    {
+      "id": "qwen3.5-0.8b",
+      "title": "Qwen3.5 0.8B",
+      "tier": "NANO",
+      "status": "EXPERIMENTAL",
+      "note": "Самый быстрый профиль для телефонов с небольшим запасом доступной памяти.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/ggml-org/Qwen3.5-0.8B-GGUF",
+        "verifiedAt": "2026-07-26T00:00:00Z"
+      },
+      "source": {
+        "repository": "ggml-org/Qwen3.5-0.8B-GGUF",
+        "revision": "8fea620810c4afa23dd6443f999a48574c1611a3",
+        "official": false,
+        "provenance": "llama.cpp-maintained-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "Qwen/Qwen3.5-0.8B",
+        "conversion": {
+          "performedBy": "ggml-org",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen3.5-0.8B-Q4_0.gguf",
+        "bytes": 563036064,
+        "sha256": "57d1997790d1744fba5b40a7317df71ea5e2acee28c47e78f0cce39c0703f8cf"
+      },
+      "runtime": {
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off"
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 1024,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 1536,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.5-2b",
+      "title": "Qwen3.5 2B",
+      "tier": "EDGE",
+      "status": "EXPERIMENTAL",
+      "note": "Лёгкий локальный агент для небольших правок и быстрых ответов.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF",
+        "verifiedAt": "2026-07-26T00:00:00Z"
+      },
+      "source": {
+        "repository": "bartowski/Qwen_Qwen3.5-2B-GGUF",
+        "revision": "7d26695454df6de5fbcce2e58681e62dae06ce43",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "Qwen/Qwen3.5-2B",
+        "conversion": {
+          "performedBy": "bartowski",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
+        "bytes": 1396198496,
+        "sha256": "57a1085840f497d764a7fc5d346922dbde961efb54cc792ea81d694fd846a1d8"
+      },
+      "runtime": {
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 6144,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off"
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.5-4b",
+      "title": "Qwen3.5 4B",
+      "tier": "CORE",
+      "status": "EXPERIMENTAL",
+      "note": "Основной профиль для флагманского телефона; device benchmark ещё не опубликован.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF",
+        "verifiedAt": "2026-07-26T00:00:00Z"
+      },
+      "source": {
+        "repository": "bartowski/Qwen_Qwen3.5-4B-GGUF",
+        "revision": "4168f45a16a1290d65a4ec0fa312ae917a4c15d6",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "Qwen/Qwen3.5-4B",
+        "conversion": {
+          "performedBy": "bartowski",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "bytes": 3013027808,
+        "sha256": "13c16f426047e2de38cd075bdade4a7bcbc8c774384876f677740cda65f8a983"
+      },
+      "runtime": {
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 6144,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off"
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 2048,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 5120,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.5-9b",
+      "title": "Qwen3.5 9B",
+      "tier": "MAX",
+      "status": "EXPERIMENTAL",
+      "note": "Многошаговый профиль с высоким риском OOM; требует отдельного device benchmark.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-9B-GGUF",
+        "verifiedAt": "2026-07-26T00:00:00Z"
+      },
+      "source": {
+        "repository": "bartowski/Qwen_Qwen3.5-9B-GGUF",
+        "revision": "182be2fd6c7bc44887d88a91cb03ff009cc9f549",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "Qwen/Qwen3.5-9B",
+        "conversion": {
+          "performedBy": "bartowski",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen_Qwen3.5-9B-Q4_K_M.gguf",
+        "bytes": 6169341984,
+        "sha256": "d784ce9eda1a5a7b51e8f705a9e6310844bf4f173654d115823c775fdea56d43"
+      },
+      "runtime": {
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off"
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 2048,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 10240,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    }
+  ]
+}

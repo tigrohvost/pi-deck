@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tigrohvost/pi-deck/schemas/benchmark-report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "suiteVersion", "runId", "deviceId", "modelId",
+    "modelSha256", "piVersion", "llamaCppVersion", "contextSize",
+    "samplingProfile", "tasks", "metrics"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "suiteVersion": {"const": "suite-v1"},
+    "runId": {"type": "string", "minLength": 8},
+    "deviceId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "modelId": {"type": "string"},
+    "modelSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "piVersion": {"type": "string"},
+    "llamaCppVersion": {"type": "string"},
+    "contextSize": {"type": "integer", "minimum": 512},
+    "samplingProfile": {"type": "object"},
+    "tasks": {"type": "array", "minItems": 24},
+    "metrics": {
+      "type": "object",
+      "required": [
+        "task_success_rate", "invalid_tool_call_rate",
+        "unintended_file_change_count", "outside_workspace_change_count",
+        "session_recovery_rate", "abort_success_rate", "cold_start_seconds",
+        "time_to_first_token_seconds", "time_to_first_tool_call_seconds",
+        "tokens_per_second", "peak_server_rss_mib", "peak_total_termux_rss_mib",
+        "server_crash_count", "oom_count", "battery_delta_percent",
+        "average_power_or_energy_if_available", "thermal_throttling_events",
+        "device_temperature_start_end"
+      ]
+    }
+  }
+}

@@ -21,11 +21,18 @@ public final class PiJsonOutput {
         public final boolean recognized;
         public final String answer;
         public final List<Trace> traces;
+        public final List<String> protocolErrors;
 
-        Parsed(boolean recognized, String answer, List<Trace> traces) {
+        Parsed(
+                boolean recognized,
+                String answer,
+                List<Trace> traces,
+                List<String> protocolErrors
+        ) {
             this.recognized = recognized;
             this.answer = answer;
             this.traces = traces;
+            this.protocolErrors = protocolErrors;
         }
     }
 
@@ -36,12 +43,12 @@ public final class PiJsonOutput {
         boolean recognized = false;
         String answer = "";
         ArrayList<Trace> traces = new ArrayList<>();
-        if (raw == null) return new Parsed(false, "", traces);
+        ArrayList<String> errors = new ArrayList<>();
+        if (raw == null) return new Parsed(false, "", traces, errors);
 
         for (String sourceLine : raw.split("\\n")) {
-            int objectStart = sourceLine.indexOf('{');
-            if (objectStart < 0) continue;
-            String line = sourceLine.substring(objectStart).trim();
+            String line = sourceLine.trim();
+            if (line.isEmpty()) continue;
             try {
                 JSONObject event = new JSONObject(line);
                 String type = event.optString("type");
@@ -78,10 +85,12 @@ public final class PiJsonOutput {
                     }
                 }
             } catch (Exception ignored) {
-                // A Termux result can start mid-line when its 100 KB IPC cap truncates a long trace.
+                if (errors.size() < 8) {
+                    errors.add("MALFORMED_JSON:" + Integer.toHexString(line.hashCode()));
+                }
             }
         }
-        return new Parsed(recognized, answer.trim(), traces);
+        return new Parsed(recognized, answer.trim(), traces, errors);
     }
 
     private static String assistantText(JSONObject message) {
@@ -104,7 +113,7 @@ public final class PiJsonOutput {
     private static String compact(Object value) {
         if (value == null || value == JSONObject.NULL) return "";
         String raw = value instanceof String ? (String) value : String.valueOf(value);
-        raw = raw.replace("\\n", "\n").trim();
+        raw = raw.trim();
         if (raw.length() <= 360) return raw;
         return raw.substring(0, 350) + "…";
     }

@@ -11,8 +11,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
-import java.util.UUID;
-
 @SuppressLint("SdCardPath")
 public final class TermuxBridge {
     public static final String PACKAGE = "com.termux";
@@ -20,6 +18,7 @@ public final class TermuxBridge {
     public static final String PREFIX = "/data/data/com.termux/files/usr";
     public static final String HOME = "/data/data/com.termux/files/home";
     public static final String WORKSPACE = HOME + "/.pideck/workspace";
+    public static final String TERMUX_EXEC = PREFIX + "/lib/libtermux-exec.so";
 
     private static final String ACTION_RUN = "com.termux.RUN_COMMAND";
     private static final String SERVICE = "com.termux.app.RunCommandService";
@@ -39,6 +38,10 @@ public final class TermuxBridge {
         }
     }
 
+    public TermuxEnvironment inspectEnvironment() {
+        return TermuxEnvironment.inspect(context);
+    }
+
     public boolean hasRunPermission() {
         return context.checkSelfPermission(RUN_PERMISSION) == PackageManager.PERMISSION_GRANTED;
     }
@@ -47,21 +50,31 @@ public final class TermuxBridge {
         activity.requestPermissions(new String[]{RUN_PERMISSION}, requestCode);
     }
 
-    public String run(
-            String kind,
+    public void run(
+            OperationId operationId,
+            OperationKind kind,
             String executable,
             String[] arguments,
             String stdin,
             String workdir
     ) {
-        if (!isInstalled()) throw new IllegalStateException("Termux не установлен");
+        TermuxEnvironment environment = inspectEnvironment();
+        if (!environment.installed) throw new IllegalStateException("Termux не установлен");
+        if (!environment.versionSupported) {
+            throw new IllegalStateException(
+                    "Версия Termux " + environment.version + " ниже минимальной 0.118.0"
+            );
+        }
+        if (environment.source == TermuxEnvironment.Source.UNKNOWN) {
+            throw new SecurityException("Подпись Termux отсутствует в compatibility allowlist");
+        }
         if (!hasRunPermission()) throw new SecurityException("Нет разрешения RUN_COMMAND");
 
-        String requestId = kind + ":" + UUID.randomUUID();
         Intent callback = new Intent(context, CommandResultReceiver.class)
                 .setAction("dev.pideck.app.COMMAND_RESULT")
-                .putExtra(CommandResultReceiver.EXTRA_REQUEST_ID, requestId);
-        int requestCode = requestId.hashCode() & 0x7fffffff;
+                .putExtra(CommandResultReceiver.EXTRA_OPERATION_ID, operationId.toString())
+                .putExtra(CommandResultReceiver.EXTRA_OPERATION_KIND, kind.wireName());
+        int requestCode = operationId.hashCode() & 0x7fffffff;
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_ONE_SHOT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) flags |= PendingIntent.FLAG_MUTABLE;
         PendingIntent pendingIntent = PendingIntent.getBroadcast(context, requestCode, callback, flags);
@@ -77,15 +90,40 @@ public final class TermuxBridge {
                 // session, which ignores RUN_COMMAND_STDIN and never returns stdout to the deck.
                 .putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
                 .putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", pendingIntent)
-                .putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "PI//DECK " + kind);
+                .putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "PI//DECK " + kind.wireName());
         if (stdin != null) command.putExtra("com.termux.RUN_COMMAND_STDIN", stdin);
 
         context.startService(command);
-        return requestId;
     }
 
-    public String runBash(String kind, String script) {
-        return run(kind, PREFIX + "/bin/bash", new String[]{"-s"}, script, HOME);
+    public void runBash(OperationId operationId, OperationKind kind, String script) {
+        run(operationId, kind, PREFIX + "/bin/env", bashArguments(), script, HOME);
+    }
+
+    public void runRuntime(
+            OperationId operationId,
+            OperationKind kind,
+            String command,
+            String jsonInput
+    ) {
+        run(
+                operationId,
+                kind,
+                PREFIX + "/bin/env",
+                RuntimeScripts.runtimeArguments(command),
+                jsonInput,
+                WORKSPACE
+        );
+    }
+
+    static String[] bashArguments() {
+        // RUN_COMMAND bypasses Termux's login wrapper, which is normally responsible for loading
+        // termux-exec. Without it, npm launchers with #!/usr/bin/env fail before Bash can run them.
+        return new String[]{
+                "LD_PRELOAD=" + TERMUX_EXEC,
+                PREFIX + "/bin/bash",
+                "-s"
+        };
     }
 
     public void openTermux() {

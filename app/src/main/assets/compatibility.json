@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "appVersion": "0.3.0-alpha1",
+  "baselineCommit": "40e477af89781bcd2dd2573cf985238041292658",
+  "pi": {
+    "package": "@earendil-works/pi-coding-agent",
+    "version": "0.82.1",
+    "npmIntegrity": "sha512-zbkAhoIuDPMF3pKuja0ajZabrMWU29FUMV9A/XMXT/XC1yXs5xt6t6t13GogQFsDrDqbFP4DkZQO1w8rWRAzYA==",
+    "npmShasum": "39c00809ff5531b6552b9ecb2c41f4c3529ec988",
+    "gitHead": "b4f293684bba718d59cc1157679bcf6157b3a7f5"
+  },
+  "fallbackPi": {
+    "package": "@mariozechner/pi-coding-agent",
+    "version": "0.73.1",
+    "npmIntegrity": "sha512-gXQh3SaZmWTfVMc4Ao5+LGbVeKvzyO7tolok0nLsZgq9nGjZx/EEU3NM8C+qUnB4Nvs2rswG5qOVgLzQkq0fHQ==",
+    "npmShasum": "a14f26f45d3553556149432d743242675771862a",
+    "gitHead": "781152fc24841dc54b22284514604048ebe5e2c9"
+  },
+  "node": {
+    "minimumVersion": "22.19.0",
+    "maximumTestedVersion": null
+  },
+  "llamaCpp": {
+    "minimumVersion": "b10092",
+    "maximumTestedVersion": "b10092",
+    "requiredCapabilities": ["server", "jinja", "reasoning", "api-key"]
+  },
+  "termux": {
+    "minimumVersion": "0.118.0",
+    "trustedSigners": {
+      "fdroid": "228fb2cfe90831c1499ec3ccaf61e96e8e1ce70766b9474672ce427334d41c42"
+    },
+    "knownInsecureSigners": {
+      "githubSharedTestKey": "b6da01480eefd5fbf2cd3771b8d1021ec791304bdd6c4bf41d3faabad48ee5e1"
+    }
+  },
+  "termuxApi": {
+    "package": "com.termux.api",
+    "minimumVersion": "0.50.1",
+    "optional": true,
+    "usedFor": ["wake-lock"]
+  },
+  "modelManifestSchema": 2,
+  "testedAndroid": [
+    {
+      "api": 36,
+      "deviceClass": "12 GiB",
+      "device": "Samsung SM-S918B",
+      "scope": "pre-hardening bootstrap and Qwen3.5 4B CPU smoke; 0.3.0-alpha1 revalidation pending"
+    }
+  ]
+}

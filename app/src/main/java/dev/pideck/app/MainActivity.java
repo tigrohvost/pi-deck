@@ -29,26 +29,37 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
+import dev.pideck.app.core.AccessProfile;
+import dev.pideck.app.core.BridgeEvent;
+import dev.pideck.app.core.BridgeTokenStore;
 import dev.pideck.app.core.CommandEvents;
 import dev.pideck.app.core.CommandResult;
 import dev.pideck.app.core.DeckPreferences;
 import dev.pideck.app.core.ModelCatalog;
 import dev.pideck.app.core.ModelDownloadManager;
 import dev.pideck.app.core.ModelSpec;
+import dev.pideck.app.core.OperationCoordinator;
+import dev.pideck.app.core.OperationId;
+import dev.pideck.app.core.OperationKind;
+import dev.pideck.app.core.OperationRecord;
+import dev.pideck.app.core.OperationState;
+import dev.pideck.app.core.OperationStore;
 import dev.pideck.app.core.PiJsonOutput;
+import dev.pideck.app.core.RpcBridgeClient;
+import dev.pideck.app.core.RuntimeAssetBundle;
 import dev.pideck.app.core.RuntimeScripts;
 import dev.pideck.app.core.TermuxBridge;
+import dev.pideck.app.core.TermuxEnvironment;
 import dev.pideck.app.ui.ConsoleEntry;
 import dev.pideck.app.ui.DeckView;
 import dev.pideck.app.ui.Palette;
@@ -59,7 +70,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             "mkdir -p ~/.termux && " +
             "(grep -q '^allow-external-apps=true$' ~/.termux/termux.properties 2>/dev/null || " +
             "printf '\\nallow-external-apps=true\\n' >> ~/.termux/termux.properties) && " +
-            "termux-reload-settings && termux-setup-storage";
+            "termux-reload-settings && " +
+            "([ -d \"$HOME/storage/downloads\" ] || termux-setup-storage)";
     private static final Pattern ANSI = Pattern.compile(
             "(?:\\u001B\\][^\\u0007]*(?:\\u0007|\\u001B\\\\))|(?:\\u001B\\[[0-?]*[ -/]*[@-~])"
     );
@@ -70,28 +82,42 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private DeckView deck;
     private Palette palette;
     private DeckPreferences prefs;
+    private OperationStore operationStore;
+    private OperationCoordinator operations;
     private TermuxBridge termux;
+    private TermuxEnvironment termuxEnvironment;
     private ModelDownloadManager modelDownloads;
+    private ModelCatalog modelCatalog;
+    private BridgeTokenStore bridgeTokenStore;
+    private RpcBridgeClient rpc;
+    private AccessProfile accessProfile;
     private ModelSpec selectedModel;
     private long totalRam;
+    private long availableRam;
     private long freeStorage;
     private int cpuThreads;
+    private boolean lowMemory;
+    private boolean modelSelectionRequired;
 
     private boolean linkConfirmed;
     private boolean serverReady;
-    private boolean serverHealthInFlight;
+    private boolean bridgeReady;
+    private boolean bridgeConnected;
+    private String bridgeFault = "";
     private boolean busy;
     private boolean verifying;
     private int verificationPercent;
     private String verificationFault = "";
-    private String lastPrompt = "";
-    private boolean retriedWithoutSession;
     private Dialog modelsDialog;
     private LinearLayout modelRows;
     private Dialog coreDialog;
     private Runnable watchdog;
-    private String watchdogKind = "";
+    private OperationId watchdogOperationId;
     private int heartbeatTick;
+    private boolean startupProbeAttempted;
+    private AlertDialog approvalDialog;
+    private String currentApprovalId;
+    private String observedBridgeInstance;
 
     private final Runnable heartbeat = new Runnable() {
         @Override
@@ -100,7 +126,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             if (heartbeatTick % 4 == 0) updateCapacity();
             heartbeatTick++;
             refreshUi();
-            checkServerHealth();
             if (modelsDialog != null && modelsDialog.isShowing()) renderModelRows();
             main.postDelayed(this, heartbeatDelay());
         }
@@ -110,7 +135,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = new DeckPreferences(this);
+        operationStore = new OperationStore(this);
+        operations = new OperationCoordinator(operationStore);
         palette = Palette.forId(prefs.colorScheme());
+        accessProfile = prefs.accessProfile();
+        bridgeTokenStore = new BridgeTokenStore(this);
+        rpc = new RpcBridgeClient(bridgeTokenStore.getOrCreate());
+        observedBridgeInstance = prefs.bridgeInstanceId();
 
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         getWindow().setStatusBarColor(palette.background);
@@ -121,20 +152,30 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
 
         termux = new TermuxBridge(this);
+        termuxEnvironment = termux.inspectEnvironment();
         modelDownloads = new ModelDownloadManager(this, prefs);
+        modelCatalog = ModelCatalog.initialize(this);
         updateCapacity();
         String savedModel = prefs.selectedModelId();
-        selectedModel = savedModel == null
-                ? ModelCatalog.recommend(totalRam, freeStorage)
-                : ModelCatalog.byId(savedModel);
-        prefs.setSelectedModelId(selectedModel.id);
+        selectedModel = modelCatalog.byId(savedModel).orElseGet(
+                () -> modelCatalog.recommend(availableRam, lowMemory, freeStorage)
+        );
+        modelSelectionRequired = savedModel == null || modelCatalog.byId(savedModel).isEmpty();
+        if (savedModel != null && modelSelectionRequired) prefs.clearSelectedModelId();
         linkConfirmed = prefs.isCoreReady();
+        OperationRecord restored = operations.active();
+        busy = restored != null && !restored.state.isTerminal();
 
         deck = new DeckView(this, this, palette);
         setContentView(deck);
         deck.setEntries(prefs.loadTranscript());
         deck.setEngineLine(deviceLine());
+        updatePrivacyIndicator();
         refreshUi();
+        if (restored != null && !restored.state.isTerminal()) {
+            OperationRecord active = operations.active();
+            if (active != null) main.post(() -> armRestoredWatchdog(active));
+        }
     }
 
     @Override
@@ -142,13 +183,17 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         super.onStart();
         CommandEvents.addListener(this);
         main.post(heartbeat);
+        main.post(this::probeRuntimeOnLaunch);
+        startRpcPolling();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        CommandResult pending = prefs.consumePendingResult();
-        if (pending != null) handleCommandResult(pending);
+        termuxEnvironment = termux.inspectEnvironment();
+        for (OperationRecord record : operations.unconsumedResults()) {
+            if (record.result != null) handleCommandResult(record.result, true);
+        }
         refreshUi();
     }
 
@@ -164,7 +209,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     protected void onDestroy() {
         if (modelsDialog != null) modelsDialog.dismiss();
         if (coreDialog != null) coreDialog.dismiss();
-        cancelWatchdog();
+        if (approvalDialog != null) approvalDialog.dismiss();
+        cancelWatchdog(null);
+        if (rpc != null) rpc.close();
         io.shutdownNow();
         super.onDestroy();
     }
@@ -185,6 +232,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     @Override
     public void onSend(String prompt) {
+        if (prompt.getBytes(StandardCharsets.UTF_8).length > 64 * 1024) {
+            toast("Промпт больше лимита 64 KiB");
+            return;
+        }
         if (busy) {
             toast("Pi уже выполняет задачу");
             return;
@@ -195,23 +246,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
 
-        lastPrompt = prompt;
-        retriedWithoutSession = false;
         append(ConsoleEntry.Channel.USER, prompt);
-        setBusy(true, "PI AGENT // RUNNING");
-        try {
-            termux.run(
-                    "agent",
-                    TermuxBridge.PREFIX + "/bin/env",
-                    RuntimeScripts.agentArguments(selectedModel, prefs.hasSession(), prompt),
-                    null,
-                    TermuxBridge.WORKSPACE
-            );
-            armWatchdog("agent");
-        } catch (RuntimeException error) {
-            setBusy(false, null);
-            append(ConsoleEntry.Channel.ERROR, readableException(error));
-        }
+        dispatchRpcTurn(prompt);
     }
 
     @Override
@@ -238,36 +274,54 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     @Override
     public void onCommandResult(CommandResult result) {
-        runOnUiThread(() -> {
-            prefs.consumePendingResult();
-            handleCommandResult(result);
-        });
+        runOnUiThread(() -> handleCommandResult(result, false));
     }
 
-    private void handleCommandResult(CommandResult result) {
-        String kind = result.kind();
-        if (kind.equals(watchdogKind)) cancelWatchdog();
-        switch (kind) {
-            case "probe" -> {
+    private void handleCommandResult(CommandResult result, boolean recovered) {
+        boolean ownsUi = operations.onResult(result);
+        OperationId activeId = operations.activeOperationId();
+        boolean control = result.kind == OperationKind.ABORT_AGENT
+                || result.kind == OperationKind.RECONCILE;
+        if (!ownsUi && !control && !(recovered && activeId == null)) {
+            operations.markConsumed(result.operationId);
+            return;
+        }
+        cancelWatchdog(result.operationId);
+        switch (result.kind) {
+            case PROBE_RUNTIME -> {
+                OperationRecord record = operationStore.load(result.operationId);
+                boolean startup = record != null && record.request.optBoolean("startup", false);
                 setBusy(false, null);
-                if (result.isSuccess() && result.stdout.contains("PIDECK_LINK_OK")) {
+                if (result.isSuccess() && RuntimeScripts.isLinkProbeOutput(result.stdout)) {
                     linkConfirmed = true;
-                    boolean runtimeFound = result.stdout.contains("PI=")
-                            && result.stdout.contains("LLAMA=ready")
-                            && result.stdout.contains("PYTHON=");
-                    if (runtimeFound) prefs.setCoreReady(true);
-                    append(ConsoleEntry.Channel.TOOL,
-                            "Termux bridge online.\n" + clean(result.stdout).trim());
+                    boolean wasCoreReady = prefs.isCoreReady();
+                    boolean runtimeFound = RuntimeScripts.isReadyProbeOutput(result.stdout);
+                    prefs.setCoreReady(runtimeFound);
+                    JSONObject probe = RuntimeScripts.finalJsonObject(result.stdout);
+                    if (probe != null) {
+                        JSONObject server = probe.optJSONObject("server");
+                        serverReady = server != null && "READY".equals(server.optString("state"));
+                    }
+                    if (!startup) {
+                        append(ConsoleEntry.Channel.TOOL,
+                                "Termux bridge online.\n" + clean(result.stdout).trim());
+                    } else if (wasCoreReady && !runtimeFound) {
+                        append(ConsoleEntry.Channel.ERROR,
+                                "Pi runtime в Termux неполон. Нажмите INSTALL CORE; "
+                                        + "загружать GGUF повторно не нужно.");
+                    }
                 } else {
                     linkConfirmed = false;
-                    append(ConsoleEntry.Channel.ERROR,
-                            "Termux пока не принимает команды.\n" + result.usefulError()
-                                    + "\n\nВыполните строку из шага LINK вручную в Termux.");
+                    if (!startup) {
+                        append(ConsoleEntry.Channel.ERROR,
+                                "Termux пока не принимает команды.\n" + result.usefulError()
+                                        + "\n\nВыполните строку из шага LINK вручную в Termux.");
+                    }
                 }
             }
-            case "install" -> {
+            case INSTALL_RUNTIME -> {
                 setBusy(false, null);
-                if (result.isSuccess() && result.stdout.contains("PIDECK_CORE_READY")) {
+                if (result.isSuccess() && RuntimeScripts.isReadyProbeOutput(result.stdout)) {
                     prefs.setCoreReady(true);
                     linkConfirmed = true;
                     append(ConsoleEntry.Channel.SYSTEM,
@@ -279,31 +333,91 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                     + "\n\nМожно повторить: пакетный менеджер Termux продолжит с места остановки.");
                 }
             }
-            case "start" -> {
+            case INSTALL_MODEL -> {
                 setBusy(false, null);
-                if (result.isSuccess()) {
-                    append(ConsoleEntry.Channel.TOOL, clean(result.stdout).trim());
-                    main.postDelayed(this::checkServerHealth, 900L);
+                ModelSpec operationModel = modelForOperation(result.operationId);
+                if (runtimeState(result, "READY")) {
+                    if (operationModel != null) {
+                        prefs.setPrivateModelInstalled(operationModel, true);
+                    }
+                    append(ConsoleEntry.Channel.SYSTEM,
+                            (operationModel == null ? "GGUF" : operationModel.title)
+                                    + " установлена в приватное хранилище Termux. "
+                                    + "Shared incoming-файл теперь можно удалить отдельно.");
+                } else {
+                    if (operationModel != null) {
+                        prefs.setPrivateModelInstalled(operationModel, false);
+                    }
+                    append(ConsoleEntry.Channel.ERROR,
+                            "Приватная установка GGUF не завершилась.\n" + runtimeError(result));
+                }
+            }
+            case START_SERVER -> {
+                setBusy(false, null);
+                ModelSpec operationModel = modelForOperation(result.operationId);
+                if (runtimeState(result, "READY")) {
+                    serverReady = operationModel != null
+                            && operationModel.id.equals(selectedModel.id);
+                    append(ConsoleEntry.Channel.TOOL,
+                            (operationModel == null ? "GGUF" : operationModel.title)
+                                    + " прошла полный SHA-256 и доступна на loopback.");
+                    if (serverReady) main.post(this::startBridge);
                 } else {
                     serverReady = false;
                     append(ConsoleEntry.Channel.ERROR,
-                            "LLM-ядро не запустилось.\n" + result.usefulError());
+                            "LLM-ядро не запустилось.\n" + runtimeError(result));
                 }
             }
-            case "stop" -> {
+            case START_BRIDGE -> {
+                setBusy(false, null);
+                if (runtimeState(result, "READY")) {
+                    bridgeReady = true;
+                    bridgeConnected = true;
+                    bridgeFault = "";
+                    append(ConsoleEntry.Channel.SYSTEM,
+                            "Pi RPC bridge online // " + accessProfile.label
+                                    + " // authenticated localhost.");
+                } else {
+                    bridgeReady = false;
+                    bridgeConnected = false;
+                    bridgeFault = runtimeError(result);
+                    append(ConsoleEntry.Channel.ERROR,
+                            "Pi RPC bridge не запустился.\n" + bridgeFault);
+                }
+            }
+            case STOP_BRIDGE -> {
+                setBusy(false, null);
+                bridgeReady = false;
+                bridgeConnected = false;
+                OperationRecord record = operationStore.load(result.operationId);
+                boolean stopServerAfter = record != null
+                        && record.request.optBoolean("stopServerAfter", false);
+                boolean startBridgeAfter = record != null
+                        && record.request.optBoolean("startBridgeAfter", false);
+                if (!result.isSuccess()) {
+                    append(ConsoleEntry.Channel.ERROR, runtimeError(result));
+                } else if (stopServerAfter) {
+                    main.post(this::stopServerRuntime);
+                } else if (startBridgeAfter) {
+                    main.post(this::startBridge);
+                }
+            }
+            case STOP_SERVER -> {
                 setBusy(false, null);
                 serverReady = false;
                 append(result.isSuccess() ? ConsoleEntry.Channel.SYSTEM : ConsoleEntry.Channel.ERROR,
                         result.isSuccess() ? "Локальное LLM-ядро остановлено." : result.usefulError());
             }
-            case "update" -> {
+            case UPDATE_RUNTIME -> {
                 setBusy(false, null);
                 append(result.isSuccess() ? ConsoleEntry.Channel.SYSTEM : ConsoleEntry.Channel.ERROR,
                         result.isSuccess()
-                                ? "Pi обновлён.\n" + tail(clean(result.stdout), 5)
-                                : "Обновление Pi не завершилось.\n" + result.usefulError());
+                                ? "Закреплённый Pi/runtime восстановлен.\n"
+                                + tail(clean(result.stdout), 5)
+                                : "Обновление Pi не завершилось.\n" + runtimeError(result));
+                if (result.isSuccess() && serverReady) main.post(this::restartBridge);
             }
-            case "newsession" -> {
+            case NEW_SESSION -> {
                 setBusy(false, null);
                 if (result.isSuccess()) {
                     prefs.setHasSession(false);
@@ -313,19 +427,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     append(ConsoleEntry.Channel.ERROR, result.usefulError());
                 }
             }
-            case "abort" -> {
-                setBusy(false, null);
+            case ABORT_AGENT -> {
                 append(result.isSuccess() ? ConsoleEntry.Channel.SYSTEM : ConsoleEntry.Channel.ERROR,
                         result.isSuccess()
-                                ? "Сигнал остановки отправлен текущему Pi-процессу."
-                                : result.usefulError());
+                                ? "Структурированная команда abort принята RPC bridge."
+                                : runtimeError(result));
             }
-            case "agent" -> handleAgentResult(result);
+            case AGENT_TURN -> handleAgentResult(result);
             default -> {
                 setBusy(false, null);
                 if (!result.isSuccess()) append(ConsoleEntry.Channel.ERROR, result.usefulError());
             }
         }
+        operations.markConsumed(result.operationId);
         refreshUi();
         if (coreDialog != null && coreDialog.isShowing()) {
             coreDialog.dismiss();
@@ -334,24 +448,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void handleAgentResult(CommandResult result) {
-        if (!result.isSuccess()
-                && prefs.hasSession()
-                && !retriedWithoutSession
-                && (result.stderr.contains("session") || result.stdout.contains("session"))) {
-            retriedWithoutSession = true;
-            prefs.setHasSession(false);
-            try {
-                termux.run(
-                        "agent",
-                        TermuxBridge.PREFIX + "/bin/env",
-                        RuntimeScripts.agentArguments(selectedModel, false, lastPrompt),
-                        null,
-                        TermuxBridge.WORKSPACE
-                );
-                armWatchdog("agent");
-                return;
-            } catch (RuntimeException ignored) {
-            }
+        if (!result.isSuccess() && missingPiExecutable(result)) {
+            setBusy(false, null);
+            prefs.setCoreReady(false);
+            linkConfirmed = true;
+            serverReady = false;
+            append(ConsoleEntry.Channel.ERROR,
+                    "Pi CLI отсутствует в Termux. Нажмите INSTALL CORE; "
+                            + "модель уже загружена и повторно скачиваться не будет.");
+            return;
         }
 
         setBusy(false, null);
@@ -376,16 +481,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void refreshUi() {
-        boolean installed = termux.isInstalled();
+        boolean installed = termuxEnvironment.installed;
         boolean permission = termux.hasRunPermission();
         boolean core = prefs.isCoreReady();
         ModelDownloadManager.State modelState = modelDownloads.state(selectedModel);
-        boolean downloaded = modelState.phase == ModelDownloadManager.Phase.COMPLETE;
+        boolean incomingAvailable = modelDownloads.isDownloaded(selectedModel);
         boolean verified = prefs.isModelVerified(selectedModel);
+        boolean privateReady = prefs.isPrivateModelInstalled(selectedModel);
         boolean linked = installed && permission && linkConfirmed;
 
-        deck.setStatus(linked, core, downloaded ? selectedModel : null, serverReady, busy);
+        deck.setStatus(linked, core, privateReady ? selectedModel : null, serverReady && bridgeReady, busy);
         deck.setEngineLine(deviceLine());
+        updatePrivacyIndicator();
 
         if (android.os.Build.SUPPORTED_64_BIT_ABIS.length == 0) {
             deck.setBootState(
@@ -403,6 +510,30 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "BOOT SEQUENCE // 01",
                     "УСТАНОВИТЕ TERMUX",
                     "Нужна версия из F-Droid. Она станет защищённым runtime-контуром для настоящего Pi, Python и shell.",
+                    "OPEN F-DROID", termux::openTermuxPage,
+                    null, null
+            );
+            return;
+        }
+        if (!termuxEnvironment.versionSupported) {
+            deck.setBootState(
+                    "BOOT HALT // TERMUX VERSION",
+                    "ОБНОВИТЕ TERMUX",
+                    "Обнаружена версия " + termuxEnvironment.version
+                            + "; требуется 0.118.0 или новее из F-Droid.",
+                    "OPEN F-DROID", termux::openTermuxPage,
+                    null, null
+            );
+            return;
+        }
+        if (termuxEnvironment.source == TermuxEnvironment.Source.UNKNOWN) {
+            String signer = termuxEnvironment.signerSha256;
+            String prefix = signer.isBlank() ? "не читается" : signer.substring(0, 12) + "…";
+            deck.setBootState(
+                    "BOOT HALT // TERMUX SIGNER",
+                    "НЕИЗВЕСТНАЯ ПОДПИСЬ",
+                    "PI//DECK не передаст RUN_COMMAND неизвестной сборке Termux. "
+                            + "SHA-256 signer: " + prefix + ". Установите совместимую F-Droid-сборку.",
                     "OPEN F-DROID", termux::openTermuxPage,
                     null, null
             );
@@ -438,7 +569,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             );
             return;
         }
-        if (!downloaded) {
+        if (modelSelectionRequired) {
+            deck.setBootState(
+                    "BOOT SEQUENCE // 05",
+                    "ВЫБЕРИТЕ ПРОФИЛЬ МОДЕЛИ",
+                    "Сохранённая модель отсутствует в проверенном каталоге. Рекомендация по "
+                            + "доступной памяти: " + selectedModel.title + ". Выбор не применяется скрыто.",
+                    "CHOOSE MODEL", this::showModelsDialog,
+                    null, null
+            );
+            return;
+        }
+        if (!privateReady && !incomingAvailable) {
             String body;
             String primaryLabel;
             Runnable primary;
@@ -471,7 +613,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             );
             return;
         }
-        if (!verified) {
+        if (!privateReady && !verified) {
             if (!verifying && verificationFault.isBlank()) verifyModel(selectedModel);
             String body = verificationFault.isBlank()
                     ? "Сверяем SHA‑256 большого GGUF-файла: " + verificationPercent
@@ -491,15 +633,41 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             );
             return;
         }
-        if (!serverReady) {
+        if (!privateReady) {
             deck.setBootState(
                     "BOOT SEQUENCE // 07",
+                    "УСТАНОВИТЬ ПРИВАТНУЮ GGUF",
+                    "Android SHA-256 пройден. Termux повторно проверит hash во время копирования, "
+                            + "выполнит fsync и atomic rename в ~/.pideck/models.",
+                    busy ? "INSTALLING…" : "INSTALL PRIVATE",
+                    busy ? this::showModelsDialog : () -> installPrivateModel(selectedModel),
+                    "MODELS", this::showModelsDialog
+            );
+            return;
+        }
+        if (!serverReady) {
+            deck.setBootState(
+                    "BOOT SEQUENCE // 08",
                     "ЗАЖЕЧЬ ЛОКАЛЬНОЕ ЯДРО",
-                    selectedModel.title + " проверена и готова. Запуск использует "
+                    selectedModel.title + " находится в приватном read-only store. Запуск использует "
                             + Math.max(2, Math.min(8, cpuThreads - 1))
-                            + " CPU-потоков и контекст 8192 токена.",
+                            + " CPU-потоков и контекст " + selectedModel.recommendedContext
+                            + " токенов. Ожидаемый peak: "
+                            + humanBytes(selectedModel.estimatedPeakBytes())
+                            + "; доступно " + humanBytes(availableRam) + ".",
                     "IGNITE LLM", this::startServer,
                     "MODELS", this::showModelsDialog
+            );
+            return;
+        }
+        if (!bridgeReady) {
+            deck.setBootState(
+                    "BOOT SEQUENCE // 09",
+                    "ПОДКЛЮЧИТЬ PI RPC",
+                    "Локальный bridge использует 256-bit token и слушает только 127.0.0.1. "
+                            + (bridgeFault.isBlank() ? accessProfile.description : bridgeFault),
+                    "START BRIDGE", this::startBridge,
+                    "ACCESS", this::showCoreDialog
             );
             return;
         }
@@ -515,141 +683,330 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
      * Termux can be killed by Android, or refuse the intent silently, and then no result ever
      * arrives. Without this the deck stays in its busy state forever with the input disabled.
      */
-    private void armWatchdog(String kind) {
-        cancelWatchdog();
-        long timeout = watchdogTimeout(kind);
+    private void armWatchdog(OperationId operationId, OperationKind kind) {
+        armWatchdog(operationId, kind, kind.timeoutMs());
+    }
+
+    private void armRestoredWatchdog(OperationRecord operation) {
+        long elapsed = Math.max(0L, System.currentTimeMillis() - operation.createdAtMs);
+        long remaining = Math.max(1_000L, operation.kind.timeoutMs() - elapsed);
+        armWatchdog(operation.operationId, operation.kind, remaining);
+    }
+
+    private void armWatchdog(
+            OperationId operationId,
+            OperationKind kind,
+            long timeout
+    ) {
+        cancelWatchdog(null);
         if (timeout <= 0L) return;
-        watchdogKind = kind;
+        watchdogOperationId = operationId;
         watchdog = () -> {
             watchdog = null;
-            watchdogKind = "";
-            if (!busy) return;
-            setBusy(false, null);
+            OperationId active = operations.activeOperationId();
+            if (!busy || !operationId.equals(active)) return;
+            operations.timeout(operationId);
+            watchdogOperationId = null;
+            setBusy(true, "OPERATION STATE // UNKNOWN");
             append(ConsoleEntry.Channel.ERROR,
-                    "Termux не вернул результат за " + (timeout / 1_000L) + " с. Откройте Termux "
-                            + "кнопкой TERMUX, проверьте, что он запущен и что "
-                            + "allow-external-apps=true, затем повторите шаг.");
+                    "Результат операции неизвестен; часть изменений могла быть применена. "
+                            + "Проверьте состояние workspace перед повтором. Operation ID: "
+                            + operationId);
+            if (kind == OperationKind.AGENT_TURN || kind == OperationKind.NEW_SESSION) {
+                io.execute(() -> {
+                    try {
+                        JSONObject state = rpc.state();
+                        runOnUiThread(() -> handleBridgeState(state));
+                    } catch (Exception error) {
+                        runOnUiThread(() -> bridgeFault = safeException(error));
+                    }
+                });
+            }
         };
         main.postDelayed(watchdog, timeout);
     }
 
-    private void cancelWatchdog() {
+    private void cancelWatchdog(OperationId completedOperationId) {
+        if (completedOperationId != null
+                && watchdogOperationId != null
+                && !completedOperationId.equals(watchdogOperationId)) {
+            return;
+        }
         if (watchdog != null) main.removeCallbacks(watchdog);
         watchdog = null;
-        watchdogKind = "";
-    }
-
-    private static long watchdogTimeout(String kind) {
-        return switch (kind) {
-            case "probe", "stop", "newsession" -> 45_000L;
-            case "start" -> 240_000L;
-            case "update" -> 900_000L;
-            case "install" -> 1_800_000L;
-            case "agent" -> 2_700_000L;
-            default -> 0L;
-        };
+        watchdogOperationId = null;
     }
 
     private boolean canRunAgent() {
-        return termux.isInstalled()
+        return termuxEnvironment.canRunCommands()
                 && termux.hasRunPermission()
                 && linkConfirmed
                 && prefs.isCoreReady()
-                && modelDownloads.isDownloaded(selectedModel)
-                && prefs.isModelVerified(selectedModel)
-                && serverReady;
+                && prefs.isPrivateModelInstalled(selectedModel)
+                && serverReady
+                && bridgeReady
+                && bridgeConnected;
     }
 
     private void probeTermux() {
         if (busy) return;
-        setBusy(true, "TESTING TERMUX LINK");
-        try {
-            termux.runBash("probe", RuntimeScripts.probe());
-            armWatchdog("probe");
-        } catch (RuntimeException error) {
-            setBusy(false, null);
-            append(ConsoleEntry.Channel.ERROR, readableException(error));
+        dispatchOperation(
+                OperationKind.PROBE_RUNTIME,
+                new JSONObject(),
+                "TESTING TERMUX LINK",
+                operationId -> termux.runBash(
+                        operationId, OperationKind.PROBE_RUNTIME, RuntimeScripts.probe()
+                )
+        );
+    }
+
+    private void probeRuntimeOnLaunch() {
+        if (startupProbeAttempted
+                || busy
+                || !prefs.isCoreReady()
+                || !termux.isInstalled()
+                || !termux.hasRunPermission()) {
+            return;
         }
+        startupProbeAttempted = true;
+        linkConfirmed = false;
+        dispatchOperation(
+                OperationKind.PROBE_RUNTIME,
+                json("startup", true),
+                "CHECKING PI RUNTIME",
+                operationId -> termux.runBash(
+                        operationId, OperationKind.PROBE_RUNTIME, RuntimeScripts.probe()
+                )
+        );
     }
 
     private void installCore() {
         if (busy) return;
-        setBusy(true, "INSTALLING PI CORE");
         append(ConsoleEntry.Channel.SYSTEM,
                 "Разворачиваю runtime внутри Termux. Не закрывайте Termux во время пакетной установки.");
+        String installScript;
         try {
-            termux.runBash("install", RuntimeScripts.installCore());
-            armWatchdog("install");
+            installScript = RuntimeAssetBundle.installCore(this);
         } catch (RuntimeException error) {
-            setBusy(false, null);
             append(ConsoleEntry.Channel.ERROR, readableException(error));
+            return;
         }
+        dispatchOperation(
+                OperationKind.INSTALL_RUNTIME,
+                new JSONObject(),
+                "INSTALLING PI CORE",
+                operationId -> termux.runBash(
+                        operationId, OperationKind.INSTALL_RUNTIME, installScript
+                )
+        );
     }
 
     private void startServer() {
         if (busy) return;
-        if (!prefs.isModelVerified(selectedModel)) {
-            toast("Сначала нужна проверка GGUF");
+        if (!prefs.isPrivateModelInstalled(selectedModel)) {
+            toast("Сначала установите приватную GGUF");
             return;
         }
-        setBusy(true, "LOADING " + selectedModel.title);
-        append(ConsoleEntry.Channel.SYSTEM,
-                "Загружаю " + selectedModel.title + " в память. Первый запуск может быть медленным.");
-        try {
-            termux.runBash(
-                    "start",
-                    RuntimeScripts.startServer(selectedModel, Math.max(2, cpuThreads - 1))
-            );
-            armWatchdog("start");
-        } catch (RuntimeException error) {
-            setBusy(false, null);
-            append(ConsoleEntry.Channel.ERROR, readableException(error));
+        long expectedPeak = selectedModel.estimatedPeakBytes();
+        if (lowMemory || availableRam < Math.max(
+                selectedModel.minimumAvailableMiB * 1_048_576L,
+                expectedPeak
+        )) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Высокий риск OOM")
+                    .setMessage("Ожидаемый peak: " + humanBytes(expectedPeak)
+                            + "\nДоступно сейчас: " + humanBytes(availableRam)
+                            + "\nКонтекст: " + selectedModel.recommendedContext
+                            + "\n\nAndroid может завершить Termux. Модель не будет заменена скрыто.")
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Запустить", (dialog, which) -> startServerConfirmed())
+                    .show();
+            return;
         }
+        startServerConfirmed();
+    }
+
+    private void startServerConfirmed() {
+        append(ConsoleEntry.Channel.SYSTEM,
+                "Проверяю приватный SHA-256 и загружаю " + selectedModel.title
+                        + " в память. Первый запуск может быть медленным.");
+        dispatchOperation(
+                OperationKind.START_SERVER,
+                requestMetadata(selectedModel.id, false),
+                "LOADING " + selectedModel.title,
+                operationId -> {
+                    JSONObject input = runtimeRequest(operationId);
+                    put(input, "modelId", selectedModel.id);
+                    put(input, "threads", Math.max(2, cpuThreads - 1));
+                    put(input, "port", 8080);
+                    termux.runRuntime(
+                            operationId,
+                            OperationKind.START_SERVER,
+                            "server-start",
+                            input.toString()
+                    );
+                }
+        );
     }
 
     private void stopServer() {
         if (busy) return;
-        setBusy(true, "STOPPING LLM CORE");
-        try {
-            termux.runBash("stop", RuntimeScripts.stopServer());
-            armWatchdog("stop");
-        } catch (RuntimeException error) {
-            setBusy(false, null);
-            append(ConsoleEntry.Channel.ERROR, readableException(error));
+        if (bridgeReady || bridgeConnected) {
+            dispatchOperation(
+                    OperationKind.STOP_BRIDGE,
+                    json("stopServerAfter", true),
+                    "STOPPING PI BRIDGE",
+                    operationId -> termux.runRuntime(
+                            operationId,
+                            OperationKind.STOP_BRIDGE,
+                            "bridge-stop",
+                            "{}"
+                    )
+            );
+            return;
         }
+        stopServerRuntime();
+    }
+
+    private void stopServerRuntime() {
+        if (busy) return;
+        dispatchOperation(
+                OperationKind.STOP_SERVER,
+                requestMetadata(selectedModel.id, false),
+                "STOPPING LLM CORE",
+                operationId -> termux.runRuntime(
+                        operationId, OperationKind.STOP_SERVER, "server-stop", "{}"
+                )
+        );
     }
 
     private void updateAgent() {
         if (busy) return;
-        setBusy(true, "UPDATING PI AGENT");
+        String updateScript;
         try {
-            termux.runBash("update", RuntimeScripts.updateAgent());
-            armWatchdog("update");
+            updateScript = RuntimeAssetBundle.updateRuntime(this);
         } catch (RuntimeException error) {
-            setBusy(false, null);
             append(ConsoleEntry.Channel.ERROR, readableException(error));
+            return;
         }
+        dispatchOperation(
+                OperationKind.UPDATE_RUNTIME,
+                new JSONObject(),
+                "UPDATING PI AGENT",
+                operationId -> termux.runBash(
+                        operationId, OperationKind.UPDATE_RUNTIME, updateScript
+                )
+        );
     }
 
     private void newSession() {
-        if (busy) return;
-        setBusy(true, "OPENING NEW SESSION");
+        if (busy || !bridgeReady) return;
+        OperationRecord operation;
+        String newSessionId = java.util.UUID.randomUUID().toString();
         try {
-            termux.runBash("newsession", RuntimeScripts.newSession());
-            armWatchdog("newsession");
+            operation = operations.begin(
+                    OperationKind.NEW_SESSION,
+                    json("sessionId", newSessionId)
+            );
+            operations.dispatched(operation.operationId);
+            setBusy(true, "OPENING NEW SESSION");
+            armWatchdog(operation.operationId, OperationKind.NEW_SESSION);
         } catch (RuntimeException error) {
-            setBusy(false, null);
+            append(ConsoleEntry.Channel.ERROR, readableException(error));
+            return;
+        }
+        io.execute(() -> {
+            try {
+                rpc.command(
+                        operation.operationId,
+                        "NEW_SESSION",
+                        json("sessionId", newSessionId)
+                );
+            } catch (Exception error) {
+                runOnUiThread(() -> failRpcDispatch(operation.operationId, error));
+            }
+        });
+    }
+
+    private void abortAgent() {
+        OperationRecord active = operations.active();
+        if (active == null || active.kind != OperationKind.AGENT_TURN) {
+            toast("Нет активного Pi turn");
+            return;
+        }
+        try {
+            operations.requestAbort(active.operationId);
+            OperationRecord control = operations.beginControl(
+                    OperationKind.ABORT_AGENT,
+                    json("targetOperationId", active.operationId.toString())
+            );
+            operations.dispatched(control.operationId);
+            setBusy(true, "PI AGENT // ABORTING");
+            io.execute(() -> {
+                try {
+                    rpc.command(
+                            control.operationId,
+                            "ABORT",
+                            json("targetOperationId", active.operationId.toString())
+                    );
+                    CommandResult accepted = new CommandResult(
+                            control.operationId,
+                            OperationKind.ABORT_AGENT,
+                            "{\"accepted\":true}",
+                            "",
+                            0,
+                            0,
+                            ""
+                    );
+                    runOnUiThread(() -> handleCommandResult(accepted, false));
+                } catch (Exception error) {
+                    CommandResult failed = new CommandResult(
+                            control.operationId,
+                            OperationKind.ABORT_AGENT,
+                            "",
+                            "",
+                            1,
+                            1,
+                            safeException(error)
+                    );
+                    runOnUiThread(() -> handleCommandResult(failed, false));
+                }
+            });
+        } catch (RuntimeException error) {
             append(ConsoleEntry.Channel.ERROR, readableException(error));
         }
     }
 
-    private void abortAgent() {
-        try {
-            // Deliberately no watchdog: the outstanding agent command still owns the busy state.
-            termux.runBash("abort", RuntimeScripts.abortAgent());
-        } catch (RuntimeException error) {
-            append(ConsoleEntry.Channel.ERROR, readableException(error));
+    private void installPrivateModel(ModelSpec model) {
+        if (busy) return;
+        if (!prefs.isModelVerified(model) || !modelDownloads.isDownloaded(model)) {
+            toast("Сначала нужна Android SHA-256 проверка incoming-файла");
+            return;
         }
+        long available = freeStorage;
+        long required = ModelCatalog.requiredStorageForPrivateInstall(model);
+        if (available < required) {
+            append(ConsoleEntry.Channel.ERROR,
+                    "Для приватной копии нужно ещё " + humanBytes(required)
+                            + "; доступно " + humanBytes(available) + ".");
+            return;
+        }
+        dispatchOperation(
+                OperationKind.INSTALL_MODEL,
+                requestMetadata(model.id, false),
+                "INSTALLING PRIVATE GGUF",
+                operationId -> {
+                    JSONObject input = runtimeRequest(operationId);
+                    put(input, "modelId", model.id);
+                    put(input, "sourcePath", modelDownloads.sourcePath(model));
+                    termux.runRuntime(
+                            operationId,
+                            OperationKind.INSTALL_MODEL,
+                            "install-model",
+                            input.toString()
+                    );
+                }
+        );
     }
 
     private void verifyModel(ModelSpec model) {
@@ -676,7 +1033,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         verificationPercent = 100;
                         verificationFault = "";
                         append(ConsoleEntry.Channel.SYSTEM,
-                                model.title + " · SHA‑256 verified. GGUF готова к запуску.");
+                                model.title + " · Android SHA‑256 verified. "
+                                        + "Перед запуском Termux создаст приватную копию.");
+                        main.post(() -> installPrivateModel(model));
                     } else {
                         verificationFault = error == null || error.isBlank()
                                 ? "SHA‑256 не совпал (" + actualHash.substring(0, Math.min(12, actualHash.length())) + "…)"
@@ -691,80 +1050,43 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         });
     }
 
-    private void checkServerHealth() {
-        if (serverHealthInFlight || !prefs.isCoreReady() || !termux.isInstalled()) return;
-        serverHealthInFlight = true;
-        String expectedModelId = selectedModel.id;
-        io.execute(() -> {
-            boolean healthy = false;
-            try {
-                HttpURLConnection connection = (HttpURLConnection)
-                        new URL("http://127.0.0.1:8080/health").openConnection();
-                connection.setConnectTimeout(500);
-                connection.setReadTimeout(700);
-                connection.setUseCaches(false);
-                int code = connection.getResponseCode();
-                if (code >= 200 && code < 300) {
-                    String body = readSmall(connection.getInputStream());
-                    healthy = !body.contains("\"status\":\"error\"");
-                }
-                connection.disconnect();
-                if (healthy) {
-                    HttpURLConnection models = (HttpURLConnection)
-                            new URL("http://127.0.0.1:8080/v1/models").openConnection();
-                    models.setConnectTimeout(500);
-                    models.setReadTimeout(700);
-                    models.setUseCaches(false);
-                    int modelsCode = models.getResponseCode();
-                    String body = modelsCode >= 200 && modelsCode < 300
-                            ? readSmall(models.getInputStream())
-                            : "";
-                    healthy = body.contains(expectedModelId);
-                    models.disconnect();
-                }
-            } catch (Exception ignored) {
-            }
-            boolean result = healthy;
-            runOnUiThread(() -> {
-                boolean stillExpected = selectedModel.id.equals(expectedModelId);
-                boolean becameReady = !serverReady && result && stillExpected;
-                serverReady = result && stillExpected;
-                serverHealthInFlight = false;
-                if (becameReady) {
-                    append(ConsoleEntry.Channel.SYSTEM,
-                            selectedModel.title + " online. Pi получает модель через локальный 127.0.0.1 — наружу промпты не уходят.");
-                }
-                refreshUi();
-            });
-        });
-    }
-
     private void confirmDownload(ModelSpec model) {
+        if (busy) {
+            toast("Дождитесь завершения текущей операции");
+            return;
+        }
         // The current target is dropped before the transfer starts, so its bytes count as free.
         long available = freeStorage + modelDownloads.reclaimableBytes(model);
-        if (available < ModelCatalog.requiredStorage(model)) {
+        if (available < ModelCatalog.requiredStorageForFreshInstall(model)) {
             append(ConsoleEntry.Channel.ERROR,
                     "Для " + model.title + " нужно минимум "
-                            + humanBytes(ModelCatalog.requiredStorage(model))
+                            + humanBytes(ModelCatalog.requiredStorageForFreshInstall(model))
                             + " свободного места. Сейчас доступно " + humanBytes(available) + ".");
             return;
         }
         String networkNote = isMetered()
-                ? "\n\nСеть сейчас тарифицируемая."
+                ? "\n\nСеть сейчас тарифицируемая. Размер: " + model.humanSize()
+                + ". Продолжение требует отдельного согласия."
                 : "\n\nWi‑Fi/нетарифицируемая сеть обнаружена.";
+        boolean allowMetered = isMetered();
         new AlertDialog.Builder(this)
                 .setTitle("Загрузить " + model.title + "?")
                 .setMessage(model.humanSize() + " · " + model.repo
-                        + "\nФайл будет сохранён в Download/PiDeck/models."
+                        + "\nIncoming будет сохранён в Download/PiDeck/incoming, "
+                        + "затем проверен и скопирован в приватный Termux store."
                         + networkNote)
                 .setNegativeButton("Отмена", null)
-                .setPositiveButton("Загрузить", (dialog, which) -> {
+                .setPositiveButton(
+                        allowMetered ? "По мобильной сети" : "Загрузить",
+                        (dialog, which) -> {
                     selectedModel = model;
+                    modelSelectionRequired = false;
                     prefs.setSelectedModelId(model.id);
                     prefs.setModelVerified(model, false);
+                    prefs.setPrivateModelInstalled(model, false);
                     verificationFault = "";
                     try {
-                        modelDownloads.start(model);
+                        modelDownloads.start(model, allowMetered);
                         append(ConsoleEntry.Channel.SYSTEM,
                                 "Hugging Face download запущен: " + model.title + " · " + model.humanSize());
                     } catch (RuntimeException error) {
@@ -777,15 +1099,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void chooseModel(ModelSpec model) {
-        if (!modelDownloads.isDownloaded(model)) {
+        if (busy) {
+            toast("Дождитесь завершения текущей операции");
+            return;
+        }
+        if (!prefs.isPrivateModelInstalled(model) && !modelDownloads.isDownloaded(model)) {
             confirmDownload(model);
             return;
         }
         selectedModel = model;
+        modelSelectionRequired = false;
         prefs.setSelectedModelId(model.id);
         serverReady = false;
         verificationFault = "";
-        if (!prefs.isModelVerified(model)) verifyModel(model);
+        if (!prefs.isPrivateModelInstalled(model) && !prefs.isModelVerified(model)) {
+            verifyModel(model);
+        }
         append(ConsoleEntry.Channel.SYSTEM,
                 "Активный профиль → " + model.title + ". Перезапустите LLM-ядро.");
         if (modelsDialog != null) modelsDialog.dismiss();
@@ -793,17 +1122,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void confirmDeleteModel(ModelSpec model) {
+        if (busy) {
+            toast("Дождитесь завершения текущей операции");
+            return;
+        }
         new AlertDialog.Builder(this)
-                .setTitle("Удалить " + model.title + "?")
-                .setMessage("Будет удалён только Download/PiDeck/models/" + model.fileName
-                        + ". Pi, Python и проекты останутся.")
+                .setTitle("Удалить incoming source?")
+                .setMessage("Будет удалена только общая копия "
+                        + modelDownloads.fileFor(model).getAbsolutePath()
+                        + ". Приватная read-only GGUF, Pi и проекты останутся.")
                 .setNegativeButton("Отмена", null)
                 .setPositiveButton("Удалить", (dialog, which) -> {
-                    if (model.equals(selectedModel) && serverReady) stopServer();
                     prefs.setModelVerified(model, false);
                     boolean deleted = modelDownloads.delete(model);
                     if (deleted) {
-                        append(ConsoleEntry.Channel.SYSTEM, model.title + " удалена с телефона.");
+                        append(ConsoleEntry.Channel.SYSTEM,
+                                "Shared incoming source для " + model.title + " удалён.");
                     } else {
                         append(ConsoleEntry.Channel.ERROR,
                                 "Android не разрешил удалить " + model.fileName + ".");
@@ -837,11 +1171,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private void renderModelRows() {
         if (modelRows == null) return;
         modelRows.removeAllViews();
-        ModelSpec recommended = ModelCatalog.recommend(totalRam, freeStorage);
-        for (ModelSpec model : ModelCatalog.all()) {
+        ModelSpec recommended = modelCatalog.recommend(availableRam, lowMemory, freeStorage);
+        for (ModelSpec model : modelCatalog.all()) {
             ModelDownloadManager.State state = modelDownloads.state(model);
             boolean selected = model.equals(selectedModel);
             boolean verified = prefs.isModelVerified(model);
+            boolean privateReady = prefs.isPrivateModelInstalled(model);
+            boolean incomingReady = modelDownloads.isDownloaded(model);
 
             LinearLayout card = new LinearLayout(this);
             card.setOrientation(LinearLayout.VERTICAL);
@@ -860,7 +1196,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             titleRow.addView(tier);
             card.addView(titleRow);
 
-            String flags = model.humanSize() + " // ≥" + model.minimumRamGb + " GB RAM";
+            String flags = model.humanSize() + " // ≥"
+                    + model.minimumAvailableMiB + " MiB AVAILABLE";
             if (model.equals(recommended)) flags += " // RECOMMENDED";
             if (selected) flags += " // ACTIVE";
             TextView meta = deck.text(flags, 9, palette.ok, Typeface.BOLD);
@@ -871,7 +1208,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             note.setPadding(0, deck.dp(6), 0, deck.dp(7));
             card.addView(note);
 
-            if (state.isActive()) {
+            if (privateReady) {
+                card.addView(deck.text(
+                        "✓ PRIVATE READY // FULL SHA BEFORE EACH START",
+                        9, palette.ok, Typeface.BOLD
+                ));
+            } else if (state.isActive()) {
                 ProgressBar progress = new ProgressBar(
                         this, null, android.R.attr.progressBarStyleHorizontal
                 );
@@ -888,9 +1230,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 );
                 progressText.setPadding(0, deck.dp(5), 0, 0);
                 card.addView(progressText);
-            } else if (state.phase == ModelDownloadManager.Phase.COMPLETE) {
+            } else if (incomingReady) {
                 card.addView(deck.text(
-                        verified ? "✓ DOWNLOADED // SHA-256 VERIFIED" : "◇ DOWNLOADED // VERIFY PENDING",
+                        verified ? "✓ INCOMING // ANDROID SHA-256 VERIFIED"
+                                : "◇ INCOMING // VERIFY PENDING",
                         9, verified ? palette.ok : palette.warn, Typeface.BOLD
                 ));
             } else if (state.phase == ModelDownloadManager.Phase.FAILED) {
@@ -903,13 +1246,35 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             LinearLayout actions = new LinearLayout(this);
             actions.setOrientation(LinearLayout.HORIZONTAL);
             actions.setPadding(0, deck.dp(9), 0, 0);
-            if (state.isActive()) {
+            if (privateReady) {
+                if (!selected || !serverReady) {
+                    actions.addView(deck.button(
+                            selected ? "RESTART CORE" : "SELECT",
+                            selected ? palette.accent : palette.accentAlt,
+                            () -> {
+                                chooseModel(model);
+                                if (selected) startServer();
+                            }
+                    ));
+                }
+                if (incomingReady) {
+                    TextView removeSource = deck.button(
+                            "DELETE SOURCE", palette.muted, () -> confirmDeleteModel(model)
+                    );
+                    LinearLayout.LayoutParams sourceLp = new LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                    );
+                    sourceLp.leftMargin = deck.dp(7);
+                    actions.addView(removeSource, sourceLp);
+                }
+            } else if (state.isActive()) {
                 actions.addView(deck.button("CANCEL", palette.errorText, () -> {
                     modelDownloads.cancel(model);
                     renderModelRows();
                     refreshUi();
                 }));
-            } else if (state.phase == ModelDownloadManager.Phase.COMPLETE) {
+            } else if (incomingReady) {
                 if (!selected || !serverReady) {
                     actions.addView(deck.button(
                             selected ? "RESTART CORE" : "SELECT",
@@ -953,19 +1318,46 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         LinearLayout body = shell.body;
         body.addView(infoLine("TERMUX", termux.isInstalled() ? "INSTALLED" : "ABSENT",
                 termux.isInstalled() ? palette.ok : palette.errorText));
+        body.addView(infoLine(
+                "TERMUX BUILD",
+                termuxEnvironment.version + " / " + termuxEnvironment.sourceLabel(),
+                termuxEnvironment.signerTrusted() ? palette.ok : palette.warn
+        ));
+        body.addView(infoLine(
+                "TERMUX:API",
+                termuxEnvironment.apiCompatible
+                        ? termuxEnvironment.apiVersion + " / WAKE-LOCK READY"
+                        : termuxEnvironment.apiInstalled
+                        ? termuxEnvironment.apiVersion + " / INCOMPATIBLE"
+                        : "OPTIONAL / ABSENT",
+                termuxEnvironment.apiCompatible ? palette.ok : palette.warn
+        ));
         body.addView(infoLine("TRANSPORT", linkConfirmed ? "LINKED" : "OFFLINE",
                 linkConfirmed ? palette.accent : palette.warn));
         body.addView(infoLine("PI RUNTIME", prefs.isCoreReady() ? "READY" : "NOT INSTALLED",
                 prefs.isCoreReady() ? palette.ok : palette.warn));
         body.addView(infoLine("LLM SERVER", serverReady ? "127.0.0.1:8080 LIVE" : "STOPPED",
                 serverReady ? palette.accent : palette.muted));
+        body.addView(infoLine("RPC BRIDGE", bridgeReady ? "AUTHENTICATED / 127.0.0.1" : "STOPPED",
+                bridgeReady ? palette.ok : palette.muted));
+        body.addView(infoLine("ACCESS", accessProfile.label,
+                accessProfile == AccessProfile.AUTONOMOUS ? palette.warn : palette.accent));
         body.addView(infoLine("MODEL", selectedModel.title + " / " + selectedModel.tier, palette.accentAlt));
         body.addView(infoLine("WORKSPACE", "~/.pideck/workspace", palette.text));
+        body.addView(infoLine("LOCAL INFERENCE", "YES", palette.ok));
+        body.addView(infoLine("TOOL NETWORK", accessProfile.toolNetworkPossible ? "POSSIBLE" : "NO SHELL",
+                accessProfile.toolNetworkPossible ? palette.warn : palette.ok));
+        body.addView(infoLine("OS ISOLATION", "NOT IMPLEMENTED", palette.warn));
         body.addView(infoLine("SCHEME", palette.label, palette.accent));
 
         TextView explanation = deck.text(
-                "Pi работает как настоящий coding agent: read, write, edit, grep, find, ls и bash. "
-                        + "Python и интернет доступны внутри Termux; общие файлы телефона — через ~/storage.",
+                accessProfile.description + " Local inference означает выполнение модели на телефоне, "
+                        + "но не является сетевой песочницей. Loopback защищён token-ом bridge."
+                        + (termuxEnvironment.source
+                        == TermuxEnvironment.Source.GITHUB_SHARED_TEST_KEY
+                        ? " У этой Termux-сборки публичный shared test key; доверять можно только APK "
+                        + "из официального GitHub release."
+                        : ""),
                 11, palette.muted, Typeface.NORMAL
         );
         explanation.setLineSpacing(0, 1.18f);
@@ -975,11 +1367,23 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         explanationLp.topMargin = deck.dp(12);
         body.addView(explanation, explanationLp);
 
-        body.addView(dialogAction("UPDATE PI AGENT", "npm latest // keeps workspace", palette.accent, this::updateAgent));
+        body.addView(dialogAction("ACCESS → READ ONLY", "no mutating tools", palette.ok,
+                () -> changeAccessProfile(AccessProfile.READ_ONLY)));
+        body.addView(dialogAction("ACCESS → CONFIRM", "one-time Android approval", palette.accent,
+                () -> changeAccessProfile(AccessProfile.CONFIRM_CHANGES)));
+        body.addView(dialogAction("ACCESS → AUTONOMOUS", "explicit high-risk opt-in", palette.warn,
+                () -> changeAccessProfile(AccessProfile.AUTONOMOUS)));
+        body.addView(dialogAction("RESTORE PINNED PI", "0.82.1 + integrity check", palette.accent,
+                this::updateAgent));
         body.addView(dialogAction("RESTART LLM", "reload selected GGUF", palette.accentAlt, this::startServer));
-        body.addView(dialogAction("NEW SESSION", "archives current Pi conversation", palette.ok, this::newSession));
+        body.addView(dialogAction("NEW SESSION", "start a separate Pi conversation", palette.ok, this::newSession));
         if (busy) {
-            body.addView(dialogAction("ABORT CURRENT TASK", "send SIGINT to Pi process", palette.errorText, this::abortAgent));
+            body.addView(dialogAction(
+                    "ABORT CURRENT TASK",
+                    "structured RPC; exact-process fallback",
+                    palette.errorText,
+                    this::abortAgent
+            ));
         }
         Palette next = nextScheme();
         body.addView(dialogAction(
@@ -1087,7 +1491,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     /**
      * Colours are baked into the views as they are built, so the activity is recreated instead of
      * walking the hierarchy. The transcript already lives in preferences, and a result that lands
-     * during the restart is picked up from the pending slot in {@link #onResume()}.
+     * during the restart is recovered from the durable per-operation store in {@link #onResume()}.
      */
     private void switchColorScheme() {
         if (busy) {
@@ -1112,6 +1516,514 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         refreshUi();
     }
 
+    private void dispatchRpcTurn(String prompt) {
+        String sessionId = prefs.ensureSessionId();
+        OperationRecord operation;
+        try {
+            operation = operations.begin(
+                    OperationKind.AGENT_TURN,
+                    requestMetadata(selectedModel.id, prefs.hasSession())
+                            .put("sessionId", sessionId)
+                            .put("accessProfile", accessProfile.wireName())
+            );
+            operations.dispatched(operation.operationId);
+            setBusy(true, "PI AGENT // RPC");
+            armWatchdog(operation.operationId, OperationKind.AGENT_TURN);
+        } catch (JSONException | RuntimeException error) {
+            append(ConsoleEntry.Channel.ERROR, safeException(error));
+            return;
+        }
+        io.execute(() -> {
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("message", prompt);
+                payload.put("sessionId", sessionId);
+                rpc.command(operation.operationId, "PROMPT", payload);
+            } catch (Exception error) {
+                runOnUiThread(() -> failRpcDispatch(operation.operationId, error));
+            }
+        });
+    }
+
+    private void startBridge() {
+        if (busy || !serverReady || !prefs.isPrivateModelInstalled(selectedModel)) return;
+        String sessionId = prefs.ensureSessionId();
+        JSONObject request = requestMetadata(selectedModel.id, prefs.hasSession());
+        put(request, "accessProfile", accessProfile.wireName());
+        put(request, "sessionId", sessionId);
+        dispatchOperation(
+                OperationKind.START_BRIDGE,
+                request,
+                "STARTING PI RPC BRIDGE",
+                operationId -> {
+                    JSONObject input = runtimeRequest(operationId);
+                    put(input, "token", bridgeTokenStore.getOrCreate());
+                    put(input, "modelId", selectedModel.id);
+                    put(input, "accessProfile", accessProfile.wireName());
+                    put(input, "sessionId", sessionId);
+                    put(input, "port", RpcBridgeClient.DEFAULT_PORT);
+                    termux.runRuntime(
+                            operationId,
+                            OperationKind.START_BRIDGE,
+                            "bridge-start",
+                            input.toString()
+                    );
+                }
+        );
+    }
+
+    private void restartBridge() {
+        if (busy || !serverReady) return;
+        dispatchOperation(
+                OperationKind.STOP_BRIDGE,
+                json("startBridgeAfter", true),
+                "RESTARTING PI BRIDGE",
+                operationId -> termux.runRuntime(
+                        operationId,
+                        OperationKind.STOP_BRIDGE,
+                        "bridge-stop",
+                        "{}"
+                )
+        );
+    }
+
+    private void startRpcPolling() {
+        rpc.startPolling(
+                prefs.bridgeInstanceId(),
+                prefs.bridgeSequence(),
+                new RpcBridgeClient.Listener() {
+                    @Override
+                    public void onConnected(JSONObject state) {
+                        runOnUiThread(() -> handleBridgeState(state));
+                    }
+
+                    @Override
+                    public void onEvent(BridgeEvent event) {
+                        runOnUiThread(() -> handleBridgeEvent(event));
+                    }
+
+                    @Override
+                    public void onEventGap(String bridgeInstanceId, long earliestReceived) {
+                        runOnUiThread(() -> handleBridgeGap(bridgeInstanceId, earliestReceived));
+                    }
+
+                    @Override
+                    public void onDisconnected(String reason) {
+                        runOnUiThread(() -> {
+                            bridgeConnected = false;
+                            bridgeReady = false;
+                            bridgeFault = reason;
+                            OperationRecord active = operations.active();
+                            if (active != null
+                                    && (active.kind == OperationKind.AGENT_TURN
+                                    || active.kind == OperationKind.NEW_SESSION)
+                                    && !active.state.isTerminal()
+                                    && active.state != OperationState.UNKNOWN) {
+                                operations.timeout(active.operationId);
+                                busy = true;
+                                deck.setBusy(true, "OPERATION STATE // UNKNOWN");
+                            }
+                            if (approvalDialog != null) approvalDialog.dismiss();
+                            refreshUi();
+                        });
+                    }
+                }
+        );
+    }
+
+    private void handleBridgeState(JSONObject state) {
+        String instanceId = state.optString("bridgeInstanceId", "");
+        if (instanceId.isBlank()) return;
+        if (!instanceId.equals(observedBridgeInstance)) {
+            observedBridgeInstance = instanceId;
+            prefs.setBridgeCursor(instanceId, 0L);
+        }
+        bridgeConnected = true;
+        boolean sameModel = selectedModel.id.equals(state.optString("modelId"));
+        boolean sameProfile = accessProfile.wireName().equals(state.optString("accessProfile"));
+        bridgeReady = sameModel && sameProfile;
+        bridgeFault = bridgeReady ? "" : "Bridge profile/model отличается; требуется restart.";
+
+        JSONObject server = state.optJSONObject("server");
+        serverReady = server != null
+                && "READY".equals(server.optString("state"))
+                && selectedModel.id.equals(server.optString("modelId"));
+
+        OperationRecord active = operations.active();
+        if (active != null) {
+            String remoteField = active.kind == OperationKind.NEW_SESSION
+                    ? "pendingNewSessionOperationId"
+                    : "activeOperationId";
+            String remote = state.isNull(remoteField)
+                    ? null
+                    : state.optString(remoteField, null);
+            if (active.operationId.toString().equals(remote)) {
+                operations.reconcileRunning(active.operationId);
+                busy = true;
+                deck.setBusy(true, "PI AGENT // RECONNECTED");
+            } else if ((active.kind == OperationKind.AGENT_TURN
+                    || active.kind == OperationKind.NEW_SESSION)
+                    && active.state == OperationState.UNKNOWN) {
+                operations.reconcileTerminalMissing(
+                        active.operationId,
+                        "Bridge has no active turn and no terminal event is available"
+                );
+                cancelWatchdog(active.operationId);
+                deck.discardStreaming();
+                setBusy(false, null);
+                append(ConsoleEntry.Channel.ERROR,
+                        "Bridge подтвердил отсутствие активного turn, но terminal event утрачен. "
+                                + "Операция завершена как FAILED и не повторялась автоматически.");
+            } else if ((active.kind == OperationKind.AGENT_TURN
+                    || active.kind == OperationKind.NEW_SESSION)
+                    && !active.state.isTerminal()
+                    && active.state != OperationState.UNKNOWN) {
+                operations.timeout(active.operationId);
+                setBusy(true, "OPERATION STATE // UNKNOWN");
+            }
+        }
+        refreshUi();
+    }
+
+    private void handleBridgeGap(String instanceId, long earliestReceived) {
+        prefs.setBridgeCursor(instanceId, Math.max(0L, earliestReceived - 1L));
+        OperationRecord active = operations.active();
+        if (active != null && !active.state.isTerminal()) {
+            operations.timeout(active.operationId);
+            setBusy(true, "EVENT GAP // RECONCILE");
+        }
+        append(ConsoleEntry.Channel.ERROR,
+                "Bridge сообщил EVENT_GAP; выполнена полная сверка состояния. "
+                        + "Промпт автоматически не повторялся.");
+    }
+
+    private void handleBridgeEvent(BridgeEvent event) {
+        observedBridgeInstance = event.bridgeInstanceId;
+        prefs.setBridgeCursor(event.bridgeInstanceId, event.sequence);
+        switch (event.type) {
+            case BRIDGE_READY -> {
+                bridgeConnected = true;
+                bridgeReady = true;
+                bridgeFault = "";
+            }
+            case BRIDGE_ERROR -> append(
+                    ConsoleEntry.Channel.ERROR,
+                    "RPC protocol: " + event.payload.optString("message", "неизвестная ошибка")
+            );
+            case PI_STARTED -> bridgeReady = true;
+            case PI_EXITED -> {
+                if (!event.payload.optBoolean("expected", false)) {
+                    append(ConsoleEntry.Channel.ERROR,
+                            "Pi RPC child завершился; активный turn не будет повторён.");
+                }
+            }
+            case TURN_ACCEPTED, TURN_STARTED -> {
+                if (event.operationId != null
+                        && event.operationId.equals(operations.activeOperationId())) {
+                    setBusy(true, "PI AGENT // STREAMING");
+                    if (event.type == BridgeEvent.Type.TURN_STARTED) deck.beginStreaming();
+                }
+            }
+            case MODEL_OUTPUT_DELTA -> {
+                if (event.operationId != null
+                        && event.operationId.equals(operations.activeOperationId())) {
+                    deck.appendStreaming(event.payload.optString("delta"));
+                }
+            }
+            case TOOL_CALL_STARTED -> {
+                if (event.operationId != null
+                        && event.operationId.equals(operations.activeOperationId())) {
+                    append(ConsoleEntry.Channel.TOOL,
+                            "› " + event.payload.optString("toolName", "tool")
+                                    + "\n" + event.payload.optString("args"));
+                }
+            }
+            case TOOL_CALL_COMPLETED -> {
+                if (event.payload.optBoolean("isError", false)) {
+                    append(ConsoleEntry.Channel.ERROR,
+                            "× " + event.payload.optString("toolName", "tool")
+                                    + "\n" + event.payload.optString("resultPreview"));
+                }
+            }
+            case APPROVAL_REQUESTED -> showApproval(event);
+            case APPROVAL_RESOLVED -> {
+                String approvalId = event.payload.optString("approvalId");
+                if (approvalId.equals(currentApprovalId) && approvalDialog != null) {
+                    approvalDialog.dismiss();
+                }
+            }
+            case TURN_COMPLETED, TURN_FAILED, TURN_ABORTED, SESSION_CREATED ->
+                    completeRpcOperation(event);
+            default -> {
+            }
+        }
+        refreshUi();
+    }
+
+    private void completeRpcOperation(BridgeEvent event) {
+        if (event.operationId == null) return;
+        OperationRecord record = operationStore.load(event.operationId);
+        if (record == null) return;
+        boolean success = event.type == BridgeEvent.Type.TURN_COMPLETED
+                || event.type == BridgeEvent.Type.SESSION_CREATED;
+        String answer = event.payload.optString("answer");
+        String error = event.payload.optString(
+                "error",
+                event.type == BridgeEvent.Type.TURN_ABORTED ? "Turn aborted" : "RPC turn failed"
+        );
+        CommandResult result = new CommandResult(
+                event.operationId,
+                record.kind,
+                answer,
+                "",
+                success ? 0 : 1,
+                success ? 0 : 1,
+                success ? "" : error,
+                event.type == BridgeEvent.Type.TURN_ABORTED
+                        ? OperationState.ABORTED
+                        : success ? OperationState.COMPLETED : OperationState.FAILED
+        );
+        boolean ownsUi;
+        try {
+            ownsUi = operations.onResult(result);
+        } catch (RuntimeException ignored) {
+            return;
+        }
+        if (!ownsUi && record.kind != OperationKind.NEW_SESSION) {
+            operations.markConsumed(event.operationId);
+            return;
+        }
+        cancelWatchdog(event.operationId);
+        setBusy(false, null);
+        if (record.kind == OperationKind.NEW_SESSION) {
+            if (success) {
+                String actualSession = event.payload.optString("sessionId", event.sessionId);
+                try {
+                    prefs.setSessionId(actualSession, false);
+                } catch (RuntimeException ignored) {
+                    prefs.startNewSession();
+                }
+                append(ConsoleEntry.Channel.SYSTEM,
+                        "Открыта новая Pi RPC session без скрытого replay.");
+            } else {
+                append(ConsoleEntry.Channel.ERROR, error);
+            }
+        } else if (record.kind == OperationKind.AGENT_TURN) {
+            if (event.type == BridgeEvent.Type.TURN_COMPLETED) {
+                prefs.setHasSession(true);
+                deck.finishStreaming(answer);
+                prefs.saveTranscript(deck.entries());
+            } else if (event.type == BridgeEvent.Type.TURN_ABORTED) {
+                deck.discardStreaming();
+                append(ConsoleEntry.Channel.SYSTEM, "Pi turn подтверждённо остановлен.");
+            } else {
+                prefs.setHasSession(true);
+                if (!answer.isBlank()) deck.finishStreaming(answer);
+                else deck.discardStreaming();
+                append(ConsoleEntry.Channel.ERROR,
+                        "Pi turn завершился ошибкой; запрос не повторялся.\n" + error);
+            }
+        }
+        operations.markConsumed(event.operationId);
+    }
+
+    private void showApproval(BridgeEvent event) {
+        if (event.operationId == null
+                || !event.operationId.equals(operations.activeOperationId())
+                || accessProfile != AccessProfile.CONFIRM_CHANGES) {
+            sendApproval(event, false);
+            return;
+        }
+        if (approvalDialog != null) approvalDialog.dismiss();
+        String approvalId = event.payload.optString("approvalId");
+        if (approvalId.isBlank()) return;
+        currentApprovalId = approvalId;
+        AtomicBoolean responded = new AtomicBoolean(false);
+        approvalDialog = new AlertDialog.Builder(this)
+                .setTitle(event.payload.optString("title", "Разрешить изменение?"))
+                .setMessage(event.payload.optString("message")
+                        + "\n\nOperation: " + event.operationId
+                        + "\nSession: "
+                        + (event.sessionId == null ? "none" : event.sessionId)
+                        + "\n\nОдноразовое разрешение истекает через 30 секунд.")
+                .setNegativeButton("Запретить", (dialog, which) -> {
+                    if (responded.compareAndSet(false, true)) sendApproval(event, false);
+                })
+                .setPositiveButton("Разрешить один раз", (dialog, which) -> {
+                    if (responded.compareAndSet(false, true)) sendApproval(event, true);
+                })
+                .setOnCancelListener(dialog -> {
+                    if (responded.compareAndSet(false, true)) sendApproval(event, false);
+                })
+                .create();
+        approvalDialog.setOnDismissListener(dialog -> {
+            approvalDialog = null;
+            currentApprovalId = null;
+        });
+        approvalDialog.show();
+    }
+
+    private void sendApproval(BridgeEvent event, boolean confirmed) {
+        io.execute(() -> {
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("approvalId", event.payload.getString("approvalId"));
+                payload.put("confirmed", confirmed);
+                rpc.command(event.operationId, "APPROVAL_DECISION", payload);
+            } catch (Exception error) {
+                runOnUiThread(() -> append(
+                        ConsoleEntry.Channel.ERROR,
+                        "Approval не доставлен; bridge применит deny по timeout."
+                ));
+            }
+        });
+    }
+
+    private void failRpcDispatch(OperationId operationId, Exception error) {
+        cancelWatchdog(operationId);
+        try {
+            operations.dispatchFailed(operationId, safeException(error));
+        } catch (RuntimeException ignored) {
+        }
+        setBusy(false, null);
+        append(ConsoleEntry.Channel.ERROR,
+                "RPC-команда не принята; автоматического повтора не было.\n"
+                        + safeException(error));
+    }
+
+    private void changeAccessProfile(AccessProfile target) {
+        if (busy) {
+            toast("Дождитесь завершения текущей операции");
+            return;
+        }
+        if (target == accessProfile) {
+            toast("Профиль уже активен");
+            return;
+        }
+        if (target == AccessProfile.AUTONOMOUS) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Включить AUTONOMOUS?")
+                    .setMessage("Агент может выполнять shell-команды и изменять любые файлы, "
+                            + "доступные пользователю Termux. Workspace-ограничение не является "
+                            + "системной песочницей.")
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Понимаю риск", (dialog, which) ->
+                            applyAccessProfile(target))
+                    .show();
+            return;
+        }
+        applyAccessProfile(target);
+    }
+
+    private void applyAccessProfile(AccessProfile target) {
+        accessProfile = target;
+        prefs.setAccessProfile(target);
+        bridgeReady = false;
+        bridgeConnected = false;
+        updatePrivacyIndicator();
+        append(ConsoleEntry.Channel.SYSTEM, "Access profile → " + target.label + ".");
+        if (serverReady) main.post(this::startBridge);
+        else refreshUi();
+    }
+
+    private void updatePrivacyIndicator() {
+        if (deck == null) return;
+        deck.setPrivacyLine(accessProfile.toolNetworkPossible
+                ? "TOOLS: NETWORK POSSIBLE"
+                : "TOOLS: NO SHELL");
+    }
+
+    @FunctionalInterface
+    private interface OperationDispatch {
+        void run(OperationId operationId);
+    }
+
+    private void dispatchOperation(
+            OperationKind kind,
+            JSONObject request,
+            String busyLabel,
+            OperationDispatch dispatch
+    ) {
+        OperationRecord operation;
+        try {
+            operation = operations.begin(kind, request);
+        } catch (RuntimeException error) {
+            append(ConsoleEntry.Channel.ERROR, readableException(error));
+            return;
+        }
+        setBusy(true, busyLabel);
+        try {
+            operations.dispatched(operation.operationId);
+            dispatch.run(operation.operationId);
+            armWatchdog(operation.operationId, kind);
+        } catch (RuntimeException error) {
+            operations.dispatchFailed(operation.operationId, readableException(error));
+            setBusy(false, null);
+            append(ConsoleEntry.Channel.ERROR, readableException(error));
+        }
+    }
+
+    private JSONObject requestMetadata(String modelId, boolean continuingSession) {
+        JSONObject value = new JSONObject();
+        try {
+            value.put("modelId", modelId == null ? JSONObject.NULL : modelId);
+            String sessionId = continuingSession ? prefs.sessionId() : null;
+            value.put("sessionId", sessionId == null ? JSONObject.NULL : sessionId);
+        } catch (JSONException ignored) {
+        }
+        return value;
+    }
+
+    private ModelSpec modelForOperation(OperationId operationId) {
+        OperationRecord record = operationStore.load(operationId);
+        if (record == null) return null;
+        String modelId = record.request.optString("modelId", "");
+        return modelCatalog.byId(modelId).orElse(null);
+    }
+
+    private JSONObject runtimeRequest(OperationId operationId) {
+        JSONObject value = new JSONObject();
+        put(value, "schemaVersion", 1);
+        put(value, "operationId", operationId.toString());
+        return value;
+    }
+
+    private JSONObject json(String key, Object value) {
+        JSONObject result = new JSONObject();
+        put(result, key, value);
+        return result;
+    }
+
+    private void put(JSONObject target, String key, Object value) {
+        try {
+            target.put(key, value);
+        } catch (JSONException error) {
+            throw new IllegalStateException("Could not build bounded command JSON", error);
+        }
+    }
+
+    private boolean runtimeState(CommandResult result, String expectedState) {
+        if (!result.isSuccess()) return false;
+        JSONObject value = RuntimeScripts.finalJsonObject(result.stdout);
+        return value != null
+                && value.optInt("schemaVersion", -1) == 1
+                && value.optBoolean("ok", false)
+                && expectedState.equals(value.optString("state"));
+    }
+
+    private String runtimeError(CommandResult result) {
+        JSONObject value = RuntimeScripts.finalJsonObject(result.stdout);
+        if (value != null) {
+            JSONObject error = value.optJSONObject("error");
+            if (error != null) {
+                String code = error.optString("code", "RUNTIME_ERROR");
+                String message = error.optString("message", "Termux runtime error");
+                return code + ": " + message;
+            }
+        }
+        return clean(result.usefulError());
+    }
+
     private void append(ConsoleEntry.Channel channel, String text) {
         String normalized = text == null ? "" : text.trim();
         if (normalized.isBlank()) return;
@@ -1124,6 +2036,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
         manager.getMemoryInfo(memory);
         totalRam = memory.totalMem;
+        availableRam = memory.availMem;
+        lowMemory = memory.lowMemory;
         cpuThreads = Runtime.getRuntime().availableProcessors();
         try {
             StatFs stat = new StatFs(
@@ -1140,6 +2054,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         String network = isMetered() ? "METERED" : "NET OK";
         return humanBytes(totalRam) + " RAM // " + cpuThreads + " CPU // "
                 + humanBytes(freeStorage) + " FREE // " + network
+                + " // TERMUX " + (termuxEnvironment.version.isBlank()
+                ? "ABSENT" : termuxEnvironment.version)
                 + " // " + selectedModel.title;
     }
 
@@ -1167,6 +2083,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 .replaceAll("\\n{4,}", "\n\n\n");
     }
 
+    private boolean missingPiExecutable(CommandResult result) {
+        String details = clean(
+                result.stdout + "\n" + result.stderr + "\n" + result.errorMessage
+        ).toLowerCase(Locale.ROOT);
+        boolean namesPi = details.contains("/bin/pi")
+                || details.contains("env: ‘pi’")
+                || details.contains("env: 'pi'")
+                || details.contains("env: \"pi\"");
+        return namesPi && (details.contains("no such file or directory")
+                || details.contains("not found"));
+    }
+
     private String tail(String value, int lines) {
         String[] all = value.trim().split("\\n");
         int start = Math.max(0, all.length - lines);
@@ -1185,17 +2113,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
     }
 
-    private String readSmall(InputStream stream) throws Exception {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(stream, StandardCharsets.UTF_8)
-        )) {
-            StringBuilder result = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null && result.length() < 4_096) {
-                result.append(line);
-            }
-            return result.toString();
-        }
+    private String safeException(Throwable error) {
+        if (error instanceof SecurityException security) return readableException(security);
+        String message = error.getMessage();
+        if (message == null || message.isBlank()) return error.getClass().getSimpleName();
+        String sanitized = ANSI.matcher(message).replaceAll("").replace('\0', ' ');
+        return sanitized.length() > 1024 ? sanitized.substring(0, 1024) : sanitized;
     }
 
     private void toast(String value) {

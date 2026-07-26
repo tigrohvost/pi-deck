@@ -45,9 +45,9 @@ public class ModelDownloadPhaseTest {
     }
 
     @Test
-    public void fileFromAnEarlierInstallCountsWhenDownloadManagerHasNoRow() {
+    public void fileFromAnEarlierInstallMustBeVerifiedWhenDownloadManagerHasNoRow() {
         assertEquals(
-                ModelDownloadManager.Phase.COMPLETE,
+                ModelDownloadManager.Phase.VERIFY_REQUIRED,
                 ModelDownloadManager.phaseOf(false, 0, true)
         );
         assertEquals(
@@ -57,9 +57,9 @@ public class ModelDownloadPhaseTest {
     }
 
     @Test
-    public void unknownStatusFallsBackToTheFileItself() {
+    public void unknownStatusRequiresVerificationBeforeTrustingTheFile() {
         assertEquals(
-                ModelDownloadManager.Phase.COMPLETE,
+                ModelDownloadManager.Phase.VERIFY_REQUIRED,
                 ModelDownloadManager.phaseOf(true, 9999, true)
         );
         assertEquals(

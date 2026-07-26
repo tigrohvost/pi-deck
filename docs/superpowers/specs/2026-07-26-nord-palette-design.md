@@ -48,8 +48,8 @@ text, so labels and buttons use `errorText`.
 The scheme id lives in `DeckPreferences` (`color_scheme`, default `nord`). Colours are baked into
 views as they are constructed, so `CORE CONTROL → COLOR SCHEME` persists the choice and calls
 `Activity.recreate()` rather than walking the hierarchy. The transcript is already persisted, and a
-Termux result landing during the restart is recovered from the pending slot in `onResume()`. The
-action is refused while a command is in flight, matching the other CORE actions.
+Termux result landing during the restart is recovered from its durable per-operation record in
+`onResume()`. The action is refused while a command is in flight, matching the other CORE actions.
 
 Static resources — launcher icon, `windowBackground`, `colors.xml` — cannot follow a runtime choice
 and therefore carry the Nord default. On the `DECK` scheme the window background is briefly

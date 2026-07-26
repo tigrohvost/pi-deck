@@ -3,6 +3,7 @@ name: build
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -24,14 +25,64 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Test, lint and assemble release
-        run: ./gradlew testDebugUnitTest lintDebug assembleRelease
+      - name: Test, lint and assemble debug plus unsigned release
+        run: >-
+          ./gradlew testDebugUnitTest lintDebug assembleDebug
+          assembleDebugAndroidTest assembleRelease
 
-      - name: Upload release APK
+      - name: Validate embedded Python and benchmark contract
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 python3 -W error::ResourceWarning \
+            -m unittest discover -s tests/runtime -v
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/tools -v
+          python3 tools/validate_benchmark.py
+          python3 -m py_compile tools/*.py app/src/main/assets/runtime/pideck_runtime/*.py
+
+      - name: Verify exact Pi RPC and extension protocol
+        run: |
+          npm install --prefix build/pi-protocol --ignore-scripts --no-audit --no-fund \
+            @earendil-works/pi-coding-agent@0.82.1
+          PIDECK_PI_BIN="$PWD/build/pi-protocol/node_modules/.bin/pi" \
+            PYTHONDONTWRITEBYTECODE=1 \
+            python3 -W error::ResourceWarning -m unittest discover -s tests/protocol -v
+
+      - name: Generate supply-chain bundle
+        run: |
+          mkdir -p build/supply-chain
+          npm pack @earendil-works/pi-coding-agent@0.82.1 \
+            --ignore-scripts --pack-destination build/supply-chain
+          python3 tools/generate_sbom.py \
+            --pi-tarball build/supply-chain/earendil-works-pi-coding-agent-0.82.1.tgz \
+            --output build/supply-chain/pi-deck.cdx.json
+          cp app/src/main/assets/models-v2.json build/supply-chain/
+          cp app/src/main/assets/compatibility.json build/supply-chain/
+          python3 tools/write_checksums.py \
+            --output build/supply-chain/SHA256SUMS \
+            app/build/outputs/apk/debug/app-debug.apk \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            build/supply-chain/pi-deck.cdx.json \
+            build/supply-chain/models-v2.json \
+            build/supply-chain/compatibility.json
+
+      - name: Upload debug APK (not a production release)
         uses: actions/upload-artifact@v7
         with:
-          name: pi-deck-release-apk
-          path: app/build/outputs/apk/release/app-release.apk
+          name: pi-deck-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload unsigned release candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: pi-deck-unsigned-release-do-not-publish
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+
+      - name: Upload supply-chain metadata
+        uses: actions/upload-artifact@v7
+        with:
+          name: pi-deck-supply-chain-metadata
+          path: build/supply-chain/
           if-no-files-found: error
 
       - name: Upload reports on failure
@@ -43,3 +94,79 @@ jobs:
             app/build/reports
             app/build/test-results
           if-no-files-found: ignore
+
+  signed-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Require a GitHub-verified annotated tag signature
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag_sha="$(git rev-parse "${GITHUB_REF_NAME}^{tag}")"
+          verified="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_sha}" \
+            --jq '.verification.verified')"
+          test "$verified" = true
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build production-signed release
+        env:
+          PIDECK_RELEASE_STORE_FILE: ${{ github.workspace }}/release.keystore
+          PIDECK_RELEASE_STORE_PASSWORD: ${{ secrets.PIDECK_RELEASE_STORE_PASSWORD }}
+          PIDECK_RELEASE_KEY_ALIAS: ${{ secrets.PIDECK_RELEASE_KEY_ALIAS }}
+          PIDECK_RELEASE_KEY_PASSWORD: ${{ secrets.PIDECK_RELEASE_KEY_PASSWORD }}
+          RELEASE_KEYSTORE_B64: ${{ secrets.PIDECK_RELEASE_KEYSTORE_B64 }}
+        run: |
+          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > release.keystore
+          ./gradlew verifyProductionSigning testDebugUnitTest lintDebug assembleRelease
+          apksigner verify --verbose --print-certs \
+            app/build/outputs/apk/release/app-release.apk | tee build-signing.txt
+          ! grep -qi 'Android Debug' build-signing.txt
+
+      - name: Assemble signed release metadata
+        run: |
+          mkdir -p build/release
+          npm pack @earendil-works/pi-coding-agent@0.82.1 \
+            --ignore-scripts --pack-destination build/release
+          python3 tools/generate_sbom.py \
+            --pi-tarball build/release/earendil-works-pi-coding-agent-0.82.1.tgz \
+            --output build/release/pi-deck.cdx.json
+          cp app/build/outputs/apk/release/app-release.apk build/release/pi-deck.apk
+          cp app/src/main/assets/models-v2.json build/release/
+          cp app/src/main/assets/compatibility.json build/release/
+          cp docs/implementation-baseline.md build/release/
+          cp docs/release-process.md build/release/BUILD-INSTRUCTIONS.md
+          python3 tools/write_checksums.py --output build/release/SHA256SUMS \
+            build/release/pi-deck.apk \
+            build/release/pi-deck.cdx.json \
+            build/release/models-v2.json \
+            build/release/compatibility.json \
+            build/release/implementation-baseline.md \
+            build/release/BUILD-INSTRUCTIONS.md
+
+      - name: Publish immutable signed release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/release/pi-deck.apk
+            build/release/pi-deck.cdx.json
+            build/release/models-v2.json
+            build/release/compatibility.json
+            build/release/implementation-baseline.md
+            build/release/BUILD-INSTRUCTIONS.md
+            build/release/SHA256SUMS

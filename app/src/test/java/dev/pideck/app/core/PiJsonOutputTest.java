@@ -48,5 +48,17 @@ public class PiJsonOutputTest {
         PiJsonOutput.Parsed parsed = PiJsonOutput.parse(stream);
         assertTrue(parsed.recognized);
         assertEquals("Финал", parsed.answer);
+        assertEquals(2, parsed.protocolErrors.size());
+    }
+
+    @Test
+    public void preservesLiteralBackslashNInToolArguments() {
+        String stream = """
+                {"type":"tool_execution_start","toolName":"grep","args":"literal\\\\nmarker"}
+                """;
+        PiJsonOutput.Parsed parsed = PiJsonOutput.parse(stream);
+        assertEquals(1, parsed.traces.size());
+        assertTrue(parsed.traces.get(0).text.contains("literal\\nmarker"));
+        assertFalse(parsed.traces.get(0).text.contains("literal\nmarker"));
     }
 }

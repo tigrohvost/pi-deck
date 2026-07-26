@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "runner.py", line 4, in <module>
+    divide(1, 0)
+ZeroDivisionError: division by zero

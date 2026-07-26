@@ -6,21 +6,30 @@ import android.content.Intent;
 import android.os.Bundle;
 
 public final class CommandResultReceiver extends BroadcastReceiver {
-    public static final String EXTRA_REQUEST_ID = "dev.pideck.app.REQUEST_ID";
+    public static final String EXTRA_OPERATION_ID = "dev.pideck.app.OPERATION_ID";
+    public static final String EXTRA_OPERATION_KIND = "dev.pideck.app.OPERATION_KIND";
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        String requestId = intent.getStringExtra(EXTRA_REQUEST_ID);
+        OperationId operationId;
+        OperationKind kind;
+        try {
+            operationId = OperationId.parse(intent.getStringExtra(EXTRA_OPERATION_ID));
+            kind = OperationKind.fromWireName(intent.getStringExtra(EXTRA_OPERATION_KIND));
+        } catch (IllegalArgumentException ignored) {
+            return;
+        }
         Bundle result = intent.getBundleExtra("result");
         CommandResult commandResult;
         if (result == null) {
             commandResult = new CommandResult(
-                    requestId, "", "", -1, 1,
+                    operationId, kind, "", "", -1, 1,
                     "Termux не вернул результат. Проверьте разрешение RUN_COMMAND."
             );
         } else {
             commandResult = new CommandResult(
-                    requestId,
+                    operationId,
+                    kind,
                     result.getString("stdout", ""),
                     result.getString("stderr", ""),
                     result.getInt("exitCode", -1),
@@ -29,7 +38,7 @@ public final class CommandResultReceiver extends BroadcastReceiver {
             );
         }
 
-        new DeckPreferences(context).savePendingResult(commandResult);
+        new OperationStore(context).recordResult(commandResult);
         CommandEvents.publish(commandResult);
     }
 }

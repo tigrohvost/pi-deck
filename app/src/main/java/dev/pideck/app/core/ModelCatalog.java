@@ -1,100 +1,147 @@
 package dev.pideck.app.core;
 
+import android.content.Context;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
+/** Single-source model catalog loaded from app/src/main/assets/models-v2.json. */
 public final class ModelCatalog {
-    private static final long GIB = 1_073_741_824L;
+    public static final int SCHEMA_VERSION = 2;
+    private static final long MIB = 1_048_576L;
+    private static volatile ModelCatalog current;
 
-    public static final ModelSpec NANO = new ModelSpec(
-            "qwen3.5-0.8b",
-            "Qwen3.5 0.8B",
-            "NANO",
-            "ggml-org/Qwen3.5-0.8B-GGUF",
-            "8fea620810c4afa23dd6443f999a48574c1611a3",
-            "Qwen3.5-0.8B-Q4_0.gguf",
-            563_036_064L,
-            "57d1997790d1744fba5b40a7317df71ea5e2acee28c47e78f0cce39c0703f8cf",
-            3,
-            "Самый быстрый профиль для телефонов с 3–4 GB RAM."
-    );
+    private final String catalogVersion;
+    private final List<ModelSpec> models;
 
-    public static final ModelSpec EDGE = new ModelSpec(
-            "qwen3.5-2b",
-            "Qwen3.5 2B",
-            "EDGE",
-            "bartowski/Qwen_Qwen3.5-2B-GGUF",
-            "7d26695454df6de5fbcce2e58681e62dae06ce43",
-            "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
-            1_396_198_496L,
-            "57a1085840f497d764a7fc5d346922dbde961efb54cc792ea81d694fd846a1d8",
-            6,
-            "Лёгкий агент: Python, небольшие правки и быстрые ответы."
-    );
-
-    public static final ModelSpec CORE = new ModelSpec(
-            "qwen3.5-4b",
-            "Qwen3.5 4B",
-            "CORE",
-            "bartowski/Qwen_Qwen3.5-4B-GGUF",
-            "4168f45a16a1290d65a4ec0fa312ae917a4c15d6",
-            "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
-            3_013_027_808L,
-            "13c16f426047e2de38cd075bdade4a7bcbc8c774384876f677740cda65f8a983",
-            8,
-            "Лучший баланс для современного телефона и основной профиль PI//DECK."
-    );
-
-    public static final ModelSpec MAX = new ModelSpec(
-            "qwen3.5-9b",
-            "Qwen3.5 9B",
-            "MAX",
-            "bartowski/Qwen_Qwen3.5-9B-GGUF",
-            "182be2fd6c7bc44887d88a91cb03ff009cc9f549",
-            "Qwen_Qwen3.5-9B-Q4_K_M.gguf",
-            6_169_341_984L,
-            "d784ce9eda1a5a7b51e8f705a9e6310844bf4f173654d115823c775fdea56d43",
-            16,
-            "Сильнее в многошаговой работе; требует флагманской памяти и терпения."
-    );
-
-    private static final List<ModelSpec> ALL = List.of(NANO, EDGE, CORE, MAX);
-
-    private ModelCatalog() {
+    private ModelCatalog(String catalogVersion, List<ModelSpec> models) {
+        this.catalogVersion = catalogVersion;
+        this.models = Collections.unmodifiableList(new ArrayList<>(models));
     }
 
-    public static List<ModelSpec> all() {
-        return ALL;
+    public static synchronized ModelCatalog initialize(Context context) {
+        if (current != null) return current;
+        try (InputStream input = context.getAssets().open("models-v2.json")) {
+            current = parse(readUtf8(input));
+            return current;
+        } catch (IOException | JSONException error) {
+            throw new IllegalStateException("Bundled model catalog is invalid", error);
+        }
     }
 
-    public static ModelSpec byId(String id) {
-        if (id != null) {
-            for (ModelSpec model : ALL) {
-                if (model.id.equals(id)) return model;
+    public static ModelCatalog parse(String raw) throws JSONException {
+        JSONObject root = new JSONObject(raw);
+        HashSet<String> rootKeys = new HashSet<>();
+        Iterator<String> keys = root.keys();
+        while (keys.hasNext()) rootKeys.add(keys.next());
+        if (!rootKeys.equals(Set.of("schemaVersion", "catalogVersion", "models"))) {
+            throw new JSONException("Unexpected model catalog fields");
+        }
+        if (root.getInt("schemaVersion") != SCHEMA_VERSION) {
+            throw new JSONException("Unsupported model catalog schema");
+        }
+        String version = root.getString("catalogVersion");
+        if (version.isBlank()) throw new JSONException("Catalog version is blank");
+        JSONArray array = root.getJSONArray("models");
+        if (array.length() == 0) throw new JSONException("Model catalog is empty");
+        ArrayList<ModelSpec> models = new ArrayList<>();
+        HashSet<String> ids = new HashSet<>();
+        int defaults = 0;
+        for (int i = 0; i < array.length(); i++) {
+            ModelSpec model = ModelSpec.fromJson(array.getJSONObject(i));
+            if (!ids.add(model.id)) throw new JSONException("Duplicate model id: " + model.id);
+            if ("DEFAULT".equals(model.status)) defaults++;
+            models.add(model);
+        }
+        if (defaults > 1) throw new JSONException("Only one DEFAULT model is allowed");
+        return new ModelCatalog(version, models);
+    }
+
+    public static ModelCatalog get() {
+        ModelCatalog value = current;
+        if (value == null) {
+            throw new IllegalStateException("ModelCatalog.initialize(context) was not called");
+        }
+        return value;
+    }
+
+    public String catalogVersion() {
+        return catalogVersion;
+    }
+
+    public List<ModelSpec> all() {
+        return models;
+    }
+
+    /** Unknown IDs are errors at the call site; there is deliberately no hidden fallback. */
+    public Optional<ModelSpec> byId(String id) {
+        if (id == null || id.isBlank()) return Optional.empty();
+        for (ModelSpec model : models) {
+            if (model.id.equals(id)) return Optional.of(model);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Recommendation is explicit and based on current available memory, low-memory state, and
+     * enough storage for incoming + private temporary copy + final artifact.
+     */
+    public ModelSpec recommend(
+            long availableMemoryBytes,
+            boolean lowMemory,
+            long freeStorageBytes
+    ) {
+        ModelSpec best = models.get(0);
+        for (ModelSpec model : models) {
+            if ("BLOCKED".equals(model.status) || "DEPRECATED".equals(model.status)) continue;
+            long minimumMemory = model.minimumAvailableMiB * MIB;
+            long estimated = model.estimatedPeakBytes();
+            long safetyAdjusted = lowMemory ? estimated + 1024L * MIB : estimated;
+            if (availableMemoryBytes >= Math.max(minimumMemory, safetyAdjusted)
+                    && freeStorageBytes >= requiredStorageForFreshInstall(model)) {
+                best = model;
             }
         }
-        return EDGE;
+        return best;
     }
 
-    public static ModelSpec recommend(long totalRamBytes, long freeStorageBytes) {
-        ModelSpec desired;
-        if (totalRamBytes >= 14L * GIB) {
-            desired = MAX;
-        } else if (totalRamBytes >= 7L * GIB) {
-            desired = CORE;
-        } else if (totalRamBytes >= 5L * GIB) {
-            desired = EDGE;
-        } else {
-            desired = NANO;
+    public static long requiredStorageForFreshInstall(ModelSpec model) {
+        long safety = Math.max(512L * MIB, model.bytes / 5L);
+        try {
+            return Math.addExact(Math.multiplyExact(model.bytes, 3L), safety);
+        } catch (ArithmeticException ignored) {
+            return Long.MAX_VALUE;
         }
-
-        int index = ALL.indexOf(desired);
-        while (index > 0 && requiredStorage(ALL.get(index)) > freeStorageBytes) {
-            index--;
-        }
-        return ALL.get(index);
     }
 
-    public static long requiredStorage(ModelSpec model) {
-        return model.bytes + Math.max(256L * 1_048_576L, model.bytes / 10L);
+    /** Additional free bytes needed once the complete incoming artifact already exists. */
+    public static long requiredStorageForPrivateInstall(ModelSpec model) {
+        return model.bytes + Math.max(256L * MIB, model.bytes / 10L);
+    }
+
+    private static String readUtf8(InputStream input) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[16 * 1024];
+        int count;
+        while ((count = input.read(buffer)) >= 0) {
+            if (count > 0) output.write(buffer, 0, count);
+            if (output.size() > 2 * 1024 * 1024) {
+                throw new IOException("Model catalog exceeds bounded size");
+            }
+        }
+        return new String(output.toByteArray(), StandardCharsets.UTF_8);
     }
 }

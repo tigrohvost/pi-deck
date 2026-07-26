@@ -7,19 +7,26 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 import dev.pideck.app.ui.ConsoleEntry;
 
 public final class DeckPreferences {
+    static final int MAX_TRANSCRIPT_ENTRIES = 60;
+    static final int MAX_TRANSCRIPT_BYTES = 256 * 1024;
+    static final int MAX_TRANSCRIPT_ENTRY_BYTES = 32 * 1024;
     private static final String NAME = "pi_deck";
     private static final String KEY_MODEL = "selected_model";
     private static final String KEY_CORE_READY = "core_ready";
     private static final String KEY_HAS_SESSION = "has_session";
     private static final String KEY_TRANSCRIPT = "transcript";
-    private static final String KEY_PENDING_RESULT = "pending_result";
     private static final String KEY_COLOR_SCHEME = "color_scheme";
+    private static final String KEY_ACCESS_PROFILE = "access_profile_v1";
+    private static final String KEY_SESSION_ID = "session_id_v1";
+    private static final String KEY_BRIDGE_INSTANCE = "bridge_instance";
+    private static final String KEY_BRIDGE_SEQUENCE = "bridge_sequence";
 
     private final SharedPreferences prefs;
 
@@ -35,12 +42,24 @@ public final class DeckPreferences {
         prefs.edit().putString(KEY_MODEL, id).apply();
     }
 
+    public void clearSelectedModelId() {
+        prefs.edit().remove(KEY_MODEL).apply();
+    }
+
     public String colorScheme() {
         return prefs.getString(KEY_COLOR_SCHEME, null);
     }
 
     public void setColorScheme(String scheme) {
         prefs.edit().putString(KEY_COLOR_SCHEME, scheme).apply();
+    }
+
+    public AccessProfile accessProfile() {
+        return AccessProfile.fromWireName(prefs.getString(KEY_ACCESS_PROFILE, null));
+    }
+
+    public void setAccessProfile(AccessProfile profile) {
+        prefs.edit().putString(KEY_ACCESS_PROFILE, profile.wireName()).apply();
     }
 
     public boolean isCoreReady() {
@@ -59,6 +78,54 @@ public final class DeckPreferences {
         prefs.edit().putBoolean(KEY_HAS_SESSION, hasSession).apply();
     }
 
+    public String sessionId() {
+        return prefs.getString(KEY_SESSION_ID, null);
+    }
+
+    public String ensureSessionId() {
+        String existing = sessionId();
+        if (existing != null) return existing;
+        String created = java.util.UUID.randomUUID().toString();
+        prefs.edit().putString(KEY_SESSION_ID, created).apply();
+        return created;
+    }
+
+    public void setSessionId(String id, boolean hasMessages) {
+        OperationId.parse(id);
+        prefs.edit()
+                .putString(KEY_SESSION_ID, id)
+                .putBoolean(KEY_HAS_SESSION, hasMessages)
+                .apply();
+    }
+
+    public String startNewSession() {
+        String id = java.util.UUID.randomUUID().toString();
+        prefs.edit()
+                .putString(KEY_SESSION_ID, id)
+                .putBoolean(KEY_HAS_SESSION, false)
+                .apply();
+        return id;
+    }
+
+    public String bridgeInstanceId() {
+        return prefs.getString(KEY_BRIDGE_INSTANCE, null);
+    }
+
+    public long bridgeSequence() {
+        return prefs.getLong(KEY_BRIDGE_SEQUENCE, 0L);
+    }
+
+    public void setBridgeCursor(String instanceId, long sequence) {
+        prefs.edit()
+                .putString(KEY_BRIDGE_INSTANCE, instanceId)
+                .putLong(KEY_BRIDGE_SEQUENCE, Math.max(0L, sequence))
+                .apply();
+    }
+
+    public void clearBridgeCursor() {
+        prefs.edit().remove(KEY_BRIDGE_INSTANCE).remove(KEY_BRIDGE_SEQUENCE).apply();
+    }
+
     public long downloadId(String modelId) {
         return prefs.getLong("download_" + modelId, -1L);
     }
@@ -68,7 +135,19 @@ public final class DeckPreferences {
     }
 
     public void clearDownloadId(String modelId) {
-        prefs.edit().remove("download_" + modelId).apply();
+        prefs.edit()
+                .remove("download_" + modelId)
+                .remove("download_uri_" + modelId)
+                .apply();
+    }
+
+    public String downloadUri(String modelId) {
+        return prefs.getString("download_uri_" + modelId, null);
+    }
+
+    public void setDownloadUri(String modelId, String uri) {
+        if (uri == null || uri.isBlank()) return;
+        prefs.edit().putString("download_uri_" + modelId, uri).apply();
     }
 
     public boolean isModelVerified(ModelSpec model) {
@@ -84,6 +163,19 @@ public final class DeckPreferences {
         } else {
             editor.remove("verified_" + model.id);
         }
+        editor.apply();
+    }
+
+    public boolean isPrivateModelInstalled(ModelSpec model) {
+        return model.sha256.equalsIgnoreCase(
+                prefs.getString("private_model_" + model.id, "")
+        );
+    }
+
+    public void setPrivateModelInstalled(ModelSpec model, boolean installed) {
+        SharedPreferences.Editor editor = prefs.edit();
+        if (installed) editor.putString("private_model_" + model.id, model.sha256);
+        else editor.remove("private_model_" + model.id);
         editor.apply();
     }
 
@@ -108,51 +200,39 @@ public final class DeckPreferences {
 
     public void saveTranscript(List<ConsoleEntry> entries) {
         JSONArray array = new JSONArray();
-        int start = Math.max(0, entries.size() - 60);
-        for (int i = start; i < entries.size(); i++) {
+        int start = Math.max(0, entries.size() - MAX_TRANSCRIPT_ENTRIES);
+        ArrayList<JSONObject> bounded = new ArrayList<>();
+        int totalBytes = 2;
+        for (int i = entries.size() - 1; i >= start; i--) {
             ConsoleEntry entry = entries.get(i);
             try {
                 JSONObject item = new JSONObject();
                 item.put("channel", entry.channel.name());
-                item.put("text", entry.text);
+                item.put("text", truncateUtf8(entry.text, MAX_TRANSCRIPT_ENTRY_BYTES));
                 item.put("time", entry.time);
-                array.put(item);
+                int itemBytes = item.toString().getBytes(StandardCharsets.UTF_8).length + 1;
+                if (!bounded.isEmpty() && totalBytes + itemBytes > MAX_TRANSCRIPT_BYTES) break;
+                bounded.add(item);
+                totalBytes += itemBytes;
             } catch (JSONException ignored) {
             }
         }
+        for (int i = bounded.size() - 1; i >= 0; i--) array.put(bounded.get(i));
         prefs.edit().putString(KEY_TRANSCRIPT, array.toString()).apply();
     }
 
-    public void savePendingResult(CommandResult result) {
-        try {
-            JSONObject value = new JSONObject();
-            value.put("requestId", result.requestId);
-            value.put("stdout", result.stdout);
-            value.put("stderr", result.stderr);
-            value.put("exitCode", result.exitCode);
-            value.put("errorCode", result.errorCode);
-            value.put("errorMessage", result.errorMessage);
-            prefs.edit().putString(KEY_PENDING_RESULT, value.toString()).apply();
-        } catch (JSONException ignored) {
+    static String truncateUtf8(String value, int maxBytes) {
+        if (value == null || value.isEmpty()) return "";
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length <= maxBytes) return value;
+        int low = 0;
+        int high = value.length();
+        while (low < high) {
+            int middle = (low + high + 1) >>> 1;
+            int size = value.substring(0, middle).getBytes(StandardCharsets.UTF_8).length;
+            if (size <= maxBytes - 24) low = middle;
+            else high = middle - 1;
         }
-    }
-
-    public CommandResult consumePendingResult() {
-        String raw = prefs.getString(KEY_PENDING_RESULT, null);
-        if (raw == null) return null;
-        prefs.edit().remove(KEY_PENDING_RESULT).apply();
-        try {
-            JSONObject value = new JSONObject(raw);
-            return new CommandResult(
-                    value.optString("requestId"),
-                    value.optString("stdout"),
-                    value.optString("stderr"),
-                    value.optInt("exitCode", -1),
-                    value.optInt("errorCode", 0),
-                    value.optString("errorMessage")
-            );
-        } catch (JSONException ignored) {
-            return null;
-        }
+        return value.substring(0, low) + "\n[entry truncated]";
     }
 }

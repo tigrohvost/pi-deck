@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tigrohvost/pi-deck/schemas/models-v2.schema.json",
+  "title": "PI//DECK model catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "catalogVersion", "models"],
+  "properties": {
+    "schemaVersion": {"const": 2},
+    "catalogVersion": {"type": "string", "minLength": 1},
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/model"}
+    }
+  },
+  "$defs": {
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "title", "tier", "status", "note", "license", "source",
+        "artifact", "runtime", "sampling", "agent", "memory", "benchmark"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._-]+$"
+        },
+        "title": {"type": "string", "minLength": 1},
+        "tier": {"enum": ["NANO", "EDGE", "CORE", "MAX"]},
+        "status": {
+          "enum": ["DEFAULT", "SUPPORTED", "CANDIDATE", "EXPERIMENTAL", "DEPRECATED", "BLOCKED"]
+        },
+        "note": {"type": "string"},
+        "license": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["spdx", "weightsUrl", "verifiedAt"],
+          "properties": {
+            "spdx": {"enum": ["Apache-2.0", "MIT"]},
+            "weightsUrl": {"type": "string", "pattern": "^https://"},
+            "verifiedAt": {"type": "string", "format": "date-time"}
+          }
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository", "revision", "official", "provenance",
+            "provenanceStatus", "architecture", "upstreamModel", "conversion"
+          ],
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+            },
+            "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+            "official": {"type": "boolean"},
+            "provenance": {
+              "enum": ["official", "llama.cpp-maintained-conversion", "third-party-conversion", "local-conversion"]
+            },
+            "provenanceStatus": {"enum": ["VERIFIED", "INCOMPLETE"]},
+            "architecture": {"type": "string", "minLength": 1},
+            "upstreamModel": {"type": "string", "minLength": 1},
+            "conversion": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "performedBy", "tool", "toolRevision", "upstreamRevision",
+                "quantizationCommand", "buildEnvironment", "licenseChain"
+              ],
+              "properties": {
+                "performedBy": {"type": "string", "minLength": 1},
+                "tool": {"type": "string", "minLength": 1},
+                "toolRevision": {
+                  "oneOf": [
+                    {"type": "null"},
+                    {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+                  ]
+                },
+                "upstreamRevision": {
+                  "oneOf": [
+                    {"type": "null"},
+                    {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+                  ]
+                },
+                "quantizationCommand": {"type": ["string", "null"]},
+                "buildEnvironment": {"type": ["string", "null"]},
+                "licenseChain": {
+                  "type": "array",
+                  "items": {"type": "string", "minLength": 1},
+                  "maxItems": 16
+                }
+              }
+            }
+          }
+        },
+        "artifact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "bytes", "sha256"],
+          "properties": {
+            "file": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*\\.gguf$"
+            },
+            "bytes": {"type": "integer", "minimum": 1},
+            "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "minimumLlamaCppVersion", "recommendedContext", "maximumTestedContext",
+            "parallelSlots", "requiresJinja", "serverArgs", "chatTemplateMode", "reasoningMode"
+          ],
+          "properties": {
+            "minimumLlamaCppVersion": {"type": "string", "minLength": 1},
+            "recommendedContext": {"type": "integer", "minimum": 512},
+            "maximumTestedContext": {"type": "integer", "minimum": 512},
+            "parallelSlots": {"type": "integer", "minimum": 1},
+            "requiresJinja": {"type": "boolean"},
+            "serverArgs": {
+              "type": "array",
+              "items": {"type": "string"},
+              "maxItems": 32
+            },
+            "chatTemplateMode": {"enum": ["embedded", "explicit"]},
+            "reasoningMode": {"enum": ["off", "on", "model-default"]}
+          }
+        },
+        "sampling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["temperature", "topP", "topK", "minP", "presencePenalty"],
+          "properties": {
+            "temperature": {"type": "number"},
+            "topP": {"type": "number"},
+            "topK": {"type": "integer"},
+            "minP": {"type": "number"},
+            "presencePenalty": {"type": "number"}
+          }
+        },
+        "agent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "toolProtocol", "piProfile", "maxTokens",
+            "supportsToolCalls", "supportsMultiTurnTools"
+          ],
+          "properties": {
+            "toolProtocol": {"type": "string", "minLength": 1},
+            "piProfile": {"type": "string", "minLength": 1},
+            "maxTokens": {"type": "integer", "minimum": 1},
+            "supportsToolCalls": {"type": "boolean"},
+            "supportsMultiTurnTools": {"type": "boolean"}
+          }
+        },
+        "memory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minimumAvailableMiB", "measuredPeakRssMiB", "deviceClass"],
+          "properties": {
+            "minimumAvailableMiB": {"type": "integer", "minimum": 1},
+            "measuredPeakRssMiB": {
+              "oneOf": [{"type": "null"}, {"type": "integer", "minimum": 1}]
+            },
+            "deviceClass": {"type": "string", "minLength": 1}
+          }
+        },
+        "benchmark": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["suiteVersion", "lastPassedAt", "report"],
+          "properties": {
+            "suiteVersion": {"type": ["string", "null"]},
+            "lastPassedAt": {"type": ["string", "null"]},
+            "report": {"type": ["string", "null"]}
+          }
+        }
+      }
+    }
+  }
+}

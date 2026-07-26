@@ -21,6 +21,7 @@ public final class ModelDownloadManager {
         RUNNING,
         PAUSED,
         COMPLETE,
+        VERIFY_REQUIRED,
         FAILED
     }
 
@@ -63,7 +64,7 @@ public final class ModelDownloadManager {
         this.prefs = prefs;
     }
 
-    public long start(ModelSpec model) {
+    public long start(ModelSpec model, boolean allowMetered) {
         State current = state(model);
         if (current.isActive()) return prefs.downloadId(model.id);
         long previousId = prefs.downloadId(model.id);
@@ -78,20 +79,23 @@ public final class ModelDownloadManager {
             // download. A partial transfer keeps its pre-allocated final length, so size cannot
             // tell the two apart; leaving the file behind would make DownloadManager write to
             // "<name>-1.gguf", a path llama-server never looks at.
-            //noinspection ResultOfMethodCallIgnored
-            target.delete();
+            if (!target.delete()) {
+                throw new IllegalStateException(
+                        "Не удалось удалить старый incoming-файл: " + target.getName()
+                );
+            }
         }
 
         DownloadManager.Request request = new DownloadManager.Request(Uri.parse(model.downloadUrl()))
                 .setTitle("PI//DECK · " + model.title)
                 .setDescription(model.tier + " GGUF · " + model.humanSize())
                 .setMimeType("application/octet-stream")
-                .setAllowedOverMetered(true)
+                .setAllowedOverMetered(allowMetered)
                 .setAllowedOverRoaming(false)
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setDestinationInExternalPublicDir(
                         Environment.DIRECTORY_DOWNLOADS,
-                        "PiDeck/models/" + model.fileName
+                        "PiDeck/incoming/" + incomingFileName(model)
                 );
         long id = downloads.enqueue(request);
         prefs.setDownloadId(model.id, id);
@@ -134,7 +138,7 @@ public final class ModelDownloadManager {
                     break;
             }
         }
-        return fileHasFinalLength ? Phase.COMPLETE : Phase.MISSING;
+        return fileHasFinalLength ? Phase.VERIFY_REQUIRED : Phase.MISSING;
     }
 
     public State state(ModelSpec model) {
@@ -156,6 +160,10 @@ public final class ModelDownloadManager {
             );
             int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
             Phase phase = phaseOf(true, rawStatus, fileHasFinalLength);
+            if (phase == Phase.COMPLETE) {
+                int uriIndex = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
+                if (uriIndex >= 0) prefs.setDownloadUri(model.id, cursor.getString(uriIndex));
+            }
             return new State(
                     phase,
                     phase == Phase.COMPLETE ? model.bytes : downloaded,
@@ -173,7 +181,8 @@ public final class ModelDownloadManager {
     }
 
     public boolean isDownloaded(ModelSpec model) {
-        return state(model).phase == Phase.COMPLETE;
+        Phase phase = state(model).phase;
+        return phase == Phase.COMPLETE || phase == Phase.VERIFY_REQUIRED;
     }
 
     /**
@@ -186,8 +195,19 @@ public final class ModelDownloadManager {
     }
 
     public File fileFor(ModelSpec model) {
+        String stored = prefs.downloadUri(model.id);
+        if (stored != null) {
+            Uri uri = Uri.parse(stored);
+            if ("file".equals(uri.getScheme()) && uri.getPath() != null) {
+                return new File(uri.getPath());
+            }
+        }
         File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        return new File(downloadsDir, "PiDeck/models/" + model.fileName);
+        return new File(downloadsDir, "PiDeck/incoming/" + incomingFileName(model));
+    }
+
+    public String sourcePath(ModelSpec model) {
+        return fileFor(model).getAbsolutePath();
     }
 
     public void verifyAsync(ModelSpec model, VerifyListener listener) {
@@ -239,8 +259,12 @@ public final class ModelDownloadManager {
                 listener.onComplete(false, "", error.getMessage());
             }
         }, "pideck-gguf-verify");
-        thread.setDaemon(true);
+        thread.setDaemon(false);
         thread.start();
+    }
+
+    private static String incomingFileName(ModelSpec model) {
+        return model.id + "-" + model.sha256.substring(0, 12) + ".gguf";
     }
 
     public static String failureLabel(int reason) {
