@@ -101,6 +101,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private int verificationPercent;
     private String verificationFault = "";
     private float textScale;
+    /** A prompt typed while a turn was running; dispatched when the deck frees up. */
+    private String queuedPrompt;
     private Runnable watchdog;
     private OperationId watchdogOperationId;
     private int heartbeatTick;
@@ -159,6 +161,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         deck = new DeckView(this, this, palette, textScale);
         setContentView(deck);
         deck.setEntries(prefs.loadTranscript());
+        deck.setWorkspacePath(workspaceLabel());
         deck.setActiveTab(prefs.activeTab());
         refreshUi();
         if (restored != null && !restored.state.isTerminal()) {
@@ -223,18 +226,42 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             toast("Промпт больше лимита 64 KiB");
             return;
         }
-        if (busy) {
-            toast("Pi уже выполняет задачу");
-            return;
-        }
         if (!canRunAgent()) {
             refreshUi();
             toast("Сначала завершите boot sequence");
             return;
         }
+        if (busy) {
+            // The field stays live during a turn, so a second prompt waits rather than bouncing.
+            if (queuedPrompt != null) {
+                toast("В очереди уже есть промпт");
+                return;
+            }
+            queuedPrompt = prompt;
+            append(ConsoleEntry.Channel.USER, prompt);
+            append(ConsoleEntry.Channel.SYSTEM, "Отправлю, как только текущая задача закончится.");
+            return;
+        }
 
         append(ConsoleEntry.Channel.USER, prompt);
         dispatchRpcTurn(prompt);
+    }
+
+    @Override
+    public void onStopTurn() {
+        abortAgent();
+    }
+
+    /**
+     * The deck has no file viewer, and the file lives inside Termux's private tree, so the honest
+     * hand-off is the path on the clipboard and Termux in the foreground.
+     */
+    @Override
+    public void onOpenFile(String path) {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText("PI//DECK path", path));
+        toast("Путь скопирован — открываю Termux");
+        openTermux();
     }
 
     @Override
@@ -458,11 +485,20 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             prefs.setHasSession(true);
             PiJsonOutput.Parsed parsed = PiJsonOutput.parse(result.stdout);
             for (PiJsonOutput.Trace trace : parsed.traces) {
-                append(
-                        trace.error ? ConsoleEntry.Channel.ERROR : ConsoleEntry.Channel.TOOL,
-                        trace.text
+                if (trace.verb.isEmpty()) {
+                    append(
+                            trace.error ? ConsoleEntry.Channel.ERROR : ConsoleEntry.Channel.TOOL,
+                            trace.text
+                    );
+                    continue;
+                }
+                deck.addTrace(
+                        traceVerb(trace.verb),
+                        traceArgument(trace.argument),
+                        trace.error ? "ошибка" : ""
                 );
             }
+            prefs.saveTranscript(deck.entries());
             String answer = parsed.answer;
             if (answer.isBlank() && !parsed.recognized) answer = clean(result.stdout).trim();
             if (answer.isBlank()) answer = clean(result.stderr).trim();
@@ -1209,7 +1245,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             ));
         }
 
-        state.info.add(new CoreRootView.InfoRow("рабочая папка", "~/.pideck/workspace", palette.text));
+        state.info.add(new CoreRootView.InfoRow("рабочая папка", workspaceLabel(), palette.text));
         state.info.add(new CoreRootView.InfoRow(
                 "termux", termuxEnvironment.installed
                 ? termuxEnvironment.version + " / " + termuxEnvironment.sourceLabel()
@@ -1379,6 +1415,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         busy = value;
         deck.setBusy(value, label);
         refreshUi();
+        if (!value) main.post(this::dispatchQueuedPrompt);
+    }
+
+    private void dispatchQueuedPrompt() {
+        if (busy || queuedPrompt == null) return;
+        String prompt = queuedPrompt;
+        queuedPrompt = null;
+        if (!canRunAgent()) {
+            append(ConsoleEntry.Channel.ERROR,
+                    "Промпт из очереди не отправлен: ядро больше не готово принимать задачи.");
+            return;
+        }
+        dispatchRpcTurn(prompt);
     }
 
     private void dispatchRpcTurn(String prompt) {
@@ -1598,16 +1647,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case TOOL_CALL_STARTED -> {
                 if (event.operationId != null
                         && event.operationId.equals(operations.activeOperationId())) {
-                    append(ConsoleEntry.Channel.TOOL,
-                            "› " + event.payload.optString("toolName", "tool")
-                                    + "\n" + event.payload.optString("args"));
+                    String verb = traceVerb(event.payload.optString("toolName", "tool"));
+                    String argument = traceArgument(event.payload.optString("args", ""));
+                    deck.addTrace(verb, argument, "");
+                    prefs.saveTranscript(deck.entries());
+                    // The row is what makes a long turn legible, so it moves on every event.
+                    deck.setExecutionLabel(verb + " " + argument);
                 }
             }
             case TOOL_CALL_COMPLETED -> {
-                if (event.payload.optBoolean("isError", false)) {
+                boolean failed = event.payload.optBoolean("isError", false);
+                deck.completeTrace(failed ? "ошибка" : "готово");
+                if (failed) {
                     append(ConsoleEntry.Channel.ERROR,
-                            "× " + event.payload.optString("toolName", "tool")
-                                    + "\n" + event.payload.optString("resultPreview"));
+                            "Инструмент " + event.payload.optString("toolName", "tool")
+                                    + " вернул ошибку.\n"
+                                    + event.payload.optString("resultPreview"));
                 }
             }
             case APPROVAL_REQUESTED -> showApproval(event);
@@ -1879,6 +1934,44 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
         }
         return clean(result.usefulError());
+    }
+
+    /**
+     * The workspace is fixed by the Termux-side runtime scripts, so the deck shows where the
+     * agent is confined rather than offering to move it.
+     */
+    private String workspaceLabel() {
+        return TermuxBridge.WORKSPACE.replace(TermuxBridge.HOME, "~");
+    }
+
+    /** The gate renames the mutating built-ins; the trace shows the verb the user recognises. */
+    private String traceVerb(String toolName) {
+        String verb = toolName == null ? "tool" : toolName.trim();
+        if (verb.startsWith("pideck_")) verb = verb.substring("pideck_".length());
+        return verb.isEmpty() ? "tool" : verb;
+    }
+
+    /**
+     * The trace shows one argument, not the whole call: whichever field names what was touched,
+     * falling back to the raw payload when the tool is one the deck does not know.
+     */
+    private String traceArgument(String rawArgs) {
+        if (rawArgs == null || rawArgs.isBlank()) return "";
+        String value = rawArgs.trim();
+        try {
+            JSONObject parsed = new JSONObject(value);
+            for (String key : new String[]{"path", "file", "filePath", "command", "pattern", "query"}) {
+                String candidate = parsed.optString(key, "");
+                if (!candidate.isBlank()) {
+                    value = candidate;
+                    break;
+                }
+            }
+        } catch (JSONException ignored) {
+            // Not an object; the bounded text the bridge sent is the best we have.
+        }
+        value = clean(value).replace('\n', ' ').trim();
+        return value.length() > 160 ? value.substring(0, 160) + "…" : value;
     }
 
     private void append(ConsoleEntry.Channel channel, String text) {

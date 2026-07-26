@@ -209,7 +209,9 @@ public final class DeckPreferences {
                 result.add(new ConsoleEntry(
                         ConsoleEntry.Channel.valueOf(item.getString("channel")),
                         item.getString("text"),
-                        item.optLong("time", System.currentTimeMillis())
+                        item.optLong("time", System.currentTimeMillis()),
+                        item.optString("verb", ""),
+                        item.optString("detail", "")
                 ));
             }
         } catch (JSONException | IllegalArgumentException ignored) {
@@ -230,6 +232,8 @@ public final class DeckPreferences {
                 item.put("channel", entry.channel.name());
                 item.put("text", truncateUtf8(entry.text, MAX_TRANSCRIPT_ENTRY_BYTES));
                 item.put("time", entry.time);
+                if (!entry.verb.isEmpty()) item.put("verb", truncateUtf8(entry.verb, 64));
+                if (!entry.detail.isEmpty()) item.put("detail", truncateUtf8(entry.detail, 256));
                 int itemBytes = item.toString().getBytes(StandardCharsets.UTF_8).length + 1;
                 if (!bounded.isEmpty() && totalBytes + itemBytes > MAX_TRANSCRIPT_BYTES) break;
                 bounded.add(item);

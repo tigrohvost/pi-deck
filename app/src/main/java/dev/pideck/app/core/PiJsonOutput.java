@@ -10,10 +10,20 @@ public final class PiJsonOutput {
     public static final class Trace {
         public final String text;
         public final boolean error;
+        /** The tool that ran, for the trace feed's leading column. */
+        public final String verb;
+        /** What it was pointed at, for the feed's middle column. */
+        public final String argument;
 
         Trace(String text, boolean error) {
+            this(text, error, "", "");
+        }
+
+        Trace(String text, boolean error, String verb, String argument) {
             this.text = text;
             this.error = error;
+            this.verb = verb;
+            this.argument = argument;
         }
     }
 
@@ -57,14 +67,21 @@ public final class PiJsonOutput {
                     case "tool_execution_start" -> {
                         String tool = event.optString("toolName", "tool");
                         String args = compact(event.opt("args"));
-                        traces.add(new Trace("› " + tool + (args.isBlank() ? "" : "\n" + args), false));
+                        traces.add(new Trace(
+                                "› " + tool + (args.isBlank() ? "" : "\n" + args),
+                                false,
+                                tool,
+                                args
+                        ));
                     }
                     case "tool_execution_end" -> {
                         if (event.optBoolean("isError", false)) {
                             String tool = event.optString("toolName", "tool");
                             traces.add(new Trace(
                                     "× " + tool + "\n" + compact(event.opt("result")),
-                                    true
+                                    true,
+                                    tool,
+                                    compact(event.opt("result"))
                             ));
                         }
                     }
