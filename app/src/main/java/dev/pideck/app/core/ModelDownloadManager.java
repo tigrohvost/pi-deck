@@ -73,8 +73,11 @@ public final class ModelDownloadManager {
         }
 
         File target = fileFor(model);
-        if (target.exists() && target.length() != model.bytes) {
-            // Exact app-managed target only; a failed DownloadManager transfer can leave a partial file.
+        if (target.exists()) {
+            // Exact app-managed target only, and only reached once the user confirmed a fresh
+            // download. A partial transfer keeps its pre-allocated final length, so size cannot
+            // tell the two apart; leaving the file behind would make DownloadManager write to
+            // "<name>-1.gguf", a path llama-server never looks at.
             //noinspection ResultOfMethodCallIgnored
             target.delete();
         }
@@ -107,17 +110,42 @@ public final class ModelDownloadManager {
         return !file.exists() || file.delete();
     }
 
+    /**
+     * DownloadManager pre-allocates the destination to its final length before it streams a single
+     * byte (DownloadThread calls StorageManager#allocateBytes, which does posix_fallocate or
+     * ftruncate), so the file size says nothing about progress. Its status column is the only
+     * authority while a transfer is known; the file is a fallback for downloads it no longer
+     * tracks, such as a model kept across a reinstall.
+     */
+    static Phase phaseOf(boolean hasDownloadRow, int rawStatus, boolean fileHasFinalLength) {
+        if (hasDownloadRow) {
+            switch (rawStatus) {
+                case DownloadManager.STATUS_PENDING:
+                    return Phase.QUEUED;
+                case DownloadManager.STATUS_RUNNING:
+                    return Phase.RUNNING;
+                case DownloadManager.STATUS_PAUSED:
+                    return Phase.PAUSED;
+                case DownloadManager.STATUS_SUCCESSFUL:
+                    return Phase.COMPLETE;
+                case DownloadManager.STATUS_FAILED:
+                    return Phase.FAILED;
+                default:
+                    break;
+            }
+        }
+        return fileHasFinalLength ? Phase.COMPLETE : Phase.MISSING;
+    }
+
     public State state(ModelSpec model) {
         File target = fileFor(model);
-        if (target.isFile() && target.length() == model.bytes) {
-            return new State(Phase.COMPLETE, model.bytes, model.bytes, 0);
-        }
-
+        boolean fileHasFinalLength = target.isFile() && target.length() == model.bytes;
         long id = prefs.downloadId(model.id);
-        if (id < 0) return new State(Phase.MISSING, 0, model.bytes, 0);
+        if (id < 0) return untrackedState(model, fileHasFinalLength);
+
         try (Cursor cursor = downloads.query(new DownloadManager.Query().setFilterById(id))) {
             if (cursor == null || !cursor.moveToFirst()) {
-                return new State(Phase.MISSING, 0, model.bytes, 0);
+                return untrackedState(model, fileHasFinalLength);
             }
             int rawStatus = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
             long downloaded = cursor.getLong(
@@ -127,22 +155,34 @@ public final class ModelDownloadManager {
                     cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
             );
             int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
-            Phase phase = switch (rawStatus) {
-                case DownloadManager.STATUS_PENDING -> Phase.QUEUED;
-                case DownloadManager.STATUS_RUNNING -> Phase.RUNNING;
-                case DownloadManager.STATUS_PAUSED -> Phase.PAUSED;
-                case DownloadManager.STATUS_SUCCESSFUL -> Phase.COMPLETE;
-                case DownloadManager.STATUS_FAILED -> Phase.FAILED;
-                default -> Phase.MISSING;
-            };
-            return new State(phase, downloaded, total > 0 ? total : model.bytes, reason);
+            Phase phase = phaseOf(true, rawStatus, fileHasFinalLength);
+            return new State(
+                    phase,
+                    phase == Phase.COMPLETE ? model.bytes : downloaded,
+                    total > 0 ? total : model.bytes,
+                    reason
+            );
         } catch (RuntimeException ignored) {
-            return new State(Phase.MISSING, 0, model.bytes, 0);
+            return untrackedState(model, fileHasFinalLength);
         }
+    }
+
+    private State untrackedState(ModelSpec model, boolean fileHasFinalLength) {
+        Phase phase = phaseOf(false, 0, fileHasFinalLength);
+        return new State(phase, phase == Phase.COMPLETE ? model.bytes : 0, model.bytes, 0);
     }
 
     public boolean isDownloaded(ModelSpec model) {
         return state(model).phase == Phase.COMPLETE;
+    }
+
+    /**
+     * Bytes a restarted download gets back, because {@link #start} drops the current target first.
+     * A pre-allocated partial file already occupies the model's full size on disk.
+     */
+    public long reclaimableBytes(ModelSpec model) {
+        File target = fileFor(model);
+        return target.isFile() ? target.length() : 0L;
     }
 
     public File fileFor(ModelSpec model) {
@@ -154,6 +194,10 @@ public final class ModelDownloadManager {
         Thread thread = new Thread(() -> {
             File file = fileFor(model);
             long downloadId = prefs.downloadId(model.id);
+            if (state(model).isActive()) {
+                listener.onComplete(false, "", "загрузка ещё идёт");
+                return;
+            }
             if (!file.isFile() && downloadId < 0) {
                 listener.onComplete(false, "", "GGUF-файл не найден");
                 return;
@@ -181,6 +225,13 @@ public final class ModelDownloadManager {
                             listener.onProgress(percent);
                         }
                     }
+                }
+                if (read != model.bytes) {
+                    // A short read means an interrupted transfer, not a corrupted one: telling the
+                    // user the checksum failed would send them off deleting a healthy file.
+                    listener.onComplete(false, "", "файл неполный: "
+                            + read / 1_048_576L + " MB из " + model.bytes / 1_048_576L + " MB");
+                    return;
                 }
                 String actual = hex(digest.digest());
                 listener.onComplete(model.sha256.equalsIgnoreCase(actual), actual, "");

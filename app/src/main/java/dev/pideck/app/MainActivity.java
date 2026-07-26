@@ -473,14 +473,17 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     ? "Сверяем SHA‑256 большого GGUF-файла: " + verificationPercent
                     + "%. Это защищает от обрыва или подмены загрузки."
                     : "Проверка не пройдена: " + verificationFault
-                    + "\nУдалите файл и загрузите модель снова.";
+                    + "\nФайл можно безопасно загрузить заново.";
             deck.setBootState(
                     "BOOT SEQUENCE // 06",
                     "ПРОВЕРКА ЦЕЛОСТНОСТИ",
                     body,
-                    verificationFault.isBlank() ? "VERIFYING…" : "MODELS",
-                    this::showModelsDialog,
-                    null, null
+                    verificationFault.isBlank() ? "VERIFYING…" : "RE-DOWNLOAD",
+                    verificationFault.isBlank()
+                            ? this::showModelsDialog
+                            : () -> confirmDownload(selectedModel),
+                    verificationFault.isBlank() ? null : "MODELS",
+                    verificationFault.isBlank() ? null : this::showModelsDialog
             );
             return;
         }
@@ -647,6 +650,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void verifyModel(ModelSpec model) {
         if (verifying) return;
+        if (modelDownloads.state(model).isActive()) return;
         verifying = true;
         verificationPercent = 0;
         verificationFault = "";
@@ -732,11 +736,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void confirmDownload(ModelSpec model) {
-        if (freeStorage < ModelCatalog.requiredStorage(model)) {
+        // The current target is dropped before the transfer starts, so its bytes count as free.
+        long available = freeStorage + modelDownloads.reclaimableBytes(model);
+        if (available < ModelCatalog.requiredStorage(model)) {
             append(ConsoleEntry.Channel.ERROR,
                     "Для " + model.title + " нужно минимум "
                             + humanBytes(ModelCatalog.requiredStorage(model))
-                            + " свободного места. Сейчас доступно " + humanBytes(freeStorage) + ".");
+                            + " свободного места. Сейчас доступно " + humanBytes(available) + ".");
             return;
         }
         String networkNote = isMetered()
