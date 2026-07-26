@@ -1,0 +1,2 @@
+-keep class dev.pideck.app.core.CommandResultReceiver { *; }
+-keep class dev.pideck.app.MainActivity { *; }
