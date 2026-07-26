@@ -54,6 +54,7 @@ import dev.pideck.app.ui.ConsoleEntry;
 import dev.pideck.app.ui.CoreRootView;
 import dev.pideck.app.ui.DeckStyle;
 import dev.pideck.app.ui.DeckView;
+import dev.pideck.app.ui.DecisionCardView;
 import dev.pideck.app.ui.FailureCardView;
 import dev.pideck.app.ui.Palette;
 import dev.pideck.app.ui.SessionsRootView;
@@ -1861,6 +1862,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                 deck.setBusy(true, "OPERATION STATE // UNKNOWN");
                             }
                             if (approvalDialog != null) approvalDialog.dismiss();
+                            deck.dismissDecision();
+                            currentApprovalId = null;
                             refreshUi();
                         });
                     }
@@ -1991,8 +1994,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case APPROVAL_REQUESTED -> showApproval(event);
             case APPROVAL_RESOLVED -> {
                 String approvalId = event.payload.optString("approvalId");
-                if (approvalId.equals(currentApprovalId) && approvalDialog != null) {
-                    approvalDialog.dismiss();
+                if (approvalId.equals(currentApprovalId)) {
+                    // Resolved elsewhere, or expired: the pending affordance goes with it.
+                    if (approvalDialog != null) approvalDialog.dismiss();
+                    if (deck.hasPendingDecision()) {
+                        deck.dismissDecision();
+                        currentApprovalId = null;
+                        append(ConsoleEntry.Channel.SYSTEM,
+                                "Решение больше не ждёт ответа: bridge закрыл запрос по "
+                                        + event.payload.optString("source", "таймауту") + ".");
+                    }
                 }
             }
             case TURN_COMPLETED, TURN_FAILED, TURN_ABORTED, SESSION_CREATED ->
@@ -2039,6 +2050,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         cancelWatchdog(event.operationId);
         setBusy(false, null);
         thermalWarned = false;
+        // A turn that ended can no longer be waiting on a decision.
+        deck.dismissDecision();
+        currentApprovalId = null;
         if (record.kind == OperationKind.NEW_SESSION) {
             if (success) {
                 String actualSession = event.payload.optString("sessionId", event.sessionId);
@@ -2081,6 +2095,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (approvalDialog != null) approvalDialog.dismiss();
         String approvalId = event.payload.optString("approvalId");
         if (approvalId.isBlank()) return;
+
+        JSONObject decision = event.payload.optJSONObject("decision");
+        if (decision != null && "overwrite".equals(decision.optString("kind"))) {
+            showOverwriteDecision(event, approvalId, decision);
+            return;
+        }
         currentApprovalId = approvalId;
         AtomicBoolean responded = new AtomicBoolean(false);
         approvalDialog = new AlertDialog.Builder(this)
@@ -2105,6 +2125,49 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             currentApprovalId = null;
         });
         approvalDialog.show();
+    }
+
+    /**
+     * A pending overwrite is a decision, not an interruption: it is drawn where the agent stopped
+     * rather than thrown over the transcript as a dialog, and the turn simply waits.
+     *
+     * <p>Turning off «спрашивать» in ЯДРО only ever silences files the agent created in this same
+     * session — the gate still asks about everything else, and about every shell command.
+     */
+    private void showOverwriteDecision(
+            BridgeEvent event, String approvalId, JSONObject decision
+    ) {
+        boolean selfCreated = decision.optBoolean("selfCreated", false);
+        if (selfCreated && !prefs.askBeforeOverwrite()) {
+            sendApproval(event, true);
+            return;
+        }
+        currentApprovalId = approvalId;
+        DecisionCardView.Decision model = new DecisionCardView.Decision(
+                approvalId,
+                decision.optString("path", ""),
+                decision.optString("reason", ""),
+                decision.optInt("addedLines", 0),
+                decision.optInt("removedLines", 0),
+                selfCreated
+        );
+        JSONArray preview = decision.optJSONArray("preview");
+        for (int index = 0; preview != null && index < preview.length(); index++) {
+            String line = preview.optString(index, "");
+            if (!line.isBlank()) model.preview.add(line);
+        }
+        AtomicBoolean responded = new AtomicBoolean(false);
+        deck.addDecision(model, (id, confirmed) -> {
+            if (!responded.compareAndSet(false, true)) return;
+            currentApprovalId = null;
+            sendApproval(event, confirmed);
+            append(ConsoleEntry.Channel.SYSTEM, confirmed
+                    ? "Разрешил перезаписать " + model.fileName() + "."
+                    : "Оставил " + model.fileName() + " без изменений.");
+            refreshUi();
+        });
+        prefs.saveTranscript(deck.entries());
+        refreshUi();
     }
 
     private void sendApproval(BridgeEvent event, boolean confirmed) {

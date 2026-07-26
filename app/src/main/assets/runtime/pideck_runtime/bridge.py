@@ -59,6 +59,57 @@ MAX_PROMPT_BYTES = 64 * 1024
 APPROVAL_TTL_SECONDS = 30
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
+# Pi's extension UI carries a title and a message and nothing else, so the permission gate puts
+# what the deck needs to draw a decision on the first line of the message and the bridge lifts it
+# back out. An approval without the header still works; it simply arrives without a decision.
+DECISION_PREFIX = "PIDECK-DECISION/1 "
+DECISION_KINDS = frozenset({"overwrite", "delete", "shell"})
+MAX_DECISION_PREVIEW_LINES = 4
+
+
+def split_decision(message: str) -> tuple[dict[str, Any] | None, str]:
+    """Splits the gate's structured header off an approval message."""
+    if not message.startswith(DECISION_PREFIX):
+        return None, message
+    header, _, remainder = message.partition("\n")
+    try:
+        value = json.loads(header[len(DECISION_PREFIX):])
+    except json.JSONDecodeError:
+        return None, message
+    if not isinstance(value, dict):
+        return None, message
+    decision = _bounded_decision(value)
+    if decision is None:
+        return None, message
+    return decision, remainder.lstrip("\n")
+
+
+def _bounded_decision(value: dict[str, Any]) -> dict[str, Any] | None:
+    kind = value.get("kind")
+    if kind not in DECISION_KINDS:
+        return None
+    preview_source = value.get("preview")
+    preview: list[str] = []
+    if isinstance(preview_source, list):
+        for line in preview_source[:MAX_DECISION_PREVIEW_LINES]:
+            if isinstance(line, str):
+                preview.append(bounded_text(line, 200))
+    return {
+        "kind": kind,
+        "path": bounded_text(value.get("path", ""), 1024),
+        "reason": bounded_text(value.get("reason", ""), 2048),
+        "addedLines": _bounded_count(value.get("addedLines")),
+        "removedLines": _bounded_count(value.get("removedLines")),
+        "selfCreated": value.get("selfCreated") is True,
+        "preview": preview,
+    }
+
+
+def _bounded_count(value: Any) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        return 0
+    return min(value, 1_000_000)
+
 
 def validated_token(value: str) -> bytes:
     if not isinstance(value, str) or not TOKEN_PATTERN.fullmatch(value):
@@ -762,25 +813,31 @@ class PiDeckBridge:
                 )
             return
         expires = time.monotonic() + APPROVAL_TTL_SECONDS
+        decision, message = split_decision(
+            bounded_text(value.get("message", ""), 32 * 1024)
+        )
         pending = {
             "operationId": self.active_operation_id,
             "expiresMonotonic": expires,
             "title": bounded_text(value.get("title", "Allow change?"), 512),
-            "message": bounded_text(value.get("message", ""), 32 * 1024),
+            "message": message,
         }
         self.pending_approvals[approval_id] = pending
+        payload = {
+            "approvalId": approval_id,
+            "title": pending["title"],
+            "message": pending["message"],
+            "expiresAtEpochMs": int(
+                (time.time() + APPROVAL_TTL_SECONDS) * 1000
+            ),
+        }
+        if decision is not None:
+            payload["decision"] = decision
         self.journal.append(
             "APPROVAL_REQUESTED",
             self.active_operation_id,
             self.session_id,
-            {
-                "approvalId": approval_id,
-                "title": pending["title"],
-                "message": pending["message"],
-                "expiresAtEpochMs": int(
-                    (time.time() + APPROVAL_TTL_SECONDS) * 1000
-                ),
-            },
+            payload,
         )
 
     def _complete_active_turn(self) -> None:

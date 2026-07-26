@@ -123,6 +123,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     /** The block each entry was drawn into; several trace entries share one feed. */
     private final List<View> blocks = new ArrayList<>();
     private TraceFeedView openTrace;
+    private DecisionCardView decisionCard;
     private ConsentView consentView;
     private TextView streamingMessage;
     private LinearLayout streamingAnswer;
@@ -593,6 +594,38 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         trimToCap();
         updateEmptyState();
         scrollToEnd();
+    }
+
+    /**
+     * A pending overwrite, drawn where the agent stopped. It stays in the stream until it is
+     * answered or expires, so the transcript records that the pause happened.
+     */
+    public void addDecision(DecisionCardView.Decision decision, DecisionCardView.Listener owner) {
+        dismissDecision();
+        openTrace = null;
+        decisionCard = new DecisionCardView(
+                getContext(), style, decision, (approvalId, confirmed) -> {
+            dismissDecision();
+            owner.onDecision(approvalId, confirmed);
+        });
+        attachBlock(decisionCard, true);
+        entries.add(new ConsoleEntry(ConsoleEntry.Channel.SYSTEM, decision.transcriptText()));
+        blocks.add(decisionCard);
+        trimToCap();
+        updateEmptyState();
+        scrollToEnd();
+    }
+
+    /** Removes the pending card when the approval is resolved elsewhere, or expires. */
+    public void dismissDecision() {
+        if (decisionCard == null) return;
+        stream.removeView(decisionCard);
+        blocks.remove(decisionCard);
+        decisionCard = null;
+    }
+
+    public boolean hasPendingDecision() {
+        return decisionCard != null;
     }
 
     /** A one-per-turn warning that is not a failure: the phone is hot and the deck is slower. */

@@ -763,6 +763,75 @@ class RuntimeTestCase(unittest.TestCase):
             thread.join(timeout=3)
 
 
+class DecisionHeaderTestCase(unittest.TestCase):
+    def header(self, **payload: object) -> str:
+        return bridge.DECISION_PREFIX + json.dumps(payload) + "\nTool: pideck_write\nTarget: x"
+
+    def test_message_without_a_header_is_left_alone(self) -> None:
+        decision, message = bridge.split_decision("Tool: pideck_bash\nls -la")
+        self.assertIsNone(decision)
+        self.assertEqual("Tool: pideck_bash\nls -la", message)
+
+    def test_header_is_lifted_off_and_bounded(self) -> None:
+        decision, message = bridge.split_decision(
+            self.header(
+                kind="overwrite",
+                path="/home/user/.pideck/workspace/AGENTS.md",
+                reason="Заменяю три раздела на шаблонные.",
+                addedLines=7,
+                removedLines=3,
+                selfCreated=False,
+                preview=["-один", "+два", "+три", "+четыре", "+лишняя"],
+            )
+        )
+        self.assertIsNotNone(decision)
+        self.assertEqual("overwrite", decision["kind"])
+        self.assertEqual("/home/user/.pideck/workspace/AGENTS.md", decision["path"])
+        self.assertEqual(7, decision["addedLines"])
+        self.assertEqual(3, decision["removedLines"])
+        self.assertFalse(decision["selfCreated"])
+        self.assertEqual(
+            bridge.MAX_DECISION_PREVIEW_LINES, len(decision["preview"])
+        )
+        self.assertEqual("Tool: pideck_write\nTarget: x", message)
+
+    def test_unknown_kind_is_refused_and_the_message_survives(self) -> None:
+        raw = self.header(kind="format-the-disk", path="/etc/passwd")
+        decision, message = bridge.split_decision(raw)
+        self.assertIsNone(decision)
+        self.assertEqual(raw, message)
+
+    def test_malformed_header_is_refused_and_the_message_survives(self) -> None:
+        raw = bridge.DECISION_PREFIX + "{not json\nTool: pideck_write"
+        decision, message = bridge.split_decision(raw)
+        self.assertIsNone(decision)
+        self.assertEqual(raw, message)
+
+    def test_counts_are_forced_into_range(self) -> None:
+        decision, _ = bridge.split_decision(
+            self.header(
+                kind="overwrite",
+                addedLines=-5,
+                removedLines="many",
+                selfCreated="yes",
+                preview="not-a-list",
+            )
+        )
+        self.assertEqual(0, decision["addedLines"])
+        self.assertEqual(0, decision["removedLines"])
+        # Only a real boolean grants the self-created exemption.
+        self.assertFalse(decision["selfCreated"])
+        self.assertEqual([], decision["preview"])
+        self.assertEqual("", decision["path"])
+
+    def test_oversized_fields_are_truncated(self) -> None:
+        decision, _ = bridge.split_decision(
+            self.header(kind="overwrite", path="p" * 4096, reason="r" * 8192)
+        )
+        self.assertLessEqual(len(decision["path"]), 1024)
+        self.assertLessEqual(len(decision["reason"]), 2048)
+
+
 class SessionListingTestCase(unittest.TestCase):
     def setUp(self) -> None:
         shutil.rmtree(common.BASE, ignore_errors=True)
