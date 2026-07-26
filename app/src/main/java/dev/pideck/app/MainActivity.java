@@ -287,6 +287,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         recreate();
     }
 
+    @Override
+    public void onConsentGranted(boolean askBeforeOverwrite) {
+        prefs.setConsentGranted(true);
+        prefs.setAskBeforeOverwrite(askBeforeOverwrite);
+        append(ConsoleEntry.Channel.SYSTEM, askBeforeOverwrite
+                ? "Доступ выдан. Спрошу перед изменением файлов, которые агент не создавал сам."
+                : "Доступ выдан. Файлы в рабочей папке агент меняет без отдельного вопроса.");
+        refreshUi();
+    }
+
+    @Override
+    public void onAskBeforeOverwriteChanged(boolean askBeforeOverwrite) {
+        prefs.setAskBeforeOverwrite(askBeforeOverwrite);
+        refreshUi();
+    }
+
     private void openTermux() {
         if (termux.isInstalled()) termux.openTermux();
         else termux.openTermuxPage();
@@ -540,6 +556,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (deck.activeTab() == TabBarView.TAB_CORE) renderCoreRoot();
         if (deck.activeTab() == TabBarView.TAB_SESSIONS) renderSessionsRoot();
 
+        // Consent sits between a working Termux link and the first run, and it never covers a
+        // boot step the user still has to fix — if the link breaks, the boot panel wins.
+        deck.setConsentVisible(
+                termuxEnvironment.canRunCommands()
+                        && permission
+                        && linkConfirmed
+                        && !prefs.consentGranted()
+        );
+
         if (android.os.Build.SUPPORTED_64_BIT_ABIS.length == 0) {
             deck.setBootState(
                     "BOOT HALT // ABI",
@@ -605,6 +630,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             );
             return;
         }
+        // Boot does not continue past the access decision.
+        if (!prefs.consentGranted()) return;
         if (!core) {
             deck.setBootState(
                     "BOOT SEQUENCE // 04",
@@ -1199,6 +1226,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         CoreRootView.State state = new CoreRootView.State();
         state.schemeId = palette.id;
         state.textScale = textScale;
+        state.askBeforeOverwrite = prefs.askBeforeOverwrite();
 
         for (ModelSpec model : modelCatalog.all()) state.models.add(modelRow(model));
 

@@ -25,6 +25,8 @@ public final class DeckPreferences {
     private static final String KEY_COLOR_SCHEME = "color_scheme";
     private static final String KEY_TEXT_SCALE = "text_scale";
     private static final String KEY_ACTIVE_TAB = "active_tab";
+    private static final String KEY_CONSENT = "shell_consent_v1";
+    private static final String KEY_ASK_BEFORE_OVERWRITE = "ask_before_overwrite";
     private static final String KEY_ACCESS_PROFILE = "access_profile_v1";
     private static final String KEY_SESSION_ID = "session_id_v1";
     private static final String KEY_BRIDGE_INSTANCE = "bridge_instance";
@@ -63,6 +65,24 @@ public final class DeckPreferences {
 
     public void setTextScale(float scale) {
         prefs.edit().putFloat(KEY_TEXT_SCALE, scale).apply();
+    }
+
+    /** Whether the user has been shown, and accepted, what the agent can do with the shell. */
+    public boolean consentGranted() {
+        return prefs.getBoolean(KEY_CONSENT, false);
+    }
+
+    public void setConsentGranted(boolean granted) {
+        prefs.edit().putBoolean(KEY_CONSENT, granted).apply();
+    }
+
+    /** Ask before overwriting a file the agent did not create. Defaults to asking. */
+    public boolean askBeforeOverwrite() {
+        return prefs.getBoolean(KEY_ASK_BEFORE_OVERWRITE, true);
+    }
+
+    public void setAskBeforeOverwrite(boolean ask) {
+        prefs.edit().putBoolean(KEY_ASK_BEFORE_OVERWRITE, ask).apply();
     }
 
     /** Which root the deck reopens on. */

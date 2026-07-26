@@ -70,6 +70,12 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
         /** «ОТКРЫТЬ ФАЙЛ» under an answer that wrote one. */
         void onOpenFile(String path);
+
+        /** The one-time shell-access consent, with the state of its checkbox. */
+        void onConsentGranted(boolean askBeforeOverwrite);
+
+        /** The same flag, changed later from ЯДРО. */
+        void onAskBeforeOverwriteChanged(boolean askBeforeOverwrite);
     }
 
     /** One card in the empty console: a headline and the prompt it stands for. */
@@ -117,6 +123,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     /** The block each entry was drawn into; several trace entries share one feed. */
     private final List<View> blocks = new ArrayList<>();
     private TraceFeedView openTrace;
+    private ConsentView consentView;
     private TextView streamingMessage;
     private LinearLayout streamingAnswer;
     private int streamingEntryIndex = -1;
@@ -441,6 +448,33 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         workspacePath.setText(path);
     }
 
+    /**
+     * Consent covers the whole window: there is no tab bar, no prompt field and no way back into
+     * the console from it, because it is the decision the rest of the app depends on.
+     */
+    public void setConsentVisible(boolean visible) {
+        if (visible == (consentView != null)) return;
+        if (!visible) {
+            removeView(consentView);
+            consentView = null;
+            return;
+        }
+        consentView = new ConsentView(
+                getContext(),
+                style,
+                workspacePath.getText().toString(),
+                askBeforeOverwrite -> {
+                    setConsentVisible(false);
+                    listener.onConsentGranted(askBeforeOverwrite);
+                }
+        );
+        addView(consentView, match());
+    }
+
+    public boolean isConsentVisible() {
+        return consentView != null;
+    }
+
     @Override
     public void onSchemeChosen(String schemeId) {
         listener.onSchemeChosen(schemeId);
@@ -449,6 +483,11 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     @Override
     public void onTextScaleChosen(float scale) {
         listener.onTextScaleChosen(scale);
+    }
+
+    @Override
+    public void onAskBeforeOverwriteChanged(boolean askBeforeOverwrite) {
+        listener.onAskBeforeOverwriteChanged(askBeforeOverwrite);
     }
 
     /** The header says one thing at a time: can the core answer, or what is it waiting on. */

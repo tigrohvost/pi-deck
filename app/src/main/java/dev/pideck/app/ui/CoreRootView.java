@@ -106,12 +106,16 @@ public final class CoreRootView extends ScrollView {
         public String accessProfileLabel = "";
         public String accessProfileNote = "";
         public final List<ActionRow> accessProfiles = new ArrayList<>();
+        /** Mirror of the checkbox on the consent screen. */
+        public boolean askBeforeOverwrite = true;
     }
 
     public interface Listener {
         void onSchemeChosen(String schemeId);
 
         void onTextScaleChosen(float scale);
+
+        void onAskBeforeOverwriteChanged(boolean askBeforeOverwrite);
     }
 
     private final DeckStyle style;
@@ -161,12 +165,24 @@ public final class CoreRootView extends ScrollView {
                 value -> listener.onTextScaleChosen((Float) value)
         ));
 
+        section("Доступ");
+        addSpaced(style.bodySecondary("Перезапись чужих файлов"), 8);
+        column.addView(segments(
+                new String[]{"Спрашивать", "Не спрашивать"},
+                new Object[]{Boolean.TRUE, Boolean.FALSE},
+                state.askBeforeOverwrite,
+                value -> listener.onAskBeforeOverwriteChanged((Boolean) value)
+        ));
         if (!state.accessProfiles.isEmpty()) {
-            section("Доступ");
             TextView current = style.bodySecondary(
                     state.accessProfileLabel + " — " + state.accessProfileNote
             );
-            addSpaced(current, 8);
+            LinearLayout.LayoutParams currentLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            currentLp.topMargin = style.dp(18);
+            currentLp.bottomMargin = style.dp(8);
+            column.addView(current, currentLp);
             for (ActionRow profile : state.accessProfiles) column.addView(actionRow(profile));
         }
 
