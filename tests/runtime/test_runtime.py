@@ -35,6 +35,10 @@ def operation_id() -> str:
     return str(uuid.uuid4())
 
 
+def session_v7() -> str:
+    return "01890f76-e8b2-7cc2-98c8-8c4a7ef8d123"
+
+
 def tiny_model(content: bytes, expected_sha: str | None = None) -> dict:
     return {
         "id": "fixture-model",
@@ -131,6 +135,24 @@ def fake_bridge() -> bridge.PiDeckBridge:
 
 
 class RuntimeTestCase(unittest.TestCase):
+    def test_bridge_can_rebind_after_exact_managed_restart(self) -> None:
+        self.assertTrue(bridge.BridgeHttpServer.allow_reuse_address)
+
+    def test_session_id_accepts_android_uuid4_and_pi_uuid7_only(self) -> None:
+        uuid4 = operation_id()
+        self.assertEqual(
+            uuid4,
+            common.require_session_id({"sessionId": uuid4}),
+        )
+        self.assertEqual(
+            session_v7(),
+            common.require_session_id({"sessionId": session_v7()}),
+        )
+        with self.assertRaises(common.PiDeckError):
+            common.require_session_id(
+                {"sessionId": "01890f76-e8b2-1cc2-98c8-8c4a7ef8d123"}
+            )
+
     def setUp(self) -> None:
         shutil.rmtree(common.BASE, ignore_errors=True)
         common.ensure_private_layout()
@@ -277,6 +299,79 @@ class RuntimeTestCase(unittest.TestCase):
                 unsafe, Path("/private/model.gguf"), 4, 8080, "secret"
             )
         self.assertEqual("INVALID_CATALOG", raised.exception.code)
+
+        unsafe["runtime"]["serverArgs"] = ["--spec-type", "draft-mtp"]
+        with self.assertRaises(common.PiDeckError) as raised:
+            server_supervisor.effective_server_arguments(
+                unsafe, Path("/private/model.gguf"), 4, 8080, "secret"
+            )
+        self.assertEqual("INVALID_CATALOG", raised.exception.code)
+
+    def test_external_server_adoption_is_health_bound_and_exact(self) -> None:
+        model = tiny_model(b"GGUF")
+        install_catalog(model)
+        request = {
+            "schemaVersion": 1,
+            "operationId": operation_id(),
+            "modelId": model["id"],
+            "modelSha256": model["artifact"]["sha256"],
+            "owner": "android-native",
+            "runtimeBuild": "b10092",
+            "port": 8080,
+            "apiKey": "A" * 43,
+            "pid": 4242,
+            "decodeThreads": 5,
+            "batchThreads": 8,
+            "decodeCpuSet": "3-7",
+            "batchCpuSet": "0-7",
+        }
+        with (
+            mock.patch.object(
+                server_supervisor, "strict_health", return_value={"status": "ok"}
+            ) as health,
+            mock.patch.object(server_supervisor, "_write_pi_models") as write_models,
+            mock.patch.object(server_supervisor, "_wake_lock") as wake_lock,
+        ):
+            result = server_supervisor.adopt_external_server(request)
+            status = server_supervisor.read_server_status()
+        self.assertEqual("READY", result["state"])
+        self.assertEqual("android-native", status["owner"])
+        self.assertEqual("3-7", status["decodeCpuSet"])
+        self.assertEqual("0-7", status["batchCpuSet"])
+        health.assert_called()
+        write_models.assert_called_once_with("A" * 43, 8080)
+        wake_lock.assert_called_once_with(False)
+        self.assertEqual(
+            ("A" * 43).encode("ascii"),
+            server_supervisor.SERVER_API_KEY.read_bytes(),
+        )
+
+    def test_external_server_adoption_rejects_claim_without_health(self) -> None:
+        model = tiny_model(b"GGUF")
+        install_catalog(model)
+        request = {
+            "schemaVersion": 1,
+            "operationId": operation_id(),
+            "modelId": model["id"],
+            "modelSha256": model["artifact"]["sha256"],
+            "owner": "android-native",
+            "runtimeBuild": "b10092",
+            "port": 8080,
+            "apiKey": "A" * 43,
+            "decodeThreads": 5,
+            "batchThreads": 8,
+            "decodeCpuSet": "3-7",
+            "batchCpuSet": "0-7",
+        }
+        with mock.patch.object(
+            server_supervisor,
+            "strict_health",
+            side_effect=common.PiDeckError("HEALTH_UNREACHABLE", "down"),
+        ):
+            with self.assertRaises(common.PiDeckError) as raised:
+                server_supervisor.adopt_external_server(request)
+        self.assertEqual("HEALTH_UNREACHABLE", raised.exception.code)
+        self.assertFalse(server_supervisor.SERVER_STATUS.exists())
 
     def test_legacy_server_takeover_matches_only_exact_01x_command(self) -> None:
         model = tiny_model(b"GGUF")
@@ -556,6 +651,142 @@ class RuntimeTestCase(unittest.TestCase):
         terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
         self.assertEqual("Готово", terminal[-1]["payload"]["answer"])
         self.assertIsNone(value.active_operation_id)
+
+    def test_recovered_tool_error_does_not_fail_the_turn(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {"message": "say hi", "sessionId": value.session_id},
+            }
+        )
+        value.handle_pi_message({"type": "agent_start"})
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "Привет"},
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "tool_execution_end",
+                "toolName": "grep",
+                "toolCallId": "tool-1",
+                "isError": True,
+                "result": "rg: /: Permission denied (os error 13)",
+            }
+        )
+        # The model saw the error and recovered on the next call, so the turn stands.
+        value.handle_pi_message(
+            {
+                "type": "tool_execution_end",
+                "toolName": "grep",
+                "toolCallId": "tool-2",
+                "isError": False,
+                "result": "3 matches",
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+        _gap, events = value.journal.after(0, 0)
+        event_types = [event["type"] for event in events]
+        self.assertNotIn("TURN_FAILED", event_types)
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual("Привет", terminal[-1]["payload"]["answer"])
+        self.assertNotIn("error", terminal[-1]["payload"])
+        # The failing call is still reported on its own, so nothing is hidden.
+        failed_calls = [
+            event
+            for event in events
+            if event["type"] == "TOOL_CALL_COMPLETED" and event["payload"]["isError"]
+        ]
+        self.assertEqual("tool-1", failed_calls[-1]["payload"]["toolCallId"])
+
+    def test_model_error_still_fails_the_turn(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {"message": "say hi", "sessionId": value.session_id},
+            }
+        )
+        value.handle_pi_message({"type": "agent_start"})
+        value.handle_pi_message(
+            {
+                "type": "tool_execution_end",
+                "toolName": "grep",
+                "toolCallId": "tool-1",
+                "isError": True,
+                "result": "rg: /: Permission denied (os error 13)",
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {
+                    "type": "error",
+                    "error": "context window exceeded",
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual("context window exceeded", terminal[-1]["payload"]["error"])
+
+    def test_pi_uuid7_session_becomes_authoritative_and_accepts_prompt(self) -> None:
+        value = fake_bridge()
+        identifier = operation_id()
+        accepted = value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": identifier,
+                "type": "NEW_SESSION",
+                "payload": {"sessionId": operation_id()},
+            }
+        )
+        self.assertTrue(accepted["accepted"])
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": identifier,
+                "command": "new_session",
+                "success": True,
+            }
+        )
+        state_request = value.child.sent[-1]
+        self.assertEqual("get_state", state_request["type"])
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": state_request["id"],
+                "command": "get_state",
+                "success": True,
+                "data": {"sessionId": session_v7()},
+            }
+        )
+        self.assertEqual(session_v7(), value.session_id)
+        self.assertEqual(session_v7(), value.config["sessionId"])
+        _gap, events = value.journal.after(0, 0)
+        created = [event for event in events if event["type"] == "SESSION_CREATED"]
+        self.assertEqual(session_v7(), created[-1]["payload"]["sessionId"])
+
+        prompt_id = operation_id()
+        result = value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": prompt_id,
+                "type": "PROMPT",
+                "payload": {
+                    "message": "continue",
+                    "sessionId": session_v7(),
+                },
+            }
+        )
+        self.assertTrue(result["accepted"])
 
     def test_abort_is_structured_and_terminal(self) -> None:
         value = fake_bridge()

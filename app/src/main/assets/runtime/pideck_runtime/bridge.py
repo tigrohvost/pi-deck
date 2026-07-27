@@ -32,6 +32,7 @@ from .common import (
     metadata_for_process,
     process_alive,
     read_json,
+    require_session_id,
     require_string,
     require_uuid4,
     terminate_exact,
@@ -240,7 +241,7 @@ class PiRpcChild:
         operation_id = require_uuid4(config, "bootstrapOperationId")
         session_id = config.get("sessionId")
         if session_id is not None:
-            require_uuid4({"sessionId": session_id}, "sessionId")
+            require_session_id({"sessionId": session_id})
 
         arguments = [
             str(BASE / "runtime" / "bin" / "pi"),
@@ -550,7 +551,7 @@ class PiDeckBridge:
         if self.active_operation_id is not None:
             raise PiDeckError("TURN_ALREADY_ACTIVE", "Cannot change session during a turn")
         logical_session = require_string(payload, "sessionId", 36)
-        require_uuid4({"sessionId": logical_session}, "sessionId")
+        require_session_id({"sessionId": logical_session})
         self._ensure_child()
         self.child.send({"id": operation_id, "type": "new_session"})
         self.pending_new_session = {
@@ -671,8 +672,9 @@ class PiDeckBridge:
                         "resultPreview": bounded_text(value.get("result", ""), 16 * 1024),
                     },
                 )
-                if value.get("isError") is True:
-                    self.active_failed_reason = bounded_text(value.get("result", "tool error"), 2048)
+                # A tool that fails is an event the model reacts to, not the end of the turn:
+                # it reads the error and picks another call. TOOL_CALL_COMPLETED already carries
+                # the failure on its own, so the turn is only failed by the model or the child.
             elif message_type == "agent_end":
                 messages = value.get("messages")
                 if isinstance(messages, list):
@@ -1045,7 +1047,10 @@ class PiDeckBridge:
 
 class BridgeHttpServer(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = False
+    # A managed restart must be able to reclaim 8787 while connections from the
+    # exact, already-terminated bridge are still in TCP TIME_WAIT. On Linux this
+    # does not permit binding over a live listener (SO_REUSEPORT is not enabled).
+    allow_reuse_address = True
 
     def __init__(self, address: tuple[str, int], bridge: PiDeckBridge):
         self.bridge = bridge
@@ -1262,7 +1267,7 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
         raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
     session_id = request.get("sessionId")
     if session_id is not None:
-        require_uuid4({"sessionId": session_id}, "sessionId")
+        require_session_id({"sessionId": session_id})
     port = int(request.get("port", 8787))
     if port < 1024 or port > 65535:
         raise PiDeckError("INVALID_PORT", "Bridge port is outside the allowed range")
