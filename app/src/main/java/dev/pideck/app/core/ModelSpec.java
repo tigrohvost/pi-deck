@@ -289,6 +289,20 @@ public final class ModelSpec {
     }
 
     public String humanSize() {
+        return humanBytes(bytes);
+    }
+
+    /**
+     * Renders a length the way the model rows already read. A hand-picked file can be any size, so
+     * this keeps going below a mebibyte rather than rounding a small file away to "0 MiB", which
+     * would say nothing about what the user actually chose.
+     */
+    public static String humanBytes(long bytes) {
+        if (bytes < 0) return "?";
+        if (bytes < 1_024L) return bytes + " B";
+        if (bytes < 1_048_576L) {
+            return String.format(Locale.US, "%.1f KiB", bytes / 1_024.0);
+        }
         double gib = bytes / 1_073_741_824.0;
         if (gib < 1.0) {
             return String.format(Locale.US, "%.0f MiB", bytes / 1_048_576.0);

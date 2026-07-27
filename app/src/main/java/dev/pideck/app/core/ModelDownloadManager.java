@@ -67,6 +67,46 @@ public final class ModelDownloadManager {
         IO
     }
 
+    public enum AttachFailure {
+        NONE,
+        NOT_A_DOCUMENT,
+        SIZE_MISMATCH,
+        UNREADABLE
+    }
+
+    /**
+     * Decides whether a hand-picked document may stand in for a pinned model.
+     *
+     * <p>The pinned byte count is the only cheap check available before SHA-256 reads gigabytes,
+     * so it is exact: a file of any other length is refused rather than hashed. An unknown size
+     * stays separate from a wrong size because the two point the user at different fixes.
+     */
+    static AttachFailure attachFailureOf(
+            boolean contentScheme,
+            boolean sizeKnown,
+            long size,
+            long expected
+    ) {
+        if (!contentScheme) return AttachFailure.NOT_A_DOCUMENT;
+        if (!sizeKnown) return AttachFailure.UNREADABLE;
+        return size == expected ? AttachFailure.NONE : AttachFailure.SIZE_MISMATCH;
+    }
+
+    public static final class AttachResult {
+        public final AttachFailure failure;
+        /** The length the picked document reported, or −1 when the provider would not say. */
+        public final long actualBytes;
+
+        private AttachResult(AttachFailure failure, long actualBytes) {
+            this.failure = failure;
+            this.actualBytes = actualBytes;
+        }
+
+        public boolean attached() {
+            return failure == AttachFailure.NONE;
+        }
+    }
+
     public static final class VerifyResult {
         public final boolean valid;
         public final String actualHash;
@@ -275,17 +315,27 @@ public final class ModelDownloadManager {
         return fileFor(model).getAbsolutePath();
     }
 
-    public void attachExternalDocument(ModelSpec model, Uri uri) throws IOException {
-        if (uri == null || !"content".equals(uri.getScheme())) {
-            throw new IOException("Android не выдал document URI");
+    /**
+     * Points a model at a document the user picked, for a file already on the phone.
+     *
+     * <p>Nothing is stored unless the document passes, so a refused pick leaves the model exactly
+     * as it was and the shared file untouched.
+     */
+    public AttachResult attachExternalDocument(ModelSpec model, Uri uri) {
+        boolean contentScheme = uri != null && "content".equals(uri.getScheme());
+        long size = -1L;
+        if (contentScheme) {
+            try {
+                size = documentLength(uri);
+            } catch (IOException | SecurityException ignored) {
+                size = -1L;
+            }
         }
-        long size = documentLength(uri);
-        if (size != model.bytes) {
-            throw new IOException("размер выбранного файла " + size
-                    + " байт, ожидается " + model.bytes);
-        }
+        AttachFailure failure = attachFailureOf(contentScheme, size >= 0, size, model.bytes);
+        if (failure != AttachFailure.NONE) return new AttachResult(failure, size);
         prefs.clearDownloadId(model.id);
         prefs.setExternalModelUri(model.id, uri.toString());
+        return new AttachResult(AttachFailure.NONE, size);
     }
 
     public boolean hasExternalDocument(ModelSpec model) {

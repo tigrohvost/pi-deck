@@ -283,18 +283,31 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
         ModelSpec model = modelCatalog.byId(modelId).orElse(selectedModel);
         Uri uri = data.getData();
+        ModelDownloadManager.AttachResult attached;
         try {
             getContentResolver().takePersistableUriPermission(
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
             );
-            modelDownloads.attachExternalDocument(model, uri);
-            append(ConsoleEntry.Channel.SYSTEM,
-                    model.title + " · доступ к существующему GGUF восстановлен. "
-                            + "Проверяю размер и SHA‑256.");
-            verifyModel(model);
-        } catch (RuntimeException | java.io.IOException error) {
-            reportModelAccessFailure(model, error.getMessage());
+            attached = modelDownloads.attachExternalDocument(model, uri);
+        } catch (RuntimeException error) {
+            reportModelAccessFailure(model, safeException(error));
+            return;
+        }
+        switch (attached.failure) {
+            case NONE -> {
+                append(ConsoleEntry.Channel.SYSTEM,
+                        model.title + " · доступ к существующему GGUF восстановлен. "
+                                + "Проверяю размер и SHA‑256.");
+                verifyModel(model);
+            }
+            case SIZE_MISMATCH -> reportModelSizeMismatch(model, attached.actualBytes);
+            case UNREADABLE -> reportModelAccessFailure(
+                    model, "Android не сообщил размер выбранного файла"
+            );
+            case NOT_A_DOCUMENT -> reportModelAccessFailure(
+                    model, "Android не выдал document URI"
+            );
         }
     }
 
@@ -1364,7 +1377,14 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         });
     }
 
-    private void requestModelDocument(ModelSpec model) {
+    /**
+     * Recovery lands where the app puts its own transfers; attaching lands one level up, because a
+     * file the user already has is as likely to sit in PiDeck/models as in PiDeck/incoming.
+     */
+    private static final String INCOMING_FOLDER = "primary%3ADownload%2FPiDeck%2Fincoming";
+    private static final String PIDECK_FOLDER = "primary%3ADownload%2FPiDeck";
+
+    private void requestModelDocument(ModelSpec model, String initialFolder) {
         pendingModelDocumentId = model.id;
         Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE)
@@ -1379,7 +1399,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         DocumentsContract.EXTRA_INITIAL_URI,
                         Uri.parse(
                                 "content://com.android.externalstorage.documents/document/"
-                                        + "primary%3ADownload%2FPiDeck%2Fincoming"
+                                        + initialFolder
                         )
                 );
         try {
@@ -1388,6 +1408,33 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             pendingModelDocumentId = null;
             reportModelAccessFailure(model, "системный проводник недоступен");
         }
+    }
+
+    /**
+     * A file of the wrong length is a wrong pick, not a permission problem. Saying so keeps the
+     * user from hunting for an Android setting that was never in the way.
+     */
+    private void reportModelSizeMismatch(ModelSpec model, long actualBytes) {
+        FailureCardView.Failure failure = new FailureCardView.Failure(
+                "ФАЙЛ НЕ ПОДХОДИТ",
+                "Это не " + model.title,
+                "Ожидается " + model.humanSize()
+                        + ", выбрано " + ModelSpec.humanBytes(actualBytes)
+                        + ". Размер закреплён в манифесте, поэтому файл не принят до SHA-256.",
+                true
+        );
+        failure.recovered(
+                "ничего не скачано и не удалено",
+                "выбранный файл оставлен без изменений"
+        );
+        failure.primary(
+                "Выбрать другой файл",
+                () -> requestModelDocument(model, PIDECK_FOLDER)
+        );
+        failure.secondary("Скачать", () -> confirmDownload(model));
+        deck.addFailure(failure);
+        prefs.saveTranscript(deck.entries());
+        refreshUi();
     }
 
     private void reportModelAccessFailure(ModelSpec model, String detail) {
@@ -1405,7 +1452,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 "общая GGUF оставлена без изменений",
                 "приватные модели, Pi и сессии не тронуты"
         );
-        failure.primary("Выбрать существующий GGUF", () -> requestModelDocument(model));
+        failure.primary(
+                "Выбрать существующий GGUF",
+                () -> requestModelDocument(model, INCOMING_FOLDER)
+        );
         failure.secondary("Скачать новую копию", () -> confirmDownload(model));
         deck.addFailure(failure);
         prefs.saveTranscript(deck.entries());
@@ -1681,6 +1731,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         int percent = -1;
         String actionLabel = null;
         Runnable action = null;
+        // Offered exactly where the deck has no bytes of its own: someone holding the pinned
+        // artifact already should not pay for it twice.
+        boolean canAttach = false;
 
         if (!fits) {
             // Nothing else about the row matters if the phone cannot hold the weights.
@@ -1712,6 +1765,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             stateColor = palette.errorText;
             actionLabel = "Повторить";
             action = () -> confirmDownload(model);
+            canAttach = true;
         } else if (incoming && verified) {
             state = "проверена, ждёт приватной установки";
             stateColor = palette.warn;
@@ -1726,6 +1780,17 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             state = "не скачана";
             actionLabel = "Скачать";
             action = () -> confirmDownload(model);
+            canAttach = true;
+        }
+
+        String secondaryLabel = null;
+        Runnable secondary = null;
+        if (incoming) {
+            secondaryLabel = "Удалить исходник";
+            secondary = () -> confirmDeleteModel(model);
+        } else if (canAttach && fits) {
+            secondaryLabel = "Подключить файл";
+            secondary = () -> requestModelDocument(model, PIDECK_FOLDER);
         }
 
         return new CoreRootView.ModelRow(
@@ -1738,8 +1803,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 percent,
                 actionLabel,
                 action,
-                incoming ? "Удалить исходник" : null,
-                incoming ? () -> confirmDeleteModel(model) : null
+                secondaryLabel,
+                secondary
         );
     }
 

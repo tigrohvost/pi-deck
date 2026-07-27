@@ -1,7 +1,7 @@
 # Attaching an existing GGUF instead of downloading it again
 
 Date: 2026-07-27
-Status: designed
+Status: implemented in 0.3.0-alpha2
 
 ## Problem
 
