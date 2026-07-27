@@ -8,7 +8,7 @@ import java.util.List;
 
 /** Small bootstrap scripts and argument arrays; operational logic lives in versioned Python. */
 public final class RuntimeScripts {
-    private static final int RUNTIME_CONTRACT_VERSION = 2;
+    private static final int RUNTIME_CONTRACT_VERSION = 3;
 
     private RuntimeScripts() {
     }
@@ -52,7 +52,7 @@ public final class RuntimeScripts {
                 && "0.82.1".equals(result.optString("piVersion"))
                 && !result.isNull("nodeVersion")
                 && !result.isNull("pythonVersion")
-                && !result.isNull("llamaVersion");
+                && "b10092".equals(result.optString("llamaVersion"));
     }
 
     public static JSONObject finalJsonObject(String stdout) {

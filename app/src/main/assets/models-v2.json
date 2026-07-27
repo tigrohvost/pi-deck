@@ -107,8 +107,8 @@
       },
       "runtime": {
         "minimumLlamaCppVersion": "b10092",
-        "recommendedContext": 6144,
-        "maximumTestedContext": 8192,
+        "recommendedContext": 10240,
+        "maximumTestedContext": 10240,
         "parallelSlots": 1,
         "requiresJinja": true,
         "serverArgs": [],
@@ -131,8 +131,8 @@
       },
       "memory": {
         "minimumAvailableMiB": 3072,
-        "measuredPeakRssMiB": null,
-        "deviceClass": "unmeasured"
+        "measuredPeakRssMiB": 3041,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
       },
       "benchmark": {
         "suiteVersion": null,
@@ -176,7 +176,7 @@
       },
       "runtime": {
         "minimumLlamaCppVersion": "b10092",
-        "recommendedContext": 6144,
+        "recommendedContext": 8192,
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
         "requiresJinja": true,

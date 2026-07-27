@@ -73,7 +73,7 @@ public class RuntimeScriptsTest {
         String ready = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
-                 "runtimeContractVersion":2,
+                 "runtimeContractVersion":3,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
                  "pythonVersion":"3.13","llamaVersion":"b10092"}
                 """.replace("\n ", "");
@@ -83,10 +83,10 @@ public class RuntimeScriptsTest {
                 ready.replace("\"state\":\"READY\"", "\"state\":\"NOT_READY\"")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":2", "\"runtimeContractVersion\":1")
+                ready.replace("\"runtimeContractVersion\":3", "\"runtimeContractVersion\":2")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":2,", "")
+                ready.replace("\"runtimeContractVersion\":3,", "")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 "noise {\"schemaVersion\":1,\"ok\":true,\"state\":\"READY\"}"
@@ -119,6 +119,8 @@ public class RuntimeScriptsTest {
         assertTrue(script.contains("0.82.1"));
         assertTrue(script.contains("PI_INTEGRITY="));
         assertFalse(script.contains("@latest"));
+        assertFalse(script.contains("pkg install -y llama-cpp"));
+        assertFalse(script.contains("python llama-cpp"));
     }
 
     @Test

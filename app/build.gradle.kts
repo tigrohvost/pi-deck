@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
 }
@@ -21,9 +23,12 @@ android {
         applicationId = "dev.pideck.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.3.0-alpha1"
+        versionCode = 10
+        versionName = "0.3.0-alpha2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     signingConfigs {
@@ -58,6 +63,7 @@ android {
 
     packaging {
         resources.excludes += setOf("META-INF/LICENSE*", "META-INF/NOTICE*")
+        jniLibs.useLegacyPackaging = true
     }
 }
 
@@ -119,8 +125,12 @@ val verifyModelManifest by tasks.registering {
             val managedFlags = setOf(
                 "-m", "--model", "--alias", "--host", "--port",
                 "-c", "--ctx-size", "-np", "--parallel", "-t", "--threads",
+                "-tb", "--threads-batch", "-Cr", "--cpu-range", "--cpu-strict",
+                "-Crb", "--cpu-range-batch", "--cpu-strict-batch",
                 "--jinja", "--reasoning", "--temp", "--top-p", "--top-k",
                 "--min-p", "--presence-penalty", "--api-key",
+                "--spec-type", "--spec-draft", "--spec-draft-n",
+                "--spec-draft-n-min", "--spec-draft-n-max",
             )
             val extraArgs = runtime["serverArgs"] as? List<*>
                 ?: error("$id serverArgs must be an array")
@@ -192,7 +202,57 @@ val verifyBenchmarkSuite by tasks.registering {
 }
 
 tasks.named("preBuild") {
-    dependsOn(verifyModelManifest, verifyPinnedRuntime, verifyBenchmarkSuite)
+    dependsOn(
+        verifyModelManifest,
+        verifyPinnedRuntime,
+        verifyBenchmarkSuite,
+        "verifyNativeRuntime",
+    )
+}
+
+tasks.register("verifyNativeRuntime") {
+    group = "verification"
+    description = "Verifies every bundled llama.cpp ELF against the pinned manifest"
+    val manifestFile = layout.projectDirectory.file("src/main/assets/native-runtime.json")
+    val nativeDirectory = layout.projectDirectory.dir("src/main/jniLibs/arm64-v8a")
+    inputs.file(manifestFile)
+    inputs.dir(nativeDirectory)
+    doLast {
+        val root = groovy.json.JsonSlurper().parse(manifestFile.asFile) as Map<*, *>
+        require(root["schemaVersion"] == 1 && root["build"] == "b10092") {
+            "Unsupported native runtime manifest"
+        }
+        val entries = root["files"] as? List<*> ?: error("native runtime files are missing")
+        val expected = entries.associate { raw ->
+            val item = raw as? Map<*, *> ?: error("native runtime entry must be an object")
+            val name = item["name"] as? String ?: error("native runtime filename is missing")
+            require(name.matches(Regex("lib[A-Za-z0-9._-]+\\.so"))) {
+                "Unsafe native runtime filename: $name"
+            }
+            name to item
+        }
+        val actual = nativeDirectory.asFile.listFiles()
+            ?.filter { it.isFile && it.name.endsWith(".so") }
+            ?.associateBy { it.name }
+            ?: emptyMap()
+        require(actual.keys == expected.keys) {
+            "Bundled native files differ from native-runtime.json"
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+        expected.forEach { (name, metadata) ->
+            val file = actual.getValue(name)
+            require(file.length() == (metadata["bytes"] as Number).toLong()) {
+                "$name byte length differs from native-runtime.json"
+            }
+            digest.reset()
+            val hash = digest.digest(file.readBytes()).joinToString("") {
+                "%02x".format(it.toInt() and 0xff)
+            }
+            require(hash == metadata["sha256"]) {
+                "$name SHA-256 differs from native-runtime.json"
+            }
+        }
+    }
 }
 
 tasks.register("verifyProductionSigning") {

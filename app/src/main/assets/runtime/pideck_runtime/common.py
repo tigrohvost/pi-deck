@@ -143,6 +143,27 @@ def require_uuid4(value: dict[str, Any], key: str = "operationId") -> str:
     return raw
 
 
+def require_session_id(value: dict[str, Any], key: str = "sessionId") -> str:
+    """Validates Pi session IDs without conflating them with operation UUIDv4.
+
+    Pi 0.82.x creates time-ordered UUIDv7 sessions, while Android-created/resumed sessions may
+    still be UUIDv4. Both are canonical session identifiers; operation IDs remain UUIDv4 only.
+    """
+    import uuid
+
+    raw = require_string(value, key, 36)
+    try:
+        parsed = uuid.UUID(raw)
+    except ValueError as error:
+        raise PiDeckError("INVALID_SESSION_ID", "sessionId is not a UUID") from error
+    if parsed.version not in {4, 7} or str(parsed) != raw:
+        raise PiDeckError(
+            "INVALID_SESSION_ID",
+            "sessionId must be a canonical UUIDv4 or UUIDv7",
+        )
+    return raw
+
+
 def sha256_file(path: Path, expected_bytes: int | None = None) -> tuple[int, str]:
     digest = hashlib.sha256()
     count = 0

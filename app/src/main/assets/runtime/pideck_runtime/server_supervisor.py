@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import signal
 import socket
@@ -47,6 +48,10 @@ LEGACY_SERVER_PID = BASE / "llama-server.pid"
 PI_MODELS = BASE / "pi" / "models.json"
 BRIDGE_PORT = 8787
 DEFAULT_SERVER_PORT = 8080
+EXTERNAL_OWNER = "android-native"
+EXTERNAL_RUNTIME_BUILD = "b10092"
+API_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
+CPU_SET_PATTERN = re.compile(r"^[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*$")
 MANAGED_SERVER_FLAGS = {
     "-m",
     "--model",
@@ -59,6 +64,14 @@ MANAGED_SERVER_FLAGS = {
     "--parallel",
     "-t",
     "--threads",
+    "-tb",
+    "--threads-batch",
+    "-Cr",
+    "--cpu-range",
+    "--cpu-strict",
+    "-Crb",
+    "--cpu-range-batch",
+    "--cpu-strict-batch",
     "--jinja",
     "--reasoning",
     "--temp",
@@ -67,6 +80,11 @@ MANAGED_SERVER_FLAGS = {
     "--min-p",
     "--presence-penalty",
     "--api-key",
+    "--spec-type",
+    "--spec-draft",
+    "--spec-draft-n",
+    "--spec-draft-n-min",
+    "--spec-draft-n-max",
 }
 
 
@@ -570,6 +588,77 @@ def start_server(request: dict[str, Any]) -> dict[str, Any]:
     raise PiDeckError("SERVER_TIMEOUT", "llama-server did not become ready before timeout")
 
 
+def adopt_external_server(request: dict[str, Any]) -> dict[str, Any]:
+    """Registers the app-owned foreground server as Pi's exact loopback provider."""
+    operation_id = require_uuid4(request)
+    model_id = require_string(request, "modelId", 128)
+    model = model_by_id(model_id)
+    if request.get("owner") != EXTERNAL_OWNER:
+        raise PiDeckError("INVALID_OWNER", "External server owner is not allowlisted")
+    if request.get("runtimeBuild") != EXTERNAL_RUNTIME_BUILD:
+        raise PiDeckError("WRONG_RUNTIME", "External llama.cpp build is not pinned")
+    if request.get("modelSha256") != model["artifact"]["sha256"]:
+        raise PiDeckError("WRONG_MODEL_HASH", "External GGUF hash does not match catalog")
+
+    port = int(request.get("port", DEFAULT_SERVER_PORT))
+    if port != DEFAULT_SERVER_PORT:
+        raise PiDeckError("INVALID_PORT", "External server must use the managed loopback port")
+    api_key = require_string(request, "apiKey", 128)
+    if API_KEY_PATTERN.fullmatch(api_key) is None:
+        raise PiDeckError("INVALID_API_KEY", "External server API key is not canonical")
+
+    decode_threads = int(request.get("decodeThreads", 0))
+    batch_threads = int(request.get("batchThreads", 0))
+    decode_cpu_set = require_string(request, "decodeCpuSet", 128)
+    batch_cpu_set = require_string(request, "batchCpuSet", 128)
+    if not 1 <= decode_threads <= 8 or not 1 <= batch_threads <= 8:
+        raise PiDeckError("INVALID_CPU_PROFILE", "External CPU thread profile is invalid")
+    if (
+        CPU_SET_PATTERN.fullmatch(decode_cpu_set) is None
+        or CPU_SET_PATTERN.fullmatch(batch_cpu_set) is None
+    ):
+        raise PiDeckError("INVALID_CPU_PROFILE", "External CPU affinity is invalid")
+
+    # Health is the authority. A caller cannot create READY state from a PID or self-report.
+    strict_health(port, model_id, api_key)
+    atomic_write_bytes(SERVER_API_KEY, api_key.encode("ascii"), 0o600)
+    _write_pi_models(api_key, port)
+    SERVER_METADATA.unlink(missing_ok=True)
+    (SERVER_DIRECTORY / "child.json").unlink(missing_ok=True)
+    status = {
+        "schemaVersion": 1,
+        "state": "READY",
+        "owner": EXTERNAL_OWNER,
+        "runtimeBuild": EXTERNAL_RUNTIME_BUILD,
+        "operationId": operation_id,
+        "modelId": model_id,
+        "modelSha256": model["artifact"]["sha256"],
+        "port": port,
+        "pid": int(request.get("pid", -1)),
+        "decodeThreads": decode_threads,
+        "batchThreads": batch_threads,
+        "decodeCpuSet": decode_cpu_set,
+        "batchCpuSet": batch_cpu_set,
+        "updatedAt": utc_now(),
+    }
+    atomic_write_json(SERVER_STATUS, status)
+    _wake_lock(False)
+    return {
+        "state": "READY",
+        "owner": EXTERNAL_OWNER,
+        "modelId": model_id,
+        "modelSha256": model["artifact"]["sha256"],
+        "port": port,
+        "profile": {
+            "decodeThreads": decode_threads,
+            "batchThreads": batch_threads,
+            "decodeCpuSet": decode_cpu_set,
+            "batchCpuSet": batch_cpu_set,
+        },
+        "idempotent": False,
+    }
+
+
 def server_daemon(config_path: Path) -> int:
     config = read_json(config_path)
     operation_id = require_uuid4(config)
@@ -718,6 +807,42 @@ def _stop_llama_child(child: subprocess.Popen[Any]) -> None:
 
 
 def stop_server() -> dict[str, Any]:
+    try:
+        status = (
+            read_json(SERVER_STATUS)
+            if SERVER_STATUS.is_file()
+            else {"schemaVersion": 1, "state": "STOPPED"}
+        )
+    except PiDeckError:
+        status = {"schemaVersion": 1, "state": "UNKNOWN"}
+    if status.get("owner") == EXTERNAL_OWNER:
+        try:
+            key = SERVER_API_KEY.read_text(encoding="ascii").strip()
+            strict_health(
+                int(status.get("port", DEFAULT_SERVER_PORT)),
+                str(status.get("modelId", "")),
+                key,
+            )
+        except (OSError, TypeError, ValueError, PiDeckError):
+            pass
+        else:
+            raise PiDeckError(
+                "EXTERNAL_SERVER_RUNNING",
+                "Android foreground server is still healthy; stop its service first",
+            )
+        atomic_write_json(
+            SERVER_STATUS,
+            {
+                "schemaVersion": 1,
+                "state": "STOPPED",
+                "owner": EXTERNAL_OWNER,
+                "modelId": status.get("modelId"),
+                "updatedAt": utc_now(),
+            },
+        )
+        SERVER_METADATA.unlink(missing_ok=True)
+        (SERVER_DIRECTORY / "child.json").unlink(missing_ok=True)
+        return {"state": "STOPPED", "owner": EXTERNAL_OWNER, "idempotent": False}
     if not SERVER_METADATA.is_file():
         _wake_lock(False)
         return {"state": "STOPPED", "idempotent": True}
@@ -754,6 +879,17 @@ def read_server_status() -> dict[str, Any]:
     except PiDeckError:
         return {"schemaVersion": 1, "state": "UNKNOWN"}
     if status.get("state") == "READY":
+        if status.get("owner") == EXTERNAL_OWNER:
+            try:
+                key = SERVER_API_KEY.read_text(encoding="ascii").strip()
+                strict_health(
+                    int(status.get("port", DEFAULT_SERVER_PORT)),
+                    str(status.get("modelId", "")),
+                    key,
+                )
+            except (OSError, TypeError, ValueError, PiDeckError):
+                return {**status, "state": "CRASHED"}
+            return status
         if not SERVER_METADATA.is_file():
             return {**status, "state": "CRASHED"}
         try:

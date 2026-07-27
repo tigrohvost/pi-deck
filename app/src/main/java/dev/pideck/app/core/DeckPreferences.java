@@ -125,13 +125,13 @@ public final class DeckPreferences {
     public String ensureSessionId() {
         String existing = sessionId();
         if (existing != null) return existing;
-        String created = java.util.UUID.randomUUID().toString();
+        String created = SessionId.create().toString();
         prefs.edit().putString(KEY_SESSION_ID, created).apply();
         return created;
     }
 
     public void setSessionId(String id, boolean hasMessages) {
-        OperationId.parse(id);
+        SessionId.parse(id);
         prefs.edit()
                 .putString(KEY_SESSION_ID, id)
                 .putBoolean(KEY_HAS_SESSION, hasMessages)
@@ -139,7 +139,7 @@ public final class DeckPreferences {
     }
 
     public String startNewSession() {
-        String id = java.util.UUID.randomUUID().toString();
+        String id = SessionId.create().toString();
         prefs.edit()
                 .putString(KEY_SESSION_ID, id)
                 .putBoolean(KEY_HAS_SESSION, false)
@@ -188,6 +188,19 @@ public final class DeckPreferences {
     public void setDownloadUri(String modelId, String uri) {
         if (uri == null || uri.isBlank()) return;
         prefs.edit().putString("download_uri_" + modelId, uri).apply();
+    }
+
+    public String externalModelUri(String modelId) {
+        return prefs.getString("external_model_uri_" + modelId, null);
+    }
+
+    public void setExternalModelUri(String modelId, String uri) {
+        if (uri == null || uri.isBlank()) return;
+        prefs.edit().putString("external_model_uri_" + modelId, uri).apply();
+    }
+
+    public void clearExternalModelUri(String modelId) {
+        prefs.edit().remove("external_model_uri_" + modelId).apply();
     }
 
     public boolean isModelVerified(ModelSpec model) {

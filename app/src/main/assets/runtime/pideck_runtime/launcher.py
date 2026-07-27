@@ -25,6 +25,7 @@ from .common import (
     process_alive,
     read_json,
     read_stdin_json,
+    require_session_id,
     require_string,
     require_uuid4,
     result_ok,
@@ -33,6 +34,7 @@ from .common import (
 )
 from .model_store import install_private, model_by_id, verify_private
 from .server_supervisor import (
+    adopt_external_server,
     read_server_status,
     server_daemon,
     start_server,
@@ -63,7 +65,7 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
     prompt = require_string(request, "prompt", 64 * 1024)
     session_id = request.get("sessionId")
     if session_id is not None:
-        require_uuid4({"sessionId": session_id}, "sessionId")
+        require_session_id({"sessionId": session_id})
     model_by_id(model_id)
 
     arguments = [
@@ -291,24 +293,13 @@ def probe() -> dict[str, Any]:
     pi_version = version([str(BASE / "runtime" / "bin" / "pi"), "--version"])
     node_version = version([str(PREFIX / "bin" / "node"), "--version"])
     python_version = version([sys.executable, "--version"])
-    llama_executable_version = version(
-        [str(PREFIX / "bin" / "llama-server"), "--version"]
-    )
-    llama_package_version = version(
-        [
-            str(PREFIX / "bin" / "dpkg-query"),
-            "-W",
-            "-f=${Version}",
-            "llama-cpp",
-        ]
-    )
-    # Termux's b10092 package currently builds llama-server without upstream
-    # version metadata, so the executable reports "version: 0 (unknown)".
-    # Prefer a real executable build when one is present; otherwise use the
-    # exact package version that owns the binary.
-    llama_version = _resolved_llama_version(
-        llama_executable_version, llama_package_version
-    )
+    # Inference is owned by the Android foreground service. The exact native
+    # artifacts are verified against native-runtime.json by the APK build; the
+    # Termux runtime only needs the pinned build identifier for its provider
+    # contract and must not depend on a second llama-cpp package.
+    llama_executable_version = None
+    llama_package_version = None
+    llama_version = None
     compatibility: dict[str, Any] = {}
     try:
         compatibility = read_json(BASE / "runtime" / "compatibility.json")
@@ -316,6 +307,15 @@ def probe() -> dict[str, Any]:
         minimum_node = str(compatibility["node"]["minimumVersion"])
         minimum_llama = str(compatibility["llamaCpp"]["minimumVersion"])
         maximum_llama = str(compatibility["llamaCpp"]["maximumTestedVersion"])
+        if (
+            compatibility["llamaCpp"].get("owner") != "android-native"
+            or minimum_llama != maximum_llama
+        ):
+            raise PiDeckError(
+                "INVALID_COMPATIBILITY",
+                "Native llama.cpp ownership/build range is not exact",
+            )
+        llama_version = minimum_llama
         pi_exact = pi_version == expected_pi
         node_supported = _semver_at_least(node_version, minimum_node)
         llama_supported = _llama_in_range(
@@ -452,6 +452,8 @@ def dispatch(command: str) -> dict[str, Any]:
         return result_ok(**verify_private(require_string(request, "modelId", 128)))
     if command == "server-start":
         return result_ok(**start_server(read_stdin_json()))
+    if command == "server-adopt":
+        return result_ok(**adopt_external_server(read_stdin_json()))
     if command == "server-stop":
         return result_ok(**stop_server())
     if command == "server-status":

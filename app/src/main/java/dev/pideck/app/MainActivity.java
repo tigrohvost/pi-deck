@@ -6,7 +6,9 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.os.Bundle;
@@ -15,6 +17,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.StatFs;
+import android.provider.DocumentsContract;
 import android.view.WindowManager;
 import android.widget.Toast;
 
@@ -38,6 +41,9 @@ import dev.pideck.app.core.DeckPreferences;
 import dev.pideck.app.core.ModelCatalog;
 import dev.pideck.app.core.ModelDownloadManager;
 import dev.pideck.app.core.ModelSpec;
+import dev.pideck.app.core.NativeLlamaController;
+import dev.pideck.app.core.NativeLlamaService;
+import dev.pideck.app.core.NativeModelStore;
 import dev.pideck.app.core.OperationCoordinator;
 import dev.pideck.app.core.OperationId;
 import dev.pideck.app.core.OperationKind;
@@ -48,6 +54,8 @@ import dev.pideck.app.core.PiJsonOutput;
 import dev.pideck.app.core.RpcBridgeClient;
 import dev.pideck.app.core.RuntimeAssetBundle;
 import dev.pideck.app.core.RuntimeScripts;
+import dev.pideck.app.core.SessionContract;
+import dev.pideck.app.core.SessionId;
 import dev.pideck.app.core.TermuxBridge;
 import dev.pideck.app.core.TermuxEnvironment;
 import dev.pideck.app.ui.ConsoleEntry;
@@ -62,6 +70,7 @@ import dev.pideck.app.ui.TabBarView;
 
 public final class MainActivity extends Activity implements DeckView.Listener, CommandEvents.Listener {
     private static final int REQUEST_RUN_COMMAND = 41;
+    private static final int REQUEST_MODEL_DOCUMENT = 42;
     private static final String HANDSHAKE_COMMAND =
             "mkdir -p ~/.termux && " +
             "(grep -q '^allow-external-apps=true$' ~/.termux/termux.properties 2>/dev/null || " +
@@ -83,6 +92,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private TermuxBridge termux;
     private TermuxEnvironment termuxEnvironment;
     private ModelDownloadManager modelDownloads;
+    private NativeModelStore nativeModels;
     private ModelCatalog modelCatalog;
     private BridgeTokenStore bridgeTokenStore;
     private RpcBridgeClient rpc;
@@ -122,6 +132,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private AlertDialog approvalDialog;
     private String currentApprovalId;
     private String observedBridgeInstance;
+    private String pendingModelDocumentId;
 
     private final Runnable heartbeat = new Runnable() {
         @Override
@@ -157,6 +168,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         termux = new TermuxBridge(this);
         termuxEnvironment = termux.inspectEnvironment();
         modelDownloads = new ModelDownloadManager(this, prefs);
+        nativeModels = new NativeModelStore(this, prefs);
         modelCatalog = ModelCatalog.initialize(this);
         updateCapacity();
         String savedModel = prefs.selectedModelId();
@@ -178,7 +190,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         refreshUi();
         if (restored != null && !restored.state.isTerminal()) {
             OperationRecord active = operations.active();
-            if (active != null) main.post(() -> armRestoredWatchdog(active));
+            if (active != null) {
+                main.post(() -> armRestoredWatchdog(active));
+                NativeLlamaService.Snapshot nativeState = NativeLlamaService.snapshot(this);
+                if (active.kind == OperationKind.START_SERVER
+                        && active.operationId.toString().equals(nativeState.operationId)
+                        && nativeState.isStartingOrReady()) {
+                    main.post(() -> NativeLlamaController.resume(
+                            this,
+                            active.operationId,
+                            selectedModel
+                    ));
+                }
+            }
         }
     }
 
@@ -243,6 +267,34 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             deck.addFailure(failure);
             prefs.saveTranscript(deck.entries());
             refreshUi();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_MODEL_DOCUMENT) return;
+
+        String modelId = pendingModelDocumentId;
+        pendingModelDocumentId = null;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            toast("Выбор GGUF отменён");
+            return;
+        }
+        ModelSpec model = modelCatalog.byId(modelId).orElse(selectedModel);
+        Uri uri = data.getData();
+        try {
+            getContentResolver().takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+            modelDownloads.attachExternalDocument(model, uri);
+            append(ConsoleEntry.Channel.SYSTEM,
+                    model.title + " · доступ к существующему GGUF восстановлен. "
+                            + "Проверяю размер и SHA‑256.");
+            verifyModel(model);
+        } catch (RuntimeException | java.io.IOException error) {
+            reportModelAccessFailure(model, error.getMessage());
         }
     }
 
@@ -426,7 +478,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     }
                     append(ConsoleEntry.Channel.SYSTEM,
                             (operationModel == null ? "GGUF" : operationModel.title)
-                                    + " установлена в приватное хранилище Termux. "
+                                    + " установлена в приватное хранилище PiDeck. "
                                     + "Shared incoming-файл теперь можно удалить отдельно.");
                 } else {
                     if (operationModel != null) {
@@ -444,7 +496,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             && operationModel.id.equals(selectedModel.id);
                     append(ConsoleEntry.Channel.TOOL,
                             (operationModel == null ? "GGUF" : operationModel.title)
-                                    + " прошла полный SHA-256 и доступна на loopback.");
+                                    + " работает под UID PiDeck и доступна на loopback.");
                     if (serverReady) main.post(this::startBridge);
                 } else {
                     serverReady = false;
@@ -478,19 +530,29 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         && record.request.optBoolean("stopServerAfter", false);
                 boolean startBridgeAfter = record != null
                         && record.request.optBoolean("startBridgeAfter", false);
+                boolean startNativeAfter = record != null
+                        && record.request.optBoolean("startNativeAfter", false);
                 if (!result.isSuccess()) {
                     append(ConsoleEntry.Channel.ERROR, runtimeError(result));
                 } else if (stopServerAfter) {
                     main.post(this::stopServerRuntime);
+                } else if (startNativeAfter) {
+                    main.post(() -> stopServerRuntime(true));
                 } else if (startBridgeAfter) {
                     main.post(this::startBridge);
                 }
             }
             case STOP_SERVER -> {
+                OperationRecord record = operationStore.load(result.operationId);
+                boolean startNativeAfter = record != null
+                        && record.request.optBoolean("startNativeAfter", false);
                 setBusy(false, null);
                 serverReady = false;
                 append(result.isSuccess() ? ConsoleEntry.Channel.SYSTEM : ConsoleEntry.Channel.ERROR,
                         result.isSuccess() ? "Локальное LLM-ядро остановлено." : result.usefulError());
+                if (result.isSuccess() && startNativeAfter) {
+                    main.post(this::launchNativeServer);
+                }
             }
             case UPDATE_RUNTIME -> {
                 setBusy(false, null);
@@ -620,7 +682,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         ModelDownloadManager.State modelState = modelDownloads.state(selectedModel);
         boolean incomingAvailable = modelDownloads.isDownloaded(selectedModel);
         boolean verified = prefs.isModelVerified(selectedModel);
-        boolean privateReady = prefs.isPrivateModelInstalled(selectedModel);
+        boolean privateReady = nativeModels.isInstalled(selectedModel);
 
         deck.setCoreStatus(coreStatus(), "Ядро · " + selectedModel.tier);
         if (deck.activeTab() == TabBarView.TAB_CORE) renderCoreRoot();
@@ -635,12 +697,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         && !prefs.consentGranted()
         );
 
-        if (android.os.Build.SUPPORTED_64_BIT_ABIS.length == 0) {
+        if (!supportsArm64()) {
             deck.setBootState(
                     "BOOT HALT // ABI",
-                    "НУЖЕН 64-БИТНЫЙ ТЕЛЕФОН",
-                    "Текущий пакет llama.cpp в Termux выпускается для aarch64/x86_64. "
-                            + "Интерфейс установится, но локальная GGUF-модель на этом 32-битном устройстве не запустится.",
+                    "НУЖЕН ARM64-ТЕЛЕФОН",
+                    "Встроенный llama.cpp b10092 содержит проверенные Arm CPU-варианты. "
+                            + "На устройстве без arm64-v8a локальная GGUF-модель не запускается.",
                     null, null,
                     null, null
             );
@@ -706,7 +768,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             deck.setBootState(
                     "BOOT SEQUENCE // 04",
                     "РАЗВЕРНУТЬ PI CORE",
-                    "Один раз установим Node.js, Python, llama.cpp, git и официальный Pi coding agent. Это займёт несколько минут и останется внутри Termux.",
+                    "Один раз установим Node.js, Python, git и официальный Pi coding agent. Встроенный llama.cpp уже находится внутри APK.",
                     "INSTALL CORE", this::installCore,
                     "TEST LINK", this::probeTermux
             );
@@ -780,8 +842,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             deck.setBootState(
                     "BOOT SEQUENCE // 07",
                     "УСТАНОВИТЬ ПРИВАТНУЮ GGUF",
-                    "Android SHA-256 пройден. Termux повторно проверит hash во время копирования, "
-                            + "выполнит fsync и atomic rename в ~/.pideck/models.",
+                    "Android SHA-256 пройден. PiDeck повторно проверит hash во время копирования, "
+                            + "выполнит fsync и atomic rename в приватный model store.",
                     busy ? "INSTALLING…" : "INSTALL PRIVATE",
                     busy ? this::openCoreRoot : () -> installPrivateModel(selectedModel),
                     "MODELS", this::openCoreRoot
@@ -793,8 +855,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "BOOT SEQUENCE // 08",
                     "ЗАЖЕЧЬ ЛОКАЛЬНОЕ ЯДРО",
                     selectedModel.title + " находится в приватном read-only store. Запуск использует "
-                            + Math.max(2, Math.min(8, cpuThreads - 1))
-                            + " CPU-потоков и контекст " + selectedModel.recommendedContext
+                            + dev.pideck.app.core.CpuProfile.detect()
+                            + " и контекст " + selectedModel.recommendedContext
                             + " токенов. Ожидаемый peak: "
                             + humanBytes(selectedModel.estimatedPeakBytes())
                             + "; доступно " + humanBytes(availableRam) + ".",
@@ -911,7 +973,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 && termux.hasRunPermission()
                 && linkConfirmed
                 && prefs.isCoreReady()
-                && prefs.isPrivateModelInstalled(selectedModel)
+                && nativeModels.isInstalled(selectedModel)
                 && serverReady
                 && bridgeReady
                 && bridgeConnected;
@@ -972,7 +1034,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void startServer() {
         if (busy) return;
-        if (!prefs.isPrivateModelInstalled(selectedModel)) {
+        if (!nativeModels.isInstalled(selectedModel)) {
             toast("Сначала установите приватную GGUF");
             return;
         }
@@ -986,7 +1048,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     .setMessage("Ожидаемый peak: " + humanBytes(expectedPeak)
                             + "\nДоступно сейчас: " + humanBytes(availableRam)
                             + "\nКонтекст: " + selectedModel.recommendedContext
-                            + "\n\nAndroid может завершить Termux. Модель не будет заменена скрыто.")
+                            + "\n\nAndroid может завершить foreground inference при дефиците RAM. "
+                            + "Модель не будет заменена скрыто.")
                     .setNegativeButton("Отмена", null)
                     .setPositiveButton("Запустить", (dialog, which) -> startServerConfirmed())
                     .show();
@@ -997,24 +1060,37 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void startServerConfirmed() {
         append(ConsoleEntry.Channel.SYSTEM,
-                "Проверяю приватный SHA-256 и загружаю " + selectedModel.title
-                        + " в память. Первый запуск может быть медленным.");
+                "Переношу inference под UID PiDeck и загружаю " + selectedModel.title
+                        + " через оптимизированный Arm backend.");
+        if (bridgeReady || bridgeConnected) {
+            dispatchOperation(
+                    OperationKind.STOP_BRIDGE,
+                    json("startNativeAfter", true),
+                    "STOPPING PI BRIDGE",
+                    operationId -> termux.runRuntime(
+                            operationId,
+                            OperationKind.STOP_BRIDGE,
+                            "bridge-stop",
+                            "{}"
+                    )
+            );
+            return;
+        }
+        stopServerRuntime(true);
+    }
+
+    private void launchNativeServer() {
+        if (busy) return;
         dispatchOperation(
                 OperationKind.START_SERVER,
                 requestMetadata(selectedModel.id, false),
                 "LOADING " + selectedModel.title,
-                operationId -> {
-                    JSONObject input = runtimeRequest(operationId);
-                    put(input, "modelId", selectedModel.id);
-                    put(input, "threads", Math.max(2, cpuThreads - 1));
-                    put(input, "port", 8080);
-                    termux.runRuntime(
-                            operationId,
-                            OperationKind.START_SERVER,
-                            "server-start",
-                            input.toString()
-                    );
-                }
+                operationId -> NativeLlamaController.start(
+                        this,
+                        operationId,
+                        selectedModel,
+                        nativeModels
+                )
         );
     }
 
@@ -1038,13 +1114,25 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void stopServerRuntime() {
+        stopServerRuntime(false);
+    }
+
+    private void stopServerRuntime(boolean startNativeAfter) {
         if (busy) return;
+        JSONObject request = requestMetadata(selectedModel.id, false);
+        put(request, "startNativeAfter", startNativeAfter);
         dispatchOperation(
                 OperationKind.STOP_SERVER,
-                requestMetadata(selectedModel.id, false),
+                request,
                 "STOPPING LLM CORE",
-                operationId -> termux.runRuntime(
-                        operationId, OperationKind.STOP_SERVER, "server-stop", "{}"
+                operationId -> NativeLlamaController.stopThen(
+                        this,
+                        () -> termux.runRuntime(
+                                operationId,
+                                OperationKind.STOP_SERVER,
+                                "server-stop",
+                                "{}"
+                        )
                 )
         );
     }
@@ -1071,7 +1159,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private void newSession() {
         if (busy || !bridgeReady) return;
         OperationRecord operation;
-        String newSessionId = java.util.UUID.randomUUID().toString();
+        String newSessionId = SessionId.create().toString();
         try {
             operation = operations.begin(
                     OperationKind.NEW_SESSION,
@@ -1152,7 +1240,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             toast("Сначала нужна Android SHA-256 проверка incoming-файла");
             return;
         }
-        long available = freeStorage;
+        long available = Math.min(freeStorage, nativeModels.usableSpace());
         long required = ModelCatalog.requiredStorageForPrivateInstall(model);
         if (available < required) {
             append(ConsoleEntry.Channel.ERROR,
@@ -1164,17 +1252,43 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 OperationKind.INSTALL_MODEL,
                 requestMetadata(model.id, false),
                 "INSTALLING PRIVATE GGUF",
-                operationId -> {
-                    JSONObject input = runtimeRequest(operationId);
-                    put(input, "modelId", model.id);
-                    put(input, "sourcePath", modelDownloads.sourcePath(model));
-                    termux.runRuntime(
-                            operationId,
-                            OperationKind.INSTALL_MODEL,
-                            "install-model",
-                            input.toString()
-                    );
-                }
+                operationId -> nativeModels.installAsync(
+                        model,
+                        modelDownloads,
+                        new NativeModelStore.Listener() {
+                            @Override
+                            public void onProgress(int percent) {
+                                if (percent % 10 == 0) runOnUiThread(MainActivity.this::refreshUi);
+                            }
+
+                            @Override
+                            public void onComplete(boolean valid, String error) {
+                                JSONObject output = new JSONObject();
+                                put(output, "schemaVersion", 1);
+                                put(output, "ok", valid);
+                                if (valid) {
+                                    put(output, "state", "READY");
+                                    put(output, "modelId", model.id);
+                                    put(output, "sha256", model.sha256);
+                                } else {
+                                    JSONObject failure = new JSONObject();
+                                    put(failure, "code", "NATIVE_MODEL_INSTALL_FAILED");
+                                    put(failure, "message", error);
+                                    put(output, "error", failure);
+                                }
+                                CommandResult result = new CommandResult(
+                                        operationId,
+                                        OperationKind.INSTALL_MODEL,
+                                        output.toString(),
+                                        "",
+                                        valid ? 0 : 2,
+                                        0,
+                                        valid ? "" : error
+                                );
+                                runOnUiThread(() -> handleCommandResult(result, false));
+                            }
+                        }
+                )
         );
     }
 
@@ -1194,22 +1308,35 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
 
             @Override
-            public void onComplete(boolean valid, String actualHash, String error) {
+            public void onComplete(ModelDownloadManager.VerifyResult result) {
                 runOnUiThread(() -> {
                     verifying = false;
-                    prefs.setModelVerified(model, valid);
-                    if (valid) {
+                    prefs.setModelVerified(model, result.valid);
+                    if (result.valid) {
                         verificationPercent = 100;
                         verificationFault = "";
                         append(ConsoleEntry.Channel.SYSTEM,
                                 model.title + " · Android SHA‑256 verified. "
-                                        + "Перед запуском Termux создаст приватную копию.");
+                                        + "Перед запуском PiDeck создаст приватную копию.");
                         main.post(() -> installPrivateModel(model));
+                    } else if (result.failure
+                            == ModelDownloadManager.VerificationFailure.ACCESS_DENIED
+                            || result.failure == ModelDownloadManager.VerificationFailure.MISSING
+                            || result.failure == ModelDownloadManager.VerificationFailure.IO) {
+                        verificationFault = result.error.isBlank()
+                                ? "Android не открыл источник модели"
+                                : result.error;
+                        reportModelAccessFailure(model, verificationFault);
                     } else {
-                        verificationFault = error == null || error.isBlank()
-                                ? "SHA‑256 не совпал (" + actualHash.substring(0, Math.min(12, actualHash.length())) + "…)"
-                                : error;
-                        // The claim below has to be true before it is made.
+                        verificationFault = result.error.isBlank()
+                                ? "SHA‑256 не совпал ("
+                                        + result.actualHash.substring(
+                                                0,
+                                                Math.min(12, result.actualHash.length())
+                                        )
+                                        + "…)"
+                                : result.error;
+                        boolean externalDocument = modelDownloads.hasExternalDocument(model);
                         boolean removed = modelDownloads.delete(model);
                         FailureCardView.Failure failure = new FailureCardView.Failure(
                                 "Файл повреждён",
@@ -1220,7 +1347,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                 true
                         );
                         failure.recovered(
-                                removed
+                                externalDocument
+                                        ? "выбранный через проводник файл не удалён"
+                                        : removed
                                         ? "битый файл удалён, место освобождено"
                                         : "битый файл помечен непроверенным",
                                 "модели и сессии на диске не тронуты"
@@ -1233,6 +1362,54 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 });
             }
         });
+    }
+
+    private void requestModelDocument(ModelSpec model) {
+        pendingModelDocumentId = model.id;
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("*/*")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                .putExtra(
+                        Intent.EXTRA_TITLE,
+                        model.id + "-" + model.sha256.substring(0, 12) + ".gguf"
+                )
+                .putExtra(
+                        DocumentsContract.EXTRA_INITIAL_URI,
+                        Uri.parse(
+                                "content://com.android.externalstorage.documents/document/"
+                                        + "primary%3ADownload%2FPiDeck%2Fincoming"
+                        )
+                );
+        try {
+            startActivityForResult(picker, REQUEST_MODEL_DOCUMENT);
+        } catch (RuntimeException error) {
+            pendingModelDocumentId = null;
+            reportModelAccessFailure(model, "системный проводник недоступен");
+        }
+    }
+
+    private void reportModelAccessFailure(ModelSpec model, String detail) {
+        String explanation = detail == null || detail.isBlank()
+                ? "Android не выдал приложению доступ к общей копии GGUF."
+                : detail;
+        FailureCardView.Failure failure = new FailureCardView.Failure(
+                "НУЖЕН ДОСТУП",
+                "Модель видна, но закрыта Android",
+                explanation + " Это бывает после переустановки: пакет тот же, "
+                        + "но Linux UID приложения уже другой. Файл не повреждён и не удалён.",
+                true
+        );
+        failure.recovered(
+                "общая GGUF оставлена без изменений",
+                "приватные модели, Pi и сессии не тронуты"
+        );
+        failure.primary("Выбрать существующий GGUF", () -> requestModelDocument(model));
+        failure.secondary("Скачать новую копию", () -> confirmDownload(model));
+        deck.addFailure(failure);
+        prefs.saveTranscript(deck.entries());
+        refreshUi();
     }
 
     private void confirmDownload(ModelSpec model) {
@@ -1255,7 +1432,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 .setTitle("Загрузить " + model.title + "?")
                 .setMessage(model.humanSize() + " · " + model.repo
                         + "\nIncoming будет сохранён в Download/PiDeck/incoming, "
-                        + "затем проверен и скопирован в приватный Termux store."
+                        + "затем проверен и скопирован в приватный PiDeck store."
                         + networkNote)
                 .setNegativeButton("Отмена", null)
                 .setPositiveButton(
@@ -1325,7 +1502,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             toast("Дождитесь завершения текущей операции");
             return;
         }
-        if (!prefs.isPrivateModelInstalled(model) && !modelDownloads.isDownloaded(model)) {
+        if (!nativeModels.isInstalled(model) && !modelDownloads.isDownloaded(model)) {
             confirmDownload(model);
             return;
         }
@@ -1334,7 +1511,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         prefs.setSelectedModelId(model.id);
         serverReady = false;
         verificationFault = "";
-        if (!prefs.isPrivateModelInstalled(model) && !prefs.isModelVerified(model)) {
+        if (!nativeModels.isInstalled(model) && !prefs.isModelVerified(model)) {
             verifyModel(model);
         }
         append(ConsoleEntry.Channel.SYSTEM,
@@ -1452,6 +1629,14 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 "llm сервер", serverReady ? "127.0.0.1:8080" : "остановлен",
                 serverReady ? palette.accent : palette.muted
         ));
+        NativeLlamaService.Snapshot nativeState = NativeLlamaService.snapshot(this);
+        state.info.add(new CoreRootView.InfoRow(
+                "inference",
+                nativeState.isStartingOrReady()
+                        ? "PiDeck foreground · " + nativeState.profile
+                        : serverReady ? "legacy Termux · нужен restart" : "остановлен",
+                nativeState.isStartingOrReady() ? palette.ok : serverReady ? palette.warn : palette.muted
+        ));
         state.info.add(new CoreRootView.InfoRow(
                 "rpc bridge", bridgeReady ? "authenticated / 127.0.0.1" : "остановлен",
                 bridgeReady ? palette.ok : palette.muted
@@ -1480,7 +1665,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private CoreRootView.ModelRow modelRow(ModelSpec model) {
         ModelDownloadManager.State download = modelDownloads.state(model);
-        boolean privateReady = prefs.isPrivateModelInstalled(model);
+        boolean privateReady = nativeModels.isInstalled(model);
         boolean incoming = modelDownloads.isDownloaded(model);
         boolean verified = prefs.isModelVerified(model);
         boolean selected = model.equals(selectedModel);
@@ -1654,7 +1839,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private boolean isResumable(String id) {
         if (id == null || id.isBlank()) return false;
         try {
-            OperationId.parse(id);
+            SessionId.parse(id);
             return true;
         } catch (RuntimeException ignored) {
             return false;
@@ -1785,7 +1970,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void startBridge() {
-        if (busy || !serverReady || !prefs.isPrivateModelInstalled(selectedModel)) return;
+        if (busy || !serverReady || !nativeModels.isInstalled(selectedModel)) return;
         String sessionId = prefs.ensureSessionId();
         JSONObject request = requestMetadata(selectedModel.id, prefs.hasSession());
         put(request, "accessProfile", accessProfile.wireName());
@@ -1891,6 +2076,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 && selectedModel.id.equals(server.optString("modelId"));
 
         OperationRecord active = operations.active();
+        boolean sessionTransitionPending = active != null
+                && active.kind == OperationKind.NEW_SESSION
+                && !active.state.isTerminal();
+        String remoteSession = SessionContract.authoritativeRemoteSession(
+                prefs.sessionId(),
+                state.optString("sessionId", null),
+                sessionTransitionPending
+        );
+        if (remoteSession != null) {
+            prefs.setSessionId(remoteSession, false);
+            append(ConsoleEntry.Channel.SYSTEM,
+                    "Session cursor восстановлен из авторитетного состояния bridge.");
+        }
         if (active != null) {
             String remoteField = active.kind == OperationKind.NEW_SESSION
                     ? "pendingNewSessionOperationId"
@@ -2044,9 +2242,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         } catch (RuntimeException ignored) {
             return;
         }
-        if (!ownsUi && record.kind != OperationKind.NEW_SESSION) {
-            operations.markConsumed(event.operationId);
-            return;
+        if (!ownsUi) {
+            boolean recoverableSessionResult = record.kind == OperationKind.NEW_SESSION
+                    && SessionContract.mayApplyRecoveredSessionResult(
+                            record.uiConsumed,
+                            operations.activeOperationId()
+                    );
+            if (!recoverableSessionResult) {
+                operations.markConsumed(event.operationId);
+                return;
+            }
         }
         cancelWatchdog(event.operationId);
         setBusy(false, null);
@@ -2403,6 +2608,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         NetworkCapabilities capabilities = manager.getNetworkCapabilities(manager.getActiveNetwork());
         return capabilities == null
                 || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+    }
+
+    private boolean supportsArm64() {
+        for (String abi : android.os.Build.SUPPORTED_ABIS) {
+            if ("arm64-v8a".equals(abi)) return true;
+        }
+        return false;
     }
 
     private String humanBytes(long bytes) {

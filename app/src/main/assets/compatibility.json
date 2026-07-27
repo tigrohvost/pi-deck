@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "appVersion": "0.3.0-alpha1",
-  "baselineCommit": "40e477af89781bcd2dd2573cf985238041292658",
+  "appVersion": "0.3.0-alpha2",
+  "baselineCommit": "34daad9173318545e0bebaf52b6a1fc87cfa2a6c",
   "pi": {
     "package": "@earendil-works/pi-coding-agent",
     "version": "0.82.1",
@@ -21,6 +21,7 @@
     "maximumTestedVersion": null
   },
   "llamaCpp": {
+    "owner": "android-native",
     "minimumVersion": "b10092",
     "maximumTestedVersion": "b10092",
     "requiredCapabilities": ["server", "jinja", "reasoning", "api-key"]
@@ -46,7 +47,7 @@
       "api": 36,
       "deviceClass": "12 GiB",
       "device": "Samsung SM-S918B",
-      "scope": "0.3.0-alpha1 debug APK and instrumentation; Termux 0.118.3 runtime/legacy migration; private Qwen3.5 2B SHA-256; authenticated server/bridge; exact Pi 0.82.1 PIDECK_OK smoke"
+      "scope": "0.3.0-alpha2 Android foreground inference; llama.cpp b10092 arm64 variants; Termux 0.118.3 runtime migration; private Qwen3.5 2B SHA-256; authenticated server/bridge; exact Pi 0.82.1 smoke"
     }
   ]
 }

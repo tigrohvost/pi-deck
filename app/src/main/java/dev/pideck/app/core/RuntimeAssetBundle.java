@@ -61,14 +61,14 @@ public final class RuntimeAssetBundle {
                     export DEBIAN_FRONTEND=noninteractive
                     printf '[01/06] synchronizing Termux packages\\n'
                     pkg update -y
-                    printf '[02/06] installing native runtime\\n'
+                    printf '[02/06] installing Termux agent runtime\\n'
                     pkg install -y -o Dpkg::Options::=--force-confold \
-                      nodejs python llama-cpp curl git ripgrep jq procps termux-exec termux-api
+                      nodejs python curl git ripgrep jq procps termux-exec termux-api
                     """);
         } else {
             script.append("""
                     printf '[01/06] keeping native packages unchanged\\n'
-                    for executable in node npm python llama-server jq; do
+                    for executable in node npm python jq; do
                       command -v "$executable" >/dev/null 2>&1 || {
                         printf 'Missing runtime executable: %s\\n' "$executable" >&2
                         exit 31

@@ -29,8 +29,12 @@ public final class ModelSpec {
     private static final Set<String> MANAGED_SERVER_FLAGS = Set.of(
             "-m", "--model", "--alias", "--host", "--port",
             "-c", "--ctx-size", "-np", "--parallel", "-t", "--threads",
+            "-tb", "--threads-batch", "-Cr", "--cpu-range", "--cpu-strict",
+            "-Crb", "--cpu-range-batch", "--cpu-strict-batch",
             "--jinja", "--reasoning", "--temp", "--top-p", "--top-k",
-            "--min-p", "--presence-penalty", "--api-key"
+            "--min-p", "--presence-penalty", "--api-key",
+            "--spec-type", "--spec-draft", "--spec-draft-n",
+            "--spec-draft-n-min", "--spec-draft-n-max"
     );
 
     public final String id;
@@ -301,6 +305,32 @@ public final class ModelSpec {
             int port,
             String apiKey
     ) {
+        return llamaServerArguments(privateModelPath, threads, null, port, apiKey);
+    }
+
+    public List<String> nativeLlamaServerArguments(
+            String privateModelPath,
+            CpuProfile profile,
+            int port,
+            String apiKey
+    ) {
+        if (profile == null) throw new IllegalArgumentException("CPU profile is required");
+        return llamaServerArguments(
+                privateModelPath,
+                profile.decodeThreads,
+                profile,
+                port,
+                apiKey
+        );
+    }
+
+    private List<String> llamaServerArguments(
+            String privateModelPath,
+            int threads,
+            CpuProfile profile,
+            int port,
+            String apiKey
+    ) {
         ArrayList<String> args = new ArrayList<>();
         Collections.addAll(
                 args,
@@ -312,6 +342,16 @@ public final class ModelSpec {
                 "-np", Integer.toString(parallelSlots),
                 "-t", Integer.toString(Math.max(2, Math.min(8, threads)))
         );
+        if (profile != null) {
+            Collections.addAll(
+                    args,
+                    "-tb", Integer.toString(profile.batchThreads),
+                    "-Cr", profile.decodeCpuSet,
+                    "--cpu-strict", "1",
+                    "-Crb", profile.batchCpuSet,
+                    "--cpu-strict-batch", "1"
+            );
+        }
         if (requiresJinja) args.add("--jinja");
         if (!"model-default".equals(reasoningMode)) {
             Collections.addAll(args, "--reasoning", reasoningMode);

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "runtime": "llama.cpp",
+  "build": "b10092",
+  "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
+  "archiveSha256": "4f23b4a91b7043db43789fd248142a739d7a1f632d403f756e8be920c45c8076",
+  "abi": "arm64-v8a",
+  "files": [
+    {
+      "name": "libggml-base.so",
+      "bytes": 1063912,
+      "sha256": "f2ac3df23d262f5a023c110ba3c44573f645b33738dadd9848533e60b474da81"
+    },
+    {
+      "name": "libggml-cpu-android_armv8.0_1.so",
+      "bytes": 883080,
+      "sha256": "f5e27635825189e4c1ca4dc54312622c59aa7c3c0b113191dc12415944f07004"
+    },
+    {
+      "name": "libggml-cpu-android_armv8.2_1.so",
+      "bytes": 913088,
+      "sha256": "a4f7956b0ca24e4051b9da2c0320651936954733f2d2de79ef45dcd8a816b0d7"
+    },
+    {
+      "name": "libggml-cpu-android_armv8.2_2.so",
+      "bytes": 916784,
+      "sha256": "b7d5a7d0ffa0665e7d06018cdc454fd7e9a07672e156170d1b1dc67fddd2976b"
+    },
+    {
+      "name": "libggml-cpu-android_armv8.6_1.so",
+      "bytes": 927648,
+      "sha256": "ec6f8ab992e85ec194daf258c9f5b3c569e5948764c604a07875346fce40bec2"
+    },
+    {
+      "name": "libggml-cpu-android_armv9.0_1.so",
+      "bytes": 931440,
+      "sha256": "31864a6ff6bc5d3d72333d96d59946e5e0317cb135219961e8dc53a3b6825062"
+    },
+    {
+      "name": "libggml-cpu-android_armv9.2_1.so",
+      "bytes": 931456,
+      "sha256": "2b6d500861d41fb7b770236425833396c66e43a25c7d66b8d2074aba820e9b9d"
+    },
+    {
+      "name": "libggml-cpu-android_armv9.2_2.so",
+      "bytes": 931456,
+      "sha256": "4a5acbffbbce44240936b58eb29bbfffe17547e63dcd71d9f35da54c377f2e49"
+    },
+    {
+      "name": "libggml.so",
+      "bytes": 667168,
+      "sha256": "ffd9a51021b4681ca1fe52faf26c36000ef73ba696369835354b89a6135a5b6a"
+    },
+    {
+      "name": "libllama-common.so",
+      "bytes": 5990328,
+      "sha256": "4316c37c80587fa3832fce03f3a9154387ce50a46ca6cff0d116b39d359ae28b"
+    },
+    {
+      "name": "libllama-server-impl.so",
+      "bytes": 8123672,
+      "sha256": "d1af17945165158b41055d5badf2a6bead0f07104b19c57ebe67b9e95de98695"
+    },
+    {
+      "name": "libllama.so",
+      "bytes": 2826560,
+      "sha256": "c976d8faa9c96e6040049c88ccc66ab55e6125d64714ecf3eee4c864203936a2"
+    },
+    {
+      "name": "libmtmd.so",
+      "bytes": 1023824,
+      "sha256": "15e92f7aafbceefd77b291a8ebe78ee6bfd8e4b3172e6e2284cc4103eaca18da"
+    },
+    {
+      "name": "libpideck_llama_server.so",
+      "bytes": 4608,
+      "sha256": "f0f21133b08af2abe0dfc3a2e263257770102b2d02cb5e33587a5f2be7f04bf6"
+    }
+  ]
+}

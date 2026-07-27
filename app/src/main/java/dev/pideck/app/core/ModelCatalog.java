@@ -22,6 +22,7 @@ import java.util.Set;
 public final class ModelCatalog {
     public static final int SCHEMA_VERSION = 2;
     private static final long MIB = 1_048_576L;
+    private static final long LOW_MEMORY_SAFETY_MIB = 1536L;
     private static volatile ModelCatalog current;
 
     private final String catalogVersion;
@@ -109,7 +110,9 @@ public final class ModelCatalog {
             if ("BLOCKED".equals(model.status) || "DEPRECATED".equals(model.status)) continue;
             long minimumMemory = model.minimumAvailableMiB * MIB;
             long estimated = model.estimatedPeakBytes();
-            long safetyAdjusted = lowMemory ? estimated + 1024L * MIB : estimated;
+            long safetyAdjusted = lowMemory
+                    ? estimated + LOW_MEMORY_SAFETY_MIB * MIB
+                    : estimated;
             if (availableMemoryBytes >= Math.max(minimumMemory, safetyAdjusted)
                     && freeStorageBytes >= requiredStorageForFreshInstall(model)) {
                 best = model;

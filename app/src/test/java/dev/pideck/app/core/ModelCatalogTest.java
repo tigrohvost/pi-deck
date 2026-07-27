@@ -86,6 +86,27 @@ public class ModelCatalogTest {
         assertFalse(nanoArgs.contains("0.0.0.0"));
     }
 
+    @Test
+    public void nativeArgumentsPinMeasuredAffinityAndNeverEnableSpeculativeMtp() {
+        ModelSpec edge = catalog.byId("qwen3.5-2b").orElseThrow();
+        assertEquals(10240, edge.recommendedContext);
+        CpuProfile profile = CpuProfile.fromMaxFrequencies(new long[]{
+                2_016_000, 2_016_000, 2_016_000,
+                2_803_000, 2_803_000, 2_803_000, 2_803_000,
+                3_360_000
+        });
+        List<String> args = edge.nativeLlamaServerArguments(
+                "/private/edge.gguf", profile, 8080, "secret"
+        );
+        assertEquals("5", args.get(args.indexOf("-t") + 1));
+        assertEquals("8", args.get(args.indexOf("-tb") + 1));
+        assertEquals("10240", args.get(args.indexOf("-c") + 1));
+        assertEquals("3-7", args.get(args.indexOf("-Cr") + 1));
+        assertEquals("0-7", args.get(args.indexOf("-Crb") + 1));
+        assertFalse(args.contains("--spec-type"));
+        assertFalse(args.contains("--spec-draft"));
+    }
+
     @Test(expected = JSONException.class)
     public void unknownCriticalCatalogFieldIsRejected() throws Exception {
         String raw = readUtf8(asset("models-v2.json"));
