@@ -16,7 +16,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 public final class ModelDownloadManager {
     public enum Phase {
@@ -92,6 +100,36 @@ public final class ModelDownloadManager {
         return size == expected ? AttachFailure.NONE : AttachFailure.SIZE_MISMATCH;
     }
 
+    /**
+     * Remembers what a source URI measured. The deck re-reads model state on every heartbeat, and
+     * without this a document that no longer resolves is handed to the DocumentsProvider several
+     * times a second for as long as the app is open.
+     */
+    static final class SourceLengths {
+        static final long UNMEASURED = Long.MIN_VALUE;
+
+        private final Map<String, String> measuredUri = new HashMap<>();
+        private final Map<String, Long> measuredLength = new HashMap<>();
+
+        synchronized long lookup(String modelId, String uri) {
+            // A model whose URI changed was measured for a different document, so the remembered
+            // length says nothing about the one being asked about now.
+            if (!Objects.equals(uri, measuredUri.get(modelId))) return UNMEASURED;
+            Long length = measuredLength.get(modelId);
+            return length == null ? UNMEASURED : length;
+        }
+
+        synchronized void record(String modelId, String uri, long length) {
+            measuredUri.put(modelId, uri);
+            measuredLength.put(modelId, length);
+        }
+
+        synchronized void forget(String modelId) {
+            measuredUri.remove(modelId);
+            measuredLength.remove(modelId);
+        }
+    }
+
     public static final class AttachResult {
         public final AttachFailure failure;
         /** The length the picked document reported, or −1 when the provider would not say. */
@@ -142,6 +180,7 @@ public final class ModelDownloadManager {
     private final ContentResolver resolver;
     private final DownloadManager downloads;
     private final DeckPreferences prefs;
+    private final SourceLengths sourceLengths = new SourceLengths();
 
     public ModelDownloadManager(Context context, DeckPreferences prefs) {
         this.context = context.getApplicationContext();
@@ -158,7 +197,8 @@ public final class ModelDownloadManager {
             downloads.remove(previousId);
             prefs.clearDownloadId(model.id);
         }
-        prefs.clearExternalModelUri(model.id);
+        // A fresh transfer replaces whatever source was pointed at, grant and all.
+        detachExternalDocument(model);
 
         File target = fileFor(model);
         String relativeTarget = "PiDeck/incoming/" + incomingFileName(model);
@@ -335,6 +375,7 @@ public final class ModelDownloadManager {
         if (failure != AttachFailure.NONE) return new AttachResult(failure, size);
         prefs.clearDownloadId(model.id);
         prefs.setExternalModelUri(model.id, uri.toString());
+        sourceLengths.record(model.id, uri.toString(), size);
         return new AttachResult(AttachFailure.NONE, size);
     }
 
@@ -343,7 +384,39 @@ public final class ModelDownloadManager {
     }
 
     public void detachExternalDocument(ModelSpec model) {
+        String value = prefs.externalModelUri(model.id);
         prefs.clearExternalModelUri(model.id);
+        sourceLengths.forget(model.id);
+        if (value != null) releaseDocument(Uri.parse(value));
+    }
+
+    public String externalDocumentUri(ModelSpec model) {
+        return prefs.externalModelUri(model.id);
+    }
+
+    /**
+     * Releases every persisted read grant no model points at.
+     *
+     * <p>Older builds took the grant before checking the file, so a refused pick left a standing
+     * capability behind. Those outlive the build that created them and can only be cleared here.
+     */
+    public int releaseStaleGrants(Iterable<ModelSpec> models) {
+        Set<String> referenced = new HashSet<>();
+        for (ModelSpec model : models) {
+            String value = prefs.externalModelUri(model.id);
+            if (value != null) referenced.add(value);
+        }
+        List<String> held = new ArrayList<>();
+        try {
+            for (android.content.UriPermission permission : resolver.getPersistedUriPermissions()) {
+                held.add(permission.getUri().toString());
+            }
+        } catch (RuntimeException ignored) {
+            return 0;
+        }
+        List<String> stale = staleGrants(held, referenced);
+        for (String uri : stale) releaseDocument(Uri.parse(uri));
+        return stale.size();
     }
 
     /**
@@ -458,10 +531,50 @@ public final class ModelDownloadManager {
     private long externalDocumentLength(ModelSpec model) {
         String value = prefs.externalModelUri(model.id);
         if (value == null) return -1L;
+        long remembered = sourceLengths.lookup(model.id, value);
+        if (remembered != SourceLengths.UNMEASURED) return remembered;
+        long measured;
         try {
-            return documentLength(Uri.parse(value));
+            measured = documentLength(Uri.parse(value));
         } catch (IOException | SecurityException ignored) {
-            return -1L;
+            measured = -1L;
+        }
+        sourceLengths.record(model.id, value, measured);
+        if (measured < 0) {
+            // The document is gone or the grant is gone; either way it is no longer a source, and
+            // leaving the pointer behind would make the row claim bytes that cannot be opened.
+            forgetExternalDocument(model, Uri.parse(value));
+        }
+        return measured;
+    }
+
+    /**
+     * Drops a source pointer and the standing read permission that came with it, so a document the
+     * deck can no longer use does not leave a capability behind.
+     */
+    public void forgetExternalDocument(ModelSpec model, Uri uri) {
+        prefs.clearExternalModelUri(model.id);
+        sourceLengths.forget(model.id);
+        releaseDocument(uri);
+    }
+
+    /** Which held grants no model points at any more. */
+    static List<String> staleGrants(List<String> held, Set<String> stillReferenced) {
+        List<String> stale = new ArrayList<>();
+        for (String uri : held) {
+            if (!stillReferenced.contains(uri)) stale.add(uri);
+        }
+        return stale;
+    }
+
+    public void releaseDocument(Uri uri) {
+        if (uri == null || !"content".equals(uri.getScheme())) return;
+        try {
+            resolver.releasePersistableUriPermission(
+                    uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+        } catch (RuntimeException ignored) {
+            // The grant was never persisted, or Android already dropped it.
         }
     }
 

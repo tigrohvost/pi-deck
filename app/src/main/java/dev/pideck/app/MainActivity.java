@@ -170,6 +170,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         modelDownloads = new ModelDownloadManager(this, prefs);
         nativeModels = new NativeModelStore(this, prefs);
         modelCatalog = ModelCatalog.initialize(this);
+        modelDownloads.releaseStaleGrants(modelCatalog.all());
         updateCapacity();
         String savedModel = prefs.selectedModelId();
         selectedModel = modelCatalog.byId(savedModel).orElseGet(
@@ -293,6 +294,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         } catch (RuntimeException error) {
             reportModelAccessFailure(model, safeException(error));
             return;
+        }
+        if (!attached.attached() && !heldByAnotherModel(uri)) {
+            // A refused pick must not leave a standing read capability on a file the deck will
+            // never open.
+            modelDownloads.releaseDocument(uri);
         }
         switch (attached.failure) {
             case NONE -> {
@@ -1408,6 +1414,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             pendingModelDocumentId = null;
             reportModelAccessFailure(model, "системный проводник недоступен");
         }
+    }
+
+    private boolean heldByAnotherModel(Uri uri) {
+        String value = uri == null ? null : uri.toString();
+        if (value == null) return false;
+        for (ModelSpec candidate : modelCatalog.all()) {
+            if (value.equals(modelDownloads.externalDocumentUri(candidate))) return true;
+        }
+        return false;
     }
 
     /**
