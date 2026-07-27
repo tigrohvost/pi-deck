@@ -10,3 +10,4 @@
 - [ADR-008](ADR-008-compatibility-rollback.md) — compatibility and rollback
 - [ADR-009](ADR-009-local-inference-terms.md) — accurate privacy terminology
 - [ADR-010](ADR-010-release-signing-sbom.md) — production signing and SBOM
+- [ADR-011](ADR-011-app-owned-inference.md) — app-owned foreground inference

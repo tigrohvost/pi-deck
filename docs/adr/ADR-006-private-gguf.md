@@ -2,7 +2,8 @@
 
 Status: accepted.
 
-Shared Downloads is incoming transport only. A model is copied while hashing to
-a same-filesystem random temp file, fsynced, atomically renamed, made read-only
-and fully rehashed before each server start. Size/mtime caching was rejected
-because autonomous tools share the Termux UID.
+Shared Downloads is incoming transport only. Android verifies the incoming
+artifact, then PI//DECK copies it into its own app sandbox while hashing a
+second time. The temporary file is fsynced, atomically renamed, changed to exact
+mode `0400`, and its directory is fsynced. Termux tools run under another UID
+and cannot modify the installed model.

@@ -28,18 +28,20 @@ network isolation: shell tools can access the network. PI//DECK does not claim
 an Android/Termux network namespace, root protection or protection from a
 compromised OS.
 
-## Same-UID and model risks
+## UID and model boundaries
 
-Pi, its tools, the bridge and models run under the same Termux UID. An
-autonomous shell can therefore alter runtime files; full private GGUF SHA-256
-is repeated before every new server start. A pinned hash proves byte identity,
-not provenance. Entries with incomplete conversion metadata remain
-`EXPERIMENTAL`.
+Pi, its tools and the bridge run under the Termux UID. The model and native
+server run under the separate PI//DECK UID, so an autonomous Termux shell
+cannot modify the installed GGUF. The shared incoming file is transport only:
+PI//DECK streams a second SHA-256 before atomic installation. A pinned hash
+proves byte identity, not provenance. Entries with incomplete conversion
+metadata remain `EXPERIMENTAL`.
 
-Secrets and state are mode `0600`; state directories are `0700`; installed
-GGUF is `0400`. Process signals require PID, process group, `/proc` start ticks,
-expected executable and a per-operation environment token. Unknown processes
-on occupied ports are never killed.
+Secrets and Termux state are mode `0600`; state directories are `0700`;
+installed GGUF is exactly `0400`. Termux process signals require PID, process
+group, `/proc` start ticks, expected executable and a per-operation environment
+token. The Android service owns its child through a private `Process` handle.
+Unknown processes on occupied ports are never killed.
 
 Production logs omit prompts and bridge tokens. Event/tool payloads,
 transcripts and operation output are byte-bounded. Diagnostic export is not yet

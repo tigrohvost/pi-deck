@@ -12,7 +12,8 @@
 
 PI//DECK is a native Android Views console for a pinned
 [Pi](https://github.com/earendil-works/pi) coding agent. Inference runs on the
-phone through `llama-server`; the agent runtime lives in Termux without root.
+phone through an app-owned foreground `llama-server`; the agent and shell
+runtime live in Termux without root.
 
 > Local inference is not network isolation. Depending on the selected access
 > profile, tools running as the Termux user may access files and the network.
@@ -25,32 +26,28 @@ phone through `llama-server`; the agent runtime lives in Termux without root.
 
 ## Русский
 
-### Что изменено в 0.3.0-alpha1
+### Что изменено в 0.3.0-alpha2
 
-- нативный интерфейс полностью переработан: доступны палитры `NORD` и `DECK`,
-  нижняя навигация `КОНСОЛЬ` / `ЯДРО` / `СЕССИИ`, живой статус ядра и единый
-  язык карточек для действий, решений и ошибок;
-- экран сессий читает реальный список из Termux, а служебные JSON-ответы
-  runtime больше не попадают в пользовательскую консоль;
-- каждый callback, event, watchdog и abort связан с полным UUIDv4
-  `operationId`;
-- операции сохраняются атомарно по отдельным app-private файлам, поздний
-  результат не завершает новый turn;
-- prompt передаётся по authenticated RPC, а не через argv;
-- Pi закреплён на `@earendil-works/pi-coding-agent@0.82.1` с npm integrity и
-  опубликованным shrinkwrap; `@latest` не используется;
-- `llama-server` и Pi управляются только по проверенной PID/process-group
-  identity; чужой процесс на порту не завершается;
-- GGUF копируется из shared incoming в приватный Termux store с повторным
-  SHA-256, fsync, atomic rename и полным hash перед каждым новым стартом;
-- Android UI и consent-экран учитывают верхний и нижний system-bar inset на
-  edge-to-edge Android 15/16;
-- versioned runtime публикует строгую версию контракта: старая сборка больше не
-  считается готовой, если в ней ещё нет команд нового интерфейса;
-- один строгий `models-v2.json` задаёт artifact, runtime и sampling;
-- потоковые ответы, reconnect/event journal и структурированный abort работают
-  через локальный Pi RPC bridge;
-- доступны `READ_ONLY`, `CONFIRM_CHANGES` и явно подтверждаемый `AUTONOMOUS`.
+- официальный Android arm64 runtime `llama.cpp b10092` встроен в APK и
+  проверяется по размеру и SHA-256 во время каждой сборки;
+- `llama-server` работает под UID PI//DECK в foreground-service, поэтому
+  открытая дека получает Android `top-app` CPU-set вместо фоновых ядер Termux;
+- профиль телефона выбирается автоматически: на Snapdragon 8 Gen 2 decode
+  использует 5 быстрых ядер, prompt batch — все 8;
+- MTP/speculative decoding намеренно запрещён: на реальном Qwen3.5 2B он был
+  медленнее обычного decode;
+- GGUF после Android incoming-проверки повторно хешируется и атомарно
+  устанавливается с режимом `0400` в приватное хранилище самого приложения;
+- Termux больше не устанавливает вторую копию `llama-cpp`; он отвечает за
+  Pi 0.82.1, shell, сессии и authenticated RPC;
+- новый контракт `server-adopt` принимает app-owned сервер только после
+  точного model/API-key health-check; быстрый restart RPC исправлен для TCP
+  `TIME_WAIT`;
+- на Samsung SM-S918B direct ADB smoke дал 16.13 токена/с внутри сервера и
+  15.54 токена/с end-to-end wall при 292 output tokens;
+- упавший инструмент больше не роняет весь turn: агент читает ошибку и берёт
+  следующий вызов, а `TURN_FAILED` остаётся только за ошибкой модели и
+  падением child-процесса.
 
 ### Требования
 
@@ -81,17 +78,17 @@ build с публичным shared test key распознаётся отдел�
 3. Нажмите `INSTALL CORE`. Installer создаёт versioned runtime и не
    перезаписывает пользовательский `~/.pideck/workspace/AGENTS.md`.
 4. Выберите модель, скачайте её, дождитесь Android SHA-256 и нажмите
-   `INSTALL PRIVATE`.
+   `INSTALL PRIVATE`. Копия будет сохранена в sandbox PI//DECK.
 5. Запустите server и authenticated Pi RPC bridge.
 
 Пути:
 
 ```text
 ~/.pideck/runtime/       versioned Python/Pi runtime
-~/.pideck/models/        private read-only GGUF
 ~/.pideck/workspace/     agent workspace and AGENTS.md
 ~/.pideck/sessions/      Pi sessions
 ~/.pideck/logs/          private component diagnostics
+Android app data/        private read-only GGUF and native server log
 ```
 
 ### Профили доступа
@@ -119,6 +116,15 @@ timeout, disconnect, duplicate approval или restart bridge означают d
 
 ### Сборка и тесты
 
+Нативные arm64-библиотеки не хранятся в репозитории. Перед первой сборкой
+восстановите их из закреплённого `llama.cpp b10092` — скрипт проверяет SHA-256
+архива и снимает символы через `llvm-strip` из NDK:
+
+```sh
+ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.1.12297006" \
+  ./tools/vendor_llama_android.sh
+```
+
 ```sh
 ./gradlew -Dorg.gradle.java.home=/usr/lib/jvm/java-21-openjdk-amd64 \
   testDebugUnitTest lintDebug assembleDebug assembleRelease
@@ -126,22 +132,33 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/runtime -v
 python3 tools/validate_benchmark.py
 ```
 
+Gradle 8.10.2 обязателен на JDK 21: на JDK 25 Kotlin DSL падает при разборе
+версии JVM, поэтому `-Dorg.gradle.java.home` выше не опционален.
+
 Без production keystore release APK намеренно остаётся unsigned. Debug key
 никогда не подставляется в release. Процесс подписанного релиза описан в
 [`docs/release-process.md`](docs/release-process.md).
 
+Проверенная ADB-методика, cold start, CPU-set и память:
+[`docs/performance.md`](docs/performance.md).
+
 ## English
 
-PI//DECK 0.3.0-alpha1 hardens operation identity, process supervision, private
-GGUF installation and runtime updates, then moves interactive turns to Pi
-0.82.1's authenticated JSONL RPC bridge. Prompts are sent in request bodies,
-not process arguments. Streaming events survive Activity recreation, and
-unknown outcomes are reconciled without automatic replay.
+PI//DECK 0.3.0-alpha2 moves `llama.cpp b10092` and the verified private GGUF
+into the Android app sandbox. An app-owned foreground service now runs
+inference while Termux remains responsible for Pi 0.82.1, sessions, tools and
+the authenticated JSONL RPC bridge. The APK carries pinned arm64 CPU variants,
+selects a heterogeneous-core profile and does not enable slower speculative
+MTP.
 
 The native UI now ships with switchable `NORD` and `DECK` palettes, dedicated
 Console, Core and Sessions tabs, live core state, and consistent action,
 decision and failure cards. The runtime contract is versioned so an older
 Termux bundle cannot be mistaken for one that supports the new screens.
+
+A tool that fails is an event the model reacts to, not the end of the turn, so
+a failing call is reported on its own card while the turn keeps running.
+`TURN_FAILED` is reserved for a model error or a dead child process.
 
 The default `READ_ONLY` profile has no mutating tools. `CONFIRM_CHANGES`
 disables the built-in mutators and exposes one-time approval-gated equivalents.
@@ -161,6 +178,7 @@ CycloneDX SBOM.
 - [RPC bridge](docs/rpc-bridge.md)
 - [Model admission](docs/model-admission.md)
 - [Compatibility matrix](docs/compatibility-matrix.md)
+- [ADB performance evidence](docs/performance.md)
 - [Release process](docs/release-process.md)
 - [Implementation baseline](docs/implementation-baseline.md)
 - [Implementation report](IMPLEMENTATION_REPORT.md)
