@@ -9,3 +9,11 @@
 captures/
 __pycache__/
 *.pyc
+
+# Vendored llama.cpp arm64 binaries: reproduced from a pinned build by
+# tools/vendor_llama_android.sh, so they are never carried in history.
+/app/src/main/jniLibs/
+
+# Local scratch space and design hand-offs.
+/.codex-tmp/
+/*.zip
