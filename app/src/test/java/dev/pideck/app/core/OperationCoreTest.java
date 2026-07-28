@@ -141,6 +141,24 @@ public class OperationCoreTest {
     }
 
     @Test
+    public void packageUpdateClosesOnlyAnOlderRuntimeInstall() {
+        OperationRecord install = coordinator.begin(
+                OperationKind.INSTALL_RUNTIME,
+                new JSONObject()
+        );
+        coordinator.dispatched(install.operationId);
+
+        assertTrue(coordinator.failRuntimeInstallStartedBefore(install.createdAtMs + 1));
+        assertNull(coordinator.active());
+        assertEquals(OperationState.FAILED, store.load(install.operationId).state);
+
+        OperationRecord turn = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
+        coordinator.dispatched(turn.operationId);
+        assertFalse(coordinator.failRuntimeInstallStartedBefore(turn.createdAtMs + 1));
+        assertEquals(turn.operationId, coordinator.activeOperationId());
+    }
+
+    @Test
     public void abortRequiresAnExplicitConfirmedTerminalState() {
         OperationRecord turn = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
         coordinator.dispatched(turn.operationId);

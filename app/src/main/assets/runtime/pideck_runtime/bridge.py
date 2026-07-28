@@ -10,6 +10,7 @@ import json
 import os
 import re
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -39,16 +40,21 @@ from .common import (
     utc_now,
 )
 from .server_supervisor import SERVER_API_KEY, read_server_status, strict_health
-from .model_store import model_by_id
+from .model_store import ensure_pi_compaction_settings, model_by_id
 
 BRIDGE_DIRECTORY = BASE / "bridge"
 BRIDGE_CONFIG = BRIDGE_DIRECTORY / "config.json"
 BRIDGE_TOKEN = BRIDGE_DIRECTORY / "token"
 BRIDGE_METADATA = BRIDGE_DIRECTORY / "supervisor.json"
 PI_CHILD_METADATA = BRIDGE_DIRECTORY / "pi-child.json"
+SYSTEM_PROMPT_FILE = BRIDGE_DIRECTORY / "system-prompt.txt"
 EVENT_JOURNAL = BRIDGE_DIRECTORY / "events.jsonl"
 AUDIT_LOG = BRIDGE_DIRECTORY / "approval-audit.jsonl"
 PI_STDERR_LOG = BASE / "logs" / "pi-rpc.stderr.log"
+LOCAL_CACHE_EXTENSION = BASE / "runtime" / "pideck-local-cache.ts"
+SYSTEM_PROMPT_EXTENSION = BASE / "runtime" / "pideck-system-prompt.ts"
+CONTEXT_GUARD_EXTENSION = BASE / "runtime" / "pideck-context-guard.ts"
+WEB_TOOLS_EXTENSION = BASE / "runtime" / "pideck-web-tools.ts"
 PERMISSION_EXTENSION = BASE / "runtime" / "pideck-permission-gate.ts"
 MAX_EVENT_BYTES = 256 * 1024
 MAX_EVENTS = 10_000
@@ -57,6 +63,11 @@ MAX_JOURNAL_TAIL = 5_000
 MAX_AUDIT_BYTES = 5 * 1024 * 1024
 AUDIT_RETAIN_BYTES = 2 * 1024 * 1024
 MAX_PROMPT_BYTES = 64 * 1024
+MAX_SYSTEM_PROMPT_BYTES = 16 * 1024
+MAX_ANSWER_RETRIES = 1
+EMPTY_PROMPT_SHA256 = hashlib.sha256(b"").hexdigest()
+SYSTEM_PROMPT_MODES = frozenset({"append", "replace"})
+AGENT_MODES = frozenset({"chat", "agent"})
 APPROVAL_TTL_SECONDS = 30
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
@@ -66,6 +77,151 @@ TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 DECISION_PREFIX = "PIDECK-DECISION/1 "
 DECISION_KINDS = frozenset({"overwrite", "delete", "shell"})
 MAX_DECISION_PREVIEW_LINES = 4
+DEGENERATE_FORMATTING_CHARS = frozenset("*_`~#>-.[](){}|\\/")
+ANSWER_RETRY_MESSAGE = (
+    "Предыдущий ответ был технически некорректен: он состоял только из знаков "
+    "форматирования. Ответь на исходный запрос содержательно. Если нужны актуальные "
+    "данные, обязательно используй подходящий доступный инструмент. Не упоминай этот повтор."
+)
+LIVE_DATA_RETRY_MESSAGE = (
+    "Исходный запрос явно требует актуальных данных. Не отвечай из памяти и не ищи "
+    "эти данные в файлах workspace. Обязательно вызови weather для погоды или "
+    "web_search для поиска в сети, затем ответь по результату инструмента. "
+    "Не упоминай эту служебную инструкцию."
+)
+LIVE_DATA_TOOL_NAMES = frozenset({"web_search", "weather"})
+
+
+def _bounded_count(value: Any, maximum: int = 100_000_000) -> int | None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        return None
+    return min(value, maximum)
+
+
+def bounded_session_stats(
+    value: Any, fallback_context_window: int
+) -> dict[str, Any]:
+    """Keeps only the non-sensitive counters Android needs for current-session guidance."""
+    if not isinstance(value, dict):
+        return {
+            "contextUsage": {
+                "tokens": None,
+                "contextWindow": fallback_context_window,
+                "percent": None,
+            }
+        }
+    result: dict[str, Any] = {}
+    for key in (
+        "userMessages",
+        "assistantMessages",
+        "toolCalls",
+        "toolResults",
+        "totalMessages",
+    ):
+        count = _bounded_count(value.get(key))
+        if count is not None:
+            result[key] = count
+    raw_usage = value.get("contextUsage")
+    usage: dict[str, Any] = {
+        "tokens": None,
+        "contextWindow": fallback_context_window,
+        "percent": None,
+    }
+    if isinstance(raw_usage, dict):
+        window = _bounded_count(raw_usage.get("contextWindow"), 1_000_000)
+        if window is not None and window > 0:
+            usage["contextWindow"] = window
+        tokens = _bounded_count(raw_usage.get("tokens"), 1_000_000_000)
+        if tokens is not None:
+            usage["tokens"] = tokens
+            percent = raw_usage.get("percent")
+            if isinstance(percent, (int, float)) and not isinstance(percent, bool):
+                usage["percent"] = max(0, min(999, round(float(percent))))
+            elif usage["contextWindow"] > 0:
+                usage["percent"] = max(
+                    0, min(999, round(tokens * 100 / usage["contextWindow"]))
+                )
+    result["contextUsage"] = usage
+    return result
+
+
+def bounded_compaction_payload(value: Any) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    if not isinstance(value, dict):
+        return result
+    for source, target in (
+        ("tokensBefore", "tokensBefore"),
+        ("estimatedTokensAfter", "estimatedTokensAfter"),
+    ):
+        count = _bounded_count(value.get(source), 1_000_000_000)
+        if count is not None:
+            result[target] = count
+    return result
+
+
+def is_degenerate_answer(value: str) -> bool:
+    """Rejects short Markdown-only fragments without rejecting terse real answers."""
+    candidate = value.strip()
+    if not candidate or len(candidate) > 32:
+        return False
+    return all(
+        character.isspace() or character in DEGENERATE_FORMATTING_CHARS
+        for character in candidate
+    )
+
+
+def required_live_tools(value: str) -> frozenset[str]:
+    """Recognizes explicit current-data requests without treating all questions as web work."""
+    candidate = " ".join(value.casefold().split())
+    web_requested = any(
+        cue in candidate
+        for cue in (
+            "поищи в сети",
+            "найди в сети",
+            "посмотри в сети",
+            "проверь в сети",
+            "поиск в сети",
+            "поищи в интернете",
+            "найди в интернете",
+            "посмотри в интернете",
+            "проверь в интернете",
+            "поиск в интернете",
+            "поищи онлайн",
+            "найди онлайн",
+            "search the web",
+            "search online",
+            "browse the web",
+            "look up online",
+            "find online",
+        )
+    )
+    weather_mentioned = re.search(
+        r"(?:^|\W)(?:погод\w*|weather|forecast)(?:$|\W)", candidate
+    ) is not None
+    weather_requested = weather_mentioned and (
+        web_requested
+        or any(
+            cue in candidate
+            for cue in (
+                "какая погод",
+                "погода в ",
+                "погоду в ",
+                "погоды в ",
+                "погода на ",
+                "прогноз погод",
+                "сейчас",
+                "weather in ",
+                "weather for ",
+                "forecast in ",
+                "forecast for ",
+            )
+        )
+    )
+    if weather_requested:
+        return LIVE_DATA_TOOL_NAMES
+    if web_requested:
+        return frozenset({"web_search"})
+    return frozenset()
 
 
 def split_decision(message: str) -> tuple[dict[str, Any] | None, str]:
@@ -99,14 +255,14 @@ def _bounded_decision(value: dict[str, Any]) -> dict[str, Any] | None:
         "kind": kind,
         "path": bounded_text(value.get("path", ""), 1024),
         "reason": bounded_text(value.get("reason", ""), 2048),
-        "addedLines": _bounded_count(value.get("addedLines")),
-        "removedLines": _bounded_count(value.get("removedLines")),
+        "addedLines": _bounded_decision_count(value.get("addedLines")),
+        "removedLines": _bounded_decision_count(value.get("removedLines")),
         "selfCreated": value.get("selfCreated") is True,
         "preview": preview,
     }
 
 
-def _bounded_count(value: Any) -> int:
+def _bounded_decision_count(value: Any) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         return 0
     return min(value, 1_000_000)
@@ -125,6 +281,122 @@ def validated_token(value: str) -> bytes:
     ):
         raise PiDeckError("INVALID_TOKEN", "Bridge token must contain exactly 256 bits")
     return value.encode("ascii")
+
+
+def parse_system_prompt_request(
+    request: dict[str, Any],
+    prompt_path: Path = SYSTEM_PROMPT_FILE,
+) -> tuple[dict[str, Any], bytes]:
+    """Validates prompt text from stdin JSON and returns metadata that contains no text."""
+    raw = request.get("systemPrompt", "")
+    if not isinstance(raw, str):
+        raise PiDeckError("INVALID_SYSTEM_PROMPT", "systemPrompt must be a string")
+    content = raw.encode("utf-8")
+    if len(content) > MAX_SYSTEM_PROMPT_BYTES:
+        raise PiDeckError(
+            "SYSTEM_PROMPT_TOO_LARGE",
+            f"systemPrompt exceeds {MAX_SYSTEM_PROMPT_BYTES} UTF-8 bytes",
+        )
+    if b"\0" in content:
+        raise PiDeckError("INVALID_SYSTEM_PROMPT", "systemPrompt must not contain NUL")
+    requested_mode = request.get("systemPromptMode", "append")
+    if not isinstance(requested_mode, str) or requested_mode not in SYSTEM_PROMPT_MODES:
+        raise PiDeckError(
+            "INVALID_SYSTEM_PROMPT_MODE",
+            "systemPromptMode must be append or replace",
+        )
+    effective_mode = requested_mode if content else "default"
+    descriptor = {
+        "systemPromptMode": effective_mode,
+        "systemPromptSha256": hashlib.sha256(content).hexdigest(),
+        "systemPromptBytes": len(content),
+    }
+    if content:
+        descriptor["systemPromptPath"] = str(prompt_path)
+    return descriptor, content
+
+
+def persist_system_prompt(prompt_path: Path, content: bytes) -> None:
+    if content:
+        atomic_write_bytes(prompt_path, content, 0o600)
+    else:
+        prompt_path.unlink(missing_ok=True)
+
+
+def system_prompt_environment(
+    descriptor: dict[str, Any],
+    expected_path: Path = SYSTEM_PROMPT_FILE,
+) -> dict[str, str]:
+    """Revalidates the private file and returns metadata-only child environment values."""
+    mode = descriptor.get("systemPromptMode", "default")
+    expected_hash = descriptor.get("systemPromptSha256", EMPTY_PROMPT_SHA256)
+    expected_bytes = descriptor.get("systemPromptBytes", 0)
+    if mode == "default":
+        if expected_hash != EMPTY_PROMPT_SHA256 or expected_bytes != 0:
+            raise PiDeckError(
+                "INVALID_SYSTEM_PROMPT_CONFIG",
+                "Default system prompt metadata is inconsistent",
+            )
+        return {"PIDECK_SYSTEM_PROMPT_MODE": "default"}
+    if mode not in SYSTEM_PROMPT_MODES:
+        raise PiDeckError("INVALID_SYSTEM_PROMPT_CONFIG", "Unknown system prompt mode")
+    if (
+        not isinstance(expected_hash, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", expected_hash)
+        or not isinstance(expected_bytes, int)
+        or isinstance(expected_bytes, bool)
+        or expected_bytes <= 0
+        or expected_bytes > MAX_SYSTEM_PROMPT_BYTES
+    ):
+        raise PiDeckError(
+            "INVALID_SYSTEM_PROMPT_CONFIG",
+            "System prompt metadata is malformed",
+        )
+    raw_path = descriptor.get("systemPromptPath")
+    if not isinstance(raw_path, str) or Path(raw_path) != expected_path:
+        raise PiDeckError(
+            "INVALID_SYSTEM_PROMPT_CONFIG",
+            "System prompt path is not the managed private file",
+        )
+    try:
+        file_stat = expected_path.lstat()
+        if not stat.S_ISREG(file_stat.st_mode) or stat.S_IMODE(file_stat.st_mode) != 0o600:
+            raise PiDeckError(
+                "INVALID_SYSTEM_PROMPT_FILE",
+                "System prompt file is not a private regular file",
+            )
+        content = expected_path.read_bytes()
+    except OSError as error:
+        raise PiDeckError(
+            "SYSTEM_PROMPT_UNAVAILABLE",
+            "System prompt file is unavailable",
+        ) from error
+    if (
+        len(content) != expected_bytes
+        or len(content) > MAX_SYSTEM_PROMPT_BYTES
+        or b"\0" in content
+        or hashlib.sha256(content).hexdigest() != expected_hash
+    ):
+        raise PiDeckError(
+            "SYSTEM_PROMPT_INTEGRITY",
+            "System prompt file failed integrity verification",
+        )
+    return {
+        "PIDECK_SYSTEM_PROMPT_MODE": mode,
+        "PIDECK_SYSTEM_PROMPT_PATH": str(expected_path),
+        "PIDECK_SYSTEM_PROMPT_SHA256": expected_hash,
+        "PIDECK_SYSTEM_PROMPT_BYTES": str(expected_bytes),
+    }
+
+
+def _system_prompt_file_matches(descriptor: dict[str, Any]) -> bool:
+    if descriptor["systemPromptMode"] == "default":
+        return not SYSTEM_PROMPT_FILE.exists()
+    try:
+        system_prompt_environment(descriptor, SYSTEM_PROMPT_FILE)
+        return True
+    except PiDeckError:
+        return False
 
 
 class EventJournal:
@@ -236,12 +508,36 @@ class PiRpcChild:
             return
         config = self.bridge.config
         model_id = require_string(config, "modelId", 128)
-        model_by_id(model_id)
+        model = model_by_id(model_id)
+        ensure_pi_compaction_settings(model)
         profile = require_string(config, "accessProfile", 32)
+        agent_mode = require_string(config, "agentMode", 16)
+        if agent_mode not in AGENT_MODES:
+            raise PiDeckError("INVALID_AGENT_MODE", "Unknown agent mode")
         operation_id = require_uuid4(config, "bootstrapOperationId")
         session_id = config.get("sessionId")
         if session_id is not None:
             require_session_id({"sessionId": session_id})
+        if not LOCAL_CACHE_EXTENSION.is_file():
+            raise PiDeckError(
+                "LOCAL_CACHE_EXTENSION_MISSING",
+                "Local prompt-cache extension is not installed",
+            )
+        if not SYSTEM_PROMPT_EXTENSION.is_file():
+            raise PiDeckError(
+                "SYSTEM_PROMPT_EXTENSION_MISSING",
+                "Managed system-prompt extension is not installed",
+            )
+        if not CONTEXT_GUARD_EXTENSION.is_file():
+            raise PiDeckError(
+                "CONTEXT_GUARD_EXTENSION_MISSING",
+                "Local context-guard extension is not installed",
+            )
+        if not WEB_TOOLS_EXTENSION.is_file():
+            raise PiDeckError(
+                "WEB_TOOLS_EXTENSION_MISSING",
+                "Managed web-tools extension is not installed",
+            )
 
         arguments = [
             str(BASE / "runtime" / "bin" / "pi"),
@@ -258,13 +554,22 @@ class PiRpcChild:
             "--approve",
             "--offline",
             "--no-extensions",
+            "--extension",
+            str(LOCAL_CACHE_EXTENSION),
+            "--extension",
+            str(SYSTEM_PROMPT_EXTENSION),
+            "--extension",
+            str(CONTEXT_GUARD_EXTENSION),
+            "--extension",
+            str(WEB_TOOLS_EXTENSION),
         ]
         if session_id:
             arguments.extend(["--session-id", str(session_id)])
-        arguments.extend(self._profile_arguments(profile))
+        arguments.extend(self._profile_arguments(profile, agent_mode))
         environment = managed_environment(operation_id)
         environment["PI_CODING_AGENT_DIR"] = str(BASE / "pi")
         environment["PI_CODING_AGENT_SESSION_DIR"] = str(BASE / "sessions")
+        environment.update(system_prompt_environment(config, SYSTEM_PROMPT_FILE))
         PI_STDERR_LOG.parent.mkdir(parents=True, exist_ok=True)
         stderr_log = PI_STDERR_LOG.open("ab", buffering=0)
         try:
@@ -287,21 +592,45 @@ class PiRpcChild:
             arguments,
             operation_id,
             "pi",
-            {"modelId": model_id, "accessProfile": profile},
+            {
+                "modelId": model_id,
+                "accessProfile": profile,
+                "agentMode": agent_mode,
+                "systemPromptMode": config.get("systemPromptMode", "default"),
+                "systemPromptSha256": config.get(
+                    "systemPromptSha256", EMPTY_PROMPT_SHA256
+                ),
+                "systemPromptBytes": config.get("systemPromptBytes", 0),
+            },
         )
         atomic_write_json(PI_CHILD_METADATA, self.metadata)
         self.bridge.journal.append(
             "PI_STARTED",
             None,
             self.bridge.session_id,
-            {"pid": process.pid, "modelId": model_id, "accessProfile": profile},
+            {
+                "pid": process.pid,
+                "modelId": model_id,
+                "accessProfile": profile,
+                "agentMode": agent_mode,
+            },
         )
         threading.Thread(target=self._read_stdout, name="pideck-pi-stdout", daemon=True).start()
         threading.Thread(target=self._wait_for_exit, name="pideck-pi-exit", daemon=True).start()
+        self.send(
+            {
+                "id": "pideck-auto-compaction",
+                "type": "set_auto_compaction",
+                "enabled": True,
+            }
+        )
+        self.bridge.request_session_stats()
 
-    def _profile_arguments(self, profile: str) -> list[str]:
+    def _profile_arguments(self, profile: str, agent_mode: str) -> list[str]:
+        if agent_mode == "chat":
+            return ["--no-tools"]
         if profile == "read_only":
-            return ["--tools", "read,grep,find,ls"]
+            return ["--tools", "read,grep,find,ls,web_search,weather"]
         if profile == "confirm_changes":
             if not PERMISSION_EXTENSION.is_file():
                 raise PiDeckError(
@@ -310,12 +639,16 @@ class PiRpcChild:
             return [
                 "--no-builtin-tools",
                 "--tools",
-                "read,grep,find,ls,pideck_bash,pideck_edit,pideck_write",
+                "read,grep,find,ls,web_search,weather,"
+                "pideck_bash,pideck_edit,pideck_write",
                 "--extension",
                 str(PERMISSION_EXTENSION),
             ]
         if profile == "autonomous":
-            return ["--tools", "read,bash,edit,write,grep,find,ls"]
+            return [
+                "--tools",
+                "read,bash,edit,write,grep,find,ls,web_search,weather",
+            ]
         raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
 
     def send(self, value: dict[str, Any]) -> None:
@@ -391,13 +724,29 @@ class PiDeckBridge:
         self._lock = threading.RLock()
         self._shutdown = threading.Event()
         self.active_operation_id: str | None = None
+        self.active_operation_kind: str | None = None
         self.abort_requested = False
         self.last_answer = ""
         self.active_failed_reason: str | None = None
+        self.answer_retry_count = 0
+        self.answer_retry_request_id: str | None = None
+        self.answer_retry_exhausted = False
+        self.required_live_tools: frozenset[str] = frozenset()
+        self.successful_live_tools: set[str] = set()
+        self.turn_output_tokens = 0
+        self.turn_decode_seconds = 0.0
+        self._message_output_started_monotonic: float | None = None
         self.pending_approvals: dict[str, dict[str, Any]] = {}
         self.pending_new_session: dict[str, str] | None = None
         self.seen_commands: collections.OrderedDict[str, str] = collections.OrderedDict()
         self.last_client_seen = time.monotonic()
+        model = model_by_id(require_string(config, "modelId", 128))
+        self.context_window = int(model["runtime"]["recommendedContext"])
+        self.session_stats = bounded_session_stats(None, self.context_window)
+        self.compacting = False
+        self.compaction_reason: str | None = None
+        self._stats_request_id: str | None = None
+        self._stats_request_counter = 0
         self.child = PiRpcChild(self)
         self.child.start()
         self.journal.append(
@@ -445,6 +794,8 @@ class PiDeckBridge:
                 return self._abort(operation_id, payload)
             if command_type == "NEW_SESSION":
                 return self._new_session(operation_id, payload)
+            if command_type == "COMPACT":
+                return self._compact(operation_id, payload)
             if command_type == "APPROVAL_DECISION":
                 return self._approval_decision(operation_id, payload)
             if command_type == "GET_STATE":
@@ -459,6 +810,17 @@ class PiDeckBridge:
             self.child = PiRpcChild(self)
             self.child.start()
 
+    def request_session_stats(self) -> None:
+        if self._stats_request_id is not None:
+            return
+        self._stats_request_counter += 1
+        request_id = f"pideck-session-stats:{self._stats_request_counter}"
+        self._stats_request_id = request_id
+        try:
+            self.child.send({"id": request_id, "type": "get_session_stats"})
+        except PiDeckError:
+            self._stats_request_id = None
+
     def _prompt(self, operation_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         if self.active_operation_id is not None:
             raise PiDeckError(
@@ -471,13 +833,57 @@ class PiDeckBridge:
             raise PiDeckError("SESSION_MISMATCH", "Prompt targets a different session")
         self._ensure_child()
         self.active_operation_id = operation_id
+        self.active_operation_kind = "prompt"
         self.abort_requested = False
         self.active_failed_reason = None
         self.last_answer = ""
+        self.answer_retry_count = 0
+        self.answer_retry_request_id = None
+        self.answer_retry_exhausted = False
+        self.required_live_tools = (
+            required_live_tools(message)
+            if self.config.get("agentMode") == "agent"
+            else frozenset()
+        )
+        self.successful_live_tools = set()
+        self._reset_generation_metrics()
         try:
             self.child.send({"id": operation_id, "type": "prompt", "message": message})
         except Exception:
             self.active_operation_id = None
+            self.active_operation_kind = None
+            raise
+        return {"accepted": True, "operationId": operation_id}
+
+    def _compact(
+        self, operation_id: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        if self.active_operation_id is not None or self.compacting:
+            raise PiDeckError(
+                "TURN_ALREADY_ACTIVE",
+                "Cannot compact while Pi is processing another operation",
+            )
+        instructions = payload.get("customInstructions")
+        if instructions is not None:
+            if not isinstance(instructions, str):
+                raise PiDeckError(
+                    "MALFORMED_COMMAND", "customInstructions must be a string"
+                )
+            if len(instructions.encode("utf-8")) > 4096:
+                raise PiDeckError(
+                    "FIELD_TOO_LARGE", "customInstructions exceeds limit"
+                )
+        self._ensure_child()
+        self.active_operation_id = operation_id
+        self.active_operation_kind = "compact"
+        command: dict[str, Any] = {"id": operation_id, "type": "compact"}
+        if instructions:
+            command["customInstructions"] = instructions
+        try:
+            self.child.send(command)
+        except Exception:
+            self.active_operation_id = None
+            self.active_operation_kind = None
             raise
         return {"accepted": True, "operationId": operation_id}
 
@@ -486,6 +892,8 @@ class PiDeckBridge:
         require_uuid4({"target": target}, "target")
         if self.active_operation_id != target:
             raise PiDeckError("TARGET_NOT_ACTIVE", "Abort target is not the active turn")
+        if self.active_operation_kind != "prompt":
+            raise PiDeckError("TARGET_NOT_ACTIVE", "Target is not an agent turn")
         if self.abort_requested:
             return {
                 "accepted": True,
@@ -531,6 +939,7 @@ class PiDeckBridge:
                 )
                 return
             self.active_operation_id = None
+            self.active_operation_kind = None
             self.abort_requested = False
             self.journal.append(
                 "TURN_ABORTED",
@@ -539,6 +948,7 @@ class PiDeckBridge:
                 {"fallback": "exact-process-group"},
                 terminal=True,
             )
+            self._stats_request_id = None
             self.child = PiRpcChild(self)
             try:
                 self.child.start()
@@ -616,8 +1026,21 @@ class PiDeckBridge:
             operation_id = self.active_operation_id
             if message_type == "agent_start":
                 self.journal.append("TURN_STARTED", operation_id, self.session_id)
+            elif message_type == "turn_start":
+                self.journal.append(
+                    "MODEL_THINKING_STARTED",
+                    operation_id,
+                    self.session_id,
+                )
             elif message_type == "message_update":
                 update = value.get("assistantMessageEvent")
+                if (
+                    isinstance(update, dict)
+                    and isinstance(update.get("type"), str)
+                    and update["type"].endswith("_delta")
+                    and self._message_output_started_monotonic is None
+                ):
+                    self._message_output_started_monotonic = time.monotonic()
                 if isinstance(update, dict) and update.get("type") == "text_delta":
                     delta = update.get("delta")
                     if isinstance(delta, str):
@@ -646,8 +1069,31 @@ class PiDeckBridge:
                             },
                         )
             elif message_type == "message_end":
-                candidate = self._assistant_text(value.get("message"))
-                if candidate:
+                message = value.get("message")
+                self._capture_generation_metrics(message)
+                candidate = self._assistant_text(message)
+                if (
+                    candidate
+                    and is_degenerate_answer(candidate)
+                    and not self._assistant_has_tool_call(message)
+                    and self.active_operation_kind == "prompt"
+                    and not self.abort_requested
+                    and not self.active_failed_reason
+                ):
+                    self._reject_degenerate_answer()
+                elif (
+                    candidate
+                    and self.required_live_tools
+                    and self.required_live_tools.isdisjoint(
+                        self.successful_live_tools
+                    )
+                    and not self._assistant_has_tool_call(message)
+                    and self.active_operation_kind == "prompt"
+                    and not self.abort_requested
+                    and not self.active_failed_reason
+                ):
+                    self._reject_missing_live_tool()
+                elif candidate:
                     self.last_answer = candidate
             elif message_type == "tool_execution_start":
                 self.journal.append(
@@ -661,6 +1107,14 @@ class PiDeckBridge:
                     },
                 )
             elif message_type == "tool_execution_end":
+                tool_name = value.get("toolName")
+                if (
+                    self.active_operation_kind == "prompt"
+                    and value.get("isError") is not True
+                    and isinstance(tool_name, str)
+                    and tool_name in LIVE_DATA_TOOL_NAMES
+                ):
+                    self.successful_live_tools.add(tool_name)
                 self.journal.append(
                     "TOOL_CALL_COMPLETED",
                     operation_id,
@@ -677,13 +1131,83 @@ class PiDeckBridge:
                 # the failure on its own, so the turn is only failed by the model or the child.
             elif message_type == "agent_end":
                 messages = value.get("messages")
-                if isinstance(messages, list):
-                    for message in messages:
+                live_data_satisfied = (
+                    not self.required_live_tools
+                    or not self.required_live_tools.isdisjoint(
+                        self.successful_live_tools
+                    )
+                )
+                if (
+                    isinstance(messages, list)
+                    and not self.answer_retry_exhausted
+                    and live_data_satisfied
+                ):
+                    for message in reversed(messages):
                         candidate = self._assistant_text(message)
-                        if candidate:
+                        if candidate and not is_degenerate_answer(candidate):
                             self.last_answer = candidate
+                            break
             elif message_type == "agent_settled":
-                self._complete_active_turn()
+                if self.active_operation_kind == "prompt":
+                    if (
+                        self.required_live_tools
+                        and self.required_live_tools.isdisjoint(
+                            self.successful_live_tools
+                        )
+                        and not self.abort_requested
+                        and not self.active_failed_reason
+                    ):
+                        self.last_answer = ""
+                        self.active_failed_reason = (
+                            "Модель завершила запрос актуальных данных без "
+                            "доступного сетевого инструмента."
+                        )
+                    self._complete_active_turn()
+            elif message_type == "compaction_start":
+                reason = value.get("reason")
+                if reason not in {"manual", "threshold", "overflow"}:
+                    reason = "manual" if self.active_operation_kind == "compact" else "threshold"
+                self.compacting = True
+                self.compaction_reason = reason
+                self.journal.append(
+                    "CONTEXT_COMPACTION_STARTED",
+                    operation_id,
+                    self.session_id,
+                    {"reason": reason},
+                )
+            elif message_type == "compaction_end":
+                reason = value.get("reason")
+                if reason not in {"manual", "threshold", "overflow"}:
+                    reason = self.compaction_reason or "threshold"
+                self.compacting = False
+                self.compaction_reason = None
+                payload = {
+                    "reason": reason,
+                    "aborted": value.get("aborted") is True,
+                    "willRetry": value.get("willRetry") is True,
+                }
+                payload.update(bounded_compaction_payload(value.get("result")))
+                error_message = value.get("errorMessage")
+                if isinstance(error_message, str) and error_message:
+                    payload["error"] = bounded_text(error_message, 2048)
+                estimated = payload.get("estimatedTokensAfter")
+                if isinstance(estimated, int):
+                    self.session_stats["contextUsage"] = {
+                        "tokens": estimated,
+                        "contextWindow": self.context_window,
+                        "percent": max(
+                            0,
+                            min(999, round(estimated * 100 / self.context_window)),
+                        ),
+                        "estimated": True,
+                    }
+                self.journal.append(
+                    "CONTEXT_COMPACTION_FINISHED",
+                    operation_id,
+                    self.session_id,
+                    payload,
+                )
+                self.request_session_stats()
             elif message_type == "extension_error":
                 self.protocol_error(
                     "Pi extension error: " + bounded_text(value.get("error", ""), 2048)
@@ -693,8 +1217,6 @@ class PiDeckBridge:
                 "turn_end",
                 "message_start",
                 "queue_update",
-                "compaction_start",
-                "compaction_end",
                 "auto_retry_start",
                 "auto_retry_end",
             }:
@@ -724,6 +1246,75 @@ class PiDeckBridge:
                     terminal=True,
                 )
                 self.active_operation_id = None
+                self.active_operation_kind = None
+        elif command == "follow_up" and command_id == self.answer_retry_request_id:
+            self.answer_retry_request_id = None
+            if not success:
+                self.active_failed_reason = (
+                    "Pi отклонил автоматическую повторную попытку: "
+                    + bounded_text(value.get("error", "неизвестная ошибка"), 1024)
+                )
+        elif command == "compact" and command_id == self.active_operation_id:
+            data = value.get("data")
+            payload = bounded_compaction_payload(data)
+            if success:
+                self.journal.append(
+                    "SESSION_COMPACTED",
+                    command_id,
+                    self.session_id,
+                    payload,
+                    terminal=True,
+                )
+            else:
+                payload["error"] = bounded_text(
+                    value.get("error", "Pi could not compact this session"), 2048
+                )
+                self.journal.append(
+                    "SESSION_COMPACTION_FAILED",
+                    command_id,
+                    self.session_id,
+                    payload,
+                    terminal=True,
+                )
+            self.active_operation_id = None
+            self.active_operation_kind = None
+            self.compacting = False
+            self.compaction_reason = None
+            self.request_session_stats()
+        elif command == "get_session_stats":
+            if command_id != self._stats_request_id:
+                return
+            self._stats_request_id = None
+            if not success:
+                return
+            fresh = bounded_session_stats(value.get("data"), self.context_window)
+            fresh_usage = fresh.get("contextUsage", {})
+            current_usage = self.session_stats.get("contextUsage", {})
+            if (
+                fresh_usage.get("tokens") is None
+                and current_usage.get("estimated") is True
+            ):
+                fresh["contextUsage"] = current_usage
+            self.session_stats = fresh
+            self.journal.append(
+                "SESSION_STATS_CHANGED",
+                None,
+                self.session_id,
+                fresh,
+            )
+        elif command == "set_auto_compaction":
+            if not success:
+                self.journal.append(
+                    "BRIDGE_ERROR",
+                    None,
+                    self.session_id,
+                    {
+                        "code": "AUTO_COMPACTION_UNAVAILABLE",
+                        "message": bounded_text(
+                            value.get("error", "Pi rejected auto compaction"), 2048
+                        ),
+                    },
+                )
         elif command == "abort":
             self.journal.append(
                 "DIAGNOSTIC",
@@ -783,7 +1374,21 @@ class PiDeckBridge:
                         {"sessionId": self.session_id},
                         terminal=True,
                     )
+                    self.session_stats = {
+                        "userMessages": 0,
+                        "assistantMessages": 0,
+                        "toolCalls": 0,
+                        "toolResults": 0,
+                        "totalMessages": 0,
+                        "contextUsage": {
+                            "tokens": 0,
+                            "contextWindow": self.context_window,
+                            "percent": 0,
+                        },
+                    }
                 self.pending_new_session = None
+                self._stats_request_id = None
+                self.request_session_stats()
                 return
             self.journal.append(
                 "DIAGNOSTIC",
@@ -858,6 +1463,7 @@ class PiDeckBridge:
         else:
             event_type = "TURN_COMPLETED"
             payload = {"answer": bounded_text(self.last_answer, 256 * 1024)}
+        payload.update(self._generation_metrics_payload())
         self._deny_all_approvals("turn terminal")
         self.journal.append(
             event_type,
@@ -867,9 +1473,55 @@ class PiDeckBridge:
             terminal=True,
         )
         self.active_operation_id = None
+        self.active_operation_kind = None
         self.abort_requested = False
         self.active_failed_reason = None
         self.last_answer = ""
+        self.answer_retry_count = 0
+        self.answer_retry_request_id = None
+        self.answer_retry_exhausted = False
+        self.required_live_tools = frozenset()
+        self.successful_live_tools = set()
+        self._reset_generation_metrics()
+        self._stats_request_id = None
+        self.request_session_stats()
+
+    def _reset_generation_metrics(self) -> None:
+        self.turn_output_tokens = 0
+        self.turn_decode_seconds = 0.0
+        self._message_output_started_monotonic = None
+
+    def _capture_generation_metrics(self, message: Any) -> None:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            return
+        usage = message.get("usage")
+        output_tokens = (
+            _bounded_count(usage.get("output"), 100_000_000)
+            if isinstance(usage, dict)
+            else None
+        )
+        started = self._message_output_started_monotonic
+        self._message_output_started_monotonic = None
+        if output_tokens is None or output_tokens <= 0 or started is None:
+            return
+        elapsed = time.monotonic() - started
+        if not 0.01 <= elapsed <= 60 * 60:
+            return
+        self.turn_output_tokens += output_tokens
+        self.turn_decode_seconds += elapsed
+
+    def _generation_metrics_payload(self) -> dict[str, Any]:
+        if self.turn_output_tokens <= 0 or self.turn_decode_seconds <= 0.0:
+            return {}
+        rate = self.turn_output_tokens / self.turn_decode_seconds
+        if not 0.01 <= rate <= 100_000.0:
+            return {}
+        return {
+            "outputTokens": self.turn_output_tokens,
+            "decodeDurationMs": max(1, round(self.turn_decode_seconds * 1000)),
+            "tokensPerSecond": round(rate, 2),
+            "speedEstimated": False,
+        }
 
     def _assistant_text(self, message: Any) -> str:
         if not isinstance(message, dict) or message.get("role") != "assistant":
@@ -886,6 +1538,83 @@ class PiDeckBridge:
                 if isinstance(text, str):
                     parts.append(text)
         return "\n".join(parts)
+
+    def _assistant_has_tool_call(self, message: Any) -> bool:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            return False
+        content = message.get("content")
+        if not isinstance(content, list):
+            return False
+        return any(
+            isinstance(part, dict)
+            and part.get("type") in {"toolCall", "tool_call", "tool_use"}
+            for part in content
+        )
+
+    def _reject_degenerate_answer(self) -> None:
+        self._reject_answer(
+            "formatting_only",
+            ANSWER_RETRY_MESSAGE,
+            "Модель дважды вернула ответ только из знаков форматирования.",
+        )
+
+    def _reject_missing_live_tool(self) -> None:
+        self._reject_answer(
+            "live_tool_required",
+            LIVE_DATA_RETRY_MESSAGE,
+            "Модель дважды ответила на запрос актуальных данных без "
+            "обязательного сетевого инструмента.",
+            {"requiredTools": sorted(self.required_live_tools)},
+        )
+
+    def _reject_answer(
+        self,
+        reason: str,
+        retry_message: str,
+        exhausted_message: str,
+        extra_payload: dict[str, Any] | None = None,
+    ) -> None:
+        self.last_answer = ""
+        self._reset_generation_metrics()
+        will_retry = self.answer_retry_count < MAX_ANSWER_RETRIES
+        attempt = self.answer_retry_count + 1
+        payload: dict[str, Any] = {
+            "reason": reason,
+            "attempt": attempt,
+            "willRetry": will_retry,
+        }
+        if extra_payload:
+            payload.update(extra_payload)
+        self.journal.append(
+            "MODEL_OUTPUT_REJECTED",
+            self.active_operation_id,
+            self.session_id,
+            payload,
+        )
+        if not will_retry:
+            self.answer_retry_exhausted = True
+            self.active_failed_reason = exhausted_message
+            return
+
+        self.answer_retry_count += 1
+        request_id = (
+            f"pideck-answer-retry:{self.active_operation_id}:"
+            f"{self.answer_retry_count}"
+        )
+        self.answer_retry_request_id = request_id
+        try:
+            self.child.send(
+                {
+                    "id": request_id,
+                    "type": "follow_up",
+                    "message": retry_message,
+                }
+            )
+        except PiDeckError as error:
+            self.active_failed_reason = (
+                "Pi не принял автоматическую повторную попытку: "
+                + bounded_text(error.message, 1024)
+            )
 
     def _resolve_approval(
         self, approval_id: str, confirmed: bool, source: str
@@ -979,9 +1708,17 @@ class PiDeckBridge:
                 {"exitCode": exit_code, "expected": expected},
             )
             self._deny_all_approvals("pi child exit")
+            # A request owned by the exited stdin/stdout channel can never answer. The next
+            # exact child must be free to publish fresh context telemetry.
+            self._stats_request_id = None
             if operation_id is not None:
+                terminal_type = (
+                    "SESSION_COMPACTION_FAILED"
+                    if self.active_operation_kind == "compact"
+                    else "TURN_FAILED"
+                )
                 self.journal.append(
-                    "TURN_FAILED",
+                    terminal_type,
                     operation_id,
                     self.session_id,
                     {
@@ -991,7 +1728,10 @@ class PiDeckBridge:
                     terminal=True,
                 )
                 self.active_operation_id = None
+                self.active_operation_kind = None
                 self.abort_requested = False
+                self.compacting = False
+                self.compaction_reason = None
 
     def protocol_error(self, message: str) -> None:
         self.journal.append(
@@ -1008,6 +1748,7 @@ class PiDeckBridge:
                 "bridgeInstanceId": self.bridge_instance_id,
                 "lastSequence": self.journal.sequence,
                 "activeOperationId": self.active_operation_id,
+                "activeOperationKind": self.active_operation_kind,
                 "pendingNewSessionOperationId": (
                     self.pending_new_session["operationId"]
                     if self.pending_new_session is not None
@@ -1016,6 +1757,16 @@ class PiDeckBridge:
                 "sessionId": self.session_id,
                 "modelId": self.config.get("modelId"),
                 "accessProfile": self.config.get("accessProfile"),
+                "agentMode": self.config.get("agentMode", "agent"),
+                "sessionStats": self.session_stats,
+                "compacting": self.compacting,
+                "compactionReason": self.compaction_reason,
+                "compactionSettings": self.config.get("compaction", {}),
+                "systemPromptMode": self.config.get("systemPromptMode", "default"),
+                "systemPromptSha256": self.config.get(
+                    "systemPromptSha256", EMPTY_PROMPT_SHA256
+                ),
+                "systemPromptBytes": self.config.get("systemPromptBytes", 0),
                 "piAlive": self.child.process is not None
                 and self.child.process.poll() is None,
                 "pendingApprovals": [
@@ -1262,9 +2013,14 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
     token_sha256 = hashlib.sha256(token_bytes).hexdigest()
     model_id = require_string(request, "modelId", 128)
     model = model_by_id(model_id)
+    compaction = ensure_pi_compaction_settings(model)
     profile = require_string(request, "accessProfile", 32)
     if profile not in {"read_only", "confirm_changes", "autonomous"}:
         raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
+    agent_mode = request.get("agentMode", "agent")
+    if not isinstance(agent_mode, str) or agent_mode not in AGENT_MODES:
+        raise PiDeckError("INVALID_AGENT_MODE", "Unknown agent mode")
+    system_prompt, system_prompt_content = parse_system_prompt_request(request)
     session_id = request.get("sessionId")
     if session_id is not None:
         require_session_id({"sessionId": session_id})
@@ -1300,9 +2056,17 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
             same = (
                 existing.get("modelId") == model_id
                 and existing.get("accessProfile") == profile
+                and existing.get("agentMode", "agent") == agent_mode
                 and existing.get("sessionId") == session_id
                 and int(existing.get("port", -1)) == port
                 and existing.get("tokenSha256") == token_sha256
+                and existing.get("systemPromptMode", "default")
+                == system_prompt["systemPromptMode"]
+                and existing.get("systemPromptSha256", EMPTY_PROMPT_SHA256)
+                == system_prompt["systemPromptSha256"]
+                and existing.get("systemPromptBytes", 0)
+                == system_prompt["systemPromptBytes"]
+                and _system_prompt_file_matches(system_prompt)
             )
             if same:
                 try:
@@ -1325,16 +2089,20 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
             if not terminate_exact(existing):
                 raise PiDeckError("BRIDGE_BUSY", "Could not stop previous managed bridge")
 
+    persist_system_prompt(SYSTEM_PROMPT_FILE, system_prompt_content)
     config = {
         "schemaVersion": 1,
         "bootstrapOperationId": operation_id,
         "modelId": model_id,
         "accessProfile": profile,
+        "agentMode": agent_mode,
         "sessionId": session_id,
         "host": "127.0.0.1",
         "port": port,
         "createdAt": utc_now(),
+        "compaction": compaction,
     }
+    config.update(system_prompt)
     atomic_write_bytes(BRIDGE_TOKEN, token_bytes, 0o600)
     atomic_write_json(BRIDGE_CONFIG, config, 0o600)
     arguments = [
@@ -1368,9 +2136,13 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
         {
             "modelId": model_id,
             "accessProfile": profile,
+            "agentMode": agent_mode,
             "sessionId": session_id,
             "port": port,
             "tokenSha256": token_sha256,
+            "systemPromptMode": system_prompt["systemPromptMode"],
+            "systemPromptSha256": system_prompt["systemPromptSha256"],
+            "systemPromptBytes": system_prompt["systemPromptBytes"],
         },
     )
     atomic_write_json(BRIDGE_METADATA, metadata)
@@ -1397,13 +2169,16 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
 
 def stop_bridge() -> dict[str, Any]:
     if not BRIDGE_METADATA.is_file():
+        SYSTEM_PROMPT_FILE.unlink(missing_ok=True)
         return {"state": "STOPPED", "idempotent": True}
     try:
         metadata = read_json(BRIDGE_METADATA)
     except PiDeckError:
+        SYSTEM_PROMPT_FILE.unlink(missing_ok=True)
         return {"state": "STALE", "idempotent": True}
     if process_alive(metadata) and not terminate_exact(metadata):
         raise PiDeckError("BRIDGE_STOP_UNCONFIRMED", "Bridge did not confirm process exit")
     BRIDGE_METADATA.unlink(missing_ok=True)
     PI_CHILD_METADATA.unlink(missing_ok=True)
+    SYSTEM_PROMPT_FILE.unlink(missing_ok=True)
     return {"state": "STOPPED", "idempotent": False}

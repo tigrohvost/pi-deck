@@ -261,7 +261,10 @@ def _write_pi_models(api_key: str, port: int) -> None:
                     "supportsDeveloperRole": False,
                     "supportsReasoningEffort": False,
                     "supportsStore": False,
-                    "supportsUsageInStreaming": False,
+                    # llama.cpp b10092 emits a final streaming usage frame when
+                    # include_usage is requested. Pi needs this flag to send
+                    # stream_options.include_usage and expose exact output tokens.
+                    "supportsUsageInStreaming": True,
                     "maxTokensField": "max_tokens",
                 },
                 "models": models,

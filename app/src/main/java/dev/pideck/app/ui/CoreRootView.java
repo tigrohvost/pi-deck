@@ -14,6 +14,9 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
+import dev.pideck.app.core.AgentMode;
+import dev.pideck.app.core.UiLanguage;
+
 /**
  * ЯДРО: which model runs, how the deck looks, and what maintenance is available.
  *
@@ -106,6 +109,10 @@ public final class CoreRootView extends ScrollView {
         public String accessProfileLabel = "";
         public String accessProfileNote = "";
         public final List<ActionRow> accessProfiles = new ArrayList<>();
+        public ActionRow systemPrompt;
+        public AgentMode agentMode = AgentMode.AGENT;
+        public UiLanguage language = UiLanguage.RUSSIAN;
+        public boolean maximumSpeed = true;
         /** Mirror of the checkbox on the consent screen. */
         public boolean askBeforeOverwrite = true;
     }
@@ -116,16 +123,30 @@ public final class CoreRootView extends ScrollView {
         void onTextScaleChosen(float scale);
 
         void onAskBeforeOverwriteChanged(boolean askBeforeOverwrite);
+
+        void onAgentModeChosen(AgentMode mode);
+
+        void onMaximumSpeedChanged(boolean enabled);
+
+        void onLanguageChosen(UiLanguage language);
     }
 
     private final DeckStyle style;
     private final Listener listener;
     private final LinearLayout column;
+    private final UiLanguage language;
+    private String lastSignature = "";
 
-    public CoreRootView(Context context, DeckStyle style, Listener listener) {
+    public CoreRootView(
+            Context context,
+            DeckStyle style,
+            Listener listener,
+            UiLanguage language
+    ) {
         super(context);
         this.style = style;
         this.listener = listener;
+        this.language = language == null ? UiLanguage.RUSSIAN : language;
         setVerticalScrollBarEnabled(false);
         setClipToPadding(false);
         column = new LinearLayout(context);
@@ -137,13 +158,60 @@ public final class CoreRootView extends ScrollView {
     }
 
     public void render(State state) {
+        String signature = signature(state);
+        if (signature.equals(lastSignature)) return;
+        lastSignature = signature;
+        int previousScroll = getScrollY();
         column.removeAllViews();
-        column.addView(style.screenTitle("Ядро"));
+        column.addView(style.screenTitle(t("Ядро", "Core")));
 
-        section("Модель");
+        section(t("Модель", "Model"));
         for (ModelRow model : state.models) column.addView(modelRow(model));
 
-        section("Цветовая схема");
+        section(t("Режим работы", "Operating mode"));
+        addSpaced(style.bodySecondary(
+                state.agentMode.label(language) + " — "
+                        + state.agentMode.description(language)
+        ), 8);
+        column.addView(segments(
+                new String[]{t("Чат", "Chat"), t("Агент", "Agent")},
+                new AgentMode[]{AgentMode.CHAT, AgentMode.AGENT},
+                state.agentMode,
+                value -> listener.onAgentModeChosen((AgentMode) value)
+        ));
+        TextView speedNote = style.bodySecondary(
+                t(
+                        "Максимальная скорость не даёт экрану погаснуть во время ответа.",
+                        "Maximum speed keeps the screen awake while the model answers."
+                )
+        );
+        LinearLayout.LayoutParams speedNoteLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        speedNoteLp.topMargin = style.dp(14);
+        speedNoteLp.bottomMargin = style.dp(8);
+        column.addView(speedNote, speedNoteLp);
+        column.addView(segments(
+                new String[]{t("Скорость", "Speed"), t("Экономия", "Battery saver")},
+                new Boolean[]{Boolean.TRUE, Boolean.FALSE},
+                state.maximumSpeed,
+                value -> listener.onMaximumSpeedChanged((Boolean) value)
+        ));
+
+        if (state.systemPrompt != null) {
+            section(t("Системный промпт", "System prompt"));
+            column.addView(actionRow(state.systemPrompt));
+        }
+
+        section(t("Язык", "Language"));
+        column.addView(segments(
+                new String[]{"Русский", "English"},
+                new UiLanguage[]{UiLanguage.RUSSIAN, UiLanguage.ENGLISH},
+                state.language,
+                value -> listener.onLanguageChosen((UiLanguage) value)
+        ));
+
+        section(t("Цветовая схема", "Colour scheme"));
         column.addView(segments(
                 new String[]{"NORD", "DECK"},
                 new String[]{Palette.SCHEME_NORD, Palette.SCHEME_DECK},
@@ -151,7 +219,7 @@ public final class CoreRootView extends ScrollView {
                 value -> listener.onSchemeChosen((String) value)
         ));
 
-        section("Размер текста");
+        section(t("Размер текста", "Text size"));
         Float[] scaleValues = new Float[DeckStyle.TEXT_SCALES.length];
         String[] scaleLabels = new String[DeckStyle.TEXT_SCALES.length];
         for (int i = 0; i < DeckStyle.TEXT_SCALES.length; i++) {
@@ -165,10 +233,12 @@ public final class CoreRootView extends ScrollView {
                 value -> listener.onTextScaleChosen((Float) value)
         ));
 
-        section("Доступ");
-        addSpaced(style.bodySecondary("Перезапись чужих файлов"), 8);
+        section(t("Доступ", "Access"));
+        addSpaced(style.bodySecondary(
+                t("Перезапись чужих файлов", "Overwrite files created elsewhere")
+        ), 8);
         column.addView(segments(
-                new String[]{"Спрашивать", "Не спрашивать"},
+                new String[]{t("Спрашивать", "Ask"), t("Не спрашивать", "Do not ask")},
                 new Object[]{Boolean.TRUE, Boolean.FALSE},
                 state.askBeforeOverwrite,
                 value -> listener.onAskBeforeOverwriteChanged((Boolean) value)
@@ -186,10 +256,10 @@ public final class CoreRootView extends ScrollView {
             for (ActionRow profile : state.accessProfiles) column.addView(actionRow(profile));
         }
 
-        section("Обслуживание");
+        section(t("Обслуживание", "Maintenance"));
         for (ActionRow action : state.maintenance) column.addView(actionRow(action));
 
-        section("Состояние");
+        section(t("Состояние", "Status"));
         for (InfoRow info : state.info) column.addView(infoRow(info));
 
         if (state.onStopCore != null) {
@@ -202,6 +272,48 @@ public final class CoreRootView extends ScrollView {
             lp.topMargin = style.dp(22);
             column.addView(stop, lp);
         }
+        post(() -> scrollTo(0, Math.min(
+                previousScroll,
+                Math.max(0, column.getHeight() - getHeight())
+        )));
+    }
+
+    private String signature(State state) {
+        StringBuilder value = new StringBuilder()
+                .append(state.schemeId).append('|')
+                .append(state.textScale).append('|')
+                .append(state.agentMode).append('|')
+                .append(state.language).append('|')
+                .append(state.maximumSpeed).append('|')
+                .append(state.askBeforeOverwrite).append('|')
+                .append(state.accessProfileLabel).append('|')
+                .append(state.accessProfileNote).append('|')
+                .append(state.stopCoreLabel);
+        if (state.systemPrompt != null) {
+            value.append('|').append(state.systemPrompt.title)
+                    .append('|').append(state.systemPrompt.subtitle);
+        }
+        for (ModelRow row : state.models) {
+            value.append('|').append(row.title).append('|').append(row.meta)
+                    .append('|').append(row.state).append('|').append(row.selected)
+                    .append('|').append(row.available).append('|').append(row.progressPercent)
+                    .append('|').append(row.actionLabel).append('|').append(row.secondaryLabel);
+        }
+        for (ActionRow row : state.accessProfiles) {
+            value.append('|').append(row.title).append('|').append(row.subtitle);
+        }
+        for (ActionRow row : state.maintenance) {
+            value.append('|').append(row.title).append('|').append(row.subtitle);
+        }
+        for (InfoRow row : state.info) {
+            value.append('|').append(row.label).append('|').append(row.value)
+                    .append('|').append(row.color);
+        }
+        return value.toString();
+    }
+
+    private String t(String russian, String english) {
+        return language.pick(russian, english);
     }
 
     private void section(String label) {

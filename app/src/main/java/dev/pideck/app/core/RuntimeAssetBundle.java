@@ -9,10 +9,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.zip.GZIPOutputStream;
 
 /** Installs the exact assets shipped in the APK into app-private Termux storage. */
 public final class RuntimeAssetBundle {
     private static final int MAX_ASSET_BYTES = 2 * 1024 * 1024;
+    // Intent extras are marshalled as UTF-16 on some Android builds. Keep ample headroom below
+    // their approximately 512 KiB Binder transaction ceiling instead of failing asynchronously
+    // after the UI has already entered its busy state.
+    static final int MAX_INSTALL_SCRIPT_BYTES = 200 * 1024;
     private static final String PI_PACKAGE = "@earendil-works/pi-coding-agent";
     private static final String PI_VERSION = "0.82.1";
     private static final String PI_INTEGRITY =
@@ -22,6 +27,10 @@ public final class RuntimeAssetBundle {
             "models-v2.json",
             "compatibility.json",
             "runtime/AGENTS.default.md",
+            "runtime/pideck-local-cache.ts",
+            "runtime/pideck-system-prompt.ts",
+            "runtime/pideck-context-guard.ts",
+            "runtime/pideck-web-tools.ts",
             "runtime/pideck-permission-gate.ts",
             "runtime/pideck_runtime/__init__.py",
             "runtime/pideck_runtime/common.py",
@@ -51,10 +60,12 @@ public final class RuntimeAssetBundle {
                 RUNTIME="$BASE/runtime"
                 mkdir -p "$RUNTIME" "$RUNTIME/pideck_runtime" "$RUNTIME/bin" \
                   "$RUNTIME/pi" "$BASE/workspace" "$BASE/sessions" "$BASE/session-archive" \
-                  "$BASE/models" "$BASE/processes" "$BASE/server" "$BASE/bridge" "$BASE/logs" "$BASE/pi"
+                  "$BASE/models" "$BASE/processes" "$BASE/server" "$BASE/bridge" "$BASE/logs" \
+                  "$BASE/pi" "$BASE/tool-results"
                 chmod 700 "$BASE" "$RUNTIME" "$RUNTIME/pideck_runtime" "$RUNTIME/bin" \
                   "$RUNTIME/pi" "$BASE/workspace" "$BASE/sessions" "$BASE/session-archive" \
-                  "$BASE/models" "$BASE/processes" "$BASE/server" "$BASE/bridge" "$BASE/logs" "$BASE/pi"
+                  "$BASE/models" "$BASE/processes" "$BASE/server" "$BASE/bridge" "$BASE/logs" \
+                  "$BASE/pi" "$BASE/tool-results"
                 """);
         if (installPackages) {
             script.append("""
@@ -81,9 +92,14 @@ public final class RuntimeAssetBundle {
         for (Map.Entry<String, byte[]> asset : contents.entrySet()) {
             String target = targetFor(asset.getKey());
             String delimiter = "PIDECK_ASSET_" + index++;
-            String encoded = Base64.getEncoder().encodeToString(asset.getValue());
-            script.append("base64 -d > ").append(shellQuote(target + ".tmp")).append(" <<'")
-                    .append(delimiter).append("'\n");
+            String encoded = Base64.getEncoder().encodeToString(gzip(asset.getValue()));
+            script.append("base64 -d <<'").append(delimiter)
+                    .append("' | python -c ")
+                    .append(shellQuote(
+                            "import gzip,sys;"
+                                    + "sys.stdout.buffer.write(gzip.decompress(sys.stdin.buffer.read()))"
+                    ))
+                    .append(" > ").append(shellQuote(target + ".tmp")).append('\n');
             for (int offset = 0; offset < encoded.length(); offset += 120) {
                 script.append(encoded, offset, Math.min(encoded.length(), offset + 120))
                         .append('\n');
@@ -172,7 +188,13 @@ public final class RuntimeAssetBundle {
                 python -m pideck_runtime.launcher probe
                 printf 'PIDECK_CORE_READY\\n'
                 """);
-        return script.toString();
+        String value = script.toString();
+        if (value.getBytes(StandardCharsets.UTF_8).length > MAX_INSTALL_SCRIPT_BYTES) {
+            throw new IllegalStateException(
+                    "Bundled runtime exceeds the safe Android command size; split the payload"
+            );
+        }
+        return value;
     }
 
     static String workspaceInstructionsScript() {
@@ -214,6 +236,18 @@ public final class RuntimeAssetBundle {
             if (output.size() > MAX_ASSET_BYTES) throw new IOException("Runtime asset too large");
         }
         return output.toByteArray();
+    }
+
+    private static byte[] gzip(byte[] value) {
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            try (GZIPOutputStream gzip = new GZIPOutputStream(output)) {
+                gzip.write(value);
+            }
+            return output.toByteArray();
+        } catch (IOException error) {
+            throw new IllegalStateException("Could not compress bundled runtime asset", error);
+        }
     }
 
     private static String targetFor(String asset) {

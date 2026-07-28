@@ -12,6 +12,7 @@ public enum OperationKind {
     START_BRIDGE(true, 90_000L),
     STOP_BRIDGE(true, 60_000L),
     AGENT_TURN(true, 2_700_000L),
+    COMPACT_SESSION(true, 900_000L),
     ABORT_AGENT(false, 60_000L),
     NEW_SESSION(true, 60_000L),
     LIST_SESSIONS(false, 45_000L),

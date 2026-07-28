@@ -16,12 +16,14 @@ from .common import (
     PiDeckError,
     atomic_write_json,
     fsync_directory,
+    read_json,
     require_string,
     sha256_file,
     utc_now,
 )
 
 CATALOG_PATH = BASE / "runtime" / "models-v2.json"
+PI_SETTINGS_PATH = BASE / "pi" / "settings.json"
 SHA_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 MODEL_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]+$")
@@ -95,6 +97,28 @@ def validate_model(model: dict[str, Any]) -> None:
         or context < 512
     ):
         raise PiDeckError("INVALID_CATALOG", "Model entry contains unsafe critical metadata")
+
+
+def ensure_pi_compaction_settings(model: dict[str, Any]) -> dict[str, int | bool]:
+    """Pins Pi's desktop-sized defaults to the selected phone model's real context window."""
+    validate_model(model)
+    context_window = int(model["runtime"]["recommendedContext"])
+    reserve_tokens = max(1024, min(2048, context_window // 4))
+    keep_recent_tokens = max(1024, min(3072, context_window // 4))
+    managed = {
+        "enabled": True,
+        "reserveTokens": reserve_tokens,
+        "keepRecentTokens": keep_recent_tokens,
+    }
+    settings: dict[str, Any] = {}
+    if PI_SETTINGS_PATH.is_file():
+        settings = read_json(PI_SETTINGS_PATH)
+    existing = settings.get("compaction")
+    compaction = dict(existing) if isinstance(existing, dict) else {}
+    compaction.update(managed)
+    settings["compaction"] = compaction
+    atomic_write_json(PI_SETTINGS_PATH, settings, 0o600)
+    return managed
 
 
 def model_directory(model: dict[str, Any]) -> Path:

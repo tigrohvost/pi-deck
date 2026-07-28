@@ -13,6 +13,8 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
+import dev.pideck.app.core.UiLanguage;
+
 /**
  * The pause before the agent changes something it did not create.
  *
@@ -58,6 +60,13 @@ public final class DecisionCardView extends LinearLayout {
         public String transcriptText() {
             return "Нужно ваше решение: перезаписать " + fileName() + ".\n" + reason;
         }
+
+        public String transcriptText(UiLanguage language) {
+            return language.pick(
+                    "Нужно ваше решение: перезаписать " + fileName() + ".\n" + reason,
+                    "Your decision is required: overwrite " + fileName() + ".\n" + reason
+            );
+        }
     }
 
     public interface Listener {
@@ -65,9 +74,15 @@ public final class DecisionCardView extends LinearLayout {
     }
 
     public DecisionCardView(
-            Context context, DeckStyle style, Decision decision, Listener listener
+            Context context,
+            DeckStyle style,
+            Decision decision,
+            UiLanguage language,
+            Listener listener
     ) {
         super(context);
+        UiLanguage selectedLanguage = language == null
+                ? UiLanguage.RUSSIAN : language;
         Palette palette = style.palette;
         setOrientation(VERTICAL);
 
@@ -77,10 +92,13 @@ public final class DecisionCardView extends LinearLayout {
         card.setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16));
         addView(card, matchWidth());
 
-        card.addView(style.monoLabel("Нужно ваше решение", palette.warn));
+        card.addView(style.monoLabel(
+                selectedLanguage.pick("Нужно ваше решение", "Your decision is required"),
+                palette.warn
+        ));
 
         TextView title = style.cardTitle("");
-        title.setText(titleFor(decision, palette));
+        title.setText(titleFor(decision, palette, selectedLanguage));
         LayoutParams titleLp = matchWidth();
         titleLp.topMargin = style.dp(14);
         card.addView(title, titleLp);
@@ -124,12 +142,13 @@ public final class DecisionCardView extends LinearLayout {
         LinearLayout actions = new LinearLayout(context);
         actions.setOrientation(HORIZONTAL);
         TextView confirm = style.primaryButton(
-                "Перезаписать", () -> listener.onDecision(decision.approvalId, true)
+                selectedLanguage.pick("Перезаписать", "Overwrite"),
+                () -> listener.onDecision(decision.approvalId, true)
         );
         LayoutParams confirmLp = new LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         actions.addView(confirm, confirmLp);
         TextView refuse = style.outlinedButton(
-                "Не трогать",
+                selectedLanguage.pick("Не трогать", "Leave unchanged"),
                 palette.textSecondary,
                 () -> listener.onDecision(decision.approvalId, false)
         );
@@ -141,7 +160,10 @@ public final class DecisionCardView extends LinearLayout {
         card.addView(actions, actionsLp);
 
         TextView note = style.caption(
-                "Спрашиваю только про файлы, которые агент не создавал сам. Отключается в Ядре."
+                selectedLanguage.pick(
+                        "Спрашиваю только про файлы, которые агент не создавал сам. Отключается в Ядре.",
+                        "Only files created elsewhere require approval. This can be disabled in Core."
+                )
         );
         LayoutParams noteLp = matchWidth();
         noteLp.topMargin = style.dp(11);
@@ -149,9 +171,13 @@ public final class DecisionCardView extends LinearLayout {
     }
 
     /** «Перезаписать AGENTS.md?» with the file name set in mono so it reads as a path. */
-    private SpannableString titleFor(Decision decision, Palette palette) {
+    private SpannableString titleFor(
+            Decision decision,
+            Palette palette,
+            UiLanguage language
+    ) {
         String name = decision.fileName();
-        String text = "Перезаписать " + name + "?";
+        String text = language.pick("Перезаписать ", "Overwrite ") + name + "?";
         SpannableString value = new SpannableString(text);
         int start = text.indexOf(name);
         if (start >= 0) {

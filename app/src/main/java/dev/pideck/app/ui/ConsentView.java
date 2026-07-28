@@ -12,6 +12,8 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import dev.pideck.app.core.UiLanguage;
+
 /**
  * The one screen where a person knowingly hands the agent the phone's shell.
  *
@@ -25,24 +27,42 @@ public final class ConsentView extends ScrollView {
         void onConsentGranted(boolean askBeforeOverwrite);
     }
 
-    private static final String[] CAN = {
+    private static final String[] CAN_RU = {
             "читать, создавать и менять файлы в своей папке",
             "запускать bash, git, python внутри Termux",
             "ходить в сеть через curl, когда вы попросили",
     };
 
-    private static final String[] CANNOT = {
+    private static final String[] CANNOT_RU = {
             "получить root",
             "видеть данные других приложений",
             "отправить ваш промпт в интернет",
+    };
+    private static final String[] CAN_EN = {
+            "read, create, and edit files in its workspace",
+            "run bash, git, and python inside Termux",
+            "access the network when your task requires it",
+    };
+    private static final String[] CANNOT_EN = {
+            "gain root access",
+            "read private data from other apps",
+            "send your prompt to the internet by itself",
     };
 
     private final DeckStyle style;
     private final CheckBoxView checkBox;
 
-    public ConsentView(Context context, DeckStyle style, String workspacePath, Listener listener) {
+    public ConsentView(
+            Context context,
+            DeckStyle style,
+            String workspacePath,
+            UiLanguage language,
+            Listener listener
+    ) {
         super(context);
         this.style = style;
+        UiLanguage selectedLanguage = language == null
+                ? UiLanguage.RUSSIAN : language;
         setBackgroundColor(style.palette.background);
         setFillViewport(true);
         setVerticalScrollBarEnabled(false);
@@ -54,21 +74,39 @@ public final class ConsentView extends ScrollView {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        column.addView(style.monoLabel("Шаг 2 из 2 · доступ", style.palette.muted));
+        column.addView(style.monoLabel(
+                selectedLanguage.pick("Шаг 2 из 2 · доступ", "Step 2 of 2 · access"),
+                style.palette.muted
+        ));
 
-        TextView title = style.screenTitle("Что сможет агент на этом телефоне");
+        TextView title = style.screenTitle(selectedLanguage.pick(
+                "Что сможет агент на этом телефоне",
+                "What the agent can do on this phone"
+        ));
         LinearLayout.LayoutParams titleLp = matchWidth();
         titleLp.topMargin = style.dp(14);
         column.addView(title, titleLp);
 
-        column.addView(capabilityBlock("Может", style.palette.ok, "+", CAN), blockLp());
-        column.addView(capabilityBlock("Не может", style.palette.error, "−", CANNOT), blockLp());
+        column.addView(capabilityBlock(
+                selectedLanguage.pick("Может", "Can"),
+                style.palette.ok,
+                "+",
+                selectedLanguage == UiLanguage.ENGLISH ? CAN_EN : CAN_RU
+        ), blockLp());
+        column.addView(capabilityBlock(
+                selectedLanguage.pick("Не может", "Cannot"),
+                style.palette.error,
+                "−",
+                selectedLanguage == UiLanguage.ENGLISH ? CANNOT_EN : CANNOT_RU
+        ), blockLp());
 
         LinearLayout sandbox = new LinearLayout(context);
         sandbox.setOrientation(LinearLayout.VERTICAL);
         sandbox.setBackground(style.round(style.palette.panel, 6));
         sandbox.setPadding(style.dp(16), style.dp(14), style.dp(16), style.dp(14));
-        sandbox.addView(style.caption("Песочница"));
+        sandbox.addView(style.caption(
+                selectedLanguage.pick("Песочница", "Workspace boundary")
+        ));
         TextView path = style.monoMeta(workspacePath, style.palette.accent);
         LinearLayout.LayoutParams pathLp = matchWidth();
         pathLp.topMargin = style.dp(4);
@@ -84,7 +122,10 @@ public final class ConsentView extends ScrollView {
         checkBox = new CheckBoxView(context, style);
         consentRow.addView(checkBox, new LinearLayout.LayoutParams(style.dp(19), style.dp(19)));
         TextView consentText = style.bodySecondary(
-                "Спрашивать перед изменением файлов, которые агент не создавал сам"
+                selectedLanguage.pick(
+                        "Спрашивать перед изменением файлов, которые агент не создавал сам",
+                        "Ask before changing files the agent did not create"
+                )
         );
         LinearLayout.LayoutParams consentTextLp = new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
@@ -100,7 +141,8 @@ public final class ConsentView extends ScrollView {
         ));
 
         TextView enable = style.primaryButton(
-                "Включить деку", () -> listener.onConsentGranted(checkBox.isChecked())
+                selectedLanguage.pick("Включить деку", "Enable deck"),
+                () -> listener.onConsentGranted(checkBox.isChecked())
         );
         LinearLayout.LayoutParams enableLp = matchWidth();
         enableLp.topMargin = style.dp(22);

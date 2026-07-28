@@ -73,7 +73,7 @@ public class RuntimeScriptsTest {
         String ready = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
-                 "runtimeContractVersion":3,
+                 "runtimeContractVersion":12,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
                  "pythonVersion":"3.13","llamaVersion":"b10092"}
                 """.replace("\n ", "");
@@ -83,10 +83,10 @@ public class RuntimeScriptsTest {
                 ready.replace("\"state\":\"READY\"", "\"state\":\"NOT_READY\"")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":3", "\"runtimeContractVersion\":2")
+                ready.replace("\"runtimeContractVersion\":12", "\"runtimeContractVersion\":11")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":3,", "")
+                ready.replace("\"runtimeContractVersion\":12,", "")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 "noise {\"schemaVersion\":1,\"ok\":true,\"state\":\"READY\"}"
@@ -112,15 +112,55 @@ public class RuntimeScriptsTest {
         contents.put("models-v2.json", "{}".getBytes(StandardCharsets.UTF_8));
         contents.put("compatibility.json", "{}".getBytes(StandardCharsets.UTF_8));
         contents.put("runtime/AGENTS.default.md", "default\n".getBytes(StandardCharsets.UTF_8));
+        contents.put(
+                "runtime/pideck-system-prompt.ts",
+                "export default function () {}\n".getBytes(StandardCharsets.UTF_8));
         String script = RuntimeAssetBundle.buildFromContents(contents, true);
         assertTrue(script.contains("if [ ! -e \"$BASE/workspace/AGENTS.md\" ]"));
         assertTrue(script.contains("PIDECK_AGENTS_PRESERVED"));
         assertTrue(script.contains("@earendil-works/pi-coding-agent"));
         assertTrue(script.contains("0.82.1"));
+        assertTrue(script.contains("pideck-system-prompt.ts"));
         assertTrue(script.contains("PI_INTEGRITY="));
         assertFalse(script.contains("@latest"));
         assertFalse(script.contains("pkg install -y llama-cpp"));
         assertFalse(script.contains("python llama-cpp"));
+    }
+
+    @Test
+    public void productionInstallerFitsBinderAndUsesCompressedAssets() throws Exception {
+        Map<String, byte[]> contents = new LinkedHashMap<>();
+        for (String relative : List.of(
+                "AGENTS.default.md",
+                "pideck-local-cache.ts",
+                "pideck-system-prompt.ts",
+                "pideck-context-guard.ts",
+                "pideck-web-tools.ts",
+                "pideck-permission-gate.ts",
+                "pideck_runtime/__init__.py",
+                "pideck_runtime/common.py",
+                "pideck_runtime/model_store.py",
+                "pideck_runtime/server_supervisor.py",
+                "pideck_runtime/bridge.py",
+                "pideck_runtime/launcher.py"
+        )) {
+            Path path = runtimeRoot().resolve(relative);
+            contents.put("runtime/" + relative, Files.readAllBytes(path));
+        }
+        Path assets = runtimeRoot().getParent();
+        contents.put("models-v2.json", Files.readAllBytes(assets.resolve("models-v2.json")));
+        contents.put(
+                "compatibility.json",
+                Files.readAllBytes(assets.resolve("compatibility.json"))
+        );
+
+        String script = RuntimeAssetBundle.buildFromContents(contents, true);
+        assertTrue(script.contains("gzip.decompress"));
+        assertTrue(
+                script.getBytes(StandardCharsets.UTF_8).length
+                        < RuntimeAssetBundle.MAX_INSTALL_SCRIPT_BYTES
+        );
+        assertBashSyntax(script);
     }
 
     @Test
@@ -170,12 +210,16 @@ public class RuntimeScriptsTest {
     }
 
     private static List<Path> runtimeFiles() throws IOException {
-        Path root = Files.exists(Path.of("src/main/assets/runtime"))
-                ? Path.of("src/main/assets/runtime")
-                : Path.of("app/src/main/assets/runtime");
+        Path root = runtimeRoot();
         try (var paths = Files.walk(root)) {
             return paths.filter(Files::isRegularFile).toList();
         }
+    }
+
+    private static Path runtimeRoot() {
+        return Files.exists(Path.of("src/main/assets/runtime"))
+                ? Path.of("src/main/assets/runtime")
+                : Path.of("app/src/main/assets/runtime");
     }
 
     private static void assertBashSyntax(String script) throws IOException, InterruptedException {

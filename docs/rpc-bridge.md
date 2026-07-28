@@ -19,15 +19,62 @@ The managed Pi child is launched as:
 
 ```text
 pi --mode rpc --provider pideck --model <exact-id> --offline
-   --no-extensions [profile-specific tools and explicit extension]
+   --no-extensions --extension pideck-local-cache.ts
+   --extension pideck-system-prompt.ts
+   --extension pideck-context-guard.ts
+   --extension pideck-web-tools.ts
+   [profile-specific tools and explicit permission extension]
 ```
 
 The exact 0.82.1 package documentation and declaration files were used. Pi's
 JSONL `prompt`, `abort`, `new_session`, `get_state`,
 `extension_ui_request/response` commands are normalized into bounded events.
+The always-loaded local extension adds llama.cpp's `cache_prompt` request flag,
+so repeated model/tool rounds reuse the common KV prefix without changing the
+conversation or tool contract.
+
+The managed web extension registers only `web_search` and `weather`.
+`web_search` returns at most five compact sourced results and falls back from
+the Exa public MCP endpoint to DuckDuckGo HTML search. `weather` resolves a
+place and returns current conditions plus three days from Open-Meteo. Both use
+fixed endpoints, 20-second abort-aware requests and a 256 KiB response ceiling.
+They are active in all Agent access profiles, including the first-run
+`READ_ONLY` profile; tool-free Chat remains isolated from all tools.
+
+Android sends an optional custom system prompt only in the bootstrap stdin
+JSON. The runtime validates a 16 KiB UTF-8 limit and atomically writes a fixed
+mode-`0600` file. A pinned explicit Pi extension rechecks its hash and applies
+it at the final `before_agent_start` hook; only the managed path and fingerprint
+travel in the child environment, never the text or argv. `append` puts the
+instructions after Pi's assembled project context; `replace` deliberately
+replaces the complete prompt. An empty value restores Pi's default. Bridge
+config, process metadata and `GET_STATE` expose only mode, byte count and
+SHA-256, which lets Android reject stale bridge settings without echoing text.
+
 Stderr is drained separately. Malformed JSON, oversized frames, stdout EOF and
 child exit are protocol failures; an active turn becomes failed/unknown and is
 not automatically restarted.
+
+A short assistant response made only from Markdown punctuation is not accepted
+as successful output. The bridge removes the streamed fragment, queues one
+explicit Pi `follow_up`, and emits `MODEL_OUTPUT_REJECTED`. A second such
+response produces `TURN_FAILED`; it is never persisted in the Android
+transcript as a successful answer.
+
+For an explicit live-data request, the bridge also requires a successful
+`weather` or `web_search` execution before accepting the answer. It retries
+once with a targeted instruction if the model searches local files or answers
+from memory, and fails clearly after a second miss.
+
+For assistant messages, the bridge accumulates provider-reported output-token
+usage and decode time between the first output delta and `message_end`.
+The generated Pi provider config explicitly enables streaming usage, causing
+Pi's OpenAI adapter to request `stream_options.include_usage` from the pinned
+llama.cpp b10092 server.
+Terminal turn events may therefore include bounded `outputTokens`,
+`decodeDurationMs`, `tokensPerSecond` and `speedEstimated=false`. Android uses
+an explicitly approximate character-based rate while streaming, then replaces
+it with these exact provider-usage metrics when the turn settles.
 
 Sequences are monotonic per random `bridgeInstanceId`. The journal retains at
 most 10,000 events or 20 MiB, each normalized event at most 256 KiB. Active

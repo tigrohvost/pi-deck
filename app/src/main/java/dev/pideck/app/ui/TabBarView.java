@@ -11,6 +11,8 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import dev.pideck.app.core.UiLanguage;
+
 /**
  * The three roots of the deck: КОНСОЛЬ, ЯДРО, СЕССИИ.
  *
@@ -31,20 +33,31 @@ public final class TabBarView extends LinearLayout {
     /** Sessions on disk. */
     public static final int TAB_SESSIONS = 2;
 
-    private static final String[] LABELS = {"КОНСОЛЬ", "ЯДРО", "СЕССИИ"};
-
     private final DeckStyle style;
-    private final GlyphView[] glyphs = new GlyphView[LABELS.length];
-    private final TextView[] captions = new TextView[LABELS.length];
+    private final String[] labels;
+    private final GlyphView[] glyphs = new GlyphView[3];
+    private final TextView[] captions = new TextView[3];
     private int selected = TAB_CONSOLE;
 
-    public TabBarView(Context context, DeckStyle style, Listener listener) {
+    public TabBarView(
+            Context context,
+            DeckStyle style,
+            Listener listener,
+            UiLanguage language
+    ) {
         super(context);
         this.style = style;
+        UiLanguage selectedLanguage = language == null
+                ? UiLanguage.RUSSIAN : language;
+        labels = new String[]{
+                selectedLanguage.pick("КОНСОЛЬ", "CONSOLE"),
+                selectedLanguage.pick("ЯДРО", "CORE"),
+                selectedLanguage.pick("СЕССИИ", "SESSIONS")
+        };
         setOrientation(HORIZONTAL);
         setBackgroundColor(style.palette.background);
 
-        for (int index = 0; index < LABELS.length; index++) {
+        for (int index = 0; index < labels.length; index++) {
             addView(buildTab(index, listener), new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
         }
         setSelectedTab(TAB_CONSOLE);
@@ -62,7 +75,7 @@ public final class TabBarView extends LinearLayout {
         int glyphSize = style.dp(15 * style.textScale());
         tab.addView(glyph, new LayoutParams(glyphSize, glyphSize));
 
-        TextView caption = style.monoAt(LABELS[index], 10.5f, style.palette.muted, true);
+        TextView caption = style.monoAt(labels[index], 10.5f, style.palette.muted, true);
         caption.setGravity(Gravity.CENTER);
         captions[index] = caption;
         LayoutParams captionLp = new LayoutParams(
@@ -77,7 +90,7 @@ public final class TabBarView extends LinearLayout {
 
     public void setSelectedTab(int index) {
         selected = index;
-        for (int i = 0; i < LABELS.length; i++) {
+        for (int i = 0; i < labels.length; i++) {
             int color = i == index ? style.palette.accent : style.palette.muted;
             captions[i].setTextColor(color);
             glyphs[i].setColor(color);

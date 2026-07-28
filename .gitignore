@@ -6,6 +6,7 @@
 *.jks
 *.keystore
 *.apk
+*.idsig
 captures/
 __pycache__/
 *.pyc

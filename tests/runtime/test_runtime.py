@@ -112,6 +112,7 @@ def fake_bridge() -> bridge.PiDeckBridge:
         "schemaVersion": 1,
         "modelId": "fixture-model",
         "accessProfile": "confirm_changes",
+        "agentMode": "agent",
         "sessionId": operation_id(),
     }
     value.token = bridge.validated_token(
@@ -123,13 +124,28 @@ def fake_bridge() -> bridge.PiDeckBridge:
     value._lock = threading.RLock()
     value._shutdown = threading.Event()
     value.active_operation_id = None
+    value.active_operation_kind = None
     value.abort_requested = False
     value.last_answer = ""
     value.active_failed_reason = None
+    value.answer_retry_count = 0
+    value.answer_retry_request_id = None
+    value.answer_retry_exhausted = False
+    value.required_live_tools = frozenset()
+    value.successful_live_tools = set()
+    value.turn_output_tokens = 0
+    value.turn_decode_seconds = 0.0
+    value._message_output_started_monotonic = None
     value.pending_approvals = {}
     value.pending_new_session = None
     value.seen_commands = collections.OrderedDict()
     value.last_client_seen = time.monotonic()
+    value.context_window = 1024
+    value.session_stats = bridge.bounded_session_stats(None, value.context_window)
+    value.compacting = False
+    value.compaction_reason = None
+    value._stats_request_id = None
+    value._stats_request_counter = 0
     value.child = FakeChild()
     return value
 
@@ -307,6 +323,83 @@ class RuntimeTestCase(unittest.TestCase):
             )
         self.assertEqual("INVALID_CATALOG", raised.exception.code)
 
+    def test_phone_sized_compaction_settings_preserve_unrelated_preferences(self) -> None:
+        model = tiny_model(b"GGUF")
+        model["runtime"]["recommendedContext"] = 10_240
+        common.atomic_write_json(
+            model_store.PI_SETTINGS_PATH,
+            {
+                "theme": "nord",
+                "compaction": {
+                    "enabled": False,
+                    "reserveTokens": 16_384,
+                    "keepRecentTokens": 20_000,
+                    "customKey": "preserved",
+                },
+            },
+        )
+
+        managed = model_store.ensure_pi_compaction_settings(model)
+
+        self.assertEqual(
+            {
+                "enabled": True,
+                "reserveTokens": 2_048,
+                "keepRecentTokens": 2_560,
+            },
+            managed,
+        )
+        saved = common.read_json(model_store.PI_SETTINGS_PATH)
+        self.assertEqual("nord", saved["theme"])
+        self.assertEqual("preserved", saved["compaction"]["customKey"])
+        self.assertEqual(managed["reserveTokens"], saved["compaction"]["reserveTokens"])
+        self.assertEqual(0o600, model_store.PI_SETTINGS_PATH.stat().st_mode & 0o777)
+
+    def test_chat_mode_removes_tool_schema_from_pi_context(self) -> None:
+        self.assertEqual(["--no-tools"], launcher._profile_arguments("autonomous", "chat"))
+        confirm_tools = ",".join(
+            launcher._profile_arguments("confirm_changes", "agent")
+        )
+        self.assertIn("pideck_bash", confirm_tools)
+        self.assertIn("web_search", confirm_tools)
+        self.assertIn("weather", confirm_tools)
+        autonomous_tools = ",".join(
+            launcher._profile_arguments("autonomous", "agent")
+        )
+        self.assertIn("web_search", autonomous_tools)
+        self.assertIn("weather", autonomous_tools)
+        read_only_tools = ",".join(
+            launcher._profile_arguments("read_only", "agent")
+        )
+        self.assertIn("web_search", read_only_tools)
+        self.assertIn("weather", read_only_tools)
+
+    def test_explicit_live_data_request_detection_is_narrow(self) -> None:
+        self.assertEqual(
+            frozenset({"weather", "web_search"}),
+            bridge.required_live_tools(
+                "поищи в сети погоду в Москве и напиши здесь"
+            ),
+        )
+        self.assertEqual(
+            frozenset({"web_search"}),
+            bridge.required_live_tools("Найди в интернете документацию Pi"),
+        )
+        for prompt in (
+            "Объясни, почему меняется погода",
+            "Найди TODO в проекте",
+            "Расскажи о Москве",
+            "Как приложение работает в сети?",
+            "Сделай режим онлайн",
+        ):
+            self.assertEqual(frozenset(), bridge.required_live_tools(prompt))
+
+    def test_markdown_only_answer_detection_preserves_real_short_answers(self) -> None:
+        for invalid in ("**", "```", "##", "...", "[ ]", "~ ~"):
+            self.assertTrue(bridge.is_degenerate_answer(invalid), invalid)
+        for valid in ("Да.", "42", "C++", "✅", "a", ""):
+            self.assertFalse(bridge.is_degenerate_answer(valid), valid)
+
     def test_external_server_adoption_is_health_bound_and_exact(self) -> None:
         model = tiny_model(b"GGUF")
         install_catalog(model)
@@ -345,6 +438,17 @@ class RuntimeTestCase(unittest.TestCase):
             ("A" * 43).encode("ascii"),
             server_supervisor.SERVER_API_KEY.read_bytes(),
         )
+
+    def test_pi_model_config_requests_exact_streaming_usage(self) -> None:
+        model = tiny_model(b"GGUF")
+        install_catalog(model)
+
+        server_supervisor._write_pi_models("A" * 43, 8080)
+
+        config = json.loads(server_supervisor.PI_MODELS.read_text("utf-8"))
+        provider = config["providers"]["pideck"]
+        self.assertEqual("openai-completions", provider["api"])
+        self.assertTrue(provider["compat"]["supportsUsageInStreaming"])
 
     def test_external_server_adoption_rejects_claim_without_health(self) -> None:
         model = tiny_model(b"GGUF")
@@ -545,6 +649,81 @@ class RuntimeTestCase(unittest.TestCase):
             with self.assertRaises(common.PiDeckError):
                 bridge.validated_token(invalid)
 
+    def test_system_prompt_is_private_integrity_checked_and_not_metadata(self) -> None:
+        marker = "PIDECK_SYSTEM_SECRET_ёж"
+        descriptor, content = bridge.parse_system_prompt_request(
+            {"systemPromptMode": "append", "systemPrompt": marker}
+        )
+        self.assertEqual("append", descriptor["systemPromptMode"])
+        self.assertEqual(len(marker.encode("utf-8")), descriptor["systemPromptBytes"])
+        self.assertNotIn(marker, json.dumps(descriptor))
+
+        bridge.persist_system_prompt(bridge.SYSTEM_PROMPT_FILE, content)
+        self.assertEqual(0o600, bridge.SYSTEM_PROMPT_FILE.stat().st_mode & 0o777)
+        environment = bridge.system_prompt_environment(descriptor)
+        self.assertEqual("append", environment["PIDECK_SYSTEM_PROMPT_MODE"])
+        self.assertEqual(
+            str(bridge.SYSTEM_PROMPT_FILE),
+            environment["PIDECK_SYSTEM_PROMPT_PATH"],
+        )
+        self.assertNotIn(marker, json.dumps(environment))
+
+        bridge.SYSTEM_PROMPT_FILE.write_text("tampered", encoding="utf-8")
+        with self.assertRaises(common.PiDeckError) as raised:
+            bridge.system_prompt_environment(descriptor)
+        self.assertEqual("SYSTEM_PROMPT_INTEGRITY", raised.exception.code)
+
+    def test_system_prompt_modes_size_limit_and_default_cleanup(self) -> None:
+        replacement, content = bridge.parse_system_prompt_request(
+            {"systemPromptMode": "replace", "systemPrompt": "only this"}
+        )
+        bridge.persist_system_prompt(bridge.SYSTEM_PROMPT_FILE, content)
+        self.assertEqual(
+            "replace",
+            bridge.system_prompt_environment(replacement)[
+                "PIDECK_SYSTEM_PROMPT_MODE"
+            ],
+        )
+
+        default, empty = bridge.parse_system_prompt_request(
+            {"systemPromptMode": "append", "systemPrompt": ""}
+        )
+        bridge.persist_system_prompt(bridge.SYSTEM_PROMPT_FILE, empty)
+        self.assertEqual("default", default["systemPromptMode"])
+        self.assertEqual(bridge.EMPTY_PROMPT_SHA256, default["systemPromptSha256"])
+        self.assertFalse(bridge.SYSTEM_PROMPT_FILE.exists())
+        self.assertEqual(
+            {"PIDECK_SYSTEM_PROMPT_MODE": "default"},
+            bridge.system_prompt_environment(default),
+        )
+
+        with self.assertRaises(common.PiDeckError) as raised:
+            bridge.parse_system_prompt_request(
+                {
+                    "systemPromptMode": "append",
+                    "systemPrompt": "я" * (bridge.MAX_SYSTEM_PROMPT_BYTES // 2 + 1),
+                }
+            )
+        self.assertEqual("SYSTEM_PROMPT_TOO_LARGE", raised.exception.code)
+        with self.assertRaises(common.PiDeckError) as raised:
+            bridge.parse_system_prompt_request(
+                {"systemPromptMode": "unknown", "systemPrompt": "value"}
+            )
+        self.assertEqual("INVALID_SYSTEM_PROMPT_MODE", raised.exception.code)
+
+    def test_bridge_state_exposes_only_system_prompt_fingerprint(self) -> None:
+        value = fake_bridge()
+        marker = "PIDECK_STATE_SECRET"
+        descriptor, _content = bridge.parse_system_prompt_request(
+            {"systemPromptMode": "append", "systemPrompt": marker}
+        )
+        value.config.update(descriptor)
+        state = value.state()
+        self.assertEqual("append", state["systemPromptMode"])
+        self.assertEqual(descriptor["systemPromptSha256"], state["systemPromptSha256"])
+        self.assertEqual(len(marker), state["systemPromptBytes"])
+        self.assertNotIn(marker, json.dumps(state))
+
     def test_runtime_version_gate_is_exact_and_bounded(self) -> None:
         self.assertTrue(launcher._semver_at_least("v22.19.0", "22.19.0"))
         self.assertTrue(launcher._semver_at_least("node v24.4.1", "22.19.0"))
@@ -619,12 +798,24 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual("DUPLICATE_OPERATION", raised.exception.code)
 
         value.handle_pi_message({"type": "agent_start"})
-        value.handle_pi_message(
-            {
-                "type": "message_update",
-                "assistantMessageEvent": {"type": "text_delta", "delta": "Готово"},
-            }
-        )
+        with mock.patch.object(bridge.time, "monotonic", return_value=10.0):
+            value.handle_pi_message(
+                {
+                    "type": "message_update",
+                    "assistantMessageEvent": {"type": "text_delta", "delta": "Готово"},
+                }
+            )
+        with mock.patch.object(bridge.time, "monotonic", return_value=12.0):
+            value.handle_pi_message(
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": "Готово"}],
+                        "usage": {"output": 40},
+                    },
+                }
+            )
         value.handle_pi_message(
             {
                 "type": "message_update",
@@ -650,7 +841,361 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual("read", requested["payload"]["toolName"])
         terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
         self.assertEqual("Готово", terminal[-1]["payload"]["answer"])
+        self.assertEqual(40, terminal[-1]["payload"]["outputTokens"])
+        self.assertEqual(2_000, terminal[-1]["payload"]["decodeDurationMs"])
+        self.assertEqual(20.0, terminal[-1]["payload"]["tokensPerSecond"])
+        self.assertFalse(terminal[-1]["payload"]["speedEstimated"])
         self.assertIsNone(value.active_operation_id)
+
+    def test_markdown_only_answer_is_cleared_retried_once_and_replaced(self) -> None:
+        value = fake_bridge()
+        identifier = operation_id()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": identifier,
+                "type": "PROMPT",
+                "payload": {"message": "weather", "sessionId": value.session_id},
+            }
+        )
+        value.handle_pi_message({"type": "agent_start"})
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "**"},
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "**"}],
+                },
+            }
+        )
+
+        retry = value.child.sent[-1]
+        self.assertEqual("follow_up", retry["type"])
+        self.assertIn("исходный запрос", retry["message"])
+        self.assertEqual("", value.last_answer)
+        _gap, events = value.journal.after(0, 0)
+        rejected = [
+            event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
+        ]
+        self.assertEqual(1, len(rejected))
+        self.assertTrue(rejected[-1]["payload"]["willRetry"])
+
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": retry["id"],
+                "command": "follow_up",
+                "success": True,
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {
+                    "type": "text_delta",
+                    "delta": "В Москве +28 °C.",
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "В Москве +28 °C."}],
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual("В Москве +28 °C.", terminal[-1]["payload"]["answer"])
+        self.assertNotIn("**", terminal[-1]["payload"]["answer"])
+
+    def test_second_markdown_only_answer_fails_instead_of_displaying_symbols(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {"message": "weather", "sessionId": value.session_id},
+            }
+        )
+        value.handle_pi_message({"type": "agent_start"})
+        invalid_message = {
+            "type": "message_end",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "**"}],
+            },
+        }
+        value.handle_pi_message(invalid_message)
+        retry = value.child.sent[-1]
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": retry["id"],
+                "command": "follow_up",
+                "success": True,
+            }
+        )
+        value.handle_pi_message(invalid_message)
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        rejected = [
+            event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
+        ]
+        self.assertEqual([True, False], [
+            event["payload"]["willRetry"] for event in rejected
+        ])
+        terminal = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual("", terminal[-1]["payload"]["answer"])
+        self.assertIn("дважды", terminal[-1]["payload"]["error"])
+        self.assertEqual(
+            1,
+            len([command for command in value.child.sent if command["type"] == "follow_up"]),
+        )
+
+    def test_live_data_answer_requires_tool_and_recovers_once(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "поищи в сети погоду в Москве и напиши здесь",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        refusal = {
+            "type": "message_end",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Я не могу искать погоду в интернете.",
+                    }
+                ],
+            },
+        }
+        value.handle_pi_message(refusal)
+
+        retry = value.child.sent[-1]
+        self.assertEqual("follow_up", retry["type"])
+        self.assertIn("weather", retry["message"])
+        self.assertEqual("", value.last_answer)
+        _gap, events = value.journal.after(0, 0)
+        rejected = [
+            event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
+        ]
+        self.assertEqual("live_tool_required", rejected[-1]["payload"]["reason"])
+        self.assertEqual(
+            ["weather", "web_search"],
+            rejected[-1]["payload"]["requiredTools"],
+        )
+
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": retry["id"],
+                "command": "follow_up",
+                "success": True,
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "tool_execution_end",
+                "toolName": "weather",
+                "toolCallId": "weather-1",
+                "isError": False,
+                "result": "Москва: +18 °C",
+            }
+        )
+        answer = "В Москве сейчас +18 °C по данным Open-Meteo."
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": answer}],
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual(answer, terminal[-1]["payload"]["answer"])
+
+    def test_second_live_data_answer_without_tool_fails(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "поищи в сети погоду в Москве и напиши здесь",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        answer_without_tool = {
+            "type": "message_end",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Наверное, сейчас тепло."}],
+            },
+        }
+        value.handle_pi_message(answer_without_tool)
+        retry = value.child.sent[-1]
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": retry["id"],
+                "command": "follow_up",
+                "success": True,
+            }
+        )
+        value.handle_pi_message(answer_without_tool)
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        rejected = [
+            event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
+        ]
+        self.assertEqual(
+            [True, False],
+            [event["payload"]["willRetry"] for event in rejected],
+        )
+        terminal = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual("", terminal[-1]["payload"]["answer"])
+        self.assertIn("сетевого инструмента", terminal[-1]["payload"]["error"])
+
+    def test_failed_live_tool_does_not_satisfy_current_data_request(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Какая погода в Москве?",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "tool_execution_end",
+                "toolName": "weather",
+                "toolCallId": "weather-failed",
+                "isError": True,
+                "result": "network timeout",
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Сейчас около +20 °C."}],
+                },
+            }
+        )
+
+        self.assertEqual("follow_up", value.child.sent[-1]["type"])
+        self.assertEqual(set(), value.successful_live_tools)
+
+    def test_session_stats_are_bounded_and_emitted_without_message_content(self) -> None:
+        value = fake_bridge()
+        value.request_session_stats()
+        request = value.child.sent[-1]
+        self.assertEqual("get_session_stats", request["type"])
+
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": request["id"],
+                "command": "get_session_stats",
+                "success": True,
+                "data": {
+                    "userMessages": 4,
+                    "assistantMessages": 3,
+                    "toolCalls": 2,
+                    "privateTranscript": "must not cross the bridge",
+                    "contextUsage": {
+                        "tokens": 768,
+                        "contextWindow": 1_024,
+                    },
+                },
+            }
+        )
+
+        self.assertEqual(75, value.session_stats["contextUsage"]["percent"])
+        self.assertNotIn("privateTranscript", value.session_stats)
+        _gap, events = value.journal.after(0, 0)
+        changed = [event for event in events if event["type"] == "SESSION_STATS_CHANGED"]
+        self.assertEqual(768, changed[-1]["payload"]["contextUsage"]["tokens"])
+
+    def test_manual_compaction_has_its_own_terminal_contract(self) -> None:
+        value = fake_bridge()
+        identifier = operation_id()
+        accepted = value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": identifier,
+                "type": "COMPACT",
+                "payload": {"customInstructions": "Keep decisions and pending work."},
+            }
+        )
+        self.assertTrue(accepted["accepted"])
+        self.assertEqual("compact", value.child.sent[-1]["type"])
+        self.assertEqual("compact", value.active_operation_kind)
+
+        value.handle_pi_message({"type": "compaction_start", "reason": "manual"})
+        value.handle_pi_message(
+            {
+                "type": "compaction_end",
+                "reason": "manual",
+                "result": {
+                    "tokensBefore": 900,
+                    "estimatedTokensAfter": 240,
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": identifier,
+                "command": "compact",
+                "success": True,
+                "data": {
+                    "tokensBefore": 900,
+                    "estimatedTokensAfter": 240,
+                },
+            }
+        )
+
+        _gap, events = value.journal.after(0, 0)
+        event_types = [event["type"] for event in events]
+        self.assertIn("CONTEXT_COMPACTION_STARTED", event_types)
+        self.assertIn("CONTEXT_COMPACTION_FINISHED", event_types)
+        self.assertEqual("SESSION_COMPACTED", events[-1]["type"])
+        self.assertIsNone(value.active_operation_id)
+        self.assertEqual(240, value.session_stats["contextUsage"]["tokens"])
 
     def test_recovered_tool_error_does_not_fail_the_turn(self) -> None:
         value = fake_bridge()
@@ -792,6 +1337,7 @@ class RuntimeTestCase(unittest.TestCase):
         value = fake_bridge()
         target = operation_id()
         value.active_operation_id = target
+        value.active_operation_kind = "prompt"
         value._abort_fallback = lambda _target: None
         control = operation_id()
         response = value.command(
@@ -909,10 +1455,13 @@ class RuntimeTestCase(unittest.TestCase):
 
         value = fake_bridge()
         value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        value._stats_request_id = "request-owned-by-exited-child"
         value.handle_pi_exit(9, False)
         _gap, events = value.journal.after(0, 0)
         self.assertIn("TURN_FAILED", [event["type"] for event in events])
         self.assertIsNone(value.active_operation_id)
+        self.assertIsNone(value._stats_request_id)
 
     def test_stderr_flood_does_not_block_jsonl_stdout_reader(self) -> None:
         script = (

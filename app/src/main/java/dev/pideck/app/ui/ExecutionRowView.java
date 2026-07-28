@@ -14,13 +14,13 @@ import android.widget.TextView;
 
 import java.util.Locale;
 
+import dev.pideck.app.core.UiLanguage;
+
 /**
  * The answer to "is it still alive?".
  *
- * <p>Pi 0.1 delivers a turn's text only when the turn ends, so this row is the only thing running
- * between a prompt and its answer: a pulsing dot, the operation the deck last heard about, the
- * elapsed time, and the stop control — which lives here rather than in a menu, because that is
- * where a user looks for it when a command has gone on too long.
+ * <p>The row explains the current phase between prompt acceptance, model streaming and tools:
+ * a pulsing dot, elapsed time, and the stop control where a user looks for it.
  */
 @SuppressLint("ViewConstructor")
 public final class ExecutionRowView extends LinearLayout {
@@ -31,6 +31,7 @@ public final class ExecutionRowView extends LinearLayout {
     private ObjectAnimator pulse;
     private long startedAtUptimeMs;
     private boolean running;
+    private final UiLanguage language;
 
     private final Runnable tick = new Runnable() {
         @Override
@@ -41,9 +42,15 @@ public final class ExecutionRowView extends LinearLayout {
         }
     };
 
-    public ExecutionRowView(Context context, DeckStyle style, Runnable onStop) {
+    public ExecutionRowView(
+            Context context,
+            DeckStyle style,
+            Runnable onStop,
+            UiLanguage language
+    ) {
         super(context);
         this.style = style;
+        this.language = language == null ? UiLanguage.RUSSIAN : language;
         setOrientation(VERTICAL);
         setBackground(style.round(style.palette.cardFill, 8));
         setPadding(style.dp(15), style.dp(13), style.dp(15), style.dp(13));
@@ -71,13 +78,18 @@ public final class ExecutionRowView extends LinearLayout {
         elapsedLp.leftMargin = style.dp(8);
         head.addView(elapsed, elapsedLp);
 
-        head.addView(style.inlineAction("Стоп", style.palette.errorText, onStop));
+        head.addView(style.inlineAction(
+                this.language.pick("Стоп", "Stop"), style.palette.errorText, onStop
+        ));
         addView(head, new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
         TextView note = style.caption(
-                "Можно свернуть — пришлю уведомление, когда закончит."
+                this.language.pick(
+                        "В фоне ответ продолжится; быстрее всего — пока дека открыта.",
+                        "The answer continues in background; it is fastest while the deck is open."
+                )
         );
         LayoutParams noteLp = new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -103,7 +115,8 @@ public final class ExecutionRowView extends LinearLayout {
 
     /** Every JSONL event moves this line — that is what makes it worth trusting. */
     public void setOperation(String label) {
-        operation.setText(label == null || label.isBlank() ? "Работаю" : label);
+        operation.setText(label == null || label.isBlank()
+                ? language.pick("Работаю", "Working") : label);
     }
 
     public void stop() {

@@ -26,6 +26,86 @@ runtime live in Termux without root.
 
 ## Русский
 
+### Что изменено в 0.3.0-alpha7
+
+- в `ЯДРО → Язык` можно переключить весь интерфейс между русским и английским;
+  выбор сохраняется, а тексты пользователя и агента не переводятся и не
+  переписываются;
+- рядом с каждым завершённым ответом сохраняется его реальная скорость
+  генерации: число выходных токенов из provider usage делится на измеренное
+  decode-время именно этого ответа;
+- на Samsung SM-S918B проверен полный агентный цикл: Pi создал Python-скрипт и
+  тест, запросил одноразовые разрешения, сам выполнил
+  `python …/test_hello_math.py` и вернул `Result: 8`;
+- сгенерированный provider-конфиг теперь явно запрашивает streaming usage у
+  llama.cpp; контракт Termux-рантайма поднят до 12, поэтому старый конфиг не
+  может незаметно оставить в UI приблизительную скорость.
+
+### Что проверено для alpha7
+
+| Контур | Результат |
+|---|---|
+| Android/JVM | unit tests, lint, debug, androidTest APK и release APK собраны на JDK 21 |
+| Termux runtime | 54 host-теста прошли |
+| Управляемые инструменты | 5 host-тестов прошли |
+| Pi RPC | реальный локальный Pi 0.82.1 прошёл protocol smoke |
+| Samsung SM-S918B / API 36 | язык EN пережил обновление APK; runtime contract 12 принят; агент записал и выполнил Python; terminal usage дал 1840 output tokens и 13.7 ток/с без `≈` |
+
+> [!NOTE]
+> Этот smoke подтверждает доступ агента к записи и Python через approval gate,
+> но не гарантирует надёжность длинных цепочек на Qwen3.5 2B. В более строгом
+> повторе модель ушла в диагностический цикл; разрешения с TTL при этом, как и
+> задумано, закрылись по истечении времени.
+
+### Что изменено в 0.3.0-alpha6
+
+- управляемые `web_search` и `weather` доступны и в стартовом профиле
+  `READ ONLY`, не открывая shell или запись файлов;
+- явный запрос актуальных данных принимается только после успешного сетевого
+  инструмента: при попытке ответить из памяти или искать в workspace bridge
+  один раз направляет модель к нужному инструменту;
+- служебный повтор больше не подписан неоднозначным «восстановлением» или
+  «повтором ответа»: интерфейс показывает «Задача продолжается» либо
+  «Получаю актуальные данные».
+
+### Что изменено в 0.3.0-alpha5
+
+- в режимах `CONFIRM CHANGES` и `AUTONOMOUS` появились управляемые инструменты
+  `web_search` и `weather`; они загружаются из APK явно, даже если пользовательские
+  расширения Pi отключены;
+- запросы о погоде получают компактные актуальные данные Open-Meteo, а общий
+  веб-поиск возвращает ограниченный набор результатов с URL источников;
+- ответ, состоящий только из знаков Markdown вроде `**`, больше не считается
+  успешным: bridge очищает его, один раз просит модель ответить заново и после
+  повторного сбоя показывает честную ошибку.
+
+### Что изменено в 0.3.0-alpha4
+
+- во время печати рядом с контекстом видна сглаженная оценка `≈… ток/с`;
+  после завершения Pi заменяет её итоговой скоростью по точному числу выходных
+  токенов provider usage;
+- показатель остаётся на экране до следующего запроса и озвучивается
+  accessibility-службами как примерный или итоговый.
+
+### Что изменено в 0.3.0-alpha3
+
+- режим `Чат` запускает Pi без инструментов и уменьшает служебный контекст для
+  быстрых разговорных ответов; `Агент` сохраняет работу с файлами и shell;
+- заполнение текущего окна теперь видно в консоли, а перед медленным запросом
+  можно сжать историю или начать чистую сессию без потери набранного текста;
+- desktop-пороги автосжатия Pi заменены на безопасные значения для локальных
+  окон 4k–10k; большие результаты инструментов сокращаются до 12 KiB, а полная
+  версия остаётся в приватном `~/.pideck/tool-results`;
+- интерфейс показывает этапы подготовки/генерации/инструментов и примерную
+  скорость, принимает один следующий запрос в очередь и очищает редактор только
+  после подтверждения RPC;
+- потоковый ответ добавляется кадрами без полного `setText`, а автопрокрутка не
+  возвращает пользователя вниз, если он читает предыдущий текст;
+- foreground inference удерживает CPU во время активного turn, экран можно
+  оставить включённым в профиле `Скорость`;
+- IME-insets и `adjustResize` удерживают поле ввода над клавиатурой Android 15;
+- системный промпт редактируется в `ЯДРО` в режимах дополнения или полной замены.
+
 ### Что изменено в 0.3.0-alpha2
 
 - официальный Android arm64 runtime `llama.cpp b10092` встроен в APK и
@@ -95,12 +175,20 @@ Android app data/        private read-only GGUF and native server log
 
 | Профиль | Поведение |
 |---|---|
-| `READ_ONLY` | default; только `read`, `grep`, `find`, `ls` |
+| `READ_ONLY` | default; локальные `read`, `grep`, `find`, `ls` плюс ограниченные `web_search` и `weather`; shell и запись недоступны |
 | `CONFIRM_CHANGES` | mutating built-ins отключены; bash/edit/write требуют одноразового Android approval с TTL |
 | `AUTONOMOUS` | явный high-risk opt-in; полный shell в пределах прав Termux UID |
 
 Workspace — удобная рабочая директория, но не системная песочница. Закрытие UI,
 timeout, disconnect, duplicate approval или restart bridge означают deny.
+
+### Системный промпт
+
+В `ЯДРО → Системный промпт` можно добавить собственные инструкции агенту или
+полностью заменить встроенный промпт Pi. Режим `Дополнить` рекомендуется:
+он сохраняет стандартное описание инструментов и поведения Pi. Пустое поле
+возвращает встроенный промпт. После сохранения приложение перезапускает только
+RPC bridge; модель остаётся загруженной.
 
 ### Модели
 
@@ -144,7 +232,36 @@ Gradle 8.10.2 обязателен на JDK 21: на JDK 25 Kotlin DSL пада�
 
 ## English
 
-PI//DECK 0.3.0-alpha2 moves `llama.cpp b10092` and the verified private GGUF
+PI//DECK 0.3.0-alpha7 adds a persistent Russian/English interface switch and
+keeps exact provider-usage-backed decode speed beside every completed answer,
+including after Activity recreation. The generated Pi provider configuration
+now explicitly requests streaming usage from llama.cpp, and runtime contract 12
+prevents an older Termux configuration from silently falling back to an
+estimated rate.
+
+On a Samsung SM-S918B / API 36, the English locale survived an APK update; Pi
+0.82.1 authored a Python script and test, executed
+`python …/test_hello_math.py` through the approval gate, and returned
+`Result: 8`. A provider terminal event reported 1,840 output tokens at
+13.7 tok/s without the approximate `≈` marker. Host validation passed 54
+runtime tests, five managed-tool tests, and the real local Pi RPC protocol
+smoke; the JDK 21 Android unit/lint/debug/androidTest/release build also passed.
+
+This bounded smoke proves that the tool path works, not that a 2B model is
+reliable on every long workflow. A stricter follow-up entered a diagnostic
+loop; its short-lived approvals expired fail-closed as designed.
+
+Alpha7 builds on alpha6, which makes the managed `web_search` and `weather` tools
+available in the default read-only Agent profile and requires an applicable
+successful tool call for explicit live-data prompts. It also replaces
+ambiguous retry status copy. It builds on alpha5's bounded retry for
+Markdown-only model output and alpha4's
+live estimated decode-rate indicator and replaces
+it with provider-usage-backed output tokens per second when a turn settles.
+It builds on alpha3's phone-sized context compaction, tool-free Chat mode,
+bounded tool results, phase-aware streaming UI, prompt queueing and foreground
+turn wake locks, plus the alpha2 migration that moved
+`llama.cpp b10092` and the verified private GGUF
 into the Android app sandbox. An app-owned foreground service now runs
 inference while Termux remains responsible for Pi 0.82.1, sessions, tools and
 the authenticated JSONL RPC bridge. The APK carries pinned arm64 CPU variants,
@@ -160,7 +277,8 @@ A tool that fails is an event the model reacts to, not the end of the turn, so
 a failing call is reported on its own card while the turn keeps running.
 `TURN_FAILED` is reserved for a model error or a dead child process.
 
-The default `READ_ONLY` profile has no mutating tools. `CONFIRM_CHANGES`
+The default `READ_ONLY` profile has no mutating tools: it exposes local
+read/search tools plus bounded `web_search` and `weather`. `CONFIRM_CHANGES`
 disables the built-in mutators and exposes one-time approval-gated equivalents.
 `AUTONOMOUS` is an explicit high-risk opt-in with all permissions available to
 the Termux UID.

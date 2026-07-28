@@ -17,9 +17,11 @@ public class SecurityAndParsingTest {
         assertEquals(AccessProfile.READ_ONLY, AccessProfile.fromWireName(null));
         assertEquals(AccessProfile.READ_ONLY, AccessProfile.fromWireName("future-profile"));
         assertEquals(
-                List.of("--tools", "read,grep,find,ls"),
+                List.of("--tools", "read,grep,find,ls,web_search,weather"),
                 AccessProfile.READ_ONLY.piArguments("/permission.ts")
         );
+        assertTrue(AccessProfile.READ_ONLY.piArguments("/permission.ts")
+                .contains("read,grep,find,ls,web_search,weather"));
         assertTrue(AccessProfile.CONFIRM_CHANGES.piArguments("/permission.ts")
                 .contains("/permission.ts"));
         assertFalse(AccessProfile.READ_ONLY.piArguments("/permission.ts").contains("bash"));

@@ -12,7 +12,9 @@ public final class BridgeEvent {
         SESSION_CREATED,
         TURN_ACCEPTED,
         TURN_STARTED,
+        MODEL_THINKING_STARTED,
         MODEL_OUTPUT_DELTA,
+        MODEL_OUTPUT_REJECTED,
         TOOL_CALL_REQUESTED,
         TOOL_CALL_STARTED,
         TOOL_CALL_COMPLETED,
@@ -21,6 +23,11 @@ public final class BridgeEvent {
         TURN_COMPLETED,
         TURN_FAILED,
         TURN_ABORTED,
+        SESSION_STATS_CHANGED,
+        CONTEXT_COMPACTION_STARTED,
+        CONTEXT_COMPACTION_FINISHED,
+        SESSION_COMPACTED,
+        SESSION_COMPACTION_FAILED,
         SERVER_STATE_CHANGED,
         DIAGNOSTIC
     }

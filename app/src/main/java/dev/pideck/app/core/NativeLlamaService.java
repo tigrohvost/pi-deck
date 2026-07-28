@@ -11,6 +11,7 @@ import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -32,11 +33,16 @@ public final class NativeLlamaService extends Service {
     public static final String ACTION_START = "dev.pideck.app.native_llama.START";
     public static final String ACTION_STOP = "dev.pideck.app.native_llama.STOP";
     public static final String ACTION_READY = "dev.pideck.app.native_llama.READY";
+    public static final String ACTION_INFERENCE_ACTIVE =
+            "dev.pideck.app.native_llama.INFERENCE_ACTIVE";
+    public static final String ACTION_INFERENCE_IDLE =
+            "dev.pideck.app.native_llama.INFERENCE_IDLE";
     public static final String EXTRA_OPERATION_ID = "operation_id";
     public static final String EXTRA_MODEL_ID = "model_id";
     public static final String EXTRA_MODEL_PATH = "model_path";
     public static final String EXTRA_PROFILE = "profile";
     public static final String EXTRA_ARGUMENTS = "arguments";
+    public static final String EXTRA_PHASE = "phase";
 
     private static final String PREFS = "native_llama_service";
     private static final String CHANNEL_ID = "pideck-local-inference";
@@ -46,6 +52,7 @@ public final class NativeLlamaService extends Service {
     private volatile Process server;
     private volatile String activeOperationId = "";
     private Thread monitor;
+    private PowerManager.WakeLock inferenceWakeLock;
 
     public static final class Snapshot {
         public final String state;
@@ -110,6 +117,20 @@ public final class NativeLlamaService extends Service {
         );
     }
 
+    public static void beginInference(Context context, String phase) {
+        context.startService(
+                new Intent(context, NativeLlamaService.class)
+                        .setAction(ACTION_INFERENCE_ACTIVE)
+                        .putExtra(EXTRA_PHASE, phase)
+        );
+    }
+
+    public static void endInference(Context context) {
+        context.startService(
+                new Intent(context, NativeLlamaService.class).setAction(ACTION_INFERENCE_IDLE)
+        );
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -120,6 +141,17 @@ public final class NativeLlamaService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? "" : intent.getAction();
         if (ACTION_READY.equals(action)) {
+            promote("Локальная модель готова");
+            return START_NOT_STICKY;
+        }
+        if (ACTION_INFERENCE_ACTIVE.equals(action)) {
+            acquireInferenceWakeLock();
+            String phase = intent.getStringExtra(EXTRA_PHASE);
+            promote(phase == null || phase.isBlank() ? "Модель отвечает…" : safeLabel(phase));
+            return START_NOT_STICKY;
+        }
+        if (ACTION_INFERENCE_IDLE.equals(action)) {
+            releaseInferenceWakeLock();
             promote("Локальная модель готова");
             return START_NOT_STICKY;
         }
@@ -149,6 +181,7 @@ public final class NativeLlamaService extends Service {
 
     @Override
     public void onDestroy() {
+        releaseInferenceWakeLock();
         Process current = server;
         if (current != null && current.isAlive()) {
             current.destroy();
@@ -206,8 +239,8 @@ public final class NativeLlamaService extends Service {
                 server = launched;
                 activeOperationId = operationId;
             }
-            // Android's public Process API does not expose a child PID. Process identity remains
-            // the in-memory object owned by this service; Termux treats the PID as diagnostic.
+            // android.jar exposes the legacy Process surface even though the host JDK has pid().
+            // The service-owned Process object remains the authoritative identity.
             long pid = -1L;
             writeState("STARTING", operationId, modelId, profile, pid, "");
             pumpLog(launched.getInputStream());
@@ -307,6 +340,7 @@ public final class NativeLlamaService extends Service {
     }
 
     private void fail(String operationId, String modelId, String profile, String error) {
+        releaseInferenceWakeLock();
         writeState("FAILED", operationId, modelId, profile, -1L, error);
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf();
@@ -340,6 +374,28 @@ public final class NativeLlamaService extends Service {
         );
         channel.setDescription("Qwen работает локально на CPU телефона");
         getSystemService(NotificationManager.class).createNotificationChannel(channel);
+    }
+
+    private void acquireInferenceWakeLock() {
+        if (inferenceWakeLock == null) {
+            PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+            if (power == null) return;
+            inferenceWakeLock = power.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "pideck:local-inference-turn"
+            );
+            inferenceWakeLock.setReferenceCounted(false);
+        }
+        if (!inferenceWakeLock.isHeld()) {
+            // The normal RPC watchdog is 45 minutes. The timeout is a fail-safe if lifecycle
+            // signals are lost; terminal events release the lock immediately.
+            inferenceWakeLock.acquire(45L * 60L * 1000L);
+        }
+    }
+
+    private void releaseInferenceWakeLock() {
+        if (inferenceWakeLock == null || !inferenceWakeLock.isHeld()) return;
+        inferenceWakeLock.release();
     }
 
     private void promote(String text) {

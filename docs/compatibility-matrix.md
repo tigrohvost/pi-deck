@@ -2,7 +2,7 @@
 
 | Component | Activated contract | Current evidence |
 |---|---|---|
-| PI//DECK | 0.3.0-alpha2, Android API 26+, arm64-v8a | JVM/build plus API 36 device validation |
+| PI//DECK | 0.3.0-alpha7, Android API 26+, arm64-v8a | JVM/build plus API 36 device validation |
 | Termux | package `com.termux`, version >=0.118.0 | signer allowlist; F-Droid 0.118.3 device smoke |
 | Termux:API | `com.termux.api` >=0.50.1, same signer | 0.53.0 device smoke; optional wake-lock |
 | Node.js | >=22.19.0 | exact Pi package engine requirement; v26.4.0 device smoke |
@@ -11,7 +11,7 @@
 | llama.cpp | official Android arm64 b10092 only | archive + per-ELF SHA-256; app-owned foreground health/models/Jinja/API-key checks |
 | Model catalog | schema 2, catalog 2026.07.26.1 | build and parser validation |
 | Qwen3.5 0.8B/2B/4B/9B | experimental | 2B app-private SHA/server/Pi smoke passed; full admission incomplete |
-| Android 16 / API 36 / 12 GiB | Samsung SM-S918B | upgrade migration, app-owned inference, RPC rebind, exact clean-session Pi response and 16.13 tok/s direct smoke |
+| Android 16 / API 36 / 12 GiB | Samsung SM-S918B | upgrade migration, Russian/English UI, per-answer exact speed, agent-authored Python and agent-run test, app-owned inference, RPC rebind and exact Pi 0.82.1 smoke |
 
 The runtime probe requires exact Pi, a compatible Node semantic version and the
 exact app-owned llama build contract before `READY`. Build-time verification

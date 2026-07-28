@@ -13,7 +13,18 @@ from pathlib import Path
 from typing import Any
 
 from . import RUNTIME_CONTRACT_VERSION, RUNTIME_VERSION
-from .bridge import bootstrap_bridge, serve, stop_bridge
+from .bridge import (
+    LOCAL_CACHE_EXTENSION,
+    CONTEXT_GUARD_EXTENSION,
+    SYSTEM_PROMPT_EXTENSION,
+    WEB_TOOLS_EXTENSION,
+    bootstrap_bridge,
+    parse_system_prompt_request,
+    persist_system_prompt,
+    serve,
+    stop_bridge,
+    system_prompt_environment,
+)
 from .common import (
     BASE,
     PREFIX,
@@ -32,7 +43,12 @@ from .common import (
     run_cli,
     terminate_exact,
 )
-from .model_store import install_private, model_by_id, verify_private
+from .model_store import (
+    ensure_pi_compaction_settings,
+    install_private,
+    model_by_id,
+    verify_private,
+)
 from .server_supervisor import (
     adopt_external_server,
     read_server_status,
@@ -42,19 +58,25 @@ from .server_supervisor import (
 )
 
 
-def _profile_arguments(profile: str) -> list[str]:
+def _profile_arguments(profile: str, agent_mode: str = "agent") -> list[str]:
+    if agent_mode == "chat":
+        return ["--no-tools"]
     if profile == "read_only":
-        return ["--tools", "read,grep,find,ls"]
+        return ["--tools", "read,grep,find,ls,web_search,weather"]
     if profile == "confirm_changes":
         return [
             "--no-builtin-tools",
             "--tools",
-            "read,grep,find,ls,pideck_bash,pideck_edit,pideck_write",
+            "read,grep,find,ls,web_search,weather,"
+            "pideck_bash,pideck_edit,pideck_write",
             "--extension",
             str(BASE / "runtime" / "pideck-permission-gate.ts"),
         ]
     if profile == "autonomous":
-        return ["--tools", "read,bash,edit,write,grep,find,ls"]
+        return [
+            "--tools",
+            "read,bash,edit,write,grep,find,ls,web_search,weather",
+        ]
     raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
 
 
@@ -62,11 +84,41 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
     operation_id = require_uuid4(request)
     model_id = require_string(request, "modelId", 128)
     profile = require_string(request, "accessProfile", 32)
+    agent_mode = request.get("agentMode", "agent")
+    if not isinstance(agent_mode, str) or agent_mode not in {"chat", "agent"}:
+        raise PiDeckError("INVALID_AGENT_MODE", "Unknown agent mode")
     prompt = require_string(request, "prompt", 64 * 1024)
+    system_prompt_path = (
+        BASE / "processes" / f"agent-system-prompt-{operation_id}.txt"
+    )
+    system_prompt, system_prompt_content = parse_system_prompt_request(
+        request, system_prompt_path
+    )
     session_id = request.get("sessionId")
     if session_id is not None:
         require_session_id({"sessionId": session_id})
-    model_by_id(model_id)
+    model = model_by_id(model_id)
+    ensure_pi_compaction_settings(model)
+    if not LOCAL_CACHE_EXTENSION.is_file():
+        raise PiDeckError(
+            "LOCAL_CACHE_EXTENSION_MISSING",
+            "Local prompt-cache extension is not installed",
+        )
+    if not SYSTEM_PROMPT_EXTENSION.is_file():
+        raise PiDeckError(
+            "SYSTEM_PROMPT_EXTENSION_MISSING",
+            "Managed system-prompt extension is not installed",
+        )
+    if not CONTEXT_GUARD_EXTENSION.is_file():
+        raise PiDeckError(
+            "CONTEXT_GUARD_EXTENSION_MISSING",
+            "Local context-guard extension is not installed",
+        )
+    if not WEB_TOOLS_EXTENSION.is_file():
+        raise PiDeckError(
+            "WEB_TOOLS_EXTENSION_MISSING",
+            "Managed web-tools extension is not installed",
+        )
 
     arguments = [
         str(BASE / "runtime" / "bin" / "pi"),
@@ -84,30 +136,51 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         "--approve",
         "--offline",
         "--no-extensions",
+        "--extension",
+        str(LOCAL_CACHE_EXTENSION),
+        "--extension",
+        str(SYSTEM_PROMPT_EXTENSION),
+        "--extension",
+        str(CONTEXT_GUARD_EXTENSION),
+        "--extension",
+        str(WEB_TOOLS_EXTENSION),
     ]
+    persist_system_prompt(system_prompt_path, system_prompt_content)
     if session_id:
         arguments.extend(["--session-id", str(session_id)])
-    arguments.extend(_profile_arguments(profile))
+    arguments.extend(_profile_arguments(profile, agent_mode))
     environment = managed_environment(operation_id)
     environment["PI_CODING_AGENT_DIR"] = str(BASE / "pi")
     environment["PI_CODING_AGENT_SESSION_DIR"] = str(BASE / "sessions")
-    process = subprocess.Popen(
-        arguments,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=environment,
-        cwd=BASE / "workspace",
-        start_new_session=True,
-        close_fds=True,
-    )
+    environment.update(system_prompt_environment(system_prompt, system_prompt_path))
+    try:
+        process = subprocess.Popen(
+            arguments,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            cwd=BASE / "workspace",
+            start_new_session=True,
+            close_fds=True,
+        )
+    except Exception:
+        system_prompt_path.unlink(missing_ok=True)
+        raise
     metadata_path = BASE / "processes" / f"agent-{operation_id}.json"
     metadata = metadata_for_process(
         process,
         arguments,
         operation_id,
         "pi",
-        {"modelId": model_id, "accessProfile": profile},
+        {
+            "modelId": model_id,
+            "accessProfile": profile,
+            "agentMode": agent_mode,
+            "systemPromptMode": system_prompt["systemPromptMode"],
+            "systemPromptSha256": system_prompt["systemPromptSha256"],
+            "systemPromptBytes": system_prompt["systemPromptBytes"],
+        },
     )
     atomic_write_json(metadata_path, metadata)
     try:
@@ -118,6 +191,7 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         terminate_exact(metadata)
         raise PiDeckError("AGENT_TIMEOUT", "Agent turn exceeded its configured timeout")
     finally:
+        system_prompt_path.unlink(missing_ok=True)
         if not process_alive(metadata):
             metadata_path.unlink(missing_ok=True)
     return {
@@ -285,6 +359,10 @@ def probe() -> dict[str, Any]:
         for path in (
             BASE / "runtime" / "models-v2.json",
             BASE / "runtime" / "compatibility.json",
+            LOCAL_CACHE_EXTENSION,
+            SYSTEM_PROMPT_EXTENSION,
+            CONTEXT_GUARD_EXTENSION,
+            BASE / "runtime" / "pideck-permission-gate.ts",
             BASE / "workspace",
             BASE / "sessions",
             BASE / "pi",

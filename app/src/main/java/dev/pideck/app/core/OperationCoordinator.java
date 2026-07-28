@@ -59,6 +59,29 @@ public final class OperationCoordinator {
         if (id.equals(activeOperationId)) activeOperationId = null;
     }
 
+    /**
+     * A package replacement kills the Activity and invalidates the installer payload that created
+     * the active runtime-install operation. Do not restore that record as a 30-minute busy state;
+     * the newly installed APK must generate and dispatch its own versioned payload.
+     */
+    public synchronized boolean failRuntimeInstallStartedBefore(long packageUpdatedAtMs) {
+        if (activeOperationId == null || packageUpdatedAtMs <= 0L) return false;
+        OperationRecord active = store.load(activeOperationId);
+        if (active == null
+                || active.state.isTerminal()
+                || active.createdAtMs >= packageUpdatedAtMs
+                || (active.kind != OperationKind.INSTALL_RUNTIME
+                    && active.kind != OperationKind.UPDATE_RUNTIME)) {
+            return false;
+        }
+        store.fail(
+                active.operationId,
+                "Application package changed during runtime installation; retry with the new APK"
+        );
+        activeOperationId = null;
+        return true;
+    }
+
     public synchronized void requestAbort(OperationId target) {
         OperationRecord record = store.load(target);
         if (record == null || record.state.isTerminal()) {

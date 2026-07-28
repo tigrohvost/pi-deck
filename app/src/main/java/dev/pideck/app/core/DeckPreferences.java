@@ -31,6 +31,11 @@ public final class DeckPreferences {
     private static final String KEY_SESSION_ID = "session_id_v1";
     private static final String KEY_BRIDGE_INSTANCE = "bridge_instance";
     private static final String KEY_BRIDGE_SEQUENCE = "bridge_sequence";
+    private static final String KEY_SYSTEM_PROMPT = "system_prompt_v1";
+    private static final String KEY_SYSTEM_PROMPT_MODE = "system_prompt_mode_v1";
+    private static final String KEY_AGENT_MODE = "agent_mode_v1";
+    private static final String KEY_MAXIMUM_SPEED = "maximum_speed_v1";
+    private static final String KEY_UI_LANGUAGE = "ui_language_v1";
 
     private final SharedPreferences prefs;
 
@@ -100,6 +105,67 @@ public final class DeckPreferences {
 
     public void setAccessProfile(AccessProfile profile) {
         prefs.edit().putString(KEY_ACCESS_PROFILE, profile.wireName()).apply();
+    }
+
+    public AgentMode agentMode() {
+        return AgentMode.fromWireName(prefs.getString(KEY_AGENT_MODE, null));
+    }
+
+    public void setAgentMode(AgentMode mode) {
+        prefs.edit().putString(
+                KEY_AGENT_MODE,
+                (mode == null ? AgentMode.AGENT : mode).wireName()
+        ).apply();
+    }
+
+    /**
+     * Keeping the deck visible avoids Android demoting local inference. Enabled by default because
+     * this is a local-compute application; the setting is exposed next to the model selector.
+     */
+    public boolean maximumSpeed() {
+        return prefs.getBoolean(KEY_MAXIMUM_SPEED, true);
+    }
+
+    public void setMaximumSpeed(boolean enabled) {
+        prefs.edit().putBoolean(KEY_MAXIMUM_SPEED, enabled).apply();
+    }
+
+    public UiLanguage uiLanguage() {
+        return UiLanguage.fromWireName(prefs.getString(KEY_UI_LANGUAGE, null));
+    }
+
+    public void setUiLanguage(UiLanguage language) {
+        prefs.edit().putString(
+                KEY_UI_LANGUAGE,
+                (language == null ? UiLanguage.RUSSIAN : language).wireName
+        ).apply();
+    }
+
+    public String systemPrompt() {
+        String stored = prefs.getString(KEY_SYSTEM_PROMPT, "");
+        try {
+            return SystemPromptSettings.normalize(stored);
+        } catch (IllegalArgumentException invalid) {
+            prefs.edit().remove(KEY_SYSTEM_PROMPT).apply();
+            return "";
+        }
+    }
+
+    public SystemPromptSettings.Mode systemPromptMode() {
+        return SystemPromptSettings.Mode.fromWireName(
+                prefs.getString(KEY_SYSTEM_PROMPT_MODE, null)
+        );
+    }
+
+    public void setSystemPrompt(SystemPromptSettings.Mode mode, String prompt) {
+        String normalized = SystemPromptSettings.normalize(prompt);
+        prefs.edit()
+                .putString(KEY_SYSTEM_PROMPT, normalized)
+                .putString(
+                        KEY_SYSTEM_PROMPT_MODE,
+                        (mode == null ? SystemPromptSettings.Mode.APPEND : mode).wireName()
+                )
+                .apply();
     }
 
     public boolean isCoreReady() {
@@ -244,7 +310,9 @@ public final class DeckPreferences {
                         item.getString("text"),
                         item.optLong("time", System.currentTimeMillis()),
                         item.optString("verb", ""),
-                        item.optString("detail", "")
+                        item.optString("detail", ""),
+                        item.optDouble("tokensPerSecond", Double.NaN),
+                        item.optLong("outputTokens", -1L)
                 ));
             }
         } catch (JSONException | IllegalArgumentException ignored) {
@@ -267,6 +335,10 @@ public final class DeckPreferences {
                 item.put("time", entry.time);
                 if (!entry.verb.isEmpty()) item.put("verb", truncateUtf8(entry.verb, 64));
                 if (!entry.detail.isEmpty()) item.put("detail", truncateUtf8(entry.detail, 256));
+                if (entry.hasExactSpeed()) {
+                    item.put("tokensPerSecond", entry.tokensPerSecond);
+                    item.put("outputTokens", entry.outputTokens);
+                }
                 int itemBytes = item.toString().getBytes(StandardCharsets.UTF_8).length + 1;
                 if (!bounded.isEmpty() && totalBytes + itemBytes > MAX_TRANSCRIPT_BYTES) break;
                 bounded.add(item);

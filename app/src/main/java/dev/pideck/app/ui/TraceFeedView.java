@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import dev.pideck.app.core.UiLanguage;
+
 /**
  * The live tool trace: what the agent is touching, one line per call.
  *
@@ -34,10 +36,12 @@ public final class TraceFeedView extends LinearLayout {
     private final List<View> rowViews = new ArrayList<>();
     private ObjectAnimator expanderPulse;
     private boolean expanded;
+    private final UiLanguage language;
 
-    public TraceFeedView(Context context, DeckStyle style) {
+    public TraceFeedView(Context context, DeckStyle style, UiLanguage language) {
         super(context);
         this.style = style;
+        this.language = language == null ? UiLanguage.RUSSIAN : language;
         setOrientation(HORIZONTAL);
 
         View rule = new View(context);
@@ -135,8 +139,12 @@ public final class TraceFeedView extends LinearLayout {
 
     private void showExpander(int hidden, boolean open) {
         expander.setText(open
-                ? "⋯ свернуть"
-                : String.format(Locale.getDefault(), "⋯ ещё %d · развернуть", hidden));
+                ? language.pick("⋯ свернуть", "⋯ collapse")
+                : String.format(
+                        language.locale,
+                        language.pick("⋯ ещё %d · развернуть", "⋯ %d more · expand"),
+                        hidden
+                ));
         expander.setVisibility(VISIBLE);
         rows.removeView(expander);
         // The last call always stays in view, so the affordance sits above it.

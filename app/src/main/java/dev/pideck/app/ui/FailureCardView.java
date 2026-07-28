@@ -21,6 +21,14 @@ import java.util.List;
  */
 @SuppressLint("ViewConstructor")
 public final class FailureCardView extends LinearLayout {
+    private final DeckStyle style;
+    private final boolean blocking;
+    private final View stripe;
+    private final LinearLayout body;
+    private TextView primaryView;
+    private TextView secondaryView;
+    private boolean resolved;
+
     /** One failure, ready to render. */
     public static final class Failure {
         public final String category;
@@ -70,15 +78,17 @@ public final class FailureCardView extends LinearLayout {
 
     public FailureCardView(Context context, DeckStyle style, Failure failure) {
         super(context);
+        this.style = style;
+        this.blocking = failure.blocking;
         Palette palette = style.palette;
         int accentColor = failure.blocking ? palette.error : palette.warn;
         setOrientation(HORIZONTAL);
 
-        View stripe = new View(context);
+        stripe = new View(context);
         stripe.setBackgroundColor(accentColor);
         addView(stripe, new LayoutParams(style.dp(3), ViewGroup.LayoutParams.MATCH_PARENT));
 
-        LinearLayout body = new LinearLayout(context);
+        body = new LinearLayout(context);
         body.setOrientation(VERTICAL);
         body.setBackground(style.stripedCard(palette.panel, 8));
         body.setPadding(style.dp(18), style.dp(18), style.dp(18), style.dp(18));
@@ -124,20 +134,44 @@ public final class FailureCardView extends LinearLayout {
         }
 
         if (failure.primary != null) {
-            TextView primary = style.primaryButton(failure.primaryLabel, failure.primary);
+            primaryView = style.primaryButton(failure.primaryLabel, failure.primary);
             LinearLayout.LayoutParams primaryLp = matchWidth();
             primaryLp.topMargin = style.dp(14);
-            body.addView(primary, primaryLp);
+            body.addView(primaryView, primaryLp);
         }
 
         if (failure.secondary != null) {
-            TextView secondary = style.monoLabel(failure.secondaryLabel, palette.muted);
-            secondary.setGravity(Gravity.CENTER);
-            secondary.setPadding(style.dp(11), style.dp(14), style.dp(11), style.dp(4));
-            secondary.setMinHeight(style.dp(44));
-            style.clickable(secondary, failure.secondary);
-            body.addView(secondary, matchWidth());
+            secondaryView = style.monoLabel(failure.secondaryLabel, palette.muted);
+            secondaryView.setGravity(Gravity.CENTER);
+            secondaryView.setPadding(
+                    style.dp(11), style.dp(14), style.dp(11), style.dp(4)
+            );
+            secondaryView.setMinHeight(style.dp(44));
+            style.clickable(secondaryView, failure.secondary);
+            body.addView(secondaryView, matchWidth());
         }
+    }
+
+    /**
+     * A warning-style recovery card must not keep offering a stale action after the user has
+     * successfully started a newer turn. Blocking setup failures remain actionable.
+     */
+    public void resolveNonBlocking(String message) {
+        if (blocking || resolved) return;
+        resolved = true;
+        if (primaryView != null) {
+            body.removeView(primaryView);
+            primaryView = null;
+        }
+        if (secondaryView != null) {
+            body.removeView(secondaryView);
+            secondaryView = null;
+        }
+        stripe.setBackgroundColor(style.palette.ok);
+        TextView status = style.monoTrace("✓ " + message, style.palette.ok);
+        LinearLayout.LayoutParams statusLp = matchWidth();
+        statusLp.topMargin = style.dp(14);
+        body.addView(status, statusLp);
     }
 
     private LinearLayout.LayoutParams matchWidth() {

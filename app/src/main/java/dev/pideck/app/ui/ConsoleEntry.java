@@ -24,6 +24,10 @@ public final class ConsoleEntry {
     public final String verb;
     /** Tool calls only: result or duration, drawn on the trailing edge. */
     public final String detail;
+    /** Completed agent answers only: provider-backed decode throughput. */
+    public final double tokensPerSecond;
+    /** Completed agent answers only: provider-reported output tokens. */
+    public final long outputTokens;
 
     public ConsoleEntry(Channel channel, String text) {
         this(channel, text, System.currentTimeMillis());
@@ -34,11 +38,31 @@ public final class ConsoleEntry {
     }
 
     public ConsoleEntry(Channel channel, String text, long time, String verb, String detail) {
+        this(channel, text, time, verb, detail, Double.NaN, -1L);
+    }
+
+    public ConsoleEntry(
+            Channel channel,
+            String text,
+            long time,
+            String verb,
+            String detail,
+            double tokensPerSecond,
+            long outputTokens
+    ) {
         this.channel = channel;
         this.text = text == null ? "" : text;
         this.time = time;
         this.verb = verb == null ? "" : verb;
         this.detail = detail == null ? "" : detail;
+        boolean validSpeed = channel == Channel.AGENT
+                && Double.isFinite(tokensPerSecond)
+                && tokensPerSecond >= 0.01d
+                && tokensPerSecond <= 100_000.0d
+                && outputTokens > 0L
+                && outputTokens <= 100_000_000L;
+        this.tokensPerSecond = validSpeed ? tokensPerSecond : Double.NaN;
+        this.outputTokens = validSpeed ? outputTokens : -1L;
     }
 
     /** A tool call as the trace feed draws it. */
@@ -50,5 +74,9 @@ public final class ConsoleEntry {
 
     public boolean isTrace() {
         return channel == Channel.TOOL && !verb.isEmpty();
+    }
+
+    public boolean hasExactSpeed() {
+        return Double.isFinite(tokensPerSecond) && outputTokens > 0L;
     }
 }

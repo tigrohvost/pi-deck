@@ -31,6 +31,7 @@ public final class RpcBridgeClient implements AutoCloseable {
     public static final int DEFAULT_PORT = 8787;
     private static final int MAX_RESPONSE_BYTES = 1024 * 1024;
     private static final int MAX_COMMAND_BYTES = 128 * 1024;
+    private static final long STATE_REFRESH_INTERVAL_NANOS = 5_000_000_000L;
 
     private final String token;
     private final int port;
@@ -97,14 +98,21 @@ public final class RpcBridgeClient implements AutoCloseable {
         String instanceId = savedInstanceId;
         long sequence = Math.max(0L, savedSequence);
         long backoff = 400L;
+        boolean stateKnown = false;
+        long nextStateRefresh = 0L;
         while (polling.get()) {
             try {
-                JSONObject state = state();
-                String currentInstance = state.getString("bridgeInstanceId");
-                listener.onConnected(state);
-                if (!currentInstance.equals(instanceId)) {
-                    instanceId = currentInstance;
-                    sequence = 0L;
+                long now = System.nanoTime();
+                if (!stateKnown || now >= nextStateRefresh) {
+                    JSONObject state = state();
+                    String currentInstance = state.getString("bridgeInstanceId");
+                    listener.onConnected(state);
+                    if (!currentInstance.equals(instanceId)) {
+                        instanceId = currentInstance;
+                        sequence = 0L;
+                    }
+                    stateKnown = true;
+                    nextStateRefresh = System.nanoTime() + STATE_REFRESH_INTERVAL_NANOS;
                 }
                 JSONObject response = request(
                         "GET",
@@ -118,6 +126,7 @@ public final class RpcBridgeClient implements AutoCloseable {
                 if (!responseInstance.equals(instanceId)) {
                     instanceId = responseInstance;
                     sequence = 0L;
+                    stateKnown = false;
                     continue;
                 }
                 JSONArray events = response.getJSONArray("events");
@@ -142,6 +151,7 @@ public final class RpcBridgeClient implements AutoCloseable {
                 }
                 backoff = 400L;
             } catch (IOException | JSONException | IllegalArgumentException error) {
+                stateKnown = false;
                 listener.onDisconnected(safeMessage(error));
                 sleep(backoff + ThreadLocalRandom.current().nextLong(0, 250));
                 backoff = Math.min(8_000L, backoff * 2L);

@@ -41,6 +41,8 @@ def ensure_private_layout() -> None:
         "server",
         "bridge",
         "logs",
+        "pi",
+        "tool-results",
     ):
         path = BASE / relative
         path.mkdir(parents=True, exist_ok=True)

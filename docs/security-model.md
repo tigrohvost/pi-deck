@@ -14,19 +14,29 @@ token in argv or logs. llama-server has a separate random API key.
 
 ## Access profiles
 
-- `READ_ONLY` is the migration and first-run default. Only
-  `read,grep,find,ls` are enabled.
+- `READ_ONLY` is the migration and first-run default. It enables
+  `read,grep,find,ls` plus the bounded, APK-managed `web_search` and `weather`;
+  shell and file mutation remain disabled.
 - `CONFIRM_CHANGES` disables mutating built-ins and exposes differently named
-  gated tools. Each execution uses Pi's documented RPC `confirm` UI request,
-  a one-time approval ID and 30-second TTL. Disconnect, restart, malformed or
+  gated tools. The managed read-only `web_search` and `weather` tools are also
+  available. Each mutation uses Pi's documented RPC `confirm` UI request, a
+  one-time approval ID and 30-second TTL. Disconnect, restart, malformed or
   duplicate responses deny.
 - `AUTONOMOUS` is an explicit opt-in. It can execute shell commands and modify
-  anything writable by the Termux UID. The workspace is not an OS sandbox.
+  anything writable by the Termux UID, and it includes the same network tools.
+  The workspace is not an OS sandbox.
 
 Local inference means token generation runs on the phone. It does not mean
 network isolation: shell tools can access the network. PI//DECK does not claim
 an Android/Termux network namespace, root protection or protection from a
 compromised OS.
+
+Pi supports installable third-party packages, but PI//DECK passes
+`--no-extensions` and explicitly loads only APK-managed extension files.
+Third-party packages therefore cannot silently join the active tool surface.
+Web-search queries are sent to Exa (or DuckDuckGo on fallback), while weather
+place names are sent to Open-Meteo; no API key or arbitrary fetch URL is
+exposed to the model. Responses are byte-bounded before parsing.
 
 ## UID and model boundaries
 
@@ -48,3 +58,11 @@ transcripts and operation output are byte-bounded. Diagnostic export is not yet
 implemented. Component logs are private and reset on supervisor restart, but a
 strict live-size cap for every native `llama-server` log stream remains release
 follow-up rather than a claimed protection.
+
+The editable agent system prompt is stored in Android-private preferences. It
+crosses into Termux only in `RUN_COMMAND` stdin JSON, is persisted there as a
+fixed mode-`0600` file and never appears as CLI text. Runtime config, process
+metadata, events and bridge state retain only its mode, UTF-8 byte count,
+SHA-256 and managed path. A pinned explicit Pi extension repeats the integrity
+check before applying it at the final per-turn system-prompt hook. Stopping the
+bridge removes the Termux copy.

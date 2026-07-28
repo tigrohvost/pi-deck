@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import queue
@@ -20,6 +21,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 
 class FakeLlamaHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    requests: queue.Queue[dict[str, object]] = queue.Queue()
 
     def log_message(self, _format: str, *_args: object) -> None:
         return
@@ -30,6 +32,7 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", "0"))
         request = json.loads(self.rfile.read(length))
+        self.requests.put(request)
         if request.get("model") != "fixture-model":
             self.send_error(400)
             return
@@ -80,6 +83,7 @@ class PiRpcProtocolTest(unittest.TestCase):
         pi_binary = os.environ.get("PIDECK_PI_BIN")
         if not pi_binary:
             self.skipTest("Set PIDECK_PI_BIN to the pinned Pi 0.82.1 executable")
+        FakeLlamaHandler.requests = queue.Queue()
         version = subprocess.run(
             [pi_binary, "--version"],
             check=True,
@@ -137,6 +141,46 @@ class PiRpcProtocolTest(unittest.TestCase):
                 / "runtime"
                 / "pideck-permission-gate.ts"
             )
+            cache_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-local-cache.ts"
+            )
+            system_prompt_marker = "PIDECK_CUSTOM_SYSTEM_PROMPT_MARKER"
+            system_prompt = base / "system-prompt.txt"
+            system_prompt.write_text(system_prompt_marker, encoding="utf-8")
+            system_prompt.chmod(0o600)
+            system_prompt_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-system-prompt.ts"
+            )
+            context_guard_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-context-guard.ts"
+            )
+            web_tools_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-web-tools.ts"
+            )
             arguments = [
                 pi_binary,
                 "--mode",
@@ -154,16 +198,34 @@ class PiRpcProtocolTest(unittest.TestCase):
                 "--approve",
                 "--offline",
                 "--no-extensions",
+                "--extension",
+                str(cache_extension),
+                "--extension",
+                str(system_prompt_extension),
+                "--extension",
+                str(context_guard_extension),
+                "--extension",
+                str(web_tools_extension),
                 "--no-builtin-tools",
                 "--tools",
-                "read,grep,find,ls,pideck_bash,pideck_edit,pideck_write",
+                "read,grep,find,ls,web_search,weather,"
+                "pideck_bash,pideck_edit,pideck_write",
                 "--extension",
                 str(extension),
             ]
             environment = os.environ.copy()
             environment["PI_CODING_AGENT_DIR"] = str(agent_dir)
             environment["PI_CODING_AGENT_SESSION_DIR"] = str(sessions)
+            environment["PIDECK_HOME"] = str(base)
             environment["PI_OFFLINE"] = "1"
+            environment["PIDECK_SYSTEM_PROMPT_MODE"] = "append"
+            environment["PIDECK_SYSTEM_PROMPT_PATH"] = str(system_prompt)
+            environment["PIDECK_SYSTEM_PROMPT_SHA256"] = hashlib.sha256(
+                system_prompt_marker.encode("utf-8")
+            ).hexdigest()
+            environment["PIDECK_SYSTEM_PROMPT_BYTES"] = str(
+                len(system_prompt_marker.encode("utf-8"))
+            )
             process = subprocess.Popen(
                 arguments,
                 stdin=subprocess.PIPE,
@@ -209,7 +271,9 @@ class PiRpcProtocolTest(unittest.TestCase):
                     any(Path(part).name == "pi-helper" for part in initial_cmdline),
                     initial_cmdline,
                 )
+                self.assertNotIn(system_prompt_marker, "\0".join(initial_cmdline))
                 state_id = str(uuid.uuid4())
+                stats_id = str(uuid.uuid4())
                 prompt_id = str(uuid.uuid4())
                 process.stdin.write(
                     json.dumps({"id": state_id, "type": "get_state"}) + "\n"
@@ -251,8 +315,25 @@ class PiRpcProtocolTest(unittest.TestCase):
                     for value in received
                     if value.get("type") == "response" and value.get("id") == prompt_id
                 ]
+                process.stdin.write(
+                    json.dumps({"id": stats_id, "type": "get_session_stats"}) + "\n"
+                )
+                process.stdin.flush()
+                deadline = time.monotonic() + 5
+                stats_response = None
+                while time.monotonic() < deadline:
+                    try:
+                        value = lines.get(timeout=0.5)
+                    except queue.Empty:
+                        continue
+                    if value.get("type") == "response" and value.get("id") == stats_id:
+                        stats_response = value
+                        break
                 self.assertTrue(state_response and state_response[-1].get("success") is True)
                 self.assertTrue(prompt_response and prompt_response[-1].get("success") is True)
+                self.assertIsNotNone(stats_response)
+                self.assertTrue(stats_response.get("success"))
+                self.assertIsInstance(stats_response.get("data"), dict)
                 deltas = [
                     value.get("assistantMessageEvent", {}).get("delta")
                     for value in received
@@ -260,6 +341,29 @@ class PiRpcProtocolTest(unittest.TestCase):
                     and isinstance(value.get("assistantMessageEvent"), dict)
                 ]
                 self.assertIn("PIDECK_RPC_OK", deltas)
+                provider_request = FakeLlamaHandler.requests.get_nowait()
+                self.assertIs(provider_request.get("cache_prompt"), True)
+                tool_names = {
+                    tool.get("function", {}).get("name")
+                    for tool in provider_request.get("tools", [])
+                    if isinstance(tool, dict)
+                }
+                self.assertIn("web_search", tool_names)
+                self.assertIn("weather", tool_names)
+                self.assertIn(
+                    system_prompt_marker,
+                    json.dumps(
+                        provider_request.get("messages", []),
+                        ensure_ascii=False,
+                    ),
+                )
+                self.assertIn(
+                    "Answer direct questions and explicit-format requests immediately",
+                    json.dumps(
+                        provider_request.get("messages", []),
+                        ensure_ascii=False,
+                    ),
+                )
                 self.assertFalse(
                     any(value.get("type") == "extension_error" for value in received),
                     received,

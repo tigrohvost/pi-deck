@@ -12,6 +12,8 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
+import dev.pideck.app.core.UiLanguage;
+
 /**
  * СЕССИИ: what is on disk, and how to get back to it.
  *
@@ -61,10 +63,13 @@ public final class SessionsRootView extends ScrollView {
 
     private final DeckStyle style;
     private final LinearLayout column;
+    private final UiLanguage language;
+    private String lastSignature = "";
 
-    public SessionsRootView(Context context, DeckStyle style) {
+    public SessionsRootView(Context context, DeckStyle style, UiLanguage language) {
         super(context);
         this.style = style;
+        this.language = language == null ? UiLanguage.RUSSIAN : language;
         setVerticalScrollBarEnabled(false);
         setClipToPadding(false);
         setFillViewport(true);
@@ -77,16 +82,20 @@ public final class SessionsRootView extends ScrollView {
     }
 
     public void render(State state) {
+        String signature = signature(state);
+        if (signature.equals(lastSignature)) return;
+        lastSignature = signature;
+        int previousScroll = getScrollY();
         column.removeAllViews();
 
         LinearLayout header = new LinearLayout(getContext());
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(style.screenTitle("Сессии"), new LinearLayout.LayoutParams(
+        header.addView(style.screenTitle(t("Сессии", "Sessions")), new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ));
         if (state.onNewSession != null) {
             header.addView(style.inlineAction(
-                    "+ Новая", style.palette.accent, state.onNewSession
+                    t("+ Новая", "+ New"), style.palette.accent, state.onNewSession
             ));
         }
         column.addView(header);
@@ -135,6 +144,28 @@ public final class SessionsRootView extends ScrollView {
             ));
         }
         column.addView(footer);
+        post(() -> scrollTo(0, Math.min(
+                previousScroll,
+                Math.max(0, column.getHeight() - getHeight())
+        )));
+    }
+
+    private String signature(State state) {
+        StringBuilder value = new StringBuilder()
+                .append(state.emptyNote).append('|')
+                .append(state.footer).append('|')
+                .append(state.archiveLabel).append('|')
+                .append(state.onNewSession != null).append('|')
+                .append(state.onArchive != null);
+        for (Group group : state.groups) {
+            value.append('|').append(group.label);
+            for (SessionRow row : group.rows) {
+                value.append('|').append(row.title).append('|').append(row.meta)
+                        .append('|').append(row.current).append('|').append(row.stale)
+                        .append('|').append(row.open != null);
+            }
+        }
+        return value.toString();
     }
 
     private View sessionRow(SessionRow row) {
@@ -165,7 +196,7 @@ public final class SessionsRootView extends ScrollView {
         ));
 
         view.addView(row.current
-                ? style.monoAt("Сейчас", 10f, style.palette.ok, true)
+                ? style.monoAt(t("Сейчас", "Current"), 10f, style.palette.ok, true)
                 : style.monoTrace("›", style.palette.muted));
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -174,5 +205,9 @@ public final class SessionsRootView extends ScrollView {
         lp.bottomMargin = style.dp(8);
         view.setLayoutParams(lp);
         return view;
+    }
+
+    private String t(String russian, String english) {
+        return language.pick(russian, english);
     }
 }

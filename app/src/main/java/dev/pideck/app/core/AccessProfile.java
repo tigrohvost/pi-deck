@@ -7,17 +7,17 @@ import java.util.Locale;
 public enum AccessProfile {
     READ_ONLY(
             "READ ONLY",
-            "Только чтение: read, grep, find и ls. Shell и запись отключены.",
-            false
+            "Чтение и управляемый веб-поиск. Shell и запись отключены.",
+            true
     ),
     CONFIRM_CHANGES(
             "CONFIRM CHANGES",
-            "Каждая bash/edit/write операция требует одноразового подтверждения Android.",
+            "Веб-поиск доступен; bash/edit/write требуют одноразового подтверждения Android.",
             true
     ),
     AUTONOMOUS(
             "AUTONOMOUS",
-            "Pi может выполнять shell-команды и менять любые файлы, доступные Termux.",
+            "Pi может искать в сети, выполнять shell-команды и менять доступные Termux файлы.",
             true
     );
 
@@ -44,19 +44,37 @@ public enum AccessProfile {
         }
     }
 
+    public String description(UiLanguage language) {
+        return switch (this) {
+            case READ_ONLY -> language.pick(
+                    "Чтение и управляемый веб-поиск. Shell и запись отключены.",
+                    "Read access and managed web search. Shell and file writes are disabled."
+            );
+            case CONFIRM_CHANGES -> language.pick(
+                    "Веб-поиск доступен; bash/edit/write требуют одноразового подтверждения Android.",
+                    "Web search is available; bash/edit/write require one-time Android approval."
+            );
+            case AUTONOMOUS -> language.pick(
+                    "Pi может искать в сети, выполнять shell-команды и менять доступные Termux файлы.",
+                    "Pi may search the web, run shell commands, and change files visible to Termux."
+            );
+        };
+    }
+
     /** Exact Pi 0.82.1 flags verified against its CLI parser. */
     public List<String> piArguments(String extensionPath) {
         return switch (this) {
             case READ_ONLY -> List.of(
-                    "--tools", "read,grep,find,ls"
+                    "--tools", "read,grep,find,ls,web_search,weather"
             );
             case CONFIRM_CHANGES -> List.of(
                     "--no-builtin-tools",
-                    "--tools", "read,grep,find,ls,pideck_bash,pideck_edit,pideck_write",
+                    "--tools", "read,grep,find,ls,web_search,weather,"
+                            + "pideck_bash,pideck_edit,pideck_write",
                     "--extension", extensionPath
             );
             case AUTONOMOUS -> List.of(
-                    "--tools", "read,bash,edit,write,grep,find,ls"
+                    "--tools", "read,bash,edit,write,grep,find,ls,web_search,weather"
             );
         };
     }
