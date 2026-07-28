@@ -25,6 +25,12 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Restore pinned llama.cpp Android runtime
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.1.12297006"
+          ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.1.12297006" \
+            ./tools/vendor_llama_android.sh
+
       - name: Test, lint and assemble debug plus unsigned release
         run: >-
           ./gradlew testDebugUnitTest lintDebug assembleDebug
@@ -123,6 +129,12 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
+
+      - name: Restore pinned llama.cpp Android runtime
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.1.12297006"
+          ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.1.12297006" \
+            ./tools/vendor_llama_android.sh
 
       - name: Build production-signed release
         env:
