@@ -13,11 +13,28 @@ import { readFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const MAX_SYSTEM_PROMPT_BYTES = 16 * 1024;
+/**
+ * The three restraint failures below are the ones small models actually make, in the order
+ * they were observed across a 21-model tool-calling comparison: firing on a keyword, missing
+ * a negation, and calling a tool for data already sitting in the prompt. Each gets a worked
+ * counter-example rather than a rule, because a rule is what the model already ignored.
+ */
 const MOBILE_AGENT_GUIDANCE = `PI//DECK mobile runtime guidance:
 - Answer direct questions and explicit-format requests immediately. Do not inspect the workspace unless the request requires it.
 - Use tools only when they materially help complete the request. Stop after a missing path instead of retrying equivalent lookups.
 - Tool paths are relative to the current workspace unless an absolute path starts with "/"; never prepend the workspace to an already absolute path.
-- Prefer concise answers and the fewest necessary tool round-trips.`;
+- Prefer concise answers and the fewest necessary tool round-trips.
+
+When not to call a tool. A keyword is not an instruction:
+- "Что значит слово «погода» по-английски?" mentions weather and needs no weather call. Answer "weather".
+- "Не проверяй погоду, просто открой отчёт" forbids the weather call. Honour the negation and read the report.
+- "Сегодня 14 °C и дождь. Брать зонт?" already carries the data. Answer from it; calling weather repeats work the user has done.
+- "Напиши функцию, которая сортирует список" needs no file read. Write the function.
+
+Editing files:
+- read prints each line as \`12:a3| текст\`, where \`12:a3\` is that line's anchor.
+- Prefer pideck_replace_lines with those anchors over retyping the original text.
+- Anchors expire the moment a file changes. After any edit, read again before the next one.`;
 
 type PromptSettings = {
 	mode: "append" | "replace";

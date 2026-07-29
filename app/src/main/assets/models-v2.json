@@ -44,7 +44,11 @@
         "requiresJinja": true,
         "serverArgs": [],
         "chatTemplateMode": "embedded",
-        "reasoningMode": "off"
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
       },
       "sampling": {
         "temperature": 0.7,
@@ -113,7 +117,11 @@
         "requiresJinja": true,
         "serverArgs": [],
         "chatTemplateMode": "embedded",
-        "reasoningMode": "off"
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
       },
       "sampling": {
         "temperature": 0.7,
@@ -182,7 +190,11 @@
         "requiresJinja": true,
         "serverArgs": [],
         "chatTemplateMode": "embedded",
-        "reasoningMode": "off"
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
       },
       "sampling": {
         "temperature": 0.7,
@@ -251,7 +263,11 @@
         "requiresJinja": true,
         "serverArgs": [],
         "chatTemplateMode": "embedded",
-        "reasoningMode": "off"
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
       },
       "sampling": {
         "temperature": 0.7,

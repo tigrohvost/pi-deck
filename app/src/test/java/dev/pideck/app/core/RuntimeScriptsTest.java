@@ -134,6 +134,7 @@ public class RuntimeScriptsTest {
                 "AGENTS.default.md",
                 "pideck-local-cache.ts",
                 "pideck-system-prompt.ts",
+                "pideck-hashline-edit.ts",
                 "pideck-context-guard.ts",
                 "pideck-web-tools.ts",
                 "pideck-permission-gate.ts",
@@ -213,6 +214,34 @@ public class RuntimeScriptsTest {
         Path root = runtimeRoot();
         try (var paths = Files.walk(root)) {
             return paths.filter(Files::isRegularFile).toList();
+        }
+    }
+
+    /**
+     * The installer copies a hardcoded list. A Pi extension that exists in the assets but is
+     * missing from that list never reaches the phone, and the bridge then refuses to start
+     * with a missing-extension error. Comparing against the directory catches the omission
+     * instead of relying on someone remembering to edit two places.
+     */
+    @Test
+    public void everyBundledExtensionIsAlsoInstalled() throws Exception {
+        String script = RuntimeAssetBundle.buildFromContents(
+                Map.of("runtime/pideck-local-cache.ts", new byte[]{10}), true
+        );
+        assertFalse(script.isEmpty());
+        try (var paths = Files.list(runtimeRoot())) {
+            List<String> extensions = paths
+                    .map(path -> path.getFileName().toString())
+                    .filter(name -> name.endsWith(".ts"))
+                    .sorted()
+                    .toList();
+            assertFalse(extensions.isEmpty());
+            for (String name : extensions) {
+                assertTrue(
+                        "RuntimeAssetBundle does not install " + name,
+                        RuntimeAssetBundle.installedAssets().contains("runtime/" + name)
+                );
+            }
         }
     }
 

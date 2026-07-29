@@ -22,14 +22,19 @@ token in argv or logs. llama-server has a separate random API key.
   privilege — only the absence of one selects the default. The consent screen is
   still shown before the first run and describes shell access explicitly.
 - `READ_ONLY` enables `read,grep,find,ls` plus the bounded, APK-managed
-  `web_search` and `weather`; shell and file mutation remain disabled.
+  `web_search`, `web_fetch` and `weather`; shell and file mutation remain
+  disabled. Reading a page is not a mutation, so it sits in this profile.
 - `CONFIRM_CHANGES` disables mutating built-ins and exposes differently named
-  gated tools. The managed read-only `web_search` and `weather` tools are also
-  available. Each mutation uses Pi's documented RPC `confirm` UI request, a
+  gated tools, including `pideck_replace_lines`, which edits by line anchor and
+  asks through the same single approval path as `pideck_edit`. The managed
+  read-only `web_search`, `web_fetch` and `weather` tools are also available. Each mutation uses Pi's documented RPC `confirm` UI request, a
   one-time approval ID and 30-second TTL. Disconnect, restart, malformed or
   duplicate responses deny.
 - `AUTONOMOUS` can execute shell commands and modify anything writable by the
-  Termux UID, and it includes the same network tools. The workspace is not an OS
+  Termux UID, and it includes the same network tools. `pideck_replace_lines` is
+  available here too and applies without asking, because this profile's whole
+  point is that it does not ask; `PIDECK_HASHLINE_APPROVAL` carries that decision
+  from the bridge, and any value other than the explicit `none` keeps the prompt. The workspace is not an OS
   sandbox. Because it is now the default rather than an opt-in, the consent
   screen and the profile row in `Core → Access` are the only places a user is
   told what the agent may do; both name it in full.
@@ -43,8 +48,17 @@ Pi supports installable third-party packages, but PI//DECK passes
 `--no-extensions` and explicitly loads only APK-managed extension files.
 Third-party packages therefore cannot silently join the active tool surface.
 Web-search queries are sent to Exa (or DuckDuckGo on fallback), while weather
-place names are sent to Open-Meteo; no API key or arbitrary fetch URL is
-exposed to the model. Responses are byte-bounded before parsing.
+place names are sent to Open-Meteo; no API key is exposed to the model.
+Responses are byte-bounded before parsing.
+
+`web_fetch` is the one tool that does take a model-supplied URL, so it is worth
+stating plainly what that costs. The URL is validated to be absolute http or
+https and is read directly first, which keeps an ordinary page inside the same
+first-party request the browser would make. Only when a direct read yields too
+little text — a JavaScript-only page — does it retry through `r.jina.ai`, and
+that proxy then learns the URL being read. The direct attempt always happens
+first, the fallback is never silent in the tool output, and the page text is
+bounded before it reaches the model.
 
 ## UID and model boundaries
 

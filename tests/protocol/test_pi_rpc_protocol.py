@@ -172,6 +172,15 @@ class PiRpcProtocolTest(unittest.TestCase):
                 / "runtime"
                 / "pideck-context-guard.ts"
             )
+            hashline_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-hashline-edit.ts"
+            )
             web_tools_extension = (
                 REPOSITORY
                 / "app"
@@ -203,13 +212,15 @@ class PiRpcProtocolTest(unittest.TestCase):
                 "--extension",
                 str(system_prompt_extension),
                 "--extension",
+                str(hashline_extension),
+                "--extension",
                 str(context_guard_extension),
                 "--extension",
                 str(web_tools_extension),
                 "--no-builtin-tools",
                 "--tools",
-                "read,grep,find,ls,web_search,weather,"
-                "pideck_bash,pideck_edit,pideck_write",
+                "read,grep,find,ls,web_search,web_fetch,weather,"
+                "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines",
                 "--extension",
                 str(extension),
             ]

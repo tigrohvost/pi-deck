@@ -66,6 +66,37 @@ against 3.9 GB available. Weights near 2.2 GiB are therefore also close to the
 memory ceiling once a real context is allocated, so the two limits arrive
 together rather than one after the other.
 
+## Follow-up, 2026-07-29
+
+Two things this survey left open were measured on the same device, and both answers
+are in [`speculative-decoding-measurements.md`](speculative-decoding-measurements.md):
+
+- Speculative decoding does not move this envelope. MTP runs at 0.96× and the
+  model-free `ngram-mod` at 1.02–1.05×, so the sizing rule above stands unmodified.
+- The figures here were taken without controlling for thermal throttling. A phone
+  under sustained load drops to 47 % of its big-core clock, which is enough to
+  reorder any comparison whose variants run in sequence. Treat single-pass numbers
+  in this document as indicative and re-take anything decisive with
+  `tools/speculative_probe.py`, which waits for the clock to recover and records the
+  headroom next to every sample.
+
+**The fitted envelope predicts ranking well and absolute speed badly.** Measured
+under the deck's own sampling with 192-token answers and a cold start per variant:
+
+| Qwen3.5 2B | Weights | `25.6 / GiB^1.2` | Measured | Ratio |
+|---|---:|---:|---:|---:|
+| Q4_K_M | 1.24 GiB | 19.8 | **13.06** | 0.66 |
+| Q6_K | 1.52 GiB | 15.5 | **9.66** | 0.62 |
+
+The curve was fitted on short, favourable runs, so it overstates sustained
+throughput by roughly a third while getting the Q6/Q4 ratio nearly right (0.78
+predicted against 0.74 measured). Use it to choose between candidates, not to decide
+whether a candidate clears a throughput bar.
+
+That settles the "spend the headroom on better weights" idea: Q6_K costs 26 % of the
+decode rate and 575 MB more resident (3.64 GB against 3.07 GB) to buy quantisation
+fidelity nobody has measured a quality gain from on this model. Q4_K_M stays.
+
 ## Harness note
 
 Models outside the pinned manifest were to be measured by running the same

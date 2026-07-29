@@ -53,6 +53,7 @@ AUDIT_LOG = BRIDGE_DIRECTORY / "approval-audit.jsonl"
 PI_STDERR_LOG = BASE / "logs" / "pi-rpc.stderr.log"
 LOCAL_CACHE_EXTENSION = BASE / "runtime" / "pideck-local-cache.ts"
 SYSTEM_PROMPT_EXTENSION = BASE / "runtime" / "pideck-system-prompt.ts"
+HASHLINE_EXTENSION = BASE / "runtime" / "pideck-hashline-edit.ts"
 CONTEXT_GUARD_EXTENSION = BASE / "runtime" / "pideck-context-guard.ts"
 WEB_TOOLS_EXTENSION = BASE / "runtime" / "pideck-web-tools.ts"
 PERMISSION_EXTENSION = BASE / "runtime" / "pideck-permission-gate.ts"
@@ -528,6 +529,11 @@ class PiRpcChild:
                 "SYSTEM_PROMPT_EXTENSION_MISSING",
                 "Managed system-prompt extension is not installed",
             )
+        if not HASHLINE_EXTENSION.is_file():
+            raise PiDeckError(
+                "HASHLINE_EXTENSION_MISSING",
+                "Anchored-edit extension is not installed",
+            )
         if not CONTEXT_GUARD_EXTENSION.is_file():
             raise PiDeckError(
                 "CONTEXT_GUARD_EXTENSION_MISSING",
@@ -559,6 +565,8 @@ class PiRpcChild:
             "--extension",
             str(SYSTEM_PROMPT_EXTENSION),
             "--extension",
+            str(HASHLINE_EXTENSION),
+            "--extension",
             str(CONTEXT_GUARD_EXTENSION),
             "--extension",
             str(WEB_TOOLS_EXTENSION),
@@ -570,6 +578,12 @@ class PiRpcChild:
         environment["PI_CODING_AGENT_DIR"] = str(BASE / "pi")
         environment["PI_CODING_AGENT_SESSION_DIR"] = str(BASE / "sessions")
         environment.update(system_prompt_environment(config, SYSTEM_PROMPT_FILE))
+        # The anchored-edit tool is one tool across two profiles that disagree about
+        # approval, so the profile decides here rather than the extension guessing. Any
+        # value other than the explicit opt-out keeps the confirmation.
+        environment["PIDECK_HASHLINE_APPROVAL"] = (
+            "none" if profile == "autonomous" else "required"
+        )
         PI_STDERR_LOG.parent.mkdir(parents=True, exist_ok=True)
         stderr_log = PI_STDERR_LOG.open("ab", buffering=0)
         try:
@@ -630,7 +644,7 @@ class PiRpcChild:
         if agent_mode == "chat":
             return ["--no-tools"]
         if profile == "read_only":
-            return ["--tools", "read,grep,find,ls,web_search,weather"]
+            return ["--tools", "read,grep,find,ls,web_search,web_fetch,weather"]
         if profile == "confirm_changes":
             if not PERMISSION_EXTENSION.is_file():
                 raise PiDeckError(
@@ -639,15 +653,16 @@ class PiRpcChild:
             return [
                 "--no-builtin-tools",
                 "--tools",
-                "read,grep,find,ls,web_search,weather,"
-                "pideck_bash,pideck_edit,pideck_write",
+                "read,grep,find,ls,web_search,web_fetch,weather,"
+                "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines",
                 "--extension",
                 str(PERMISSION_EXTENSION),
             ]
         if profile == "autonomous":
             return [
                 "--tools",
-                "read,bash,edit,write,grep,find,ls,web_search,weather",
+                "read,bash,edit,write,grep,find,ls,"
+                "web_search,web_fetch,weather,pideck_replace_lines",
             ]
         raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
 
