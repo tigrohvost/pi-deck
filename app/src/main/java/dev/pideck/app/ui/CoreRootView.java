@@ -113,6 +113,7 @@ public final class CoreRootView extends ScrollView {
         public AgentMode agentMode = AgentMode.AGENT;
         public UiLanguage language = UiLanguage.RUSSIAN;
         public boolean maximumSpeed = true;
+        public boolean autostartCore = false;
         /** Mirror of the checkbox on the consent screen. */
         public boolean askBeforeOverwrite = true;
     }
@@ -127,6 +128,8 @@ public final class CoreRootView extends ScrollView {
         void onAgentModeChosen(AgentMode mode);
 
         void onMaximumSpeedChanged(boolean enabled);
+
+        void onAutostartCoreChanged(boolean enabled);
 
         void onLanguageChosen(UiLanguage language);
     }
@@ -196,6 +199,28 @@ public final class CoreRootView extends ScrollView {
                 new Boolean[]{Boolean.TRUE, Boolean.FALSE},
                 state.maximumSpeed,
                 value -> listener.onMaximumSpeedChanged((Boolean) value)
+        ));
+
+        TextView autostartNote = style.bodySecondary(
+                t(
+                        "Автозапуск грузит модель сразу при открытии деки: первый ответ ближе, "
+                                + "но батарея расходуется даже если вы зашли посмотреть переписку.",
+                        "Autostart loads the model as soon as the deck opens: the first answer "
+                                + "comes sooner, at the cost of battery even when you only came to "
+                                + "read the transcript."
+                )
+        );
+        LinearLayout.LayoutParams autostartNoteLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        autostartNoteLp.topMargin = style.dp(14);
+        autostartNoteLp.bottomMargin = style.dp(8);
+        column.addView(autostartNote, autostartNoteLp);
+        column.addView(segments(
+                new String[]{t("Автозапуск", "Autostart"), t("По запросу", "On demand")},
+                new Boolean[]{Boolean.TRUE, Boolean.FALSE},
+                state.autostartCore,
+                value -> listener.onAutostartCoreChanged((Boolean) value)
         ));
 
         if (state.systemPrompt != null) {
@@ -285,6 +310,7 @@ public final class CoreRootView extends ScrollView {
                 .append(state.agentMode).append('|')
                 .append(state.language).append('|')
                 .append(state.maximumSpeed).append('|')
+                .append(state.autostartCore).append('|')
                 .append(state.askBeforeOverwrite).append('|')
                 .append(state.accessProfileLabel).append('|')
                 .append(state.accessProfileNote).append('|')

@@ -90,6 +90,8 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
         void onMaximumSpeedChanged(boolean enabled);
 
+        void onAutostartCoreChanged(boolean enabled);
+
         void onLanguageChosen(UiLanguage language);
     }
 
@@ -664,6 +666,11 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     @Override
     public void onMaximumSpeedChanged(boolean enabled) {
         listener.onMaximumSpeedChanged(enabled);
+    }
+
+    @Override
+    public void onAutostartCoreChanged(boolean enabled) {
+        listener.onAutostartCoreChanged(enabled);
     }
 
     @Override

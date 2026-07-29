@@ -36,6 +36,8 @@ public final class DeckPreferences {
     private static final String KEY_AGENT_MODE = "agent_mode_v1";
     private static final String KEY_MAXIMUM_SPEED = "maximum_speed_v1";
     private static final String KEY_UI_LANGUAGE = "ui_language_v1";
+    private static final String KEY_AUTOSTART_CORE = "autostart_core_v1";
+    private static final String KEY_OOM_ACK = "oom_risk_ack_v1";
 
     private final SharedPreferences prefs;
 
@@ -128,6 +130,27 @@ public final class DeckPreferences {
 
     public void setMaximumSpeed(boolean enabled) {
         prefs.edit().putBoolean(KEY_MAXIMUM_SPEED, enabled).apply();
+    }
+
+    /**
+     * Warming the core on launch costs battery and gigabytes of RAM, so it is opt-in. It is worth
+     * offering because the alternative is a tap that can only ever mean yes.
+     */
+    public boolean autostartCore() {
+        return prefs.getBoolean(KEY_AUTOSTART_CORE, false);
+    }
+
+    public void setAutostartCore(boolean enabled) {
+        prefs.edit().putBoolean(KEY_AUTOSTART_CORE, enabled).apply();
+    }
+
+    /** The OOM warning is a fact about this model on this phone, not an event to repeat. */
+    public boolean oomRiskAcknowledged(String modelId) {
+        return modelId != null && modelId.equals(prefs.getString(KEY_OOM_ACK, null));
+    }
+
+    public void setOomRiskAcknowledged(String modelId) {
+        prefs.edit().putString(KEY_OOM_ACK, modelId).apply();
     }
 
     public UiLanguage uiLanguage() {

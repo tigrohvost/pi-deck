@@ -70,6 +70,7 @@ import dev.pideck.app.core.RuntimeScripts;
 import dev.pideck.app.core.SessionContract;
 import dev.pideck.app.core.SessionId;
 import dev.pideck.app.core.SessionContextUsage;
+import dev.pideck.app.core.StartupPolicy;
 import dev.pideck.app.core.SystemPromptSettings;
 import dev.pideck.app.core.TermuxBridge;
 import dev.pideck.app.core.TermuxEnvironment;
@@ -96,6 +97,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private static final Pattern ANSI = Pattern.compile(
             "(?:\\u001B\\][^\\u0007]*(?:\\u0007|\\u001B\\\\))|(?:\\u001B\\[[0-?]*[ -/]*[@-~])"
     );
+    /** Warming takes two steps, server then bridge. Beyond that a queued prompt is being lied to. */
+    private static final int MAX_QUEUED_WARM_ATTEMPTS = 3;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
@@ -134,8 +137,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private int verificationPercent;
     private String verificationFault = "";
     private float textScale;
-    /** A prompt typed while a turn was running; dispatched when the deck frees up. */
+    /** A prompt typed while a turn was running, or at a cold core; dispatched once the deck can. */
     private String queuedPrompt;
+    private int queuedWarmAttempts;
     /** The heat warning is worth one line per turn, not one per event. */
     private boolean thermalWarned;
     /** Last listing of ~/.pideck/sessions, as the Termux runtime reported it. */
@@ -217,6 +221,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         modelSelectionRequired = savedModel == null || modelCatalog.byId(savedModel).isEmpty();
         if (savedModel != null && modelSelectionRequired) prefs.clearSelectedModelId();
         linkConfirmed = prefs.isCoreReady();
+        // The foreground service outlives the Activity, and its state is app-private: reading it
+        // here means a surviving core is known before Termux has been asked anything at all.
+        NativeLlamaService.Snapshot bootSnapshot = NativeLlamaService.snapshot(this);
+        serverReady = "READY".equals(bootSnapshot.state)
+                && selectedModel.id.equals(bootSnapshot.modelId);
         OperationRecord restored = operations.active();
         busy = restored != null && !restored.state.isTerminal();
 
@@ -368,11 +377,28 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
         if (!canRunAgent()) {
+            // A prompt typed at a cold core is the clearest possible request to start it.
+            if (StartupPolicy.queuesUntilReady(false, canWarmCore(), queuedPrompt != null)) {
+                queuedPrompt = prompt;
+                queuedWarmAttempts = 0;
+                deck.acknowledgePrompt(prompt);
+                deck.setQueueCount(1);
+                append(ConsoleEntry.Channel.USER, prompt);
+                append(ConsoleEntry.Channel.SYSTEM, t(
+                        "Прогреваю ядро и отправлю запрос, как только Pi ответит.",
+                        "Warming the core; the prompt goes out as soon as Pi answers."
+                ));
+                warmCore();
+                refreshUi();
+                return;
+            }
             refreshUi();
-            toast(t(
-                    "Сначала завершите boot sequence",
-                    "Complete the boot sequence first"
-            ));
+            toast(canWarmCore()
+                    ? t("В очереди уже есть промпт", "A prompt is already queued")
+                    : t(
+                            "Сначала завершите boot sequence",
+                            "Complete the boot sequence first"
+                    ));
             return;
         }
         if (busy) {
@@ -385,6 +411,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 return;
             }
             queuedPrompt = prompt;
+            queuedWarmAttempts = 0;
             deck.acknowledgePrompt(prompt);
             deck.setQueueCount(1);
             append(ConsoleEntry.Channel.USER, prompt);
@@ -459,6 +486,23 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     public void onMaximumSpeedChanged(boolean enabled) {
         prefs.setMaximumSpeed(enabled);
         applyScreenSpeedPolicy();
+        refreshUi();
+    }
+
+    @Override
+    public void onAutostartCoreChanged(boolean enabled) {
+        prefs.setAutostartCore(enabled);
+        append(ConsoleEntry.Channel.SYSTEM, enabled
+                ? t(
+                        "Ядро будет грузиться при открытии деки.",
+                        "The core will load when the deck opens."
+                )
+                : t(
+                        "Ядро будет грузиться по первому запросу или по кнопке.",
+                        "The core will load on the first prompt or on demand."
+                ));
+        // Turning it on while looking at a cold deck means it should be warm now, not next launch.
+        if (enabled) warmCore();
         refreshUi();
     }
 
@@ -778,6 +822,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                                 + "the GGUF does not need to be downloaded again."
                                 ));
                     }
+                    // The probe is the last thing that has to answer before the deck may start
+                    // anything by itself, so the launch warm-up hangs off its success.
+                    if (startup && runtimeFound) main.post(this::warmCoreOnLaunch);
                 } else {
                     linkConfirmed = false;
                     if (!startup) {
@@ -1462,7 +1509,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
         startupProbeAttempted = true;
-        linkConfirmed = false;
+        // The last known link state holds until the probe actually fails. Clearing it here made
+        // BOOT SEQUENCE // 03 flash on every launch of an already linked deck.
         dispatchOperation(
                 OperationKind.PROBE_RUNTIME,
                 json("startup", true),
@@ -1471,6 +1519,50 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         operationId, OperationKind.PROBE_RUNTIME, RuntimeScripts.probe()
                 )
         );
+    }
+
+    /**
+     * Everything the deck needs before it may load a model on its own: a Termux it is allowed to
+     * drive, a runtime that answered, an access decision the user made, and a private GGUF. None of
+     * it can be inferred, so all of it is checked before anything is started without a tap.
+     */
+    private boolean canWarmCore() {
+        return termuxEnvironment.canRunCommands()
+                && termux.hasRunPermission()
+                && linkConfirmed
+                && prefs.isCoreReady()
+                && prefs.consentGranted()
+                && !modelSelectionRequired
+                && nativeModels.isInstalled(selectedModel);
+    }
+
+    /** The ignite ladder without the tap: load the model if it is down, otherwise raise the bridge. */
+    private void warmCore() {
+        if (busy || !canWarmCore()) return;
+        if (!serverReady) {
+            startServer();
+        } else if (!bridgeReady) {
+            startBridge();
+        }
+    }
+
+    private void warmCoreOnLaunch() {
+        if (!StartupPolicy.warmsOnLaunch(
+                prefs.autostartCore(),
+                canWarmCore(),
+                serverReady,
+                bridgeReady,
+                busy,
+                lowMemory
+        )) {
+            return;
+        }
+        append(ConsoleEntry.Channel.SYSTEM, serverReady
+                ? t("Сервер уже работает; поднимаю Pi RPC bridge.",
+                        "The server is already running; raising the Pi RPC bridge.")
+                : t("Автозапуск: гружу " + selectedModel.title + ".",
+                        "Autostart: loading " + selectedModel.title + "."));
+        warmCore();
     }
 
     private void installCore() {
@@ -1507,9 +1599,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
         long expectedPeak = selectedModel.estimatedPeakBytes();
-        if (lowMemory || availableRam < Math.max(
+        if (StartupPolicy.asksOomRisk(
+                lowMemory,
+                availableRam,
                 selectedModel.minimumAvailableMiB * 1_048_576L,
-                expectedPeak
+                expectedPeak,
+                prefs.oomRiskAcknowledged(selectedModel.id)
         )) {
             new AlertDialog.Builder(this)
                     .setTitle(t("Высокий риск OOM", "High OOM risk"))
@@ -1526,8 +1621,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                             + "The model will not be replaced silently."
                             ))
                     .setNegativeButton(t("Отмена", "Cancel"), null)
-                    .setPositiveButton(t("Запустить", "Start"),
-                            (dialog, which) -> startServerConfirmed())
+                    .setPositiveButton(t("Запустить", "Start"), (dialog, which) -> {
+                        prefs.setOomRiskAcknowledged(selectedModel.id);
+                        startServerConfirmed();
+                    })
                     .show();
             return;
         }
@@ -1556,6 +1653,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "{}"
                     )
             );
+            return;
+        }
+        // server-stop exists to retire a managed or legacy llama-server. With nothing claimed
+        // anywhere, that Termux round trip only delays the model load.
+        if (StartupPolicy.skipsRuntimeStop(
+                NativeLlamaService.snapshot(this).state,
+                serverReady,
+                bridgeReady || bridgeConnected
+        )) {
+            launchNativeServer();
             return;
         }
         stopServerRuntime(true);
@@ -2197,6 +2304,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         state.askBeforeOverwrite = prefs.askBeforeOverwrite();
         state.agentMode = agentMode;
         state.maximumSpeed = prefs.maximumSpeed();
+        state.autostartCore = prefs.autostartCore();
         state.language = uiLanguage;
 
         for (ModelSpec model : modelCatalog.all()) state.models.add(modelRow(model));
@@ -2775,17 +2883,30 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void dispatchQueuedPrompt() {
         if (busy || queuedPrompt == null) return;
-        String prompt = queuedPrompt;
-        queuedPrompt = null;
-        deck.setQueueCount(0);
         if (!canRunAgent()) {
+            // A cold core is not a dead one. The server hands off to the bridge through a posted
+            // continuation, so a prompt that arrives between those two steps waits rather than
+            // being thrown away; the attempt counter is what keeps a failing warm-up from looping.
+            if (canWarmCore() && queuedWarmAttempts < MAX_QUEUED_WARM_ATTEMPTS) {
+                queuedWarmAttempts++;
+                warmCore();
+                return;
+            }
+            queuedPrompt = null;
+            queuedWarmAttempts = 0;
+            deck.setQueueCount(0);
             append(ConsoleEntry.Channel.ERROR,
                     t(
                             "Промпт из очереди не отправлен: ядро больше не готово принимать задачи.",
                             "The queued prompt was not sent because the core is no longer ready."
                     ));
+            refreshUi();
             return;
         }
+        String prompt = queuedPrompt;
+        queuedPrompt = null;
+        queuedWarmAttempts = 0;
+        deck.setQueueCount(0);
         dispatchRpcTurn(prompt);
     }
 
@@ -3087,6 +3208,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 bridgeConnected = true;
                 bridgeReady = true;
                 bridgeFault = "";
+                main.post(this::dispatchQueuedPrompt);
             }
             case BRIDGE_ERROR -> append(
                     ConsoleEntry.Channel.ERROR,
@@ -3094,7 +3216,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "message", t("неизвестная ошибка", "unknown error")
                     )
             );
-            case PI_STARTED -> bridgeReady = true;
+            case PI_STARTED -> {
+                bridgeReady = true;
+                main.post(this::dispatchQueuedPrompt);
+            }
             case PI_EXITED -> {
                 setInferenceActive(false, "");
                 if (!event.payload.optBoolean("expected", false)) {
