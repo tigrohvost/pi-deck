@@ -17,14 +17,28 @@ public class SecurityAndParsingTest {
         assertEquals(AccessProfile.READ_ONLY, AccessProfile.fromWireName(null));
         assertEquals(AccessProfile.READ_ONLY, AccessProfile.fromWireName("future-profile"));
         assertEquals(
-                List.of("--tools", "read,grep,find,ls,web_search,weather"),
+                List.of("--tools", "read,grep,find,ls,web_search,web_fetch,weather"),
                 AccessProfile.READ_ONLY.piArguments("/permission.ts")
         );
         assertTrue(AccessProfile.READ_ONLY.piArguments("/permission.ts")
-                .contains("read,grep,find,ls,web_search,weather"));
+                .contains("read,grep,find,ls,web_search,web_fetch,weather"));
         assertTrue(AccessProfile.CONFIRM_CHANGES.piArguments("/permission.ts")
                 .contains("/permission.ts"));
         assertFalse(AccessProfile.READ_ONLY.piArguments("/permission.ts").contains("bash"));
+    }
+
+    @Test
+    public void anchoredEditingIsOfferedOnlyWhereMutationIsAllowed() {
+        String readOnly = String.join(" ", AccessProfile.READ_ONLY.piArguments("/permission.ts"));
+        String confirm = String.join(" ", AccessProfile.CONFIRM_CHANGES.piArguments("/permission.ts"));
+        String autonomous = String.join(" ", AccessProfile.AUTONOMOUS.piArguments("/permission.ts"));
+        assertFalse(readOnly.contains("pideck_replace_lines"));
+        assertTrue(confirm.contains("pideck_replace_lines"));
+        assertTrue(autonomous.contains("pideck_replace_lines"));
+        // Reading a page is not a mutation, so every profile that may search may also read.
+        assertTrue(readOnly.contains("web_fetch"));
+        assertTrue(confirm.contains("web_fetch"));
+        assertTrue(autonomous.contains("web_fetch"));
     }
 
     @Test

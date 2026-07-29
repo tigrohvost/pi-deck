@@ -51,6 +51,8 @@ jobs:
           PIDECK_PI_BIN="$PWD/build/pi-protocol/node_modules/.bin/pi" \
             PYTHONDONTWRITEBYTECODE=1 \
             python3 -W error::ResourceWarning -m unittest discover -s tests/protocol -v
+          node tests/extensions/run_extension_checks.mjs \
+            "$PWD/build/pi-protocol/node_modules"
 
       - name: Generate supply-chain bundle
         run: |

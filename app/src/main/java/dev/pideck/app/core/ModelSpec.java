@@ -34,7 +34,19 @@ public final class ModelSpec {
             "--jinja", "--reasoning", "--temp", "--top-p", "--top-k",
             "--min-p", "--presence-penalty", "--api-key",
             "--spec-type", "--spec-draft", "--spec-draft-n",
-            "--spec-draft-n-min", "--spec-draft-n-max"
+            "--spec-draft-n-min", "--spec-draft-n-max",
+            "--spec-ngram-mod-n-max", "--spec-ngram-mod-n-min",
+            "--spec-ngram-mod-n-match", "--spec-ngram-simple-size-n",
+            "--spec-ngram-simple-size-m", "--spec-ngram-simple-min-hits",
+            "--model-draft", "-md"
+    );
+    /**
+     * Only self-speculation is admissible. Every mode here drafts from the model already
+     * loaded — MTP from its own prediction heads, ngram from the live context — so none of
+     * them introduces a second set of weights the memory guard has not accounted for.
+     */
+    private static final Set<String> SPECULATIVE_MODES = Set.of(
+            "off", "draft-mtp", "ngram-mod", "ngram-simple"
     );
 
     public final String id;
@@ -58,6 +70,8 @@ public final class ModelSpec {
     public final List<String> serverArgs;
     public final String chatTemplateMode;
     public final String reasoningMode;
+    public final String speculativeMode;
+    public final int speculativeDraftMax;
     public final double temperature;
     public final double topP;
     public final int topK;
@@ -91,6 +105,8 @@ public final class ModelSpec {
             List<String> serverArgs,
             String chatTemplateMode,
             String reasoningMode,
+            String speculativeMode,
+            int speculativeDraftMax,
             double temperature,
             double topP,
             int topK,
@@ -123,6 +139,8 @@ public final class ModelSpec {
         this.serverArgs = Collections.unmodifiableList(new ArrayList<>(serverArgs));
         this.chatTemplateMode = chatTemplateMode;
         this.reasoningMode = reasoningMode;
+        this.speculativeMode = speculativeMode;
+        this.speculativeDraftMax = speculativeDraftMax;
         this.temperature = temperature;
         this.topP = topP;
         this.topK = topK;
@@ -194,7 +212,7 @@ public final class ModelSpec {
         requireKeys(runtime, Set.of(
                 "minimumLlamaCppVersion", "recommendedContext", "maximumTestedContext",
                 "parallelSlots", "requiresJinja", "serverArgs",
-                "chatTemplateMode", "reasoningMode"
+                "chatTemplateMode", "reasoningMode", "speculative"
         ));
         int recommendedContext = positive(runtime, "recommendedContext");
         int maximumContext = positive(runtime, "maximumTestedContext");
@@ -224,6 +242,22 @@ public final class ModelSpec {
         String reasoningMode = required(runtime, "reasoningMode");
         if (!Set.of("off", "on", "model-default").contains(reasoningMode)) {
             throw new JSONException("Unsupported reasoning mode");
+        }
+
+        JSONObject speculation = runtime.getJSONObject("speculative");
+        requireKeys(speculation, Set.of("mode", "draftMax"));
+        String speculativeMode = required(speculation, "mode");
+        if (!SPECULATIVE_MODES.contains(speculativeMode)) {
+            throw new JSONException("Unsupported speculative mode: " + speculativeMode);
+        }
+        int speculativeDraftMax = speculation.getInt("draftMax");
+        if (speculativeDraftMax < 0 || speculativeDraftMax > 64) {
+            throw new JSONException("Speculative draft budget is out of range");
+        }
+        if ("off".equals(speculativeMode) != (speculativeDraftMax == 0)) {
+            throw new JSONException(
+                    "Speculative mode and draft budget disagree: " + speculativeMode
+            );
         }
 
         JSONObject sampling = value.getJSONObject("sampling");
@@ -270,6 +304,8 @@ public final class ModelSpec {
                 serverArgs,
                 templateMode,
                 reasoningMode,
+                speculativeMode,
+                speculativeDraftMax,
                 sampling.getDouble("temperature"),
                 sampling.getDouble("topP"),
                 sampling.getInt("topK"),
@@ -367,6 +403,7 @@ public final class ModelSpec {
             );
         }
         if (requiresJinja) args.add("--jinja");
+        Collections.addAll(args, speculativeArguments());
         if (!"model-default".equals(reasoningMode)) {
             Collections.addAll(args, "--reasoning", reasoningMode);
         }
@@ -383,6 +420,36 @@ public final class ModelSpec {
             Collections.addAll(args, "--api-key", apiKey);
         }
         return Collections.unmodifiableList(args);
+    }
+
+    /**
+     * llama.cpp spells the draft budget differently per family: the draft-model path reads
+     * {@code --spec-draft-n-max} while the ngram path reads {@code --spec-ngram-mod-n-max}.
+     * A model that declares no speculation contributes no arguments at all, which keeps the
+     * measured command line for existing profiles byte-identical.
+     */
+    private String[] speculativeArguments() {
+        switch (speculativeMode) {
+            case "off":
+                return new String[0];
+            case "draft-mtp":
+                return new String[]{
+                        "--spec-type", "draft-mtp",
+                        "--spec-draft-n-max", Integer.toString(speculativeDraftMax)
+                };
+            case "ngram-mod":
+                return new String[]{
+                        "--spec-type", "ngram-mod",
+                        "--spec-ngram-mod-n-max", Integer.toString(speculativeDraftMax)
+                };
+            case "ngram-simple":
+                return new String[]{
+                        "--spec-type", "ngram-simple",
+                        "--spec-draft-n-max", Integer.toString(speculativeDraftMax)
+                };
+            default:
+                throw new IllegalStateException("Unsupported speculative mode: " + speculativeMode);
+        }
     }
 
     public long estimatedPeakBytes() {

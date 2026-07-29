@@ -1,0 +1,207 @@
+/**
+ * Loads every PI//DECK Pi extension through the same jiti loader Pi itself uses and
+ * exercises the parts that can be checked off-device.
+ *
+ * Pi resolves an extension's imports relative to the extension file, which on the phone is
+ * `$PIDECK_HOME/runtime/` next to the installed package. This copies the extensions into the
+ * installed package so the same resolution applies here, rather than assuming a layout that
+ * only holds on the device.
+ *
+ * Usage: node tests/extensions/run_extension_checks.mjs <path-to-installed-node_modules>
+ */
+
+import assert from "node:assert/strict";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const RUNTIME = join(REPOSITORY, "app", "src", "main", "assets", "runtime");
+const EXTENSIONS = [
+	"pideck-local-cache.ts",
+	"pideck-system-prompt.ts",
+	"pideck-hashline-edit.ts",
+	"pideck-context-guard.ts",
+	"pideck-web-tools.ts",
+	"pideck-permission-gate.ts",
+];
+const EXPECTED_TOOLS = [
+	"pideck_replace_lines",
+	"web_search",
+	"web_fetch",
+	"weather",
+	"pideck_bash",
+	"pideck_edit",
+	"pideck_write",
+];
+
+const modules = process.argv[2];
+if (!modules) {
+	console.error("Usage: run_extension_checks.mjs <path-to-node_modules>");
+	process.exit(2);
+}
+
+// The extensions import both @earendil-works/pi-ai, which is nested inside the agent
+// package, and @earendil-works/pi-coding-agent, which is not. Only a directory inside the
+// installed package sees both, which is also the layout the installer builds on the phone.
+const packageDirectory = join(resolve(modules), "@earendil-works", "pi-coding-agent");
+const workspace = mkdtempSync(join(packageDirectory, "pideck-extension-check-"));
+try {
+	for (const name of EXTENSIONS) {
+		cpSync(join(RUNTIME, name), join(workspace, name));
+	}
+
+	// Load through Pi's own loader rather than a hand-written stand-in for ExtensionAPI.
+	// A mock only proves the file runs; this proves Pi accepts it, and surfaces the load
+	// errors Pi would otherwise swallow into a diagnostics list at startup.
+	// loadExtensions is not re-exported from the package entry, so it is imported from the
+	// loader module Pi itself uses. Taking the public discoverAndLoadExtensions instead would
+	// also scan the machine's Pi config, which is exactly what --no-extensions forbids.
+	const { loadExtensions } = await import(
+		pathToFileURL(
+			join(packageDirectory, "dist", "core", "extensions", "loader.js"),
+		).href
+	);
+	process.env.PIDECK_HASHLINE_APPROVAL = "none";
+	const loaded = await loadExtensions(
+		EXTENSIONS.map((name) => join(workspace, name)),
+		workspace,
+	);
+	assert.deepEqual(loaded.errors, [], "Pi reported extension load errors");
+	assert.equal(loaded.extensions.length, EXTENSIONS.length, "an extension failed to load");
+
+	const tools = new Map();
+	const toolResultHandlers = [];
+	for (const extension of loaded.extensions) {
+		for (const [name, registered] of extension.tools) {
+			assert.ok(!tools.has(name), `duplicate tool ${name}`);
+			// Pi wraps each definition with its provenance; the callable is inside.
+			tools.set(name, registered.definition);
+		}
+		toolResultHandlers.push(...(extension.handlers.get("tool_result") ?? []));
+	}
+
+	assert.deepEqual([...tools.keys()], EXPECTED_TOOLS, "registered tool set changed");
+
+	// Anchored editing: read is stamped, an anchor applies, and a stale anchor is refused.
+	const target = join(workspace, "counter.py");
+	writeFileSync(
+		target,
+		"class Counter:\n    def __init__(self):\n        self.value = 0\n\n    def bump(self):\n        self.value += 2\n",
+	);
+	const hashline = toolResultHandlers[0];
+	const annotated = await hashline({
+		type: "tool_result",
+		toolName: "read",
+		toolCallId: "check",
+		input: { path: target },
+		isError: false,
+		content: [{ type: "text", text: readFileSync(target, "utf8") }],
+	});
+	const rendered = annotated.content[0].text;
+	assert.match(rendered, /^1:[0-9a-f]{2}\| class Counter:$/m, "read was not anchored");
+
+	const buggy = rendered.split("\n").find((line) => line.includes("self.value += 2"));
+	const anchor = buggy.split("|")[0];
+	const context = { cwd: workspace, hasUI: false, mode: "rpc" };
+	await tools.get("pideck_replace_lines").execute(
+		"check",
+		{ path: target, edits: [{ anchor, text: "        self.value += 1" }] },
+		undefined,
+		undefined,
+		context,
+	);
+	assert.match(readFileSync(target, "utf8"), /self\.value \+= 1/, "anchored edit did not apply");
+
+	await assert.rejects(
+		tools.get("pideck_replace_lines").execute(
+			"check",
+			{ path: target, edits: [{ anchor, text: "        self.value += 99" }] },
+			undefined,
+			undefined,
+			context,
+		),
+		/изменилась с момента чтения/,
+		"a stale anchor was accepted",
+	);
+
+	// The anchors are only trustworthy if Pi's own read returns the file byte for byte.
+	// Anything that reformatted content on the way out — tab expansion, trimming — would
+	// make every anchor stale on the first edit, so this drives the real read tool rather
+	// than assuming its output equals the file.
+	const { createReadTool } = await import(
+		pathToFileURL(join(packageDirectory, "dist", "index.js")).href
+	);
+	const tabbed = join(workspace, "tabbed.py");
+	writeFileSync(tabbed, "def f():\n\tif True:\t# tab indented\n\t\treturn 1\n");
+	const readTool = createReadTool(workspace);
+	const readResult = await readTool.execute("read", { path: tabbed }, undefined, undefined);
+	const readText = readResult.content
+		.filter((part) => part.type === "text")
+		.map((part) => part.text)
+		.join("\n");
+	const stamped = await hashline({
+		type: "tool_result",
+		toolName: "read",
+		toolCallId: "real-read",
+		input: { path: tabbed },
+		isError: false,
+		content: [{ type: "text", text: readText }],
+	});
+	const stampedLines = stamped.content[0].text.split("\n");
+	const tabAnchor = stampedLines.find((line) => line.includes("tab indented")).split("|")[0];
+	await tools.get("pideck_replace_lines").execute(
+		"real-read",
+		{ path: tabbed, edits: [{ anchor: tabAnchor, text: "\tif False:" }] },
+		undefined,
+		undefined,
+		context,
+	);
+	assert.match(
+		readFileSync(tabbed, "utf8"),
+		/\tif False:/,
+		"an anchor taken from Pi's own read did not verify against the file",
+	);
+
+	// read's trailing truncation note is not file content and must not be anchored, or the
+	// model is handed an address for a line past the end of the file.
+	const noted = await hashline({
+		type: "tool_result",
+		toolName: "read",
+		toolCallId: "noted",
+		input: { path: target, offset: 1 },
+		isError: false,
+		content: [{
+			type: "text",
+			text: "alpha\nbeta\n\n[Showing lines 1-2 of 900. Use offset=3 to continue.]",
+		}],
+	});
+	const notedLines = noted.content[0].text.split("\n");
+	assert.match(notedLines[0], /^1:[0-9a-f]{2}\| alpha$/);
+	assert.match(notedLines[1], /^2:[0-9a-f]{2}\| beta$/);
+	assert.equal(notedLines[2], "");
+	assert.equal(notedLines[3], "[Showing lines 1-2 of 900. Use offset=3 to continue.]");
+
+	// The context guard must still be able to shrink a large result after annotation.
+	const long = Array.from({ length: 900 }, (_, index) => `line ${index}`).join("\n");
+	let content = [{ type: "text", text: long }];
+	for (const handler of toolResultHandlers) {
+		const result = await handler({
+			type: "tool_result",
+			toolName: "bash",
+			toolCallId: "big",
+			input: {},
+			isError: false,
+			content,
+		});
+		if (result?.content) content = result.content;
+	}
+	assert.ok(
+		content[0].text.split("\n").length < 900,
+		"context guard no longer bounds a large tool result",
+	);
+
+	console.log(`OK: ${EXTENSIONS.length} extensions, ${tools.size} tools, anchored editing verified`);
+} finally {
+	rmSync(workspace, { recursive: true, force: true });
+}

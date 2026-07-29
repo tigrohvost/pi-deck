@@ -33,7 +33,7 @@ const DECISION_PREFIX = "PIDECK-DECISION/1 ";
 /** Files this Pi process created itself, which the deck may be told to overwrite silently. */
 const createdHere = new Set<string>();
 
-function decisionHeader(decision: Record<string, unknown>): string {
+export function decisionHeader(decision: Record<string, unknown>): string {
 	return DECISION_PREFIX + JSON.stringify(decision) + "\n";
 }
 
@@ -47,13 +47,13 @@ function readIfSmall(target: string): string | null {
 	}
 }
 
-function lineCount(value: string): number {
+export function lineCount(value: string): number {
 	if (value.length === 0) return 0;
 	return value.split("\n").length;
 }
 
 /** The first removed and added lines, marked, so the card can show what changes. */
-function diffPreview(before: string, after: string): string[] {
+export function diffPreview(before: string, after: string): string[] {
 	const removed = before.split("\n").filter((line) => line.trim().length > 0);
 	const added = after.split("\n").filter((line) => line.trim().length > 0);
 	const half = Math.floor(PREVIEW_LINES / 2);
@@ -70,14 +70,19 @@ function preview(value: unknown): string {
 		: `${rendered.slice(0, MAX_PREVIEW)}\n[preview truncated]`;
 }
 
-function pathRisk(cwd: string, target: string): string {
+export function pathRisk(cwd: string, target: string): string {
 	const resolved = path.resolve(cwd, target);
 	const relative = path.relative(cwd, resolved);
 	const outside = relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative);
 	return `${resolved}\nWorkspace escape risk: ${outside ? "YES" : "NO"}`;
 }
 
-async function approved(
+/**
+ * Exported so a sibling extension that also mutates files reuses this exact decision path
+ * instead of copying it. A second copy of an approval routine is a second thing that can be
+ * wrong; there is only ever one way for PI//DECK to ask.
+ */
+export async function approved(
 	ctx: ExtensionContext,
 	title: string,
 	message: string,

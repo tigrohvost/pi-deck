@@ -29,6 +29,7 @@ public final class RuntimeAssetBundle {
             "runtime/AGENTS.default.md",
             "runtime/pideck-local-cache.ts",
             "runtime/pideck-system-prompt.ts",
+            "runtime/pideck-hashline-edit.ts",
             "runtime/pideck-context-guard.ts",
             "runtime/pideck-web-tools.ts",
             "runtime/pideck-permission-gate.ts",
@@ -41,6 +42,11 @@ public final class RuntimeAssetBundle {
     };
 
     private RuntimeAssetBundle() {
+    }
+
+    /** The exact asset paths the installer copies onto the phone. */
+    public static java.util.List<String> installedAssets() {
+        return java.util.List.of(ASSETS);
     }
 
     public static String installCore(Context context) {

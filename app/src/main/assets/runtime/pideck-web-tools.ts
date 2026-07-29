@@ -14,6 +14,14 @@ const MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_QUERY_CHARS = 500;
 const MAX_RESULTS = 5;
 const MAX_SNIPPET_CHARS = 520;
+const MAX_PAGE_CHARS = 8_000;
+/**
+ * Low on purpose. The fallback tells a third party which URL is being read, so it must fire
+ * only when the direct read genuinely produced nothing usable — a JavaScript-only shell — and
+ * not merely because a page is short. A short page is still a page.
+ */
+const MIN_DIRECT_PAGE_CHARS = 64;
+const MAX_URL_CHARS = 2_000;
 
 type SearchResult = {
 	title: string;
@@ -292,6 +300,117 @@ function formatSearchResults(provider: string, results: SearchResult[]): string 
 	return lines.join("\n");
 }
 
+/**
+ * Strips a page down to the text a phone-sized context can afford.
+ *
+ * This is deliberately not a full Readability port. Script, style and navigation chrome carry
+ * almost all of the noise, and preferring <main> or <article> when the page offers one recovers
+ * most of the remaining signal for a fraction of the code a real DOM would cost.
+ */
+function extractReadableText(html: string): string {
+	const withoutNoise = html
+		.replace(/<!--[\s\S]*?-->/g, " ")
+		.replace(/<(script|style|noscript|svg|template|head)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+		.replace(/<(nav|header|footer|aside|form)\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
+	const main = withoutNoise.match(/<(?:main|article)\b[^>]*>([\s\S]*?)<\/(?:main|article)>/i);
+	const body = main?.[1]
+		?? withoutNoise.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1]
+		?? withoutNoise;
+	const blocked = body
+		.replace(/<\/(?:p|div|section|li|tr|h[1-6]|blockquote|pre)>/gi, "\n")
+		.replace(/<br\s*\/?>/gi, "\n")
+		.replace(/<li\b[^>]*>/gi, "\n- ");
+	return decodeHtml(blocked)
+		.replace(/[ \t ]+/g, " ")
+		.replace(/\n\s*\n\s*\n+/g, "\n\n")
+		.split("\n")
+		.map((line) => line.trim())
+		.join("\n")
+		.trim();
+}
+
+function pageTitle(html: string): string {
+	return compact(decodeHtml(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] || ""), 220);
+}
+
+function boundPage(text: string): { text: string; truncated: boolean } {
+	if (text.length <= MAX_PAGE_CHARS) return { text, truncated: false };
+	return { text: `${text.slice(0, MAX_PAGE_CHARS).trimEnd()}…`, truncated: true };
+}
+
+/**
+ * Reads one page directly, and only falls back to a rendering proxy when the direct read
+ * produced too little text to be useful — a JavaScript-only page, typically. The fallback is
+ * a privacy cost, not just a latency one: the proxy learns the URL. docs/security-model.md
+ * records that trade, and the direct path is always attempted first so the common case never
+ * leaves the deck's own fixed endpoint set.
+ */
+async function readPage(target: string, signal?: AbortSignal): Promise<{
+	provider: string;
+	title: string;
+	text: string;
+	truncated: boolean;
+}> {
+	let directFailure = "";
+	try {
+		const html = await fetchText(
+			target,
+			{
+				method: "GET",
+				headers: {
+					"Accept": "text/html,application/xhtml+xml,text/plain;q=0.9",
+					"Accept-Language": "ru,en;q=0.7",
+				},
+			},
+			signal,
+		);
+		const extracted = extractReadableText(html);
+		if (extracted.length >= MIN_DIRECT_PAGE_CHARS) {
+			const bounded = boundPage(extracted);
+			return {
+				provider: "direct",
+				title: pageTitle(html),
+				text: bounded.text,
+				truncated: bounded.truncated,
+			};
+		}
+		directFailure = "the page carried too little readable text";
+	} catch (error) {
+		if (signal?.aborted) throw error;
+		directFailure = error instanceof Error ? error.message : String(error);
+	}
+
+	const rendered = await fetchText(
+		`https://r.jina.ai/${target}`,
+		{ method: "GET", headers: { "Accept": "text/plain" } },
+		signal,
+	);
+	const trimmed = rendered.trim();
+	if (!trimmed) {
+		throw new Error(`Не удалось прочитать страницу: ${directFailure}`);
+	}
+	const bounded = boundPage(trimmed);
+	return {
+		provider: "r.jina.ai",
+		title: "",
+		text: bounded.text,
+		truncated: bounded.truncated,
+	};
+}
+
+function formatPage(
+	target: string,
+	page: { provider: string; title: string; text: string; truncated: boolean },
+): string {
+	const lines = [`URL: ${target}`, `Способ чтения: ${page.provider}.`];
+	if (page.title) lines.push(`Заголовок: ${page.title}`);
+	if (page.truncated) {
+		lines.push(`Показаны первые ${MAX_PAGE_CHARS} символов страницы.`);
+	}
+	lines.push("", page.text, "", "Отвечай по этому тексту и укажи URL как источник.");
+	return lines.join("\n");
+}
+
 async function jsonRequest(url: URL, signal?: AbortSignal): Promise<any> {
 	const body = await fetchText(
 		url.toString(),
@@ -411,6 +530,43 @@ export default function pideckWebTools(pi: ExtensionAPI) {
 					text: formatSearchResults(result.provider, result.results),
 				}],
 				details: { provider: result.provider, resultCount: result.results.length },
+			};
+		},
+	});
+
+	pi.registerTool({
+		name: "web_fetch",
+		label: "Read web page",
+		description:
+			"Read one web page by URL and return its main text, bounded to a phone-sized excerpt.",
+		promptSnippet: "Read the text of one web page by URL",
+		promptGuidelines: [
+			"After web_search returns a URL, use web_fetch to read that page before answering questions its snippet does not already settle.",
+			"Pass one exact http or https URL; web_fetch does not accept a search query.",
+			"Cite the URL you read.",
+		],
+		parameters: Type.Object({
+			url: Type.String({
+				description: "An exact http or https page URL",
+				minLength: 1,
+				maxLength: MAX_URL_CHARS,
+			}),
+		}),
+		async execute(_toolCallId, params, signal) {
+			const raw = String(params.url ?? "").trim();
+			if (!raw || raw.length > MAX_URL_CHARS) {
+				throw new Error("Page URL is empty or too long");
+			}
+			const target = safeHttpUrl(raw);
+			if (!target) throw new Error("Page URL must be an absolute http or https URL");
+			const page = await readPage(target, signal);
+			return {
+				content: [{ type: "text", text: formatPage(target, page) }],
+				details: {
+					provider: page.provider,
+					characters: page.text.length,
+					truncated: page.truncated,
+				},
 			};
 		},
 	});

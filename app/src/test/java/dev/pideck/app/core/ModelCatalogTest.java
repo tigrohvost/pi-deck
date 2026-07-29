@@ -107,6 +107,39 @@ public class ModelCatalogTest {
         assertFalse(args.contains("--spec-draft"));
     }
 
+    @Test
+    public void declaredMtpSpeculationReachesTheServerCommandLine() throws Exception {
+        ModelCatalog mtp = ModelCatalog.parse(withSpeculative(
+                "{\"mode\": \"draft-mtp\", \"draftMax\": 4}"
+        ));
+        List<String> args = mtp.byId("qwen3.5-2b").orElseThrow()
+                .nativeLlamaServerArguments("/private/edge.gguf", edgeProfile(), 8080, "secret");
+        assertEquals("draft-mtp", args.get(args.indexOf("--spec-type") + 1));
+        assertEquals("4", args.get(args.indexOf("--spec-draft-n-max") + 1));
+    }
+
+    @Test
+    public void declaredNgramSpeculationNeedsNoDraftModel() throws Exception {
+        ModelCatalog ngram = ModelCatalog.parse(withSpeculative(
+                "{\"mode\": \"ngram-mod\", \"draftMax\": 16}"
+        ));
+        List<String> args = ngram.byId("qwen3.5-2b").orElseThrow()
+                .nativeLlamaServerArguments("/private/edge.gguf", edgeProfile(), 8080, "secret");
+        assertEquals("ngram-mod", args.get(args.indexOf("--spec-type") + 1));
+        assertEquals("16", args.get(args.indexOf("--spec-ngram-mod-n-max") + 1));
+        assertFalse(args.contains("--model-draft"));
+    }
+
+    @Test(expected = JSONException.class)
+    public void unknownSpeculativeModeIsRejected() throws Exception {
+        ModelCatalog.parse(withSpeculative("{\"mode\": \"draft-eagle3\", \"draftMax\": 4}"));
+    }
+
+    @Test(expected = JSONException.class)
+    public void speculationWithoutADraftBudgetIsRejected() throws Exception {
+        ModelCatalog.parse(withSpeculative("{\"mode\": \"draft-mtp\", \"draftMax\": 0}"));
+    }
+
     @Test(expected = JSONException.class)
     public void unknownCriticalCatalogFieldIsRejected() throws Exception {
         String raw = readUtf8(asset("models-v2.json"));
@@ -123,6 +156,32 @@ public class ModelCatalogTest {
                 "\"serverArgs\": \\[\\]",
                 "\"serverArgs\": [\"--host\", \"0.0.0.0\"]"
         ));
+    }
+
+    /**
+     * Rewrites the EDGE entry's speculative block. The first occurrence belongs to the NANO
+     * model, so the replacement targets the second one and leaves every other entry alone.
+     */
+    private static String withSpeculative(String block) throws Exception {
+        String raw = readUtf8(asset("models-v2.json"));
+        String original = "\"speculative\": {\n"
+                + "          \"mode\": \"off\",\n"
+                + "          \"draftMax\": 0\n"
+                + "        }";
+        int first = raw.indexOf(original);
+        int second = raw.indexOf(original, first + 1);
+        if (second < 0) throw new IllegalStateException("Catalog has no second speculative block");
+        return raw.substring(0, second)
+                + "\"speculative\": " + block
+                + raw.substring(second + original.length());
+    }
+
+    private static CpuProfile edgeProfile() {
+        return CpuProfile.fromMaxFrequencies(new long[]{
+                2_016_000, 2_016_000, 2_016_000,
+                2_803_000, 2_803_000, 2_803_000, 2_803_000,
+                3_360_000
+        });
     }
 
     private static Path asset(String name) {
