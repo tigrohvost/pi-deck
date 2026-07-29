@@ -38,3 +38,45 @@ When PI//DECK itself is backgrounded, Android may move its foreground-service
 process from `/top-app` to `/moderate`; generation continues but can slow down.
 The published throughput therefore describes the intended interactive state:
 the deck visible in the foreground.
+
+## Two ways this device gets slower, measured 2026-07-29
+
+Every figure above is a short probe on a cool, foreground phone. Two effects make
+a long session slower than that, and both were large enough to reorder results
+before they were controlled for.
+
+**Any other app in the foreground costs the cpuset, not just backgrounding the
+deck.** The paragraph above describes what happens when the deck is backgrounded.
+The condition is broader: the server sits on `/moderate` whenever *something else*
+is the resumed activity. Opening Termux alongside a running agent was enough:
+
+```
+topResumedActivity=com.termux/.app.TermuxActivity
+/proc/<llama-server>/cpuset  →  /moderate
+```
+
+Bringing the deck back to the front returned it to `/top-app` immediately. This
+matters for the ordinary case of starting a long agent turn and switching away to
+do something else.
+
+**Sustained load halves the machine.** After several hours of near-continuous
+inference the big cores were clamped to less than half their nominal clock and
+prompt processing collapsed:
+
+| | Cool phone | After hours of inference |
+|---|---:|---:|
+| Hottest CPU thermal zone | 47–52 °C | **82.8 °C** |
+| `cpu7 scaling_max_freq` | 3 360 000 (nominal) | **1 478 400 (44 %)** |
+| Prompt processing | 37–60 tok/s | **0.36 tok/s** |
+
+The consequence for any multi-task benchmark is that a run without pauses scores
+its later tasks on a slower machine than its earlier ones, so task ordering alone
+can decide the outcome. That is not hypothetical: it invalidated a first pass of
+the speculative-decoding measurements, and the detail is in
+[`speculative-decoding-measurements.md`](speculative-decoding-measurements.md).
+Anything comparative on this device should wait for the governor to return the
+clock before each case, and record the headroom next to each result — which is
+what `tools/speculative_probe.py` does.
+
+Charging over USB while measuring keeps the phone warm, so a cooldown gate can
+take several minutes per case and may never reach the full clock at all.
