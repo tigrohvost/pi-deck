@@ -88,18 +88,37 @@ function parseAnchor(value: string): Anchored {
 	return { line: Number(match[1]), digest: match[2] };
 }
 
+/**
+ * A refusal that only says "read the file again" is a dead end for a small model: on device a
+ * 2B invented an anchor, was correctly refused, and concluded the tool was broken rather than
+ * reading first. So a refusal carries the real anchors around the target — enough to retry
+ * immediately, without spending another read round-trip at 13 tok/s.
+ */
+const REFUSAL_WINDOW = 3;
+
+function anchorWindow(fileLines: string[], line: number): string {
+	const from = Math.max(1, line - REFUSAL_WINDOW);
+	const to = Math.min(fileLines.length, line + REFUSAL_WINDOW);
+	const shown = [];
+	for (let number = from; number <= to; number++) {
+		shown.push(`${anchorFor(number, fileLines[number - 1])}| ${fileLines[number - 1]}`);
+	}
+	return `Действующие якоря:\n${shown.join("\n")}\nПовтори правку с одним из них.`;
+}
+
 function verify(fileLines: string[], anchor: Anchored, label: string): number {
 	const index = anchor.line - 1;
 	if (index < 0 || index >= fileLines.length) {
 		throw new Error(
-			`${label} ${anchor.line} вне файла: в нём ${fileLines.length} строк. Прочитай файл заново.`,
+			`${label} ${anchor.line} вне файла: в нём ${fileLines.length} строк.\n`
+				+ anchorWindow(fileLines, Math.min(anchor.line, fileLines.length)),
 		);
 	}
 	const actual = lineDigest(anchor.line, fileLines[index]);
 	if (actual !== anchor.digest) {
 		throw new Error(
-			`${label} ${anchor.line} изменилась с момента чтения: сейчас там ${anchor.line}:${actual}. `
-				+ "Прочитай файл заново и повтори правку.",
+			`${label} ${anchor.line} не совпала: якорь ${anchor.line}:${anchor.digest} устарел `
+				+ `или был выдуман.\n${anchorWindow(fileLines, anchor.line)}`,
 		);
 	}
 	return index;
@@ -174,8 +193,9 @@ export default function pideckHashlineEdit(pi: ExtensionAPI) {
 			+ "Android user grants one-time approval. Preferred over quoting text back exactly.",
 		promptSnippet: "Replace lines by their read anchor instead of quoting text",
 		promptGuidelines: [
-			"Read the file first; every line comes back as `12:a3| text` where `12:a3` is its anchor.",
-			"Pass that anchor verbatim. Never invent one and never edit a file you have not read this turn.",
+			"Order matters: call read on the file, copy an anchor out of its output, then call this tool. An anchor you did not read is always rejected.",
+			"Every line read returns looks like `12:a3| text`, and `12:a3` is that line's anchor.",
+			"If this tool rejects an anchor it lists the current ones. Retry with one of those; do not switch tools.",
 			"Give the replacement as whole lines without the anchor prefix; an empty text deletes the line.",
 			"Set throughAnchor to replace a run of lines in one edit.",
 		],
@@ -203,7 +223,22 @@ export default function pideckHashlineEdit(pi: ExtensionAPI) {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const target = String(params.path ?? "");
 			const resolved = path.resolve(ctx.cwd, target);
-			const original = readFileSync(resolved, "utf8");
+			// A missing file is the most likely mistake here — the model reaches for an edit
+			// before creating anything — and a raw ENOENT gives it nowhere to go. Name the
+			// next tool instead.
+			let original: string;
+			try {
+				original = readFileSync(resolved, "utf8");
+			} catch (error) {
+				const code = (error as { code?: string }).code;
+				if (code === "ENOENT") {
+					throw new Error(
+						`Файла ${target} нет. Сначала создай его, затем прочитай и правь по якорям.`,
+					);
+				}
+				if (code === "EISDIR") throw new Error(`${target} — это каталог, а не файл`);
+				throw error;
+			}
 			const fileLines = original.split("\n");
 			const edits = params.edits as Array<Record<string, unknown>>;
 			const planned = planEdits(fileLines, edits);

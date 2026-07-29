@@ -7,6 +7,15 @@ Two questions were asked and they are answered separately below:
 
 1. Which model gives the best agentic and coding ability while decoding at **12–15
    tok/s or faster** on this phone.
+
+   > **The bar moved after this was written.** Asked to choose in practice, the owner
+   > of the device accepted **7 tok/s if the quality is better**, which admits
+   > Qwen3.5-4B — rejected throughout the analysis below purely on speed. On its
+   > published numbers that is the right trade: BFCL-V4 50.3 against the 2B's 43.6,
+   > TAU2 79.9 against 48.8, and LiveCodeBench v6 55.8 where the 2B card reports no
+   > coding benchmark at all. 4B is what the phone now runs. Read the speed
+   > rejections below as answers to the original 12–15 bar, not as advice under the
+   > relaxed one.
 2. What to add to the harness around it so the agent searches the web and edits
    code better.
 
@@ -354,8 +363,12 @@ Items 1, 2, 4 and 5 were done on this branch; what changed is recorded inline.
    Its effect on task success is not yet measured; that needs a suite run.
 5. ~~Add `web_fetch`~~ — **done**, direct-read first with a rendering proxy only as
    a fallback, and the privacy cost written into `security-model.md`.
-6. Attempt Qwen3.5-4B-MTP with KV q8_0 + flash attention. Still open, and MTP now
-   looks like the wrong lever for it.
+6. ~~Attempt Qwen3.5-4B-MTP with KV q8_0 + flash attention.~~ Overtaken: with the bar
+   relaxed to 7 tok/s the plain 4B is admissible on its own, and it starts — the
+   guard passed at 5.5 GB expected against 5.3 GB available once the phone had free
+   memory. MTP is the wrong lever for it either way. KV q8_0 and flash attention are
+   still worth trying to widen that margin, and both already pass through
+   `serverArgs` without a code change.
 
 ## Sources
 

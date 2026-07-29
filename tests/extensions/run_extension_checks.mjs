@@ -121,8 +121,26 @@ try {
 			undefined,
 			context,
 		),
-		/изменилась с момента чтения/,
+		/не совпала/,
 		"a stale anchor was accepted",
+	);
+
+	// Observed on device: refused with only "read it again", the model gave up on the tool.
+	// A refusal must hand back anchors it can retry with immediately.
+	await assert.rejects(
+		tools.get("pideck_replace_lines").execute(
+			"invented",
+			{ path: target, edits: [{ anchor: "2:zz".replace("zz", "00"), text: "x" }] },
+			undefined,
+			undefined,
+			context,
+		),
+		(error) => {
+			assert.match(error.message, /Действующие якоря/, "refusal carried no anchors");
+			assert.match(error.message, /^\d+:[0-9a-f]{2}\| /m, "refusal listed no usable anchor");
+			return true;
+		},
+		"an invented anchor was accepted",
 	);
 
 	// The anchors are only trustworthy if Pi's own read returns the file byte for byte.
@@ -161,6 +179,20 @@ try {
 		readFileSync(tabbed, "utf8"),
 		/\tif False:/,
 		"an anchor taken from Pi's own read did not verify against the file",
+	);
+
+	// Observed on device: the model reached for an anchored edit before creating the file.
+	// The raw ENOENT it got back named no next step, so the error now has to.
+	await assert.rejects(
+		tools.get("pideck_replace_lines").execute(
+			"missing",
+			{ path: "not-created-yet.py", edits: [{ anchor: "1:aa", text: "x" }] },
+			undefined,
+			undefined,
+			context,
+		),
+		/Сначала создай его/,
+		"a missing file did not tell the model what to do next",
 	);
 
 	// read's trailing truncation note is not file content and must not be anchored, or the
