@@ -14,17 +14,25 @@ token in argv or logs. llama-server has a separate random API key.
 
 ## Access profiles
 
-- `READ_ONLY` is the migration and first-run default. It enables
-  `read,grep,find,ls` plus the bounded, APK-managed `web_search` and `weather`;
-  shell and file mutation remain disabled.
+- `AUTONOMOUS` is the first-run default from 0.3.0-alpha8, and it is also what a
+  deck upgraded from an earlier release gets if its profile was never chosen by
+  hand. The default lives in `DeckPreferences.accessProfile()`; an unknown or
+  unreadable stored value still resolves to `READ_ONLY` through
+  `AccessProfile.fromWireName`, so a corrupt preference cannot escalate
+  privilege — only the absence of one selects the default. The consent screen is
+  still shown before the first run and describes shell access explicitly.
+- `READ_ONLY` enables `read,grep,find,ls` plus the bounded, APK-managed
+  `web_search` and `weather`; shell and file mutation remain disabled.
 - `CONFIRM_CHANGES` disables mutating built-ins and exposes differently named
   gated tools. The managed read-only `web_search` and `weather` tools are also
   available. Each mutation uses Pi's documented RPC `confirm` UI request, a
   one-time approval ID and 30-second TTL. Disconnect, restart, malformed or
   duplicate responses deny.
-- `AUTONOMOUS` is an explicit opt-in. It can execute shell commands and modify
-  anything writable by the Termux UID, and it includes the same network tools.
-  The workspace is not an OS sandbox.
+- `AUTONOMOUS` can execute shell commands and modify anything writable by the
+  Termux UID, and it includes the same network tools. The workspace is not an OS
+  sandbox. Because it is now the default rather than an opt-in, the consent
+  screen and the profile row in `Core → Access` are the only places a user is
+  told what the agent may do; both name it in full.
 
 Local inference means token generation runs on the phone. It does not mean
 network isolation: shell tools can access the network. PI//DECK does not claim

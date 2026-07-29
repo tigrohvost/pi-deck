@@ -101,8 +101,17 @@ public final class DeckPreferences {
         prefs.edit().putInt(KEY_ACTIVE_TAB, tab).apply();
     }
 
+    /**
+     * The shipped default is {@link AccessProfile#AUTONOMOUS}: the agent runs shell commands and
+     * edits Termux-visible files without a per-action Android approval, which is what the consent
+     * screen already describes. The default lives here and not in
+     * {@link AccessProfile#fromWireName(String)}, so an unknown or corrupt stored value still
+     * resolves to {@code READ_ONLY} and cannot escalate privilege by being unreadable.
+     */
     public AccessProfile accessProfile() {
-        return AccessProfile.fromWireName(prefs.getString(KEY_ACCESS_PROFILE, null));
+        return AccessProfile.fromWireName(prefs.getString(
+                KEY_ACCESS_PROFILE, AccessProfile.AUTONOMOUS.wireName()
+        ));
     }
 
     public void setAccessProfile(AccessProfile profile) {
