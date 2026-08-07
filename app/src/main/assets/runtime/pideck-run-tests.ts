@@ -13,6 +13,11 @@ import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const RUN_TIMEOUT_MS = 120_000;
+
+/** Read per call, not at load: the deck sets the environment before each Pi start. */
+function runTimeoutMs(): number {
+	return Number(process.env.PIDECK_RUN_TESTS_TIMEOUT_MS) || RUN_TIMEOUT_MS;
+}
 const MAX_RESULT_BYTES = 4 * 1024;
 const MAX_CAPTURED_BYTES = 64 * 1024;
 const MAX_PATH_CHARS = 500;
@@ -39,7 +44,7 @@ function runPytest(
 				env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
 				stdio: ["ignore", "pipe", "pipe"],
 				signal,
-				timeout: RUN_TIMEOUT_MS,
+				timeout: runTimeoutMs(),
 				killSignal: "SIGKILL",
 			},
 		);
@@ -55,7 +60,13 @@ function runPytest(
 		};
 		child.stdout.on("data", collect);
 		child.stderr.on("data", collect);
+		// A spawned process always reaches 'close', which carries the exit status and the
+		// captured output; resolving on 'error' there would race it and drop both. Only a
+		// process that never spawned (no pid, no 'close' guaranteed) resolves from 'error'.
+		let settled = false;
 		child.on("error", (error) => {
+			if (settled || child.pid !== undefined) return;
+			settled = true;
 			resolvePromise({
 				status: null,
 				signal: null,
@@ -64,6 +75,8 @@ function runPytest(
 			});
 		});
 		child.on("close", (status, killedBy) => {
+			if (settled) return;
+			settled = true;
 			resolvePromise({
 				status,
 				signal: killedBy,
@@ -97,7 +110,7 @@ function formatResult(outcome: RunOutcome): string {
 				outcome.spawnError || "No module named pytest"}`;
 	}
 	if (outcome.signal !== null) {
-		return `Тесты не завершились за ${RUN_TIMEOUT_MS / 1000} с и были остановлены. `
+		return `Тесты не завершились за ${runTimeoutMs() / 1000} с и были остановлены. `
 			+ "Запусти меньшее подмножество через path или expr.";
 	}
 	const summary = summaryLine(outcome.output);

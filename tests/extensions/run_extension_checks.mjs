@@ -414,6 +414,32 @@ try {
 		"a path outside the workspace was accepted",
 	);
 
+	// A hung suite must be reported as a timeout with the captured output intact — not
+	// misclassified as a missing pytest by the spawn 'error' event racing 'close'.
+	const hangingWorkspace = join(workspace, "tests-hang");
+	mkdirSync(hangingWorkspace);
+	writeFileSync(
+		join(hangingWorkspace, "test_hang.py"),
+		"import time\n\ndef test_hang():\n    time.sleep(60)\n",
+	);
+	process.env.PIDECK_RUN_TESTS_TIMEOUT_MS = "2000";
+	try {
+		const hung = await runTests.execute(
+			"tests-hang",
+			{},
+			undefined,
+			undefined,
+			{ cwd: hangingWorkspace, hasUI: false, mode: "rpc" },
+		);
+		assert.match(
+			hung.content[0].text,
+			/не завершились/,
+			"a hung suite must be reported as a timeout",
+		);
+	} finally {
+		delete process.env.PIDECK_RUN_TESTS_TIMEOUT_MS;
+	}
+
 	process.env.PIDECK_RUN_TESTS_PYTHON = join(workspace, "no-such-python");
 	try {
 		const unavailable = await runTests.execute(
