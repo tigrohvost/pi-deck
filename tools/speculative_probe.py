@@ -197,7 +197,7 @@ def measure(
     prompt: str,
     max_tokens: int,
     request_speculative: dict[str, Any] | None = None,
-) -> float:
+) -> "tuple[float, float | None]":
     payload: dict[str, Any] = {
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
@@ -223,7 +223,10 @@ def measure(
     rate = timings.get("predicted_per_second")
     if not isinstance(rate, (int, float)):
         raise ProbeError("Server response carried no decode timing")
-    return float(rate)
+    prompt_rate = timings.get("prompt_per_second")
+    return float(rate), (
+        float(prompt_rate) if isinstance(prompt_rate, (int, float)) else None
+    )
 
 
 def big_core_clocks() -> tuple[int, int]:
@@ -321,6 +324,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--label", default="prose")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--server-arg",
+        action="append",
+        default=[],
+        dest="server_args",
+        help=(
+            "Extra llama-server flag applied to every variant, repeatable. "
+            "Lets one probe A/B non-speculative flags such as --flash-attn "
+            "or --cache-type-k against the same baseline harness."
+        ),
+    )
     parser.add_argument("--keep-model", action="store_true")
     parser.add_argument(
         "--request-overrides",
@@ -387,6 +401,7 @@ def main() -> int:
                 f"{before['hottestCpuMilliCelsius']} m°C)",
                 flush=True,
             )
+            flags = extra + args.server_args
             handle = start_server(
                 library_directory,
                 device_model,
@@ -394,27 +409,34 @@ def main() -> int:
                 args.threads,
                 args.decode_cpus,
                 args.batch_cpus,
-                extra,
+                flags,
                 args.port,
                 api_key_path,
             )
             try:
                 wait_for_health(args.port, api_key)
                 samples = []
+                prompt_rates = []
                 thermal = []
                 for index in range(args.runs):
-                    samples.append(
-                        measure(
-                            args.port,
-                            api_key,
-                            prompt_for_sample(prompts, index),
-                            args.max_tokens,
-                            request_speculative,
-                        )
+                    decode_rate, prompt_rate = measure(
+                        args.port,
+                        api_key,
+                        prompt_for_sample(prompts, index),
+                        args.max_tokens,
+                        request_speculative,
                     )
+                    samples.append(decode_rate)
+                    prompt_rates.append(prompt_rate)
                     thermal.append(thermal_state())
                 summary = summarise(samples)
-                summary["serverFlags"] = extra
+                warm_prompt_rates = [rate for rate in prompt_rates[1:] if rate]
+                summary["medianPromptTokensPerSecond"] = (
+                    round(statistics.median(warm_prompt_rates), 1)
+                    if warm_prompt_rates
+                    else None
+                )
+                summary["serverFlags"] = flags
                 summary["residentKiB"] = peak_rss_kib()
                 summary["thermalBefore"] = before
                 headrooms = [state["headroom"] for state in thermal[1:] if state["headroom"]]
@@ -440,7 +462,7 @@ def main() -> int:
                 log = adb("shell", f"tail -20 {DEVICE_ROOT}/server.log", check=False)
                 report["variants"][variant] = {
                     "error": str(error),
-                    "serverFlags": extra,
+                    "serverFlags": flags,
                     "serverLogTail": log.strip().splitlines()[-8:],
                 }
                 print(f"  failed: {error}", flush=True)
