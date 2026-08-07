@@ -11,7 +11,7 @@
  */
 
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -22,6 +22,7 @@ const EXTENSIONS = [
 	"pideck-local-cache.ts",
 	"pideck-system-prompt.ts",
 	"pideck-hashline-edit.ts",
+	"pideck-syntax-check.ts",
 	"pideck-context-guard.ts",
 	"pideck-web-tools.ts",
 	"pideck-tool-router.ts",
@@ -255,6 +256,87 @@ try {
 	assert.match(notedLines[1], /^2:[0-9a-f]{2}\| beta$/);
 	assert.equal(notedLines[2], "");
 	assert.equal(notedLines[3], "[Showing lines 1-2 of 900. Use offset=3 to continue.]");
+
+	// Post-write syntax check: a broken file reports its error inside the same tool result,
+	// a clean file costs nothing, and a missing checker fails open instead of blocking.
+	const runToolResult = async (event) => {
+		let content = event.content;
+		for (const handler of toolResultHandlers) {
+			const result = await handler({ ...event, content });
+			if (result?.content) content = result.content;
+		}
+		return content
+			.filter((part) => part.type === "text")
+			.map((part) => part.text)
+			.join("\n");
+	};
+	const mutationEvent = (toolName, path, text) => ({
+		type: "tool_result",
+		toolName,
+		toolCallId: `syntax-${toolName}`,
+		input: { path },
+		isError: false,
+		content: [{ type: "text", text }],
+	});
+
+	const brokenPy = join(workspace, "broken.py");
+	writeFileSync(brokenPy, "def broken(:\n    pass\n");
+	const brokenPyResult = await runToolResult(mutationEvent("write", brokenPy, "Wrote broken.py"));
+	assert.match(brokenPyResult, /синтаксис/i, "a broken .py write carried no syntax note");
+	assert.match(brokenPyResult, /line 1/, "the note does not name the failing line");
+	assert.ok(
+		!existsSync(join(workspace, "__pycache__")),
+		"the python check left __pycache__ in the workspace",
+	);
+
+	const cleanPy = join(workspace, "clean.py");
+	writeFileSync(cleanPy, "def ok():\n    return 1\n");
+	assert.equal(
+		await runToolResult(mutationEvent("pideck_replace_lines", cleanPy, "OK")),
+		"OK",
+		"a clean write must not grow the tool result",
+	);
+
+	const brokenMjs = join(workspace, "broken.mjs");
+	writeFileSync(brokenMjs, "export default (\n");
+	assert.match(
+		await runToolResult(mutationEvent("edit", brokenMjs, "Edited broken.mjs")),
+		/синтаксис/i,
+		"a broken .mjs edit carried no syntax note",
+	);
+
+	const brokenJson = join(workspace, "broken.json");
+	writeFileSync(brokenJson, "{ nope\n");
+	assert.match(
+		await runToolResult(mutationEvent("pideck_write", brokenJson, "Wrote broken.json")),
+		/синтаксис/i,
+		"a broken .json write carried no syntax note",
+	);
+
+	const plainText = join(workspace, "notes.txt");
+	writeFileSync(plainText, "def broken(:\n");
+	assert.equal(
+		await runToolResult(mutationEvent("write", plainText, "OK")),
+		"OK",
+		"an unchecked file type must pass through untouched",
+	);
+
+	assert.equal(
+		await runToolResult({ ...mutationEvent("write", brokenPy, "failed"), isError: true }),
+		"failed",
+		"an already-failed tool result must not be annotated",
+	);
+
+	process.env.PIDECK_SYNTAX_CHECK_PYTHON = join(workspace, "no-such-python");
+	try {
+		assert.equal(
+			await runToolResult(mutationEvent("write", brokenPy, "OK")),
+			"OK",
+			"a missing checker must fail open, not annotate or throw",
+		);
+	} finally {
+		delete process.env.PIDECK_SYNTAX_CHECK_PYTHON;
+	}
 
 	// The context guard must still be able to shrink a large result after annotation.
 	const long = Array.from({ length: 900 }, (_, index) => `line ${index}`).join("\n");

@@ -30,6 +30,7 @@ public final class RuntimeAssetBundle {
             "runtime/pideck-local-cache.ts",
             "runtime/pideck-system-prompt.ts",
             "runtime/pideck-hashline-edit.ts",
+            "runtime/pideck-syntax-check.ts",
             "runtime/pideck-context-guard.ts",
             "runtime/pideck-web-tools.ts",
             "runtime/pideck-tool-router.ts",

@@ -54,6 +54,7 @@ PI_STDERR_LOG = BASE / "logs" / "pi-rpc.stderr.log"
 LOCAL_CACHE_EXTENSION = BASE / "runtime" / "pideck-local-cache.ts"
 SYSTEM_PROMPT_EXTENSION = BASE / "runtime" / "pideck-system-prompt.ts"
 HASHLINE_EXTENSION = BASE / "runtime" / "pideck-hashline-edit.ts"
+SYNTAX_CHECK_EXTENSION = BASE / "runtime" / "pideck-syntax-check.ts"
 CONTEXT_GUARD_EXTENSION = BASE / "runtime" / "pideck-context-guard.ts"
 WEB_TOOLS_EXTENSION = BASE / "runtime" / "pideck-web-tools.ts"
 TOOL_ROUTER_EXTENSION = BASE / "runtime" / "pideck-tool-router.ts"
@@ -535,6 +536,11 @@ class PiRpcChild:
                 "HASHLINE_EXTENSION_MISSING",
                 "Anchored-edit extension is not installed",
             )
+        if not SYNTAX_CHECK_EXTENSION.is_file():
+            raise PiDeckError(
+                "SYNTAX_CHECK_EXTENSION_MISSING",
+                "Managed syntax-check extension is not installed",
+            )
         if not CONTEXT_GUARD_EXTENSION.is_file():
             raise PiDeckError(
                 "CONTEXT_GUARD_EXTENSION_MISSING",
@@ -572,6 +578,8 @@ class PiRpcChild:
             str(SYSTEM_PROMPT_EXTENSION),
             "--extension",
             str(HASHLINE_EXTENSION),
+            "--extension",
+            str(SYNTAX_CHECK_EXTENSION),
             "--extension",
             str(CONTEXT_GUARD_EXTENSION),
             "--extension",

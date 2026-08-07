@@ -245,11 +245,12 @@ should optimise for that tier without apology.
 ### Coding: five concrete additions
 
 1. **Hash-anchored edit** (above). Highest value, self-contained, no network.
-2. **Post-edit syntax check.** After any `write`/`edit`, run the cheap validator for
-   the file type (`python3 -m py_compile`, `node --check`, `javac` where present) and
-   return the error immediately as part of the tool result. The model currently finds
-   out it broke a file only if it thinks to run the tests. Suite task T08 is exactly
-   this loop.
+2. ~~**Post-edit syntax check.**~~ — **done** with `pideck-syntax-check.ts`: after
+   `write`/`edit`/`pideck_write`/`pideck_edit`/`pideck_replace_lines`, the file is
+   validated (`ast.parse` for Python so no `__pycache__` lands in the workspace,
+   `node --check` for JS, `JSON.parse` for JSON) and the first error returns inside
+   the same tool result. A clean file adds zero tokens; a missing or timed-out
+   checker fails open. Design: `docs/superpowers/specs/2026-08-07-syntax-check-design.md`.
 3. **A bounded `run_tests` tool.** Today tests go through `bash`, and
    `pideck-context-guard` then truncates pytest's output to a head/tail window —
    which is precisely where the failure summary is *not*. A tool returning

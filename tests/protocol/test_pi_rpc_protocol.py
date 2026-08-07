@@ -181,6 +181,15 @@ class PiRpcProtocolTest(unittest.TestCase):
                 / "runtime"
                 / "pideck-hashline-edit.ts"
             )
+            syntax_check_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-syntax-check.ts"
+            )
             web_tools_extension = (
                 REPOSITORY
                 / "app"
@@ -222,6 +231,8 @@ class PiRpcProtocolTest(unittest.TestCase):
                 str(system_prompt_extension),
                 "--extension",
                 str(hashline_extension),
+                "--extension",
+                str(syntax_check_extension),
                 "--extension",
                 str(context_guard_extension),
                 "--extension",

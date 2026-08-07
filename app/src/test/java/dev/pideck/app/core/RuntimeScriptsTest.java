@@ -135,6 +135,7 @@ public class RuntimeScriptsTest {
                 "pideck-local-cache.ts",
                 "pideck-system-prompt.ts",
                 "pideck-hashline-edit.ts",
+                "pideck-syntax-check.ts",
                 "pideck-context-guard.ts",
                 "pideck-web-tools.ts",
                 "pideck-tool-router.ts",

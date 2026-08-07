@@ -17,6 +17,7 @@ from .bridge import (
     LOCAL_CACHE_EXTENSION,
     CONTEXT_GUARD_EXTENSION,
     HASHLINE_EXTENSION,
+    SYNTAX_CHECK_EXTENSION,
     SYSTEM_PROMPT_EXTENSION,
     TOOL_ROUTER_EXTENSION,
     WEB_TOOLS_EXTENSION,
@@ -126,6 +127,11 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
             "HASHLINE_EXTENSION_MISSING",
             "Managed anchored-edit extension is not installed",
         )
+    if not SYNTAX_CHECK_EXTENSION.is_file():
+        raise PiDeckError(
+            "SYNTAX_CHECK_EXTENSION_MISSING",
+            "Managed syntax-check extension is not installed",
+        )
     if not WEB_TOOLS_EXTENSION.is_file():
         raise PiDeckError(
             "WEB_TOOLS_EXTENSION_MISSING",
@@ -159,6 +165,8 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         str(SYSTEM_PROMPT_EXTENSION),
         "--extension",
         str(HASHLINE_EXTENSION),
+        "--extension",
+        str(SYNTAX_CHECK_EXTENSION),
         "--extension",
         str(CONTEXT_GUARD_EXTENSION),
         "--extension",
@@ -388,6 +396,7 @@ def probe() -> dict[str, Any]:
             LOCAL_CACHE_EXTENSION,
             SYSTEM_PROMPT_EXTENSION,
             HASHLINE_EXTENSION,
+            SYNTAX_CHECK_EXTENSION,
             CONTEXT_GUARD_EXTENSION,
             WEB_TOOLS_EXTENSION,
             TOOL_ROUTER_EXTENSION,
