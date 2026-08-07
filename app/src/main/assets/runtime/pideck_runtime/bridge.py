@@ -55,6 +55,7 @@ LOCAL_CACHE_EXTENSION = BASE / "runtime" / "pideck-local-cache.ts"
 SYSTEM_PROMPT_EXTENSION = BASE / "runtime" / "pideck-system-prompt.ts"
 HASHLINE_EXTENSION = BASE / "runtime" / "pideck-hashline-edit.ts"
 SYNTAX_CHECK_EXTENSION = BASE / "runtime" / "pideck-syntax-check.ts"
+RUN_TESTS_EXTENSION = BASE / "runtime" / "pideck-run-tests.ts"
 CONTEXT_GUARD_EXTENSION = BASE / "runtime" / "pideck-context-guard.ts"
 WEB_TOOLS_EXTENSION = BASE / "runtime" / "pideck-web-tools.ts"
 TOOL_ROUTER_EXTENSION = BASE / "runtime" / "pideck-tool-router.ts"
@@ -541,6 +542,11 @@ class PiRpcChild:
                 "SYNTAX_CHECK_EXTENSION_MISSING",
                 "Managed syntax-check extension is not installed",
             )
+        if not RUN_TESTS_EXTENSION.is_file():
+            raise PiDeckError(
+                "RUN_TESTS_EXTENSION_MISSING",
+                "Managed run-tests extension is not installed",
+            )
         if not CONTEXT_GUARD_EXTENSION.is_file():
             raise PiDeckError(
                 "CONTEXT_GUARD_EXTENSION_MISSING",
@@ -580,6 +586,8 @@ class PiRpcChild:
             str(HASHLINE_EXTENSION),
             "--extension",
             str(SYNTAX_CHECK_EXTENSION),
+            "--extension",
+            str(RUN_TESTS_EXTENSION),
             "--extension",
             str(CONTEXT_GUARD_EXTENSION),
             "--extension",
@@ -684,7 +692,7 @@ class PiRpcChild:
             return [
                 "--tools",
                 "read,bash,edit,write,grep,find,ls,web_search,web_fetch,weather,"
-                "pideck_replace_lines,pideck_load_tools",
+                "pideck_replace_lines,run_tests,pideck_load_tools",
             ]
         raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
 

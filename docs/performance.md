@@ -125,7 +125,8 @@ instead of presenting disk persistence as an optimization.
 Pi 0.82.1 treats `--tools` as a hard registry allowlist. The bundled router now
 keeps that security boundary intact, then calls Pi's documented
 `setActiveTools()` before prompt assembly. An ordinary Autonomous turn carries
-`read,bash,write,pideck_replace_lines,pideck_load_tools`; explicit web, URL and
+`read,bash,write,pideck_replace_lines,pideck_load_tools` (later joined by
+`run_tests`); explicit web, URL and
 weather prompts activate the matching managed group before the first provider
 request. A model can load the remaining optional groups only within the same
 Android-selected profile.

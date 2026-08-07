@@ -181,6 +181,15 @@ class PiRpcProtocolTest(unittest.TestCase):
                 / "runtime"
                 / "pideck-hashline-edit.ts"
             )
+            run_tests_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-run-tests.ts"
+            )
             syntax_check_extension = (
                 REPOSITORY
                 / "app"
@@ -233,6 +242,8 @@ class PiRpcProtocolTest(unittest.TestCase):
                 str(hashline_extension),
                 "--extension",
                 str(syntax_check_extension),
+                "--extension",
+                str(run_tests_extension),
                 "--extension",
                 str(context_guard_extension),
                 "--extension",

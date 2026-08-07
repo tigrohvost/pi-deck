@@ -23,6 +23,7 @@ pi --mode rpc --provider pideck --model <exact-id> --offline
    --extension pideck-system-prompt.ts
    --extension pideck-hashline-edit.ts
    --extension pideck-syntax-check.ts
+   --extension pideck-run-tests.ts
    --extension pideck-context-guard.ts
    --extension pideck-web-tools.ts
    --extension pideck-tool-router.ts

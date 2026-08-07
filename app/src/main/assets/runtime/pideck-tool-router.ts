@@ -27,7 +27,7 @@ const CORE_TOOLS: Record<AccessProfile, readonly string[]> = {
 		"pideck_write",
 		"pideck_replace_lines",
 	],
-	autonomous: ["read", "bash", "write", "pideck_replace_lines"],
+	autonomous: ["read", "bash", "write", "pideck_replace_lines", "run_tests"],
 };
 
 const OPTIONAL_TOOLS: Record<AccessProfile, Record<ToolCapability, readonly string[]>> = {

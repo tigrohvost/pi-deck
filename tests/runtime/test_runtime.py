@@ -173,6 +173,7 @@ class RuntimeTestCase(unittest.TestCase):
             bridge.SYSTEM_PROMPT_EXTENSION,
             bridge.HASHLINE_EXTENSION,
             bridge.SYNTAX_CHECK_EXTENSION,
+            bridge.RUN_TESTS_EXTENSION,
             bridge.CONTEXT_GUARD_EXTENSION,
             bridge.WEB_TOOLS_EXTENSION,
             common.BASE / "runtime" / "pideck-permission-gate.ts",

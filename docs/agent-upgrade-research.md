@@ -251,11 +251,11 @@ should optimise for that tier without apology.
    `node --check` for JS, `JSON.parse` for JSON) and the first error returns inside
    the same tool result. A clean file adds zero tokens; a missing or timed-out
    checker fails open. Design: `docs/superpowers/specs/2026-08-07-syntax-check-design.md`.
-3. **A bounded `run_tests` tool.** Today tests go through `bash`, and
-   `pideck-context-guard` then truncates pytest's output to a head/tail window —
-   which is precisely where the failure summary is *not*. A tool returning
-   `passed/failed/errors` plus the first failure verbatim is both smaller and more
-   useful. T04, T06, T07 and T08 all depend on reading test output correctly.
+3. ~~**A bounded `run_tests` tool.**~~ — **done** with `pideck-run-tests.ts`:
+   `pytest -x -q --tb=short -p no:cacheprovider`, verdict plus the first failure
+   verbatim in one bounded result, no cache artifacts in a diff-scored workspace,
+   autonomous-core only (same trust class as `bash`). Design:
+   `docs/superpowers/specs/2026-08-07-run-tests-design.md`.
 4. **`glob` / file map.** Pi has no glob; the model reaches for `bash find`, whose
    output is unbounded and then gets truncated. A bounded, sorted file listing is
    cheaper in tokens and more reliable.

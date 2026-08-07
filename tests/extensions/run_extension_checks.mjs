@@ -31,6 +31,7 @@ const EXTENSIONS = [
 	"pideck-system-prompt.ts",
 	"pideck-hashline-edit.ts",
 	"pideck-syntax-check.ts",
+	"pideck-run-tests.ts",
 	"pideck-context-guard.ts",
 	"pideck-web-tools.ts",
 	"pideck-tool-router.ts",
@@ -38,6 +39,7 @@ const EXTENSIONS = [
 ];
 const EXPECTED_TOOLS = [
 	"pideck_replace_lines",
+	"run_tests",
 	"web_search",
 	"web_fetch",
 	"weather",
@@ -103,7 +105,7 @@ try {
 	const router = await jiti.import(join(workspace, "pideck-tool-router.ts"));
 	assert.deepEqual(
 		router.coreTools("autonomous"),
-		["read", "bash", "write", "pideck_replace_lines", "pideck_load_tools"],
+		["read", "bash", "write", "pideck_replace_lines", "run_tests", "pideck_load_tools"],
 	);
 	assert.deepEqual(router.detectCapabilities("Объясни слово «погода»"), []);
 	assert.deepEqual(router.detectCapabilities("поищи в интернете документацию Pi"), ["web"]);
@@ -354,6 +356,80 @@ try {
 		);
 	} finally {
 		delete process.env.PIDECK_SYNTAX_CHECK_PYTHON;
+	}
+
+	// run_tests: one bounded turn carries the verdict and the first failure verbatim,
+	// leaves no cache artifacts in a diff-scored workspace, and refuses to escape it.
+	const runTests = tools.get("run_tests");
+	const passingWorkspace = join(workspace, "tests-pass");
+	mkdirSync(passingWorkspace);
+	writeFileSync(join(passingWorkspace, "test_ok.py"), "def test_ok():\n    assert True\n");
+	const passing = await runTests.execute(
+		"tests-pass",
+		{},
+		undefined,
+		undefined,
+		{ cwd: passingWorkspace, hasUI: false, mode: "rpc" },
+	);
+	const passingText = passing.content[0].text;
+	assert.match(passingText, /1 passed/, "a passing run does not carry pytest's own verdict");
+	assert.ok(passingText.length < 400, `a passing verdict should be one short block: ${passingText.length}`);
+	assert.ok(
+		!existsSync(join(passingWorkspace, ".pytest_cache"))
+			&& !existsSync(join(passingWorkspace, "__pycache__")),
+		"run_tests left cache artifacts in the workspace",
+	);
+
+	const failingWorkspace = join(workspace, "tests-fail");
+	mkdirSync(failingWorkspace);
+	writeFileSync(
+		join(failingWorkspace, "test_math.py"),
+		"def test_totals():\n    assert 1 + 1 == 3\n\ndef test_never_reached():\n    assert True\n",
+	);
+	const failing = await runTests.execute(
+		"tests-fail",
+		{},
+		undefined,
+		undefined,
+		{ cwd: failingWorkspace, hasUI: false, mode: "rpc" },
+	);
+	const failingText = failing.content[0].text;
+	assert.match(failingText, /1 failed/, "a failing run does not carry pytest's own verdict");
+	assert.match(failingText, /test_totals/, "the first failure is not named");
+	assert.match(failingText, /assert 1 \+ 1 == 3/, "the failing assertion is not shown verbatim");
+	assert.ok(
+		Buffer.byteLength(failingText, "utf8") <= 4 * 1024 + 256,
+		`run_tests output is not bounded: ${Buffer.byteLength(failingText, "utf8")} bytes`,
+	);
+
+	await assert.rejects(
+		runTests.execute(
+			"tests-escape",
+			{ path: "../outside" },
+			undefined,
+			undefined,
+			{ cwd: failingWorkspace, hasUI: false, mode: "rpc" },
+		),
+		/workspace|рабоч/i,
+		"a path outside the workspace was accepted",
+	);
+
+	process.env.PIDECK_RUN_TESTS_PYTHON = join(workspace, "no-such-python");
+	try {
+		const unavailable = await runTests.execute(
+			"tests-no-runner",
+			{},
+			undefined,
+			undefined,
+			{ cwd: passingWorkspace, hasUI: false, mode: "rpc" },
+		);
+		assert.match(
+			unavailable.content[0].text,
+			/bash/,
+			"a missing pytest must name the bash fallback instead of crashing",
+		);
+	} finally {
+		delete process.env.PIDECK_RUN_TESTS_PYTHON;
 	}
 
 	// The context guard must still be able to shrink a large result after annotation.

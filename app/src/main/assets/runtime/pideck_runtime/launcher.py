@@ -17,6 +17,7 @@ from .bridge import (
     LOCAL_CACHE_EXTENSION,
     CONTEXT_GUARD_EXTENSION,
     HASHLINE_EXTENSION,
+    RUN_TESTS_EXTENSION,
     SYNTAX_CHECK_EXTENSION,
     SYSTEM_PROMPT_EXTENSION,
     TOOL_ROUTER_EXTENSION,
@@ -83,7 +84,7 @@ def _profile_arguments(profile: str, agent_mode: str = "agent") -> list[str]:
         return [
             "--tools",
             "read,bash,edit,write,grep,find,ls,web_search,web_fetch,weather,"
-            "pideck_replace_lines,pideck_load_tools",
+            "pideck_replace_lines,run_tests,pideck_load_tools",
         ]
     raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
 
@@ -132,6 +133,11 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
             "SYNTAX_CHECK_EXTENSION_MISSING",
             "Managed syntax-check extension is not installed",
         )
+    if not RUN_TESTS_EXTENSION.is_file():
+        raise PiDeckError(
+            "RUN_TESTS_EXTENSION_MISSING",
+            "Managed run-tests extension is not installed",
+        )
     if not WEB_TOOLS_EXTENSION.is_file():
         raise PiDeckError(
             "WEB_TOOLS_EXTENSION_MISSING",
@@ -167,6 +173,8 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         str(HASHLINE_EXTENSION),
         "--extension",
         str(SYNTAX_CHECK_EXTENSION),
+        "--extension",
+        str(RUN_TESTS_EXTENSION),
         "--extension",
         str(CONTEXT_GUARD_EXTENSION),
         "--extension",
@@ -397,6 +405,7 @@ def probe() -> dict[str, Any]:
             SYSTEM_PROMPT_EXTENSION,
             HASHLINE_EXTENSION,
             SYNTAX_CHECK_EXTENSION,
+            RUN_TESTS_EXTENSION,
             CONTEXT_GUARD_EXTENSION,
             WEB_TOOLS_EXTENSION,
             TOOL_ROUTER_EXTENSION,
