@@ -13,6 +13,9 @@ import { readFileSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const MAX_SYSTEM_PROMPT_BYTES = 16 * 1024;
+const CHAT_GUIDANCE = `You are PI//DECK's local assistant on this Android phone.
+Answer the request directly, in the user's language. Be concise unless detail is requested.
+Chat mode has no tools: do not claim to inspect files, run commands, or fetch current data.`;
 /**
  * The three restraint failures below are the ones small models actually make, in the order
  * they were observed across a 21-model tool-calling comparison: firing on a keyword, missing
@@ -40,6 +43,24 @@ type PromptSettings = {
 	mode: "append" | "replace";
 	text: string;
 };
+
+function configuredAgentMode(): "chat" | "agent" {
+	const mode = process.env.PIDECK_AGENT_MODE;
+	if (mode === "chat" || mode === "agent") return mode;
+	throw new Error("PI//DECK system prompt has no valid agent mode");
+}
+
+export function composeManagedPrompt(
+	agentMode: "chat" | "agent",
+	basePrompt: string,
+	settings: PromptSettings | undefined,
+): string {
+	if (settings?.mode === "replace") return settings.text;
+	const managedBase = agentMode === "chat"
+		? CHAT_GUIDANCE
+		: [basePrompt, MOBILE_AGENT_GUIDANCE].filter(Boolean).join("\n\n");
+	return [managedBase, settings?.text].filter(Boolean).join("\n\n");
+}
 
 function loadPromptSettings(): PromptSettings | undefined {
 	const mode = process.env.PIDECK_SYSTEM_PROMPT_MODE;
@@ -75,14 +96,9 @@ function loadPromptSettings(): PromptSettings | undefined {
 
 export default function pideckSystemPrompt(pi: ExtensionAPI) {
 	const settings = loadPromptSettings();
+	const agentMode = configuredAgentMode();
 
 	pi.on("before_agent_start", (event) => ({
-		systemPrompt: settings?.mode === "replace"
-			? settings.text
-			: [
-				event.systemPrompt,
-				MOBILE_AGENT_GUIDANCE,
-				settings?.text,
-			].filter(Boolean).join("\n\n"),
+		systemPrompt: composeManagedPrompt(agentMode, event.systemPrompt, settings),
 	}));
 }

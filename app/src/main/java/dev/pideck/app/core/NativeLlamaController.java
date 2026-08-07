@@ -110,20 +110,28 @@ public final class NativeLlamaController {
         if (!ACTIVE.add(key)) return;
         EXECUTOR.execute(() -> {
             try {
+                long startedAt = System.nanoTime();
                 long deadline = System.nanoTime() + 240_000_000_000L;
                 String lastError = "llama-server ещё загружает модель";
                 while (System.nanoTime() < deadline) {
                     NativeLlamaService.Snapshot service = NativeLlamaService.snapshot(context);
-                    if ("FAILED".equals(service.state)) {
+                    boolean sameOperation = key.equals(service.operationId);
+                    long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
+                    if (!sameOperation && !service.operationId.isBlank()) {
+                        if (StartupPolicy.nativeOperationMismatchIsFatal(
+                                key, service.operationId, elapsedMs
+                        )) {
+                            throw new IOException("Native server operation identity changed");
+                        }
+                        sleep(100);
+                        continue;
+                    }
+                    if (sameOperation && "FAILED".equals(service.state)) {
                         throw new IOException(
                                 service.error.isBlank()
                                         ? "Native llama-server stopped during startup"
                                         : service.error
                         );
-                    }
-                    if (!service.operationId.isBlank()
-                            && !key.equals(service.operationId)) {
-                        throw new IOException("Native server operation identity changed");
                     }
                     try {
                         strictHealth(model.id, apiKey);

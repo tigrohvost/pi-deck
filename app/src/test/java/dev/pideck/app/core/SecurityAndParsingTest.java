@@ -17,11 +17,14 @@ public class SecurityAndParsingTest {
         assertEquals(AccessProfile.READ_ONLY, AccessProfile.fromWireName(null));
         assertEquals(AccessProfile.READ_ONLY, AccessProfile.fromWireName("future-profile"));
         assertEquals(
-                List.of("--tools", "read,grep,find,ls,web_search,web_fetch,weather"),
+                List.of(
+                        "--tools",
+                        "read,grep,find,ls,web_search,web_fetch,weather,pideck_load_tools"
+                ),
                 AccessProfile.READ_ONLY.piArguments("/permission.ts")
         );
         assertTrue(AccessProfile.READ_ONLY.piArguments("/permission.ts")
-                .contains("read,grep,find,ls,web_search,web_fetch,weather"));
+                .contains("read,grep,find,ls,web_search,web_fetch,weather,pideck_load_tools"));
         assertTrue(AccessProfile.CONFIRM_CHANGES.piArguments("/permission.ts")
                 .contains("/permission.ts"));
         assertFalse(AccessProfile.READ_ONLY.piArguments("/permission.ts").contains("bash"));
@@ -35,10 +38,13 @@ public class SecurityAndParsingTest {
         assertFalse(readOnly.contains("pideck_replace_lines"));
         assertTrue(confirm.contains("pideck_replace_lines"));
         assertTrue(autonomous.contains("pideck_replace_lines"));
-        // Reading a page is not a mutation, so every profile that may search may also read.
+        // Pi's CLI list is a hard registry allowlist; the router narrows the active subset later.
         assertTrue(readOnly.contains("web_fetch"));
         assertTrue(confirm.contains("web_fetch"));
         assertTrue(autonomous.contains("web_fetch"));
+        assertTrue(readOnly.contains("pideck_load_tools"));
+        assertTrue(confirm.contains("pideck_load_tools"));
+        assertTrue(autonomous.contains("pideck_load_tools"));
     }
 
     @Test

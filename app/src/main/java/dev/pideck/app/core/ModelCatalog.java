@@ -99,6 +99,11 @@ public final class ModelCatalog {
     /**
      * Recommendation is explicit and based on current available memory, low-memory state, and
      * enough storage for incoming + private temporary copy + final artifact.
+     *
+     * <p>Memory is the only axis this can weigh, so a model that fits and is still a bad default
+     * — Bonsai 27B fits a flagship and decodes at roughly one token per second — has to be kept
+     * out by status. {@code CANDIDATE} means exactly that: listed and selectable by hand, never
+     * proposed on the user's behalf.
      */
     public ModelSpec recommend(
             long availableMemoryBytes,
@@ -107,7 +112,7 @@ public final class ModelCatalog {
     ) {
         ModelSpec best = models.get(0);
         for (ModelSpec model : models) {
-            if ("BLOCKED".equals(model.status) || "DEPRECATED".equals(model.status)) continue;
+            if (!isRecommendable(model)) continue;
             long minimumMemory = model.minimumAvailableMiB * MIB;
             long estimated = model.estimatedPeakBytes();
             long safetyAdjusted = lowMemory
@@ -119,6 +124,13 @@ public final class ModelCatalog {
             }
         }
         return best;
+    }
+
+    /** A model the deck may propose by itself, as opposed to one the user has to pick. */
+    public static boolean isRecommendable(ModelSpec model) {
+        return !"BLOCKED".equals(model.status)
+                && !"DEPRECATED".equals(model.status)
+                && !"CANDIDATE".equals(model.status);
     }
 
     public static long requiredStorageForFreshInstall(ModelSpec model) {

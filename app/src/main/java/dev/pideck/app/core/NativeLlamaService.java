@@ -48,6 +48,7 @@ public final class NativeLlamaService extends Service {
     private static final String CHANNEL_ID = "pideck-local-inference";
     private static final int NOTIFICATION_ID = 8201;
     private static final Object PROCESS_LOCK = new Object();
+    private static volatile Process liveServerProcess;
 
     private volatile Process server;
     private volatile String activeOperationId = "";
@@ -56,6 +57,7 @@ public final class NativeLlamaService extends Service {
 
     public static final class Snapshot {
         public final String state;
+        public final String persistedState;
         public final String operationId;
         public final String modelId;
         public final String profile;
@@ -63,7 +65,13 @@ public final class NativeLlamaService extends Service {
         public final String error;
 
         private Snapshot(SharedPreferences value) {
-            state = value.getString("state", "STOPPED");
+            Process process = liveServerProcess;
+            boolean processAlive = process != null && process.isAlive();
+            persistedState = value.getString("state", "STOPPED");
+            state = StartupPolicy.effectiveNativeState(
+                    persistedState,
+                    processAlive
+            );
             operationId = value.getString("operation_id", "");
             modelId = value.getString("model_id", "");
             profile = value.getString("profile", "");
@@ -237,6 +245,7 @@ public final class NativeLlamaService extends Service {
                 builder.environment().put("TMPDIR", getCacheDir().getAbsolutePath());
                 launched = builder.start();
                 server = launched;
+                liveServerProcess = launched;
                 activeOperationId = operationId;
             }
             // android.jar exposes the legacy Process surface even though the host JDK has pid().
@@ -287,10 +296,12 @@ public final class NativeLlamaService extends Service {
             return;
         }
         if (!operationId.equals(activeOperationId)) return;
+        if (liveServerProcess == process) liveServerProcess = null;
         server = null;
         activeOperationId = "";
         Snapshot snapshot = snapshot(this);
-        if (!"STOPPING".equals(snapshot.state) && !"STOPPED".equals(snapshot.state)) {
+        if (!"STOPPING".equals(snapshot.persistedState)
+                && !"STOPPED".equals(snapshot.persistedState)) {
             fail(
                     operationId,
                     modelId,
@@ -321,6 +332,7 @@ public final class NativeLlamaService extends Service {
     private void stopCurrentLocked() {
         Process current = server;
         if (current == null || !current.isAlive()) {
+            if (liveServerProcess == current) liveServerProcess = null;
             server = null;
             activeOperationId = "";
             return;
@@ -335,6 +347,7 @@ public final class NativeLlamaService extends Service {
             Thread.currentThread().interrupt();
             current.destroyForcibly();
         }
+        if (liveServerProcess == current) liveServerProcess = null;
         server = null;
         activeOperationId = "";
     }

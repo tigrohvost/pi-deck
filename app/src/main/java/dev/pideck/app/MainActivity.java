@@ -422,7 +422,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
 
-        if (contextUsage != null && contextUsage.shouldCompactSoon()) {
+        if (needsLargeContextChoice()) {
             showLargeContextChoice(prompt);
             return;
         }
@@ -465,6 +465,60 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 .create();
         contextWarningDialog.setOnDismissListener(dialog -> contextWarningDialog = null);
         contextWarningDialog.show();
+    }
+
+    /**
+     * A queued prompt is already visible in the transcript and no longer lives in the composer.
+     * Keep it in the queue while the user chooses how much history to replay, then let the normal
+     * completion path drain it after a compaction or a new session. Continuing consumes it exactly
+     * once without appending a duplicate user entry.
+     */
+    private void showQueuedLargeContextChoice() {
+        if (contextWarningDialog != null) return;
+        String usageLabel = contextUsage != null && contextUsage.known()
+                ? contextUsage.percent + "%"
+                : t("размер неизвестен", "size unknown");
+        contextWarningDialog = new AlertDialog.Builder(this)
+                .setTitle(t("Большая сессия в очереди · ", "Large queued session · ")
+                        + usageLabel)
+                .setMessage(t(
+                        "Ядро готово, но подготовка истории займёт ",
+                        "The core is ready, but preparing the history will take "
+                ) + contextDelayHint() + t(
+                        ". Запрос уже сохранён в очереди: можно сначала сжать историю, "
+                                + "начать чистую сессию или отправить его с полной историей.",
+                        ". The prompt is already safe in the queue: you can compact the history, "
+                                + "start a clean session, or send it with the full history."
+                ))
+                .setPositiveButton(t("Сжать сначала", "Compact first"), (dialog, which) -> {
+                    compactSession();
+                    retryQueuedPromptIfIdle();
+                })
+                .setNeutralButton(t(
+                        "Новая сессия · быстрее всего", "New session · fastest"
+                ), (dialog, which) -> {
+                    newSession();
+                    retryQueuedPromptIfIdle();
+                })
+                .setNegativeButton(t("Продолжить", "Continue"),
+                        (dialog, which) -> dispatchQueuedPromptNow())
+                // Cancelling would strand text that has already left the composer.
+                .setCancelable(false)
+                .create();
+        contextWarningDialog.setOnDismissListener(dialog -> contextWarningDialog = null);
+        contextWarningDialog.show();
+    }
+
+    private boolean needsLargeContextChoice() {
+        return contextUsage != null && contextUsage.shouldCompactSoon();
+    }
+
+    private boolean needsQueuedContextChoice() {
+        return StartupPolicy.asksQueuedContextChoice(prefs.hasSession(), contextUsage);
+    }
+
+    private void retryQueuedPromptIfIdle() {
+        if (!busy) main.post(this::dispatchQueuedPrompt);
     }
 
     @Override
@@ -800,7 +854,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case PROBE_RUNTIME -> {
                 OperationRecord record = operationStore.load(result.operationId);
                 boolean startup = record != null && record.request.optBoolean("startup", false);
-                setBusy(false, null);
                 if (result.isSuccess() && RuntimeScripts.isLinkProbeOutput(result.stdout)) {
                     linkConfirmed = true;
                     boolean wasCoreReady = prefs.isCoreReady();
@@ -839,6 +892,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                         ));
                     }
                 }
+                // warmCoreOnLaunch must enter the queue before a queued prompt retries warming;
+                // otherwise both callbacks can start the same multi-step core transition.
+                setBusy(false, null);
             }
             case INSTALL_RUNTIME -> {
                 setBusy(false, null);
@@ -889,7 +945,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 }
             }
             case START_SERVER -> {
-                setBusy(false, null);
                 ModelSpec operationModel = modelForOperation(result.operationId);
                 if (runtimeState(result, "READY")) {
                     serverReady = operationModel != null
@@ -909,9 +964,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                     "The LLM core did not start.\n"
                             ) + runtimeError(result));
                 }
+                // The bridge continuation owns the next step. Queue draining is posted by
+                // setBusy(false), so enqueue the continuation first to prevent a second ignite.
+                setBusy(false, null);
             }
             case START_BRIDGE -> {
-                setBusy(false, null);
                 if (runtimeState(result, "READY")) {
                     bridgeReady = true;
                     bridgeConnected = true;
@@ -929,9 +986,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                     "The Pi RPC bridge did not start.\n"
                             ) + bridgeFault);
                 }
+                setBusy(false, null);
             }
             case STOP_BRIDGE -> {
-                setBusy(false, null);
                 bridgeReady = false;
                 bridgeConnected = false;
                 OperationRecord record = operationStore.load(result.operationId);
@@ -953,12 +1010,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         main.post(this::startBridge);
                     }
                 }
+                setBusy(false, null);
             }
             case STOP_SERVER -> {
                 OperationRecord record = operationStore.load(result.operationId);
                 boolean startNativeAfter = record != null
                         && record.request.optBoolean("startNativeAfter", false);
-                setBusy(false, null);
                 serverReady = false;
                 if (result.isSuccess()) bridgeFault = "";
                 append(result.isSuccess() ? ConsoleEntry.Channel.SYSTEM : ConsoleEntry.Channel.ERROR,
@@ -971,6 +1028,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (result.isSuccess() && startNativeAfter) {
                     main.post(this::launchNativeServer);
                 }
+                setBusy(false, null);
             }
             case UPDATE_RUNTIME -> {
                 setBusy(false, null);
@@ -1890,7 +1948,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (contextUsage.tokens < 7_000) {
             return t("около минуты", "about a minute");
         }
-        return t("ориентировочно 1–2 минуты", "roughly 1–2 minutes");
+        return t(
+                "примерно 2–4 минуты на малой модели; на средней дольше",
+                "about 2–4 minutes on a small model; longer on a medium model"
+        );
     }
 
     private String contextPhaseLabel(String phase) {
@@ -2235,6 +2296,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         ModelSpec best = null;
         for (ModelSpec candidate : modelCatalog.all()) {
             if (candidate.equals(rejected)) continue;
+            if (!ModelCatalog.isRecommendable(candidate)) continue;
             if (available < ModelCatalog.requiredStorageForFreshInstall(candidate)) continue;
             if (totalRam < candidate.minimumAvailableMiB * 1_048_576L) continue;
             if (best == null || candidate.bytes > best.bytes) best = candidate;
@@ -2607,6 +2669,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case "qwen3.5-2b" -> t("Баланс · ≈19 ток/с", "Balanced · ≈19 tok/s");
             case "qwen3.5-4b" -> t("Точнее · ≈7 ток/с", "More precise · ≈7 tok/s");
             case "qwen3.5-9b" -> t("Эксперимент · медленно", "Experimental · slow");
+            case "bonsai-27b" -> t("Не для диалога · ≈1 ток/с", "Not for chat · ≈1 tok/s");
             default -> t(
                     "Скорость зависит от телефона",
                     "Speed depends on the phone"
@@ -2625,6 +2688,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "The main flagship-phone profile; its device benchmark is not published yet.";
             case "qwen3.5-9b" ->
                     "A multi-step profile with high OOM risk; it needs a separate device benchmark.";
+            case "bonsai-27b" ->
+                    "27B in a 1-bit packing: it fits a flagship's memory but decodes at about "
+                            + "1.2 tok/s. Hand-picked only.";
             default -> model.note;
         };
     }
@@ -2882,7 +2948,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void dispatchQueuedPrompt() {
-        if (busy || queuedPrompt == null) return;
+        // A state/event callback may arrive while the choice dialog is open. The dialog owns the
+        // queue until one of its buttons resolves it, even if bridge telemetry changes underneath.
+        if (busy || queuedPrompt == null || contextWarningDialog != null) return;
         if (!canRunAgent()) {
             // A cold core is not a dead one. The server hands off to the bridge through a posted
             // continuation, so a prompt that arrives between those two steps waits rather than
@@ -2903,10 +2971,24 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             refreshUi();
             return;
         }
+        if (needsQueuedContextChoice()) {
+            showQueuedLargeContextChoice();
+            return;
+        }
+        dispatchQueuedPromptNow();
+    }
+
+    private void dispatchQueuedPromptNow() {
+        if (busy || queuedPrompt == null) return;
+        if (!canRunAgent()) {
+            main.post(this::dispatchQueuedPrompt);
+            return;
+        }
         String prompt = queuedPrompt;
         queuedPrompt = null;
         queuedWarmAttempts = 0;
         deck.setQueueCount(0);
+        warnIfHot();
         dispatchRpcTurn(prompt);
     }
 

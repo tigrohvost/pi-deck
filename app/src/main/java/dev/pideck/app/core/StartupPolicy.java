@@ -8,7 +8,38 @@ package dev.pideck.app.core;
  * Android context.
  */
 public final class StartupPolicy {
+    private static final long NATIVE_OPERATION_HANDOFF_MS = 10_000L;
+
     private StartupPolicy() {
+    }
+
+    /**
+     * A foreground-service preference survives a process kill; its {@code Process} object does
+     * not. Treating the persisted READY/STARTING label as live after that boundary makes the next
+     * launch try to attach a bridge to a server that no longer exists.
+     */
+    public static String effectiveNativeState(String persistedState, boolean processAlive) {
+        if (!processAlive
+                && ("READY".equals(persistedState) || "STARTING".equals(persistedState))) {
+            return "STOPPED";
+        }
+        return persistedState == null ? "STOPPED" : persistedState;
+    }
+
+    /**
+     * Starting the foreground service and observing its new durable identity are asynchronous.
+     * A snapshot from the previous process is expected briefly, but it must not be accepted
+     * indefinitely or mistaken for the server that belongs to the new operation.
+     */
+    public static boolean nativeOperationMismatchIsFatal(
+            String expectedOperationId,
+            String observedOperationId,
+            long elapsedMs
+    ) {
+        return observedOperationId != null
+                && !observedOperationId.isBlank()
+                && !observedOperationId.equals(expectedOperationId)
+                && elapsedMs >= NATIVE_OPERATION_HANDOFF_MS;
     }
 
     /**
@@ -55,6 +86,19 @@ public final class StartupPolicy {
             boolean alreadyQueued
     ) {
         return !canRunAgent && canWarmCore && !alreadyQueued;
+    }
+
+    /**
+     * A queued prompt has already left the composer, so a persisted session must not be replayed
+     * before its size is known. Bridge restart briefly makes that telemetry unknown; failing closed
+     * in that gap prevents a second readiness callback from bypassing the user's context choice.
+     */
+    public static boolean asksQueuedContextChoice(
+            boolean hasPersistedSession,
+            SessionContextUsage usage
+    ) {
+        if (!hasPersistedSession) return false;
+        return usage == null || !usage.known() || usage.shouldCompactSoon();
     }
 
     /**

@@ -1,8 +1,10 @@
 package dev.pideck.app.core;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import org.json.JSONObject;
 import org.junit.Test;
 
 /**
@@ -10,6 +12,28 @@ import org.junit.Test;
  */
 public class StartupPolicyTest {
     private static final long GIB = 1_073_741_824L;
+
+    @Test
+    public void staleNativeReadinessDoesNotSurviveTheOwningProcess() {
+        assertEquals("STOPPED", StartupPolicy.effectiveNativeState("READY", false));
+        assertEquals("STOPPED", StartupPolicy.effectiveNativeState("STARTING", false));
+        assertEquals("READY", StartupPolicy.effectiveNativeState("READY", true));
+        assertEquals("FAILED", StartupPolicy.effectiveNativeState("FAILED", false));
+    }
+
+    @Test
+    public void previousNativeIdentityGetsABoundedServiceHandoffWindow() {
+        assertFalse(StartupPolicy.nativeOperationMismatchIsFatal("new", "old", 0L));
+        assertFalse(StartupPolicy.nativeOperationMismatchIsFatal("new", "old", 9_999L));
+        assertTrue(StartupPolicy.nativeOperationMismatchIsFatal("new", "old", 10_000L));
+    }
+
+    @Test
+    public void matchingOrUnpublishedNativeIdentityIsNeverAConflict() {
+        assertFalse(StartupPolicy.nativeOperationMismatchIsFatal("new", "new", 60_000L));
+        assertFalse(StartupPolicy.nativeOperationMismatchIsFatal("new", "", 60_000L));
+        assertFalse(StartupPolicy.nativeOperationMismatchIsFatal("new", null, 60_000L));
+    }
 
     @Test
     public void nothingToStopMeansNoTermuxRoundTrip() {
@@ -58,6 +82,33 @@ public class StartupPolicyTest {
         assertFalse(StartupPolicy.queuesUntilReady(false, true, true));
         assertFalse(StartupPolicy.queuesUntilReady(false, false, false));
         assertFalse(StartupPolicy.queuesUntilReady(true, true, false));
+    }
+
+    @Test
+    public void persistedQueueWaitsWhenBridgeContextIsUnknown() {
+        assertTrue(StartupPolicy.asksQueuedContextChoice(
+                true,
+                SessionContextUsage.unknown(10_240)
+        ));
+        assertFalse(StartupPolicy.asksQueuedContextChoice(
+                false,
+                SessionContextUsage.unknown(10_240)
+        ));
+    }
+
+    @Test
+    public void persistedQueueUsesTheSameLargeContextThreshold() throws Exception {
+        SessionContextUsage belowThreshold = SessionContextUsage.parse(
+                new JSONObject().put("tokens", 7_577).put("contextWindow", 10_240),
+                10_240
+        );
+        SessionContextUsage atThreshold = SessionContextUsage.parse(
+                new JSONObject().put("tokens", 7_680).put("contextWindow", 10_240),
+                10_240
+        );
+
+        assertFalse(StartupPolicy.asksQueuedContextChoice(true, belowThreshold));
+        assertTrue(StartupPolicy.asksQueuedContextChoice(true, atThreshold));
     }
 
     @Test

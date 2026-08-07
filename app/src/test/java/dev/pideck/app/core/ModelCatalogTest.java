@@ -41,6 +41,18 @@ public class ModelCatalogTest {
         assertEquals("EDGE", catalog.recommend(12L * GIB, false, onlyEdgeFits).tier);
     }
 
+    /**
+     * Bonsai 27B fits a flagship's memory and decodes at roughly one token per second, which the
+     * memory-based recommendation cannot see. CANDIDATE is what keeps it out of it.
+     */
+    @Test
+    public void candidatesAreListedButNeverRecommended() {
+        ModelSpec bonsai = catalog.byId("bonsai-27b").orElseThrow();
+        assertEquals("CANDIDATE", bonsai.status);
+        assertFalse(ModelCatalog.isRecommendable(bonsai));
+        assertEquals("qwen3.5-9b", catalog.recommend(12L * GIB, false, 200L * GIB).id);
+    }
+
     @Test
     public void unknownModelIdNeverFallsBack() {
         assertTrue(catalog.byId("deleted-model-id").isEmpty());

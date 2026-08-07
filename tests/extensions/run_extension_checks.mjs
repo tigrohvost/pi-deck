@@ -12,6 +12,7 @@
 
 import assert from "node:assert/strict";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -23,6 +24,7 @@ const EXTENSIONS = [
 	"pideck-hashline-edit.ts",
 	"pideck-context-guard.ts",
 	"pideck-web-tools.ts",
+	"pideck-tool-router.ts",
 	"pideck-permission-gate.ts",
 ];
 const EXPECTED_TOOLS = [
@@ -30,6 +32,7 @@ const EXPECTED_TOOLS = [
 	"web_search",
 	"web_fetch",
 	"weather",
+	"pideck_load_tools",
 	"pideck_bash",
 	"pideck_edit",
 	"pideck_write",
@@ -63,6 +66,8 @@ try {
 		).href
 	);
 	process.env.PIDECK_HASHLINE_APPROVAL = "none";
+	process.env.PIDECK_ACCESS_PROFILE = "autonomous";
+	process.env.PIDECK_AGENT_MODE = "agent";
 	const loaded = await loadExtensions(
 		EXTENSIONS.map((name) => join(workspace, name)),
 		workspace,
@@ -82,6 +87,43 @@ try {
 	}
 
 	assert.deepEqual([...tools.keys()], EXPECTED_TOOLS, "registered tool set changed");
+
+	const requireFromPackage = createRequire(join(packageDirectory, "package.json"));
+	const { createJiti } = requireFromPackage("jiti");
+	const jiti = createJiti(import.meta.url, { moduleCache: false });
+	const router = await jiti.import(join(workspace, "pideck-tool-router.ts"));
+	assert.deepEqual(
+		router.coreTools("autonomous"),
+		["read", "bash", "write", "pideck_replace_lines", "pideck_load_tools"],
+	);
+	assert.deepEqual(router.detectCapabilities("Объясни слово «погода»"), []);
+	assert.deepEqual(router.detectCapabilities("поищи в интернете документацию Pi"), ["web"]);
+	assert.deepEqual(router.detectCapabilities("Какая погода в Москве?"), ["weather"]);
+	assert.deepEqual(
+		router.detectCapabilities("Поищи в сети погоду в Москве"),
+		["web", "weather"],
+	);
+	assert.deepEqual(router.detectCapabilities("Прочитай https://example.com/report"), ["web"]);
+	const promptExtension = await jiti.import(join(workspace, "pideck-system-prompt.ts"));
+	const compactChatPrompt = promptExtension.composeManagedPrompt("chat", "FULL PI PROMPT", undefined);
+	assert.match(compactChatPrompt, /Chat mode has no tools/);
+	assert.doesNotMatch(compactChatPrompt, /FULL PI PROMPT/);
+	assert.match(
+		promptExtension.composeManagedPrompt(
+			"chat",
+			"FULL PI PROMPT",
+			{ mode: "append", text: "CUSTOM RULE" },
+		),
+		/CUSTOM RULE$/,
+	);
+	assert.equal(
+		promptExtension.composeManagedPrompt(
+			"agent",
+			"FULL PI PROMPT",
+			{ mode: "replace", text: "ONLY CUSTOM" },
+		),
+		"ONLY CUSTOM",
+	);
 
 	// Anchored editing: read is stamped, an anchor applies, and a stale anchor is refused.
 	const target = join(workspace, "counter.py");

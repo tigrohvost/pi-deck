@@ -80,3 +80,129 @@ what `tools/speculative_probe.py` does.
 
 Charging over USB while measuring keeps the phone warm, so a cooldown gate can
 take several minutes per case and may never reach the full clock at all.
+
+## Long-session replay, measured 2026-08-07
+
+The same SM-S918B and Qwen3.5 2B profile were measured from a stopped core with
+an existing Agent session at 78% of its 10240-token window. Android cold-launched
+the Activity in **0.996 s** and the native server became ready in **24.21 s**.
+The queued one-token answer then took **174.27 s** wall time because llama.cpp
+spent **173.14 s** evaluating 7975 prompt tokens at 46.06 tok/s; generation itself
+was effectively zero. The server remained in `/top-app`, Android thermal status
+was 0, and the application process used about 2.50 GiB RSS, so this run was
+context replay rather than scheduler, heat, swapping, or slow decoding.
+
+This is distinct from the warm-prefix numbers above. `cache_prompt` reuses the
+common prefix while one server process stays alive, but a cold model start has no
+in-memory KV cache to reuse. A prompt queued during that start must therefore pass
+the same 75% context choice as a prompt submitted after the core is ready; silently
+draining the queue used to bypass that choice.
+
+Bridge startup can briefly report an unknown context size before authoritative
+session statistics arrive. Queued dispatch now treats that state as requiring a
+choice too, and an open choice dialog exclusively owns the queue; a later
+readiness callback cannot drain it behind the dialog.
+
+### Why a disk slot cache is not enabled
+
+The pinned b10092 server saved a synthetic 2048-token slot in 59 ms and restored
+its 45,417,072-byte file in 50 ms. The first identical prompt after a server
+restart still reported `cache_n=0` and re-evaluated all 2048 tokens in 33.15 s;
+an immediate repeat in the same process reported `cache_n=2044` and took 0.29 s.
+An 8k-token cache would therefore cost roughly 175 MiB without accelerating the
+first Qwen3.5 turn.
+
+Qwen3.5 uses recurrent/hybrid state and the server reports that its context does
+not support partial sequence removal. llama.cpp handles that path with in-memory
+server checkpoints, while the b10092 slot save/restore endpoint serializes the
+sequence state and token list, not those checkpoints. Current upstream has the
+same boundary, and `--swa-full` is unsupported by this model. PI//DECK therefore
+keeps the proven in-memory cache alive and fails closed on stale service state
+instead of presenting disk persistence as an optimization.
+
+## Compact Pi tool surface, measured 2026-08-07
+
+Pi 0.82.1 treats `--tools` as a hard registry allowlist. The bundled router now
+keeps that security boundary intact, then calls Pi's documented
+`setActiveTools()` before prompt assembly. An ordinary Autonomous turn carries
+`read,bash,write,pideck_replace_lines,pideck_load_tools`; explicit web, URL and
+weather prompts activate the matching managed group before the first provider
+request. A model can load the remaining optional groups only within the same
+Android-selected profile.
+
+The exact pinned Pi package and fake OpenAI-compatible endpoint captured the
+serialized static request below. The character measure includes system messages
+and JSON tool schemas, but excludes a production conversation, so its absolute
+value is not a token or latency claim; the before/after ratio isolates the part
+this change controls.
+
+| Profile / request | Tools sent | Static payload chars | Change |
+|---|---:|---:|---:|
+| Confirm, previous full surface | 11 | 12,282 | baseline |
+| Confirm, ordinary routed turn | 8 | 9,835 | -19.9% |
+| Confirm, explicit web turn | 10 | 11,233 | -8.5% |
+| Autonomous, previous full surface | 11 | 13,559 | baseline |
+| Autonomous, ordinary routed turn | 5 | 8,013 | **-40.9%** |
+
+The explicit-web protocol test proves `web_search` and `web_fetch` are present
+in the first provider request, not after an extra LLM round trip. A separate
+static Qwen count put the previous Autonomous prompt at 3,372 tokens and the
+four-tool core at 1,894 tokens. The shipped core adds one small loader schema,
+so the installed-device A/B used the exact final bundle rather than extrapolating
+from that count.
+
+The device A/B used separate temporary session directories, the same
+`Reply with exactly OK.` prompt, Autonomous mode, Qwen3.5 2B and identical
+sampling. `full` omitted only the router and sent the previous complete tool
+surface; `routed` loaded the shipped router. The user session was never opened.
+Each primary cold case followed a full LLM restart, so the llama KV cache was
+empty while Android's normal file page cache remained representative:
+
+| Installed-device path | Full surface | Routed surface | Result |
+|---|---:|---:|---:|
+| Cold prompt after separate LLM restarts | 59.644 s | **35.779 s** | **-23.865 s / -40.0% / 1.67x** |
+| Immediate exact-prompt cache hit | 8.944 s | 8.908 s | no regression |
+
+An earlier sequential cold pair measured 73.819 s full and 38.914 s routed
+(-47.3%, 1.90x). It is supporting evidence only because the routed case ran
+second; the separately restarted row above is the comparison used for the
+claim. All six valid runs exited 0 with identical bounded stdout size and empty
+stderr.
+
+Chat now replaces Pi's coding-agent prompt with a fixed 241-character tool-free
+prompt while preserving custom append/replace semantics. It never activates
+the router or any tool.
+
+The same device run also exposed a foreground-service handoff race: the monitor
+could read the previous native `operationId` before Android delivered the new
+start intent and kill a valid cold start in about 0.1 s. A bounded 10-second
+identity handoff now tolerates only that transition. After installing the fix,
+the native server completed in 28.86 s on the first cold start and in 20.51 s
+and 18.52 s on subsequent model restarts; bridge startup took 0.49-1.03 s.
+Runtime `probe()` now requires every managed extension, including the router,
+before it can return `PIDECK_CORE_READY`.
+
+## MNN 3.5 same-model prototype, measured 2026-08-07
+
+An isolated Android-arm64 MNN 3.5.0 probe ran the official
+`taobao-mnn/Qwen3.5-2B-MNN` package on the same SM-S918B without starting or
+modifying PI//DECK. CPU with four threads was the only viable backend:
+
+| Same Qwen3.5 2B workload | llama.cpp b10092 | MNN 3.5 CPU | Result |
+|---|---:|---:|---:|
+| 1024 prompt / 128 decode | 18.7 decode tok/s baseline | 22.9-23.4 decode tok/s | about 1.23x |
+| 7975 prompt / 1 decode | 174.27 s wall | 106.37 s wall | **1.64x** |
+| Peak RSS on 7975 prompt | about 2.5 GiB app process | 2.02 GiB probe | lower |
+
+This does not pass the proposed cold-8k gate of at most 60 seconds or at least
+2x. More importantly, MNN's advertised disk prefix path is not shippable for
+this model/package. The official Qwen MNN config omits `layer_nums`; MNN defaults
+to 32 while the model has 24, so a valid 24-layer cache is rejected. Adding the
+correct count makes `setPrefixCacheFile()` recognize it, but the first read then
+tries root paths such as `/B400007F9D11C200.k`, fails to mmap and terminates with
+SIGSEGV. OpenCL separately failed to build `linear_attention_buf` and crashed;
+Vulkan exceeded 5.4 GiB before the first token and was stopped.
+
+MNN CPU therefore remains a guarded prototype candidate, not a backend cutover.
+It needs an upstream cache fix, ten clean restore cycles, the 28-task quality
+suite and Android service/session/abort tests before it can replace llama.cpp.

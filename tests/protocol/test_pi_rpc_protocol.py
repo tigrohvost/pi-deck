@@ -190,6 +190,15 @@ class PiRpcProtocolTest(unittest.TestCase):
                 / "runtime"
                 / "pideck-web-tools.ts"
             )
+            tool_router_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-tool-router.ts"
+            )
             arguments = [
                 pi_binary,
                 "--mode",
@@ -217,10 +226,13 @@ class PiRpcProtocolTest(unittest.TestCase):
                 str(context_guard_extension),
                 "--extension",
                 str(web_tools_extension),
+                "--extension",
+                str(tool_router_extension),
                 "--no-builtin-tools",
                 "--tools",
                 "read,grep,find,ls,web_search,web_fetch,weather,"
-                "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines",
+                "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
+                "pideck_load_tools",
                 "--extension",
                 str(extension),
             ]
@@ -229,6 +241,9 @@ class PiRpcProtocolTest(unittest.TestCase):
             environment["PI_CODING_AGENT_SESSION_DIR"] = str(sessions)
             environment["PIDECK_HOME"] = str(base)
             environment["PI_OFFLINE"] = "1"
+            environment["PIDECK_ACCESS_PROFILE"] = "confirm_changes"
+            environment["PIDECK_AGENT_MODE"] = "agent"
+            environment["PIDECK_HASHLINE_APPROVAL"] = "required"
             environment["PIDECK_SYSTEM_PROMPT_MODE"] = "append"
             environment["PIDECK_SYSTEM_PROMPT_PATH"] = str(system_prompt)
             environment["PIDECK_SYSTEM_PROMPT_SHA256"] = hashlib.sha256(
@@ -359,8 +374,12 @@ class PiRpcProtocolTest(unittest.TestCase):
                     for tool in provider_request.get("tools", [])
                     if isinstance(tool, dict)
                 }
-                self.assertIn("web_search", tool_names)
-                self.assertIn("weather", tool_names)
+                self.assertIn("pideck_load_tools", tool_names)
+                self.assertIn("pideck_bash", tool_names)
+                self.assertNotIn("web_search", tool_names)
+                self.assertNotIn("web_fetch", tool_names)
+                self.assertNotIn("weather", tool_names)
+                self.assertNotIn("pideck_edit", tool_names)
                 self.assertIn(
                     system_prompt_marker,
                     json.dumps(
@@ -378,6 +397,52 @@ class PiRpcProtocolTest(unittest.TestCase):
                 self.assertFalse(
                     any(value.get("type") == "extension_error" for value in received),
                     received,
+                )
+
+                # Explicit current-data work activates the managed web group before the
+                # provider request; it does not cost an extra model/tool round-trip.
+                routed_prompt_id = str(uuid.uuid4())
+                process.stdin.write(
+                    json.dumps(
+                        {
+                            "id": routed_prompt_id,
+                            "type": "prompt",
+                            "message": "поищи в интернете PIDECK_ROUTE_MARKER",
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+                process.stdin.flush()
+                routed_events: list[dict[str, object]] = []
+                deadline = time.monotonic() + 25
+                while time.monotonic() < deadline:
+                    try:
+                        value = lines.get(timeout=0.5)
+                    except queue.Empty:
+                        if process.poll() is not None:
+                            break
+                        continue
+                    routed_events.append(value)
+                    if value.get("type") == "agent_settled":
+                        break
+                if not any(value.get("type") == "agent_settled" for value in routed_events):
+                    self.fail(
+                        "Routed Pi prompt did not settle. stderr=" + "".join(stderr)[-4000:]
+                    )
+                routed_request = FakeLlamaHandler.requests.get_nowait()
+                routed_tool_names = {
+                    tool.get("function", {}).get("name")
+                    for tool in routed_request.get("tools", [])
+                    if isinstance(tool, dict)
+                }
+                self.assertIn("pideck_load_tools", routed_tool_names)
+                self.assertIn("web_search", routed_tool_names, routed_events)
+                self.assertIn("web_fetch", routed_tool_names)
+                self.assertNotIn("weather", routed_tool_names)
+                self.assertFalse(
+                    any(value.get("type") == "extension_error" for value in routed_events),
+                    routed_events,
                 )
 
                 abort_id = str(uuid.uuid4())

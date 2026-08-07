@@ -23,7 +23,9 @@ token in argv or logs. llama-server has a separate random API key.
   still shown before the first run and describes shell access explicitly.
 - `READ_ONLY` enables `read,grep,find,ls` plus the bounded, APK-managed
   `web_search`, `web_fetch` and `weather`; shell and file mutation remain
-  disabled. Reading a page is not a mutation, so it sits in this profile.
+  disabled. Reading a page is not a mutation, so it sits in this profile. The
+  network tools remain allowed but their schemas are activated only for a
+  routed live-data task.
 - `CONFIRM_CHANGES` disables mutating built-ins and exposes differently named
   gated tools, including `pideck_replace_lines`, which edits by line anchor and
   asks through the same single approval path as `pideck_edit`. The managed
@@ -38,6 +40,14 @@ token in argv or logs. llama-server has a separate random API key.
   sandbox. Because it is now the default rather than an opt-in, the consent
   screen and the profile row in `Core → Access` are the only places a user is
   told what the agent may do; both name it in full.
+
+Pi's `--tools` option is a hard registry allowlist, not merely an initial tool
+selection. PI//DECK therefore passes every capability the chosen profile may
+use, then its bundled router narrows the active subset before each idle prompt.
+The router rejects calls outside that same profile and can only activate names
+already present in the hard allowlist. `CONFIRM_CHANGES` still omits the mutating
+built-ins entirely and keeps the existing permission extension as a second,
+independent guard.
 
 Local inference means token generation runs on the phone. It does not mean
 network isolation: shell tools can access the network. PI//DECK does not claim

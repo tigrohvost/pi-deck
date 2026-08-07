@@ -65,17 +65,20 @@ public enum AccessProfile {
     public List<String> piArguments(String extensionPath) {
         return switch (this) {
             case READ_ONLY -> List.of(
-                    "--tools", "read,grep,find,ls,web_search,web_fetch,weather"
+                    "--tools", "read,grep,find,ls,web_search,web_fetch,weather,"
+                            + "pideck_load_tools"
             );
             case CONFIRM_CHANGES -> List.of(
                     "--no-builtin-tools",
                     "--tools", "read,grep,find,ls,web_search,web_fetch,weather,"
-                            + "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines",
+                            + "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
+                            + "pideck_load_tools",
                     "--extension", extensionPath
             );
             case AUTONOMOUS -> List.of(
                     "--tools", "read,bash,edit,write,grep,find,ls,"
-                            + "web_search,web_fetch,weather,pideck_replace_lines"
+                            + "web_search,web_fetch,weather,pideck_replace_lines,"
+                            + "pideck_load_tools"
             );
         };
     }

@@ -21,8 +21,10 @@ The managed Pi child is launched as:
 pi --mode rpc --provider pideck --model <exact-id> --offline
    --no-extensions --extension pideck-local-cache.ts
    --extension pideck-system-prompt.ts
+   --extension pideck-hashline-edit.ts
    --extension pideck-context-guard.ts
    --extension pideck-web-tools.ts
+   --extension pideck-tool-router.ts
    [profile-specific tools and explicit permission extension]
 ```
 
@@ -33,13 +35,18 @@ The always-loaded local extension adds llama.cpp's `cache_prompt` request flag,
 so repeated model/tool rounds reuse the common KV prefix without changing the
 conversation or tool contract.
 
-The managed web extension registers only `web_search` and `weather`.
+The managed web extension registers `web_search`, `web_fetch` and `weather`.
 `web_search` returns at most five compact sourced results and falls back from
 the Exa public MCP endpoint to DuckDuckGo HTML search. `weather` resolves a
 place and returns current conditions plus three days from Open-Meteo. Both use
 fixed endpoints, 20-second abort-aware requests and a 256 KiB response ceiling.
-They are active in all Agent access profiles, including the first-run
-`READ_ONLY` profile; tool-free Chat remains isolated from all tools.
+They remain inside every Agent profile's hard CLI allowlist, including
+`READ_ONLY`, but the tool router keeps their schemas inactive for an ordinary
+turn. An explicit web, URL or weather request activates the matching group in
+Pi's `input` hook before the first provider request. A compact
+`pideck_load_tools` call can add an optional group during a turn. The router
+intersects every change with the Android-selected profile, while tool-free Chat
+remains isolated from all tools.
 
 Android sends an optional custom system prompt only in the bootstrap stdin
 JSON. The runtime validates a 16 KiB UTF-8 limit and atomically writes a fixed
@@ -50,6 +57,9 @@ instructions after Pi's assembled project context; `replace` deliberately
 replaces the complete prompt. An empty value restores Pi's default. Bridge
 config, process metadata and `GET_STATE` expose only mode, byte count and
 SHA-256, which lets Android reject stale bridge settings without echoing text.
+Default Chat uses a separate short, tool-free final prompt instead of carrying
+Pi's coding-agent instructions and project-tool guidance into a conversation
+that cannot execute them. Custom append and full-replace semantics are kept.
 
 Stderr is drained separately. Malformed JSON, oversized frames, stdout EOF and
 child exit are protocol failures; an active turn becomes failed/unknown and is

@@ -32,6 +32,7 @@ public final class RuntimeAssetBundle {
             "runtime/pideck-hashline-edit.ts",
             "runtime/pideck-context-guard.ts",
             "runtime/pideck-web-tools.ts",
+            "runtime/pideck-tool-router.ts",
             "runtime/pideck-permission-gate.ts",
             "runtime/pideck_runtime/__init__.py",
             "runtime/pideck_runtime/common.py",

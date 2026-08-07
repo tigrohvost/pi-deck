@@ -369,6 +369,14 @@ Items 1, 2, 4 and 5 were done on this branch; what changed is recorded inline.
    memory. MTP is the wrong lever for it either way. KV q8_0 and flash attention are
    still worth trying to widen that margin, and both already pass through
    `serverArgs` without a code change.
+7. ~~Compact the permanent tool surface~~ — **done** with
+   `pideck-tool-router.ts`. Pi still receives the complete hard allowlist for the
+   selected access profile, then an ordinary Autonomous turn is narrowed to
+   `read,bash,write,pideck_replace_lines,pideck_load_tools`. Explicit live-data
+   requests activate their managed group before the first provider request; the
+   loader can add other optional groups but cannot cross the Android profile. The
+   exact Pi payload fell 40.9% for an ordinary Autonomous fixture. Chat now uses a
+   separate 241-character final prompt and no tools.
 
 ## Sources
 

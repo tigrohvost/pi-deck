@@ -137,6 +137,7 @@ public class RuntimeScriptsTest {
                 "pideck-hashline-edit.ts",
                 "pideck-context-guard.ts",
                 "pideck-web-tools.ts",
+                "pideck-tool-router.ts",
                 "pideck-permission-gate.ts",
                 "pideck_runtime/__init__.py",
                 "pideck_runtime/common.py",

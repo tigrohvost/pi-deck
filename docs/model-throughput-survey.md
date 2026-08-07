@@ -134,3 +134,70 @@ for.
 Qwen3.5-35B-A3B and Qwen3-Coder-Next 80B-A3B pass on active parameters and fail
 on total size; no small Qwen3.5-Coder exists, the Small series being
 0.8B/2B/4B/9B.
+
+## Bonsai 27B, measured 2026-07-30
+
+The first candidate measured rather than predicted, and the first one whose
+answer is a refusal.
+
+`prism-ml/Bonsai-27B-gguf` packs Qwen3.6-27B into 3.54 GiB by spending one sign
+bit per weight with an FP16 scale shared across each group of 128 — 1.125 bits
+per weight. The size alone puts it inside the 4B's measured footprint, which is
+what made it worth a run: 27B of parameters for less resident memory than the
+9B needs.
+
+Same harness as above (`tools/speculative_probe.py --variant baseline`), ctx
+4096, decode pinned `5@3-7`, batch `8@0-7`, one slot, first sample discarded.
+
+| | Bonsai 27B Q1_0 | Qwen3.5 4B Q4_K_M |
+|---|---:|---:|
+| Weights | 3.54 GiB | 2.81 GiB |
+| Resident | 4.00 GiB | 5.03 GB |
+| Decode, warm median | **1.16 tok/s** | 7.4 tok/s |
+| Prompt eval | 0.29–1.59 tok/s | 1.5–8.1 tok/s |
+| Load, cold flash | 106 s | 35 s |
+
+Three things the run settles:
+
+**It runs on the pinned build.** The vendor ships a llama.cpp fork "including
+the Q1_0_g128 hybrid-attention kernels", so the working assumption was that
+b10092 would refuse the file. It loads it, and the answers are coherent English
+prose and Python. Upstream therefore has a Q1_0 path; it is just not the one the
+model was built for.
+
+**Memory was never the binding limit.** Resident peaked at 4.00 GiB with
+`MemAvailable` still near 5 GiB throughout, and no swapping. This is the first
+model in the survey where the RAM ceiling stayed out of the way.
+
+**The envelope does not describe it.** `25.6 / GiB^1.2` predicts 5.6 tok/s for
+3.54 GiB, and the K-quant models land at 0.62–0.66× of their prediction.
+Bonsai lands at 0.21×. Effective read bandwidth works out to 4.1 GiB/s against
+20.8–27.4 GiB/s for the Q4 and Q6 models, so the cost is not the bytes — it is
+what upstream does with them per byte. A fitted curve over K-quants says nothing
+about a quantisation whose kernel is missing.
+
+Thermals compound it rather than cause it. The big cores started at their full
+3.36 GHz and 46.9 °C and were down to 0.47 headroom by the second sample; the
+warm-up sample, taken at 0.59 headroom, was the fastest of the four at 1.37
+tok/s. Even extrapolated to an unthrottled clock the model stays near 2 tok/s.
+
+One further cost the number hides: the embedded template reasons by default, and
+110 tokens of budget were spent entirely inside the reasoning block on all three
+test prompts, with `content` still empty when the budget ran out. At 1.2 tok/s
+the first user-visible token is minutes away. The catalog entry therefore pins
+`reasoningMode: "off"`, which was checked on the device rather than assumed:
+under the entry's own flags the same prompt came back with an empty
+`reasoning_content` and a finished answer in 10 tokens.
+
+That answer also shows where 1.125 bits per weight is spent. Asked for the
+capital of Australia in Russian, it returned `Столицой Австралии является
+Канberra` — right fact, wrong case ending, and the proper noun half-transliterated
+back into Latin. The English prose and Python in the other two prompts were
+clean. One sample proves nothing on its own, but it is the kind of damage a
+1-bit packing is expected to do first, and it lands on this deck's default UI
+language.
+
+It is in the catalog as `bonsai-27b` with status `CANDIDATE`, which lists it and
+lets it be picked by hand but keeps it out of `ModelCatalog.recommend`. The
+recommendation weighs memory, and memory is precisely the axis on which this
+model looks good.

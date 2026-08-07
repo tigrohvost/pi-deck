@@ -154,6 +154,53 @@ class RuntimeTestCase(unittest.TestCase):
     def test_bridge_can_rebind_after_exact_managed_restart(self) -> None:
         self.assertTrue(bridge.BridgeHttpServer.allow_reuse_address)
 
+    def test_probe_requires_every_managed_extension_including_tool_router(self) -> None:
+        compatibility = {
+            "pi": {"version": "0.82.1"},
+            "node": {"minimumVersion": "22.19.0"},
+            "llamaCpp": {
+                "owner": "android-native",
+                "minimumVersion": "b10092",
+                "maximumTestedVersion": "b10092",
+            },
+        }
+        common.atomic_write_json(
+            common.BASE / "runtime" / "compatibility.json", compatibility
+        )
+        required = (
+            common.BASE / "runtime" / "models-v2.json",
+            bridge.LOCAL_CACHE_EXTENSION,
+            bridge.SYSTEM_PROMPT_EXTENSION,
+            bridge.HASHLINE_EXTENSION,
+            bridge.CONTEXT_GUARD_EXTENSION,
+            bridge.WEB_TOOLS_EXTENSION,
+            common.BASE / "runtime" / "pideck-permission-gate.ts",
+        )
+        for path in required:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture\n", encoding="utf-8")
+
+        versions = [
+            mock.Mock(returncode=0, stdout="0.82.1\n"),
+            mock.Mock(returncode=0, stdout="v22.19.0\n"),
+            mock.Mock(returncode=0, stdout="Python 3.14.0\n"),
+        ]
+        with mock.patch.object(launcher.subprocess, "run", side_effect=versions):
+            incomplete = launcher.probe()
+        self.assertFalse(incomplete["layoutReady"])
+        self.assertEqual("INCOMPLETE", incomplete["state"])
+
+        bridge.TOOL_ROUTER_EXTENSION.write_text("fixture\n", encoding="utf-8")
+        versions = [
+            mock.Mock(returncode=0, stdout="0.82.1\n"),
+            mock.Mock(returncode=0, stdout="v22.19.0\n"),
+            mock.Mock(returncode=0, stdout="Python 3.14.0\n"),
+        ]
+        with mock.patch.object(launcher.subprocess, "run", side_effect=versions):
+            ready = launcher.probe()
+        self.assertTrue(ready["layoutReady"])
+        self.assertEqual("READY", ready["state"])
+
     def test_session_id_accepts_android_uuid4_and_pi_uuid7_only(self) -> None:
         uuid4 = operation_id()
         self.assertEqual(
@@ -361,16 +408,19 @@ class RuntimeTestCase(unittest.TestCase):
             launcher._profile_arguments("confirm_changes", "agent")
         )
         self.assertIn("pideck_bash", confirm_tools)
+        self.assertIn("pideck_load_tools", confirm_tools)
         self.assertIn("web_search", confirm_tools)
         self.assertIn("weather", confirm_tools)
         autonomous_tools = ",".join(
             launcher._profile_arguments("autonomous", "agent")
         )
+        self.assertIn("pideck_load_tools", autonomous_tools)
         self.assertIn("web_search", autonomous_tools)
         self.assertIn("weather", autonomous_tools)
         read_only_tools = ",".join(
             launcher._profile_arguments("read_only", "agent")
         )
+        self.assertIn("pideck_load_tools", read_only_tools)
         self.assertIn("web_search", read_only_tools)
         self.assertIn("weather", read_only_tools)
 

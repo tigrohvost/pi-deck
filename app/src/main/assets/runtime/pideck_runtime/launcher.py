@@ -16,7 +16,9 @@ from . import RUNTIME_CONTRACT_VERSION, RUNTIME_VERSION
 from .bridge import (
     LOCAL_CACHE_EXTENSION,
     CONTEXT_GUARD_EXTENSION,
+    HASHLINE_EXTENSION,
     SYSTEM_PROMPT_EXTENSION,
+    TOOL_ROUTER_EXTENSION,
     WEB_TOOLS_EXTENSION,
     bootstrap_bridge,
     parse_system_prompt_request,
@@ -62,20 +64,25 @@ def _profile_arguments(profile: str, agent_mode: str = "agent") -> list[str]:
     if agent_mode == "chat":
         return ["--no-tools"]
     if profile == "read_only":
-        return ["--tools", "read,grep,find,ls,web_search,weather"]
+        return [
+            "--tools",
+            "read,grep,find,ls,web_search,web_fetch,weather,pideck_load_tools",
+        ]
     if profile == "confirm_changes":
         return [
             "--no-builtin-tools",
             "--tools",
-            "read,grep,find,ls,web_search,weather,"
-            "pideck_bash,pideck_edit,pideck_write",
+            "read,grep,find,ls,web_search,web_fetch,weather,"
+            "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
+            "pideck_load_tools",
             "--extension",
             str(BASE / "runtime" / "pideck-permission-gate.ts"),
         ]
     if profile == "autonomous":
         return [
             "--tools",
-            "read,bash,edit,write,grep,find,ls,web_search,weather",
+            "read,bash,edit,write,grep,find,ls,web_search,web_fetch,weather,"
+            "pideck_replace_lines,pideck_load_tools",
         ]
     raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
 
@@ -114,10 +121,20 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
             "CONTEXT_GUARD_EXTENSION_MISSING",
             "Local context-guard extension is not installed",
         )
+    if not HASHLINE_EXTENSION.is_file():
+        raise PiDeckError(
+            "HASHLINE_EXTENSION_MISSING",
+            "Managed anchored-edit extension is not installed",
+        )
     if not WEB_TOOLS_EXTENSION.is_file():
         raise PiDeckError(
             "WEB_TOOLS_EXTENSION_MISSING",
             "Managed web-tools extension is not installed",
+        )
+    if not TOOL_ROUTER_EXTENSION.is_file():
+        raise PiDeckError(
+            "TOOL_ROUTER_EXTENSION_MISSING",
+            "Managed tool-router extension is not installed",
         )
 
     arguments = [
@@ -141,9 +158,13 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         "--extension",
         str(SYSTEM_PROMPT_EXTENSION),
         "--extension",
+        str(HASHLINE_EXTENSION),
+        "--extension",
         str(CONTEXT_GUARD_EXTENSION),
         "--extension",
         str(WEB_TOOLS_EXTENSION),
+        "--extension",
+        str(TOOL_ROUTER_EXTENSION),
     ]
     persist_system_prompt(system_prompt_path, system_prompt_content)
     if session_id:
@@ -152,6 +173,11 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
     environment = managed_environment(operation_id)
     environment["PI_CODING_AGENT_DIR"] = str(BASE / "pi")
     environment["PI_CODING_AGENT_SESSION_DIR"] = str(BASE / "sessions")
+    environment["PIDECK_ACCESS_PROFILE"] = profile
+    environment["PIDECK_AGENT_MODE"] = agent_mode
+    environment["PIDECK_HASHLINE_APPROVAL"] = (
+        "none" if profile == "autonomous" else "required"
+    )
     environment.update(system_prompt_environment(system_prompt, system_prompt_path))
     try:
         process = subprocess.Popen(
@@ -361,7 +387,10 @@ def probe() -> dict[str, Any]:
             BASE / "runtime" / "compatibility.json",
             LOCAL_CACHE_EXTENSION,
             SYSTEM_PROMPT_EXTENSION,
+            HASHLINE_EXTENSION,
             CONTEXT_GUARD_EXTENSION,
+            WEB_TOOLS_EXTENSION,
+            TOOL_ROUTER_EXTENSION,
             BASE / "runtime" / "pideck-permission-gate.ts",
             BASE / "workspace",
             BASE / "sessions",

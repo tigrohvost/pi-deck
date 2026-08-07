@@ -16,7 +16,8 @@ flowchart LR
   RC -->|token plus loopback HTTP| BR[PiDeck bridge]
   BR -->|JSONL stdin stdout| PI[Pi 0.82.1 RPC]
   PI -->|API key plus loopback HTTP| LS[llama-server]
-  PI -->|managed web and weather tools| WEB[fixed public endpoints]
+  PI --> TR[profile-safe tool router]
+  TR -->|managed web and weather tools| WEB[fixed public endpoints]
   RT --> AD[Exact-health server adoption]
   AD --> LS
 ```
@@ -34,10 +35,13 @@ never a hidden prompt replay.
 
 Pi's package/extension API remains the integration seam, but automatic package
 discovery is disabled. The APK explicitly installs and loads a small web-tools
-extension alongside the prompt/cache/context guards. This keeps the available
-network surface reproducible while still giving weak local models structured
-`web_search` and `weather` calls instead of requiring them to invent shell
-pipelines.
+extension and a profile-safe tool router alongside the prompt/cache/context
+guards. Pi receives the complete hard allowlist for the selected access profile,
+then the router activates only its compact core. Explicit live-data prompts add
+the matching managed tools before the first model call; other optional groups
+can be loaded without ever crossing the selected profile. This keeps the network
+surface reproducible while avoiding permanent schemas for capabilities an
+ordinary local task does not need.
 
 The Core screen persists an optional custom system prompt in Android-private
 preferences. Bridge bootstrap carries it in stdin JSON, turns it into a private
