@@ -11,7 +11,15 @@
  */
 
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -325,6 +333,16 @@ try {
 		await runToolResult({ ...mutationEvent("write", brokenPy, "failed"), isError: true }),
 		"failed",
 		"an already-failed tool result must not be annotated",
+	);
+
+	// An unreadable .json target is the checker's problem, not a syntax error: the note
+	// must not surface EISDIR/ENOENT as if the just-saved file were broken.
+	const unreadableJson = join(workspace, "dir.json");
+	mkdirSync(unreadableJson);
+	assert.equal(
+		await runToolResult(mutationEvent("write", unreadableJson, "OK")),
+		"OK",
+		"an unreadable .json path must fail open, not annotate",
 	);
 
 	process.env.PIDECK_SYNTAX_CHECK_PYTHON = join(workspace, "no-such-python");

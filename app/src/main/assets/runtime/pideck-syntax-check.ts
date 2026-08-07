@@ -73,13 +73,21 @@ function syntaxError(path: string): string | undefined {
 		case ".mjs":
 		case ".cjs":
 			return checkerError(process.execPath, ["--check", path]);
-		case ".json":
+		case ".json": {
+			// An unreadable file is the checker's problem, not a syntax error.
+			let source: string;
 			try {
-				JSON.parse(readFileSync(path, "utf8"));
+				source = readFileSync(path, "utf8");
+			} catch {
+				return undefined;
+			}
+			try {
+				JSON.parse(source);
 				return undefined;
 			} catch (error) {
 				return bounded(error instanceof Error ? error.message : String(error));
 			}
+		}
 		default:
 			return undefined;
 	}
