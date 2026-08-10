@@ -1506,7 +1506,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             OperationId operationId = armed.operationId();
             if (!busy || !operationId.equals(operations.activeOperationId())) return;
             long now = System.currentTimeMillis();
-            if (armed.verdict(now) == StallWatchdog.Verdict.WAIT) {
+            StallWatchdog.Verdict verdict = armed.verdict(now);
+            if (verdict == StallWatchdog.Verdict.WAIT) {
                 scheduleWatchdogCheck();
                 return;
             }
@@ -1514,7 +1515,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             stallState = null;
             operations.timeout(operationId);
             setBusy(true, "Ответа нет");
-            reportWatchdog(operationId, armed.kind(), silent);
+            reportWatchdog(operationId, armed.kind(), silent, verdict);
             if (armed.kind() == OperationKind.AGENT_TURN
                     || armed.kind() == OperationKind.NEW_SESSION
                     || armed.kind() == OperationKind.COMPACT_SESSION) {
@@ -1538,13 +1539,23 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
      * A silent Termux is the deck's most common failure, and the honest report is that the result
      * is unknown — so the card offers both readings: wait longer, or stop and take the loss.
      */
-    private void reportWatchdog(OperationId operationId, OperationKind kind, long waited) {
+    private void reportWatchdog(
+            OperationId operationId,
+            OperationKind kind,
+            long waited,
+            StallWatchdog.Verdict verdict
+    ) {
+        String description = verdict == StallWatchdog.Verdict.EXPIRED
+                ? "Операция идёт дольше общего предела " + (kind.timeoutMs() / 60_000L) + " мин. "
+                        + "Так бывает, когда Android выгружает Termux ради экономии батареи. Часть "
+                        + "изменений могла быть уже применена — проверьте рабочую папку перед повтором."
+                : "Событий не было " + Math.max(1L, waited / 60_000L) + " мин. Так бывает, когда Android "
+                        + "выгружает его ради экономии батареи. Часть изменений могла быть уже "
+                        + "применена — проверьте рабочую папку перед повтором.";
         FailureCardView.Failure failure = new FailureCardView.Failure(
                 "Связь потеряна",
                 "Команда идёт слишком долго",
-                "Событий не было " + Math.max(1L, waited / 60_000L) + " мин. Так бывает, когда Android "
-                        + "выгружает его ради экономии батареи. Часть изменений могла быть уже "
-                        + "применена — проверьте рабочую папку перед повтором.",
+                description,
                 false
         );
         failure.recovered(
@@ -3273,7 +3284,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     : state.optString(remoteField, null);
             if (active.operationId.toString().equals(remote)) {
                 operations.reconcileRunning(active.operationId);
-                if (stallState == null) {
+                if (stallState == null
+                        && System.currentTimeMillis() - active.createdAtMs < active.kind.timeoutMs()) {
                     armRestoredWatchdog(active);
                 }
                 if (active.kind == OperationKind.AGENT_TURN) {

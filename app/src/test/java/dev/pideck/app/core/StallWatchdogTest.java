@@ -70,4 +70,13 @@ public class StallWatchdogTest {
             assertTrue(kind.stallTimeoutMs() > 0L);
         }
     }
+
+    @Test
+    public void restoredPastOverallDeadlineIsExpiredImmediately() {
+        OperationId id = OperationId.create();
+        long overall = OperationKind.AGENT_TURN.timeoutMs();
+        StallWatchdog watchdog = new StallWatchdog(id, OperationKind.AGENT_TURN, 0L, overall + 5L);
+        assertEquals(StallWatchdog.Verdict.EXPIRED, watchdog.verdict(overall + 5L));
+        assertEquals(1L, watchdog.nextCheckDelayMs(overall + 5L));
+    }
 }
