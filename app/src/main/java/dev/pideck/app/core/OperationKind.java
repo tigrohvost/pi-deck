@@ -11,8 +11,8 @@ public enum OperationKind {
     STOP_SERVER(true, 60_000L),
     START_BRIDGE(true, 90_000L),
     STOP_BRIDGE(true, 60_000L),
-    AGENT_TURN(true, 2_700_000L),
-    COMPACT_SESSION(true, 900_000L),
+    AGENT_TURN(true, 2_700_000L, 480_000L),
+    COMPACT_SESSION(true, 900_000L, 480_000L),
     ABORT_AGENT(false, 60_000L),
     NEW_SESSION(true, 60_000L),
     LIST_SESSIONS(false, 45_000L),
@@ -21,10 +21,16 @@ public enum OperationKind {
 
     private final boolean mutating;
     private final long timeoutMs;
+    private final long stallTimeoutMs;
 
     OperationKind(boolean mutating, long timeoutMs) {
+        this(mutating, timeoutMs, timeoutMs);
+    }
+
+    OperationKind(boolean mutating, long timeoutMs, long stallTimeoutMs) {
         this.mutating = mutating;
         this.timeoutMs = timeoutMs;
+        this.stallTimeoutMs = stallTimeoutMs;
     }
 
     public boolean isMutating() {
@@ -33,6 +39,10 @@ public enum OperationKind {
 
     public long timeoutMs() {
         return timeoutMs;
+    }
+
+    public long stallTimeoutMs() {
+        return stallTimeoutMs;
     }
 
     public String wireName() {
