@@ -201,3 +201,40 @@ It is in the catalog as `bonsai-27b` with status `CANDIDATE`, which lists it and
 lets it be picked by hand but keeps it out of `ModelCatalog.recommend`. The
 recommendation weighs memory, and memory is precisely the axis on which this
 model looks good.
+
+## LFM2-8B-A1B on the pinned b10092, first contact 2026-08-10
+
+The 4.41 GiB vendor Q4_0 (`LiquidAI/LFM2-8B-A1B-GGUF`, revision
+`145e98524a2e`, SHA-256 verified on the device against Hugging Face LFS
+metadata) was run under the shell UID on the pinned b10092 — the build the
+deck already ships. Two things this settles and one it does not.
+
+**b10092 opens and runs the MoE file.** `lfm2moe` loaded in 28.8 s cold
+(`-c 4096`, decode `5@3-7`, batch `8@0-7`, `--no-warmup`) and answered
+15+ requests without a crash. The Stage 1 assumption in the 2026-08-10
+design — that LFM2-8B-A1B needs a newer pin — is wrong; a pin bump is only
+justified by the OpenCL work, which needs a custom build regardless.
+
+**The RAM ceiling is the binding limit, as predicted.** RSS never held the
+full weights: it oscillated between 2.8 and 4.0 GiB while the kernel
+reclaimed model pages between requests (`MemAvailable` 0.7–1.2 GiB, swap
+active, deck core stopped, `am kill-all` applied). `--mlock` is unavailable
+under the shell UID (`RLIMIT_MEMLOCK` 0: "failed to mlock … after
+previously locking 0 bytes"). Every decode ran partly against flash.
+
+**Speed is not settled.** Measured decode ranged 4.5–11.4 tok/s, but every
+sample after the first was thermally capped (one 192-token decode dropped
+`cpu7 scaling_max_freq` from 3,360,000 to 1,843,200–2,227,200 while
+charging; battery 32–35 °C) and none had full residency. The best sample —
+11.4 tok/s at 55 % clock with partial residency — suggests the full-clock,
+resident rate clears the 10 tok/s admission bar with room to spare, but a
+clean thermally-gated series was cut short by a USB drop and has not been
+completed. Treat every number in this section as a lower bound, not a
+measurement.
+
+The practical fork this leaves for Stage 2: the Q4_0 file sits exactly on
+this phone's memory edge, so either the admission targets the official
+Q3_K_M (~3.5 GiB) with real headroom, or the Q4_0 row is admitted
+shelf-only (`CANDIDATE`) for devices with more RAM. The clean series that
+decides this needs the phone off the charger, screen off, and a per-sample
+clock gate.
