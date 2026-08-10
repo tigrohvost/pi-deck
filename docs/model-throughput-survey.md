@@ -238,3 +238,29 @@ Q3_K_M (~3.5 GiB) with real headroom, or the Q4_0 row is admitted
 shelf-only (`CANDIDATE`) for devices with more RAM. The clean series that
 decides this needs the phone off the charger, screen off, and a per-sample
 clock gate.
+
+### Stage 2 verdict, 2026-08-10 evening: Q4_0 shelved, compute thesis proven
+
+A clean off-charger series (battery capped at 80 % so the phone drew no
+charge current, deck stopped, per-sample clock gate) settled both open
+questions:
+
+- **The MoE compute thesis holds.** The best clock-gated sample decoded
+  **13.10 tok/s over 192 tokens** — above the 10 tok/s admission bar — and
+  that sample *started* at 401 MB RSS, so it paid flash refaults on the way.
+  A fully resident run would be faster still.
+- **Residency is unwinnable for this file on this phone.** Waiting for the
+  clock to recover is itself enough for the kernel to evict the model: RSS
+  fell from 3.8 GiB to 0.4–1.0 GiB during every between-sample cooldown,
+  with nothing else running. The clock gate and residency are antagonists —
+  there is no schedule on this 12 GiB device that holds both for a 4.41 GiB
+  mmap under shell-UID rules (`mlock` is unavailable: `RLIMIT_MEMLOCK` 0).
+
+Per the design's own gate («провал — модель остаётся CANDIDATE-полкой»),
+the Q4_0 row is **shelved**: correct on b10092, above the speed bar on
+compute, unusable as a working profile here for memory reasons alone. The
+vendor publishes no quant below Q4_0 (next candidates would be a
+self-quantized Q3_K_M from the 15.54 GiB F16, with a full provenance
+chain — deliberately not pursued now). Stage 3 (OpenCL prefill) proceeds:
+it attacks the measured pain that affects every model — 64 s cold TTFT on
+the shipped 2B profile.
