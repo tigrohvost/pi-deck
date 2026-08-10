@@ -79,4 +79,13 @@ public class StallWatchdogTest {
         assertEquals(StallWatchdog.Verdict.EXPIRED, watchdog.verdict(overall + 5L));
         assertEquals(1L, watchdog.nextCheckDelayMs(overall + 5L));
     }
+
+    @Test
+    public void expiredWinsWhenBothDeadlinesHavePassed() {
+        OperationId id = OperationId.create();
+        StallWatchdog watchdog = new StallWatchdog(id, OperationKind.AGENT_TURN, 0L);
+        long past = OperationKind.AGENT_TURN.timeoutMs()
+                + OperationKind.AGENT_TURN.stallTimeoutMs();
+        assertEquals(StallWatchdog.Verdict.EXPIRED, watchdog.verdict(past));
+    }
 }

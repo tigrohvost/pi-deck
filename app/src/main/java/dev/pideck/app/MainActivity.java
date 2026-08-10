@@ -1504,7 +1504,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             watchdog = null;
             if (stallState != armed) return;
             OperationId operationId = armed.operationId();
-            if (!busy || !operationId.equals(operations.activeOperationId())) return;
+            if (!busy || !operationId.equals(operations.activeOperationId())) {
+                if (stallState == armed) stallState = null;
+                return;
+            }
             long now = System.currentTimeMillis();
             StallWatchdog.Verdict verdict = armed.verdict(now);
             if (verdict == StallWatchdog.Verdict.WAIT) {
@@ -1529,6 +1532,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 });
             }
         };
+        // Verdicts are timestamped with System.currentTimeMillis(), but postDelayed runs on the
+        // uptime clock, so a process freeze can make this fire early or late relative to the
+        // deadline. WAIT reschedules against the wall clock; a spurious early fire just re-checks
+        // the verdict, so drift only ever reconciles fail-closed.
         main.postDelayed(
                 watchdog,
                 Math.max(1_000L, armed.nextCheckDelayMs(System.currentTimeMillis()))
