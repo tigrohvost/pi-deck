@@ -1,0 +1,2954 @@
+{
+  "schemaVersion": 1,
+  "reportType": "pideck-agent-speed",
+  "createdAt": "2026-08-10T07:39:13.351518Z",
+  "deviceId": "e3425a7674ba0e28",
+  "package": "dev.pideck.app",
+  "component": "dev.pideck.app/.MainActivity",
+  "bridgePort": 8787,
+  "hostForwardPort": 18787,
+  "samplingIntervalSeconds": 2.0,
+  "cases": {
+    "cold": [
+      {
+        "label": "cold-1",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 10.639555,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 81.5542,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 81.763996,
+          "provider": {
+            "outputTokens": 5,
+            "decodeSeconds": 0.262,
+            "decodeTokensPerSecond": 19.12,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 80.70082,
+              "tokens": 2326,
+              "tokensPerSecond": 28.823
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 80.70082,
+                "tokens": 2326,
+                "tokensPerSecond": 28.823
+              },
+              "decode": {
+                "seconds": 0.25343,
+                "tokens": 5,
+                "tokensPerSecond": 19.729
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 17,
+          "start": {
+            "monotonicSeconds": 10960.347167,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.1,
+            "batteryVoltageV": 3.865,
+            "usbPowered": false,
+            "acPowered": true,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 2726400,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 0.811,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          "end": {
+            "monotonicSeconds": 11079.495069,
+            "batteryLevelPercent": 37,
+            "batteryTemperatureC": 35.2,
+            "batteryVoltageV": 3.762,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "minimumBigCoreHeadroom": 0.697,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 1,
+          "batteryDeltaPercent": 1.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 10960.347167,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.1,
+            "batteryVoltageV": 3.865,
+            "usbPowered": false,
+            "acPowered": true,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 2726400,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 0.811,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 10966.349999,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.0,
+            "batteryVoltageV": 3.784,
+            "usbPowered": false,
+            "acPowered": true,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 2956800,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 0.88,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 10973.638064,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.0,
+            "batteryVoltageV": 3.747,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 2726400,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 0.811,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 10982.823354,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.1,
+            "batteryVoltageV": 3.84,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 2726400,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 0.811,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 10990.615453,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.2,
+            "batteryVoltageV": 3.852,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 2592000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 0.771,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 10999.926868,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.2,
+            "batteryVoltageV": 3.852,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 2726400,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 0.811,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 11008.964688,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.2,
+            "batteryVoltageV": 3.761,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 2592000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 0.771,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 11017.088932,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.3,
+            "batteryVoltageV": 3.776,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 2342400,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 0.697,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 11023.159416,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.4,
+            "batteryVoltageV": 3.799,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 11029.245287,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.4,
+            "batteryVoltageV": 3.799,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 11035.572739,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.5,
+            "batteryVoltageV": 3.721,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 11041.507968,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.7,
+            "batteryVoltageV": 3.759,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          },
+          {
+            "monotonicSeconds": 11048.101501,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.7,
+            "batteryVoltageV": 3.759,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11055.691537,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.9,
+            "batteryVoltageV": 3.741,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11062.997759,
+            "batteryLevelPercent": 37,
+            "batteryTemperatureC": 35.1,
+            "batteryVoltageV": 3.759,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11071.135108,
+            "batteryLevelPercent": 37,
+            "batteryTemperatureC": 35.1,
+            "batteryVoltageV": 3.759,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11079.495069,
+            "batteryLevelPercent": 37,
+            "batteryTemperatureC": 35.2,
+            "batteryVoltageV": 3.762,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.166,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 10953.124578,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 34.1,
+            "batteryVoltageV": 3.865,
+            "usbPowered": false,
+            "acPowered": true,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 0
+          }
+        },
+        "startupSeconds": 23.354485,
+        "coldToFirstVisibleTokenSeconds": 115.54824,
+        "coldEndToEndSeconds": 115.758036
+      },
+      {
+        "label": "cold-2",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 9.005854,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 47.072693,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 52.059259,
+          "provider": {
+            "outputTokens": 66,
+            "decodeSeconds": 5.05,
+            "decodeTokensPerSecond": 13.07,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 46.46229,
+              "tokens": 2326,
+              "tokensPerSecond": 50.062
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 46.46229,
+                "tokens": 2326,
+                "tokensPerSecond": 50.062
+              },
+              "decode": {
+                "seconds": 5.03197,
+                "tokens": 66,
+                "tokensPerSecond": 13.116
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 15,
+          "start": {
+            "monotonicSeconds": 11094.418372,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.5,
+            "batteryVoltageV": 3.862,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "end": {
+            "monotonicSeconds": 11189.329544,
+            "batteryLevelPercent": 37,
+            "batteryTemperatureC": 36.4,
+            "batteryVoltageV": 3.739,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 1.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11094.418372,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.5,
+            "batteryVoltageV": 3.862,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11100.503875,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.5,
+            "batteryVoltageV": 3.773,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11107.615402,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.5,
+            "batteryVoltageV": 3.773,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11114.827022,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.5,
+            "batteryVoltageV": 3.778,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11123.493109,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.7,
+            "batteryVoltageV": 3.828,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11130.203478,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.7,
+            "batteryVoltageV": 3.828,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11136.146459,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.8,
+            "batteryVoltageV": 3.85,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11142.796297,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.8,
+            "batteryVoltageV": 3.77,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11149.182612,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 35.8,
+            "batteryVoltageV": 3.77,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11155.500276,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.0,
+            "batteryVoltageV": 3.74,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11161.86226,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.773,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11168.475631,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.773,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          {
+            "monotonicSeconds": 11176.100303,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.76,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          {
+            "monotonicSeconds": 11185.722206,
+            "batteryLevelPercent": 37,
+            "batteryTemperatureC": 36.4,
+            "batteryVoltageV": 3.739,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          {
+            "monotonicSeconds": 11189.329544,
+            "batteryLevelPercent": 37,
+            "batteryTemperatureC": 36.4,
+            "batteryVoltageV": 3.739,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.826,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11087.512576,
+            "batteryLevelPercent": 37,
+            "batteryTemperatureC": 35.4,
+            "batteryVoltageV": 3.86,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        },
+        "startupSeconds": 29.855591,
+        "coldToFirstVisibleTokenSeconds": 85.934138,
+        "coldEndToEndSeconds": 90.920704
+      }
+    ],
+    "warm": [
+      {
+        "label": "warm-1",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.14325,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 0.496304,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 8.024373,
+          "provider": {
+            "outputTokens": 117,
+            "decodeSeconds": 7.58,
+            "decodeTokensPerSecond": 15.44,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 0.31662,
+              "tokens": 4,
+              "tokensPerSecond": 12.633
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 0.31662,
+                "tokens": 4,
+                "tokensPerSecond": 12.633
+              },
+              "decode": {
+                "seconds": 7.57659,
+                "tokens": 117,
+                "tokensPerSecond": 15.442
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11206.359174,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.6,
+            "batteryVoltageV": 3.851,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          "end": {
+            "monotonicSeconds": 11214.179154,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.848,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11206.359174,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.6,
+            "batteryVoltageV": 3.851,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          {
+            "monotonicSeconds": 11214.179154,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.848,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.988,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11197.503642,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.6,
+            "batteryVoltageV": 3.851,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "warm-2",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.126588,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 0.410068,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 0.580503,
+          "provider": {
+            "outputTokens": 5,
+            "decodeSeconds": 0.221,
+            "decodeTokensPerSecond": 22.58,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 0.25496,
+              "tokens": 4,
+              "tokensPerSecond": 15.689
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 0.25496,
+                "tokens": 4,
+                "tokensPerSecond": 15.689
+              },
+              "decode": {
+                "seconds": 0.21443,
+                "tokens": 5,
+                "tokensPerSecond": 23.318
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11230.33509,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.857,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          "end": {
+            "monotonicSeconds": 11234.224064,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.857,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11230.33509,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.857,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          {
+            "monotonicSeconds": 11234.224064,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.857,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.991,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11222.351383,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.85,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "warm-3",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.113271,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 0.36275,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 0.52811,
+          "provider": {
+            "outputTokens": 5,
+            "decodeSeconds": 0.215,
+            "decodeTokensPerSecond": 23.23,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 0.22554,
+              "tokens": 4,
+              "tokensPerSecond": 17.735
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 0.22554,
+                "tokens": 4,
+                "tokensPerSecond": 17.735
+              },
+              "decode": {
+                "seconds": 0.2131,
+                "tokens": 5,
+                "tokensPerSecond": 23.463
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11250.150563,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.853,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          "end": {
+            "monotonicSeconds": 11254.126071,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.853,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11250.150563,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.853,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          {
+            "monotonicSeconds": 11254.126071,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.853,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.839,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11242.243761,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.7,
+            "batteryVoltageV": 3.851,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "warm-4",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.116619,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 1.261738,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 2.453462,
+          "provider": {
+            "outputTokens": 25,
+            "decodeSeconds": 1.24,
+            "decodeTokensPerSecond": 20.16,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 1.12679,
+              "tokens": 4,
+              "tokensPerSecond": 3.55
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 1.12679,
+                "tokens": 4,
+                "tokensPerSecond": 3.55
+              },
+              "decode": {
+                "seconds": 1.23571,
+                "tokens": 25,
+                "tokensPerSecond": 20.231
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11268.815418,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.5,
+            "batteryVoltageV": 3.864,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          "end": {
+            "monotonicSeconds": 11276.143266,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.5,
+            "batteryVoltageV": 3.864,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11268.815418,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.5,
+            "batteryVoltageV": 3.864,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          },
+          {
+            "monotonicSeconds": 11276.143266,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.5,
+            "batteryVoltageV": 3.864,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 8.048,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11262.338385,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.6,
+            "batteryVoltageV": 3.859,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 2
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "warm-5",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.135193,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 0.357921,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 0.529561,
+          "provider": {
+            "outputTokens": 5,
+            "decodeSeconds": 0.222,
+            "decodeTokensPerSecond": 22.47,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 0.21725,
+              "tokens": 4,
+              "tokensPerSecond": 18.412
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 0.21725,
+                "tokens": 4,
+                "tokensPerSecond": 18.412
+              },
+              "decode": {
+                "seconds": 0.21923,
+                "tokens": 5,
+                "tokensPerSecond": 22.807
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11290.511328,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.4,
+            "batteryVoltageV": 3.822,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "end": {
+            "monotonicSeconds": 11293.740371,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.4,
+            "batteryVoltageV": 3.822,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11290.511328,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.4,
+            "batteryVoltageV": 3.822,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11293.740371,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.4,
+            "batteryVoltageV": 3.822,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 6.173,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11282.484625,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.4,
+            "batteryVoltageV": 3.864,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "warm-6",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.115281,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 1.336902,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 2.436541,
+          "provider": {
+            "outputTokens": 23,
+            "decodeSeconds": 1.142,
+            "decodeTokensPerSecond": 20.14,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 1.20624,
+              "tokens": 4,
+              "tokensPerSecond": 3.316
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 1.20624,
+                "tokens": 4,
+                "tokensPerSecond": 3.316
+              },
+              "decode": {
+                "seconds": 1.14018,
+                "tokens": 23,
+                "tokensPerSecond": 20.172
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11307.67137,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.869,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "end": {
+            "monotonicSeconds": 11313.954816,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.869,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11307.67137,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.869,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11313.954816,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.869,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.443,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11301.352494,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.4,
+            "batteryVoltageV": 3.863,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "warm-7",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.124874,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 2.945212,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 3.155141,
+          "provider": {
+            "outputTokens": 5,
+            "decodeSeconds": 0.276,
+            "decodeTokensPerSecond": 18.13,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 2.79668,
+              "tokens": 4,
+              "tokensPerSecond": 1.43
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 2.79668,
+                "tokens": 4,
+                "tokensPerSecond": 1.43
+              },
+              "decode": {
+                "seconds": 0.26969,
+                "tokens": 5,
+                "tokensPerSecond": 18.54
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11324.251067,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.868,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "end": {
+            "monotonicSeconds": 11332.433795,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.868,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11324.251067,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.868,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11332.433795,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.868,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.347,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11321.533615,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.864,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "warm-8",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.110606,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 1.316599,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 1.523464,
+          "provider": {
+            "outputTokens": 6,
+            "decodeSeconds": 0.264,
+            "decodeTokensPerSecond": 22.77,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 1.17596,
+              "tokens": 4,
+              "tokensPerSecond": 3.401
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 1.17596,
+                "tokens": 4,
+                "tokensPerSecond": 3.401
+              },
+              "decode": {
+                "seconds": 0.25573,
+                "tokens": 6,
+                "tokensPerSecond": 23.462
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11346.934781,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.872,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "end": {
+            "monotonicSeconds": 11353.49728,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.872,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11346.934781,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.872,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11353.49728,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.872,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 8.014,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11340.615179,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.866,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "warm-9",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.105105,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 0.379349,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 2.873189,
+          "provider": {
+            "outputTokens": 47,
+            "decodeSeconds": 2.544,
+            "decodeTokensPerSecond": 18.47,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 0.23756,
+              "tokens": 4,
+              "tokensPerSecond": 16.838
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 0.23756,
+                "tokens": 4,
+                "tokensPerSecond": 16.838
+              },
+              "decode": {
+                "seconds": 2.53942,
+                "tokens": 47,
+                "tokensPerSecond": 18.508
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11369.50161,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.87,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "end": {
+            "monotonicSeconds": 11375.463581,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.87,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11369.50161,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.87,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11375.463581,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.87,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.534,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11361.200016,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.874,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "warm-10",
+        "promptSha256": "29760dd624f7ea4332e09ec50cafd4459ba3b907ff09a5375b905610a10a5399",
+        "promptBytes": 100,
+        "sessionResetSeconds": 0.107624,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 0.618612,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": null,
+          "totalTurnSeconds": 0.76857,
+          "provider": {
+            "outputTokens": 5,
+            "decodeSeconds": 0.198,
+            "decodeTokensPerSecond": 25.3,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 0.5044,
+              "tokens": 4,
+              "tokensPerSecond": 7.93
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 1,
+              "prefill": {
+                "seconds": 0.5044,
+                "tokens": 4,
+                "tokensPerSecond": 7.93
+              },
+              "decode": {
+                "seconds": 0.19338,
+                "tokens": 5,
+                "tokensPerSecond": 25.856
+              }
+            }
+          },
+          "tools": {
+            "requested": 0,
+            "completed": 0,
+            "failed": 0,
+            "names": [],
+            "executionSeconds": 0.0,
+            "postToolToTerminalSeconds": null
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 2,
+          "start": {
+            "monotonicSeconds": 11391.208795,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.872,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "end": {
+            "monotonicSeconds": 11395.336324,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.872,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11391.208795,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.872,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11395.336324,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.872,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.904,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11383.544618,
+            "batteryLevelPercent": 38,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.866,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        },
+        "startupSeconds": null
+      }
+    ],
+    "tool": [
+      {
+        "label": "tool-1",
+        "promptSha256": "0e4b6ff050d9caf10b0579aa6d89fa4a65143e081b61404196b499d9d5dbd217",
+        "promptBytes": 152,
+        "sessionResetSeconds": 0.110856,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 15.251893,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": 12.665553,
+          "totalTurnSeconds": 17.285648,
+          "provider": {
+            "outputTokens": 68,
+            "decodeSeconds": 3.923,
+            "decodeTokensPerSecond": 17.33,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 12.81903,
+              "tokens": 564,
+              "tokensPerSecond": 43.997
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 2,
+              "prefill": {
+                "seconds": 12.81903,
+                "tokens": 564,
+                "tokensPerSecond": 43.997
+              },
+              "decode": {
+                "seconds": 4.27944,
+                "tokens": 68,
+                "tokensPerSecond": 15.89
+              }
+            }
+          },
+          "tools": {
+            "requested": 1,
+            "completed": 1,
+            "failed": 1,
+            "names": [
+              "read"
+            ],
+            "executionSeconds": 0.029021,
+            "postToolToTerminalSeconds": 4.576303
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 4,
+          "start": {
+            "monotonicSeconds": 11408.152623,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.0,
+            "batteryVoltageV": 3.869,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "end": {
+            "monotonicSeconds": 11429.417609,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.777,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11408.152623,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.0,
+            "batteryVoltageV": 3.869,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11414.133131,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.0,
+            "batteryVoltageV": 3.869,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11421.601576,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.0,
+            "batteryVoltageV": 3.786,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11429.417609,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.777,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.995,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11403.509061,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.865,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        },
+        "startupSeconds": null
+      },
+      {
+        "label": "tool-2",
+        "promptSha256": "0e4b6ff050d9caf10b0579aa6d89fa4a65143e081b61404196b499d9d5dbd217",
+        "promptBytes": 152,
+        "sessionResetSeconds": 0.115122,
+        "turn": {
+          "terminalType": "TURN_COMPLETED",
+          "succeeded": true,
+          "dispatchToFirstVisibleTokenSeconds": 15.352012,
+          "ttftSource": "model_output_delta_receipt",
+          "dispatchToFirstToolCallSeconds": 12.782846,
+          "totalTurnSeconds": 16.726667,
+          "provider": {
+            "outputTokens": 58,
+            "decodeSeconds": 3.426,
+            "decodeTokensPerSecond": 16.93,
+            "speedEstimated": false,
+            "prefill": {
+              "source": "native_run_as_log",
+              "seconds": 12.7846,
+              "tokens": 564,
+              "tokensPerSecond": 44.116
+            },
+            "nativeTimings": {
+              "source": "native_run_as_log",
+              "providerRequests": 2,
+              "prefill": {
+                "seconds": 12.7846,
+                "tokens": 564,
+                "tokensPerSecond": 44.116
+              },
+              "decode": {
+                "seconds": 3.81456,
+                "tokens": 58,
+                "tokensPerSecond": 15.205
+              }
+            }
+          },
+          "tools": {
+            "requested": 1,
+            "completed": 1,
+            "failed": 1,
+            "names": [
+              "read"
+            ],
+            "executionSeconds": 0.004259,
+            "postToolToTerminalSeconds": 3.938812
+          },
+          "retries": {
+            "rejections": 0,
+            "reasons": [],
+            "additionalAgentStarts": 0,
+            "dispatchDelaySeconds": [],
+            "firstRejectionToTerminalSeconds": null
+          }
+        },
+        "environment": {
+          "samples": 4,
+          "start": {
+            "monotonicSeconds": 11441.399709,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.865,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "end": {
+            "monotonicSeconds": 11462.33547,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.767,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          "minimumBigCoreHeadroom": 1.0,
+          "maximumCpuTemperatureC": null,
+          "thermalThrottlingEvents": 0,
+          "batteryDeltaPercent": 0.0,
+          "power": {
+            "kind": "unavailable",
+            "reason": "battery current_now/voltage_now were not both readable"
+          }
+        },
+        "environmentSamples": [
+          {
+            "monotonicSeconds": 11441.399709,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.865,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11447.375413,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.772,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11455.165558,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.2,
+            "batteryVoltageV": 3.772,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          },
+          {
+            "monotonicSeconds": 11462.33547,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.3,
+            "batteryVoltageV": 3.767,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        ],
+        "cooldown": {
+          "waitedSeconds": 7.597,
+          "targetHeadroom": 0.98,
+          "met": true,
+          "snapshot": {
+            "monotonicSeconds": 11437.196594,
+            "batteryLevelPercent": 39,
+            "batteryTemperatureC": 36.1,
+            "batteryVoltageV": 3.777,
+            "usbPowered": true,
+            "acPowered": false,
+            "wirelessPowered": false,
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "bigCoreHeadroom": 1.0,
+            "hottestCpuC": null,
+            "batteryCurrentA": null,
+            "batteryVoltageSysfsV": null,
+            "chargeCounterAh": null,
+            "energyCounterWh": null,
+            "androidThermalStatus": 1
+          }
+        },
+        "startupSeconds": null
+      }
+    ],
+    "retry": []
+  },
+  "modelId": "qwen3.5-2b",
+  "agentMode": "agent",
+  "accessProfile": "autonomous",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "cold": {
+      "samples": 2,
+      "successful": 2,
+      "medianStartupSeconds": 26.605038,
+      "medianTtftSeconds": 64.313446,
+      "medianTotalTurnSeconds": 66.911628,
+      "medianDecodeTokensPerSecond": 16.095,
+      "medianPrefillTokensPerSecond": 39.4425,
+      "totalToolExecutionSeconds": 0.0,
+      "totalRetryRejections": 0
+    },
+    "warm": {
+      "samples": 10,
+      "successful": 10,
+      "medianStartupSeconds": null,
+      "medianTtftSeconds": 0.557458,
+      "medianTotalTurnSeconds": 1.980002,
+      "medianDecodeTokensPerSecond": 21.315,
+      "medianPrefillTokensPerSecond": 10.2815,
+      "totalToolExecutionSeconds": 0.0,
+      "totalRetryRejections": 0
+    },
+    "tool": {
+      "samples": 2,
+      "successful": 2,
+      "medianStartupSeconds": null,
+      "medianTtftSeconds": 15.301953,
+      "medianTotalTurnSeconds": 17.006158,
+      "medianDecodeTokensPerSecond": 17.13,
+      "medianPrefillTokensPerSecond": 44.0565,
+      "totalToolExecutionSeconds": 0.03328,
+      "totalRetryRejections": 0
+    },
+    "retry": {
+      "samples": 0,
+      "successful": 0,
+      "medianStartupSeconds": null,
+      "medianTtftSeconds": null,
+      "medianTotalTurnSeconds": null,
+      "medianDecodeTokensPerSecond": null,
+      "medianPrefillTokensPerSecond": null,
+      "totalToolExecutionSeconds": 0,
+      "totalRetryRejections": 0
+    }
+  },
+  "retryCoverageObserved": false
+}

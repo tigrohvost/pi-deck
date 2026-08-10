@@ -229,3 +229,32 @@ Both processes reported cpuset `/`, zero cached prompt tokens and the exact same
 shipped b10092 kernel. It also demonstrates why a single thermally unmatched run
 is not promotion evidence: the discarded b10092 sample was 35.73 s and would
 have falsely implied a 1.45x b10333 win.
+
+## Stall-watchdog build smoke, measured 2026-08-10
+
+The first installed build carrying the stall watchdog (post-merge main,
+debug APK) ran the new `tools/adb_agent_benchmark.py` end-to-end harness on
+the same SM-S918B: 2 cold, 10 warm and 2 tool samples against Qwen3.5 2B,
+Autonomous mode, deck foreground, phone charging. Every sample waited for
+full big-core headroom (`cooldown.met=true`, headroom 1.0) before running.
+
+**All 14 samples completed; no turn stalled, no busy state survived.** That
+closes the Stage 0 gate of the 2026-08-10 design («0 зависаний в смоках»)
+for this harness; the full release-smoke pass repeats it at release time.
+
+| Median | Cold (2) | Warm (10) | Tool (2) |
+|---|---:|---:|---:|
+| Startup | 26.61 s | — | — |
+| TTFT | 64.31 s | **0.557 s** | 15.30 s |
+| Total turn | 66.91 s | 1.98 s | 17.01 s |
+| Decode | 16.10 tok/s | 21.32 tok/s | 17.13 tok/s |
+| Prefill | 39.4 tok/s | 10.3 tok/s | 44.1 tok/s |
+
+The warm path already meets the design's < 3 s TTFT target. The cold path
+is the standing problem the later stages attack: 26.6 s of startup plus
+session replay before the first visible token. Raw evidence:
+`benchmarks/out/stage0-smoke-2026-08-10.json`. Two earlier attempts that
+morning failed before sampling — one launched seconds after `adb install -r`
+killed the core (the harness deliberately does not ignite it), one lost the
+USB link mid-run — and produced no report; they are not part of this
+evidence.
