@@ -9,6 +9,14 @@ import static org.junit.Assert.assertTrue;
 
 public final class SessionContractTest {
     @Test
+    public void terminalMissingRequiresJournalCatchUpToStateSnapshot() {
+        assertFalse(SessionContract.mayDeclareTerminalEventMissing(12L, 11L));
+        assertFalse(SessionContract.mayDeclareTerminalEventMissing(-1L, 99L));
+        assertTrue(SessionContract.mayDeclareTerminalEventMissing(12L, 12L));
+        assertTrue(SessionContract.mayDeclareTerminalEventMissing(12L, 13L));
+    }
+
+    @Test
     public void consumedSessionEventCannotOverwriteNewerOperation() {
         assertFalse(SessionContract.mayApplyRecoveredSessionResult(
                 true,

@@ -108,6 +108,58 @@ public class OperationCoreTest {
     }
 
     @Test
+    public void ambiguousDispatchRetainsOwnershipUntilAuthoritativeTerminal() {
+        OperationRecord turn = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
+        coordinator.dispatched(turn.operationId);
+
+        assertTrue(coordinator.dispatchUnknownIfActive(turn.operationId));
+        assertEquals(turn.operationId, coordinator.activeOperationId());
+        assertEquals(OperationState.UNKNOWN, store.load(turn.operationId).state);
+
+        assertTrue(coordinator.onResult(success(turn)));
+        assertNull(coordinator.activeOperationId());
+        assertEquals(OperationState.COMPLETED, store.load(turn.operationId).state);
+    }
+
+    @Test
+    public void lateDispatchFailureCannotClearNewOperationOwnership() {
+        OperationRecord first = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
+        coordinator.dispatched(first.operationId);
+        assertTrue(coordinator.onResult(success(first)));
+
+        OperationRecord second = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
+        coordinator.dispatched(second.operationId);
+
+        assertFalse(coordinator.dispatchFailedIfActive(first.operationId, "late timeout"));
+        assertFalse(coordinator.dispatchUnknownIfActive(first.operationId));
+        assertEquals(second.operationId, coordinator.activeOperationId());
+        assertEquals(OperationState.RUNNING, store.load(second.operationId).state);
+    }
+
+    @Test
+    public void authoritativeBridgeEventAcknowledgesAcceptedPrompt() {
+        PendingPromptDispatch pending = new PendingPromptDispatch();
+        OperationId operationId = OperationId.create();
+        pending.begin(operationId, "original prompt");
+
+        assertEquals("original prompt", pending.acknowledge(operationId));
+        assertNull(pending.acknowledge(operationId));
+    }
+
+    @Test
+    public void lateAcknowledgementCannotReleaseANewerPrompt() {
+        PendingPromptDispatch pending = new PendingPromptDispatch();
+        OperationId first = OperationId.create();
+        OperationId second = OperationId.create();
+        pending.begin(first, "first");
+        pending.begin(second, "second");
+
+        assertNull(pending.acknowledge(first));
+        assertFalse(pending.release(first));
+        assertEquals("second", pending.acknowledge(second));
+    }
+
+    @Test
     public void processRestartRestoresTargetTurnInsteadOfAbortControl() {
         OperationRecord turn = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
         coordinator.dispatched(turn.operationId);

@@ -24,6 +24,27 @@ public class SessionContextUsageTest {
     }
 
     @Test
+    public void promptChoiceStartsAtExactSixtyPercent() throws Exception {
+        SessionContextUsage below = SessionContextUsage.parse(
+                new JSONObject()
+                        .put("tokens", 6_143)
+                        .put("contextWindow", 10_240),
+                10_240
+        );
+        SessionContextUsage atThreshold = SessionContextUsage.parse(
+                new JSONObject()
+                        .put("tokens", 6_144)
+                        .put("contextWindow", 10_240),
+                10_240
+        );
+
+        // Rounded display telemetry may already say 60%; the decision uses exact token capacity.
+        assertEquals(60, below.percent);
+        assertFalse(below.shouldCompactSoon());
+        assertTrue(atThreshold.shouldCompactSoon());
+    }
+
+    @Test
     public void missingTelemetryRemainsUnknown() {
         SessionContextUsage usage = SessionContextUsage.parse(null, 8_192);
 

@@ -26,7 +26,7 @@ REVISION = re.compile(r"^[0-9a-f]{40}$")
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 MODEL_ID = re.compile(r"^[a-z0-9][a-z0-9._-]+$")
 ARTIFACT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.gguf$")
-ALLOWED_LICENSES = {"Apache-2.0", "MIT"}
+ALLOWED_LICENSES = {"Apache-2.0", "MIT", "LicenseRef-LFM-Open-1.0"}
 LICENSE_CONFIRMATION = "I reviewed the exact weights license"
 MAX_METADATA_SCAN = 16 * 1024 * 1024
 

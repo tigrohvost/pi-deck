@@ -18,6 +18,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Authenticated, bounded HTTP client for the Termux Pi RPC bridge. */
 public final class RpcBridgeClient implements AutoCloseable {
+    private static final class CommandRejectedException extends IOException {
+        CommandRejectedException(String message) {
+            super(message);
+        }
+    }
+
     public interface Listener {
         void onConnected(JSONObject state);
 
@@ -79,6 +85,11 @@ public final class RpcBridgeClient implements AutoCloseable {
         JSONObject response = request("POST", "/v1/commands", body, 2_000, 5_000);
         requireSuccess(response);
         return response;
+    }
+
+    /** Only a bounded local preflight or an authoritative HTTP rejection proves non-acceptance. */
+    public static boolean isDefinitiveCommandRejection(Exception error) {
+        return error instanceof CommandRejectedException;
     }
 
     public void startPolling(
@@ -177,7 +188,7 @@ public final class RpcBridgeClient implements AutoCloseable {
         if (body != null) {
             byte[] encoded = body.toString().getBytes(StandardCharsets.UTF_8);
             if (encoded.length > MAX_COMMAND_BYTES) {
-                throw new IOException("Bridge command exceeds bounded size");
+                throw new CommandRejectedException("Bridge command exceeds bounded size");
             }
             connection.setDoOutput(true);
             connection.setFixedLengthStreamingMode(encoded.length);
@@ -197,14 +208,20 @@ public final class RpcBridgeClient implements AutoCloseable {
         } finally {
             connection.disconnect();
         }
-        JSONObject response = new JSONObject(new String(raw, StandardCharsets.UTF_8));
+        String responseText = new String(raw, StandardCharsets.UTF_8);
         if (status < 200 || status >= 300) {
+            JSONObject response;
+            try {
+                response = new JSONObject(responseText);
+            } catch (JSONException ignored) {
+                response = new JSONObject();
+            }
             JSONObject error = response.optJSONObject("error");
             String code = error == null ? "HTTP_" + status : error.optString("code", "HTTP_" + status);
             String message = error == null ? "Bridge request failed" : error.optString("message");
-            throw new IOException(code + ": " + message);
+            throw new CommandRejectedException(code + ": " + message);
         }
-        return response;
+        return new JSONObject(responseText);
     }
 
     private static void requireSuccess(JSONObject response) throws JSONException {

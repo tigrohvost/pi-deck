@@ -17,6 +17,9 @@ from pathlib import Path
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+FRAGMENT_PROMPT_MARKER = "PIDECK_PROTOCOL_FRAGMENT"
+RETRY_PROMPT_MARKER = "PIDECK_PROTOCOL_RETRY_FULL"
+RETRY_COMPLETE_TEXT = "Полный ответ после settled retry"
 
 
 class FakeLlamaHandler(BaseHTTPRequestHandler):
@@ -36,6 +39,15 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
         if request.get("model") != "fixture-model":
             self.send_error(400)
             return
+        serialized_messages = json.dumps(
+            request.get("messages", []), ensure_ascii=False
+        )
+        if RETRY_PROMPT_MARKER in serialized_messages:
+            response_text = RETRY_COMPLETE_TEXT
+        elif FRAGMENT_PROMPT_MARKER in serialized_messages:
+            response_text = "О"
+        else:
+            response_text = "PIDECK_RPC_OK"
         chunks = [
             {
                 "id": "fixture",
@@ -45,7 +57,7 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
                 "choices": [
                     {
                         "index": 0,
-                        "delta": {"role": "assistant", "content": "PIDECK_RPC_OK"},
+                        "delta": {"role": "assistant", "content": response_text},
                         "finish_reason": None,
                     }
                 ],
@@ -112,13 +124,23 @@ class PiRpcProtocolTest(unittest.TestCase):
                         "baseUrl": f"http://127.0.0.1:{server.server_port}/v1",
                         "api": "openai-completions",
                         "apiKey": "fixture-secret",
+                        "compat": {
+                            "supportsDeveloperRole": False,
+                            "supportsReasoningEffort": False,
+                            "supportsStore": False,
+                            "supportsUsageInStreaming": True,
+                            "maxTokensField": "max_tokens",
+                        },
                         "models": [
                             {
                                 "id": "fixture-model",
                                 "name": "Fixture",
                                 "reasoning": False,
                                 "input": ["text"],
-                                "contextWindow": 4096,
+                                # Real fixture window is 4096. Pi 0.82.1 subtracts
+                                # its own fixed 4096-token API safety margin, so
+                                # the generated provider descriptor offsets it.
+                                "contextWindow": 8192,
                                 "maxTokens": 256,
                                 "cost": {
                                     "input": 0,
@@ -132,6 +154,25 @@ class PiRpcProtocolTest(unittest.TestCase):
                 }
             }
             (agent_dir / "models.json").write_text(json.dumps(models), encoding="utf-8")
+            managed_compaction = {
+                "enabled": True,
+                "reserveTokens": 4_352,
+                "keepRecentTokens": 1_024,
+            }
+            (agent_dir / "settings.json").write_text(
+                json.dumps({"compaction": managed_compaction}), encoding="utf-8"
+            )
+            project_settings = workspace / ".pi" / "settings.json"
+            project_settings.parent.mkdir()
+            project_settings.write_text(
+                json.dumps(
+                    {
+                        "projectPreference": "preserved",
+                        "compaction": managed_compaction,
+                    }
+                ),
+                encoding="utf-8",
+            )
             extension = (
                 REPOSITORY
                 / "app"
@@ -389,7 +430,25 @@ class PiRpcProtocolTest(unittest.TestCase):
                     and isinstance(value.get("assistantMessageEvent"), dict)
                 ]
                 self.assertIn("PIDECK_RPC_OK", deltas)
+                terminal_messages = [
+                    value.get("message")
+                    for value in received
+                    if value.get("type") == "message_end"
+                    and isinstance(value.get("message"), dict)
+                    and value["message"].get("role") == "assistant"
+                ]
+                self.assertTrue(terminal_messages)
+                self.assertEqual("stop", terminal_messages[-1].get("stopReason"))
+                self.assertEqual(
+                    ["PIDECK_RPC_OK"],
+                    [
+                        part.get("text")
+                        for part in terminal_messages[-1].get("content", [])
+                        if isinstance(part, dict) and part.get("type") == "text"
+                    ],
+                )
                 provider_request = FakeLlamaHandler.requests.get_nowait()
+                self.assertEqual(256, provider_request.get("max_tokens"))
                 self.assertIs(provider_request.get("cache_prompt"), True)
                 tool_names = {
                     tool.get("function", {}).get("name")
@@ -466,6 +525,116 @@ class PiRpcProtocolTest(unittest.TestCase):
                     any(value.get("type") == "extension_error" for value in routed_events),
                     routed_events,
                 )
+
+                # A command written from message_end is processed too late to become a
+                # follow-up in Pi 0.82.1. The bridge therefore waits for agent_settled and
+                # starts an ordinary prompt in the same session. Keep that exact lifecycle
+                # pinned so a future retry cannot silently remain queued for the next user.
+                fragment_prompt_id = str(uuid.uuid4())
+                process.stdin.write(
+                    json.dumps(
+                        {
+                            "id": fragment_prompt_id,
+                            "type": "prompt",
+                            "message": FRAGMENT_PROMPT_MARKER,
+                        }
+                    )
+                    + "\n"
+                )
+                process.stdin.flush()
+                fragment_events: list[dict[str, object]] = []
+                deadline = time.monotonic() + 25
+                while time.monotonic() < deadline:
+                    try:
+                        value = lines.get(timeout=0.5)
+                    except queue.Empty:
+                        if process.poll() is not None:
+                            break
+                        continue
+                    fragment_events.append(value)
+                    if value.get("type") == "agent_settled":
+                        break
+                self.assertTrue(
+                    any(value.get("type") == "agent_settled" for value in fragment_events),
+                    fragment_events,
+                )
+                fragment_terminal = [
+                    value["message"]
+                    for value in fragment_events
+                    if value.get("type") == "message_end"
+                    and isinstance(value.get("message"), dict)
+                    and value["message"].get("role") == "assistant"
+                ]
+                self.assertEqual(
+                    ["О"],
+                    [
+                        part.get("text")
+                        for part in fragment_terminal[-1].get("content", [])
+                        if isinstance(part, dict) and part.get("type") == "text"
+                    ],
+                )
+                fragment_request = FakeLlamaHandler.requests.get_nowait()
+                self.assertIn(
+                    FRAGMENT_PROMPT_MARKER,
+                    json.dumps(fragment_request.get("messages", [])),
+                )
+
+                retry_prompt_id = str(uuid.uuid4())
+                process.stdin.write(
+                    json.dumps(
+                        {
+                            "id": retry_prompt_id,
+                            "type": "prompt",
+                            "message": RETRY_PROMPT_MARKER,
+                        }
+                    )
+                    + "\n"
+                )
+                process.stdin.flush()
+                retry_events: list[dict[str, object]] = []
+                deadline = time.monotonic() + 25
+                while time.monotonic() < deadline:
+                    try:
+                        value = lines.get(timeout=0.5)
+                    except queue.Empty:
+                        if process.poll() is not None:
+                            break
+                        continue
+                    retry_events.append(value)
+                    if value.get("type") == "agent_settled":
+                        break
+                self.assertTrue(
+                    any(value.get("type") == "agent_settled" for value in retry_events),
+                    retry_events,
+                )
+                retry_response = [
+                    value
+                    for value in retry_events
+                    if value.get("type") == "response"
+                    and value.get("id") == retry_prompt_id
+                ]
+                self.assertTrue(retry_response and retry_response[-1].get("success"))
+                retry_terminal = [
+                    value["message"]
+                    for value in retry_events
+                    if value.get("type") == "message_end"
+                    and isinstance(value.get("message"), dict)
+                    and value["message"].get("role") == "assistant"
+                ]
+                self.assertEqual(
+                    [RETRY_COMPLETE_TEXT],
+                    [
+                        part.get("text")
+                        for part in retry_terminal[-1].get("content", [])
+                        if isinstance(part, dict) and part.get("type") == "text"
+                    ],
+                )
+                retry_request = FakeLlamaHandler.requests.get_nowait()
+                retry_history = json.dumps(
+                    retry_request.get("messages", []), ensure_ascii=False
+                )
+                self.assertIn(FRAGMENT_PROMPT_MARKER, retry_history)
+                self.assertIn(RETRY_PROMPT_MARKER, retry_history)
 
                 abort_id = str(uuid.uuid4())
                 process.stdin.write(

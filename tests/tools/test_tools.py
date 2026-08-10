@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import base64
+import copy
 import hashlib
 import json
 import struct
@@ -33,6 +34,76 @@ def gguf_string(value: str) -> bytes:
     return struct.pack("<Q", len(encoded)) + encoded
 
 
+def benchmark_suite() -> dict:
+    path = REPOSITORY / "benchmarks" / "suite-v1" / "tasks.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def valid_benchmark_report() -> dict:
+    suite = benchmark_suite()
+    outcomes = []
+    for task in suite["tasks"]:
+        outcomes.append(
+            {
+                "id": task["id"],
+                "outcome": "pass",
+                "signals": {
+                    signal: {"passed": True, "evidence": "verified on device"}
+                    for signal in task["expectedSignals"]
+                },
+                "changedPaths": [],
+                "durationSeconds": 12.5,
+            }
+        )
+    return {
+        "schemaVersion": 1,
+        "suiteVersion": "suite-v1",
+        "runId": "run_20260809",
+        "deviceId": "device_001",
+        "modelId": "qwen3.5-2b",
+        "modelSha256": "a" * 64,
+        "piVersion": "0.82.1",
+        "llamaCppVersion": "b10092",
+        "contextSize": 10_240,
+        "samplingProfile": {
+            "temperature": 0.7,
+            "topP": 0.8,
+            "topK": 20,
+            "minP": 0.0,
+            "presencePenalty": 1.5,
+            "maxTokens": 1_536,
+        },
+        "tasks": outcomes,
+        "metrics": {
+            "task_success_rate": 1.0,
+            "invalid_tool_call_rate": 0.0,
+            "unintended_file_change_count": 0,
+            "outside_workspace_change_count": 0,
+            "session_recovery_rate": 1.0,
+            "abort_success_rate": 1.0,
+            "cold_start_seconds": 20.64,
+            "time_to_first_token_seconds": 1.25,
+            "time_to_first_tool_call_seconds": 2.5,
+            "tokens_per_second": 16.13,
+            "peak_server_rss_mib": 3_031.0,
+            "peak_total_termux_rss_mib": 512.0,
+            "server_crash_count": 0,
+            "oom_count": 0,
+            "battery_delta_percent": 2.0,
+            "average_power_or_energy_if_available": {
+                "kind": "unavailable",
+                "reason": "device energy counter unavailable",
+            },
+            "thermal_throttling_events": 0,
+            "device_temperature_start_end": {
+                "unit": "celsius",
+                "start": 42.5,
+                "end": 49.0,
+            },
+        },
+    }
+
+
 class ToolTests(unittest.TestCase):
     def test_gguf_header_and_metadata_are_read_without_execution(self) -> None:
         payload = (
@@ -58,8 +129,7 @@ class ToolTests(unittest.TestCase):
                 pin_model.inspect_gguf(path)
 
     def test_benchmark_contract_has_twenty_eight_unique_tasks(self) -> None:
-        path = REPOSITORY / "benchmarks" / "suite-v1" / "tasks.json"
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = benchmark_suite()
         validate_benchmark.validate_suite(value)
         self.assertEqual(28, len(value["tasks"]))
         self.assertEqual(28, len({task["id"] for task in value["tasks"]}))
@@ -75,6 +145,48 @@ class ToolTests(unittest.TestCase):
                 / "sentinel.txt"
             ).is_file()
         )
+
+    def test_benchmark_report_accepts_complete_typed_outcomes_and_metrics(self) -> None:
+        validate_benchmark.validate_report(
+            valid_benchmark_report(), benchmark_suite()
+        )
+
+    def test_benchmark_report_rejects_strings_for_every_metric(self) -> None:
+        suite = benchmark_suite()
+        report = valid_benchmark_report()
+        for metric in validate_benchmark.REQUIRED_METRICS:
+            with self.subTest(metric=metric):
+                malformed = copy.deepcopy(report)
+                malformed["metrics"][metric] = "fast"
+                with self.assertRaises(ValueError):
+                    validate_benchmark.validate_report(malformed, suite)
+
+    def test_benchmark_report_rejects_empty_task_outcome(self) -> None:
+        report = valid_benchmark_report()
+        report["tasks"][0] = {"id": report["tasks"][0]["id"]}
+
+        with self.assertRaises(ValueError):
+            validate_benchmark.validate_report(report, benchmark_suite())
+
+    def test_benchmark_report_requires_exact_signals_and_consistent_outcome(self) -> None:
+        suite = benchmark_suite()
+        missing_signal = valid_benchmark_report()
+        missing_signal["tasks"][0]["signals"] = {}
+        with self.assertRaises(ValueError):
+            validate_benchmark.validate_report(missing_signal, suite)
+
+        contradictory = valid_benchmark_report()
+        first_signal = next(iter(contradictory["tasks"][0]["signals"].values()))
+        first_signal["passed"] = False
+        with self.assertRaises(ValueError):
+            validate_benchmark.validate_report(contradictory, suite)
+
+    def test_benchmark_report_success_rate_must_match_task_outcomes(self) -> None:
+        report = valid_benchmark_report()
+        report["metrics"]["task_success_rate"] = 0.5
+
+        with self.assertRaises(ValueError):
+            validate_benchmark.validate_report(report, benchmark_suite())
 
     def test_speculative_variants_map_to_exact_server_flags(self) -> None:
         self.assertEqual([], speculative_probe.variant_arguments("baseline"))

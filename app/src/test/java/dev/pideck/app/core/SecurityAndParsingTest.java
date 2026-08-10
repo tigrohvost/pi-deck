@@ -9,6 +9,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.List;
 
 public class SecurityAndParsingTest {
@@ -117,5 +118,29 @@ public class SecurityAndParsingTest {
                 IllegalArgumentException.class,
                 () -> new RpcBridgeClient("+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         );
+    }
+
+    @Test
+    public void rpcCommandFailureClassificationIsFailClosed() {
+        RpcBridgeClient client = new RpcBridgeClient(
+                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                9
+        );
+        Exception localRejection = assertThrows(
+                Exception.class,
+                () -> client.command(
+                        OperationId.create(),
+                        "PROMPT",
+                        new JSONObject().put("message", "x".repeat(140 * 1024))
+                )
+        );
+        assertTrue(RpcBridgeClient.isDefinitiveCommandRejection(localRejection));
+        assertFalse(RpcBridgeClient.isDefinitiveCommandRejection(
+                new IOException("response timeout after send")
+        ));
+        assertFalse(RpcBridgeClient.isDefinitiveCommandRejection(
+                new JSONException("malformed successful response")
+        ));
+        client.close();
     }
 }

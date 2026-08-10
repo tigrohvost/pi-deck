@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import json
 import os
 import secrets
 import signal
 import subprocess
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 SCHEMA_VERSION = 1
 MAX_JSON_BYTES = 1024 * 1024
@@ -84,6 +86,25 @@ def atomic_write_json(path: Path, value: dict[str, Any], mode: int = 0o600) -> N
     atomic_write_bytes(path, encoded, mode)
 
 
+@contextmanager
+def exclusive_file_lock(path: Path) -> Iterator[None]:
+    """Serialize short-lived lifecycle transactions across CLI processes."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o700)
+    descriptor = os.open(
+        path,
+        os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0),
+        0o600,
+    )
+    try:
+        os.fchmod(descriptor, 0o600)
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
 def read_json(path: Path, maximum: int = MAX_JSON_BYTES) -> dict[str, Any]:
     try:
         size = path.stat().st_size
@@ -97,6 +118,24 @@ def read_json(path: Path, maximum: int = MAX_JSON_BYTES) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise PiDeckError("INVALID_METADATA", f"Expected an object in {path.name}")
     return value
+
+
+def unlink_json_if_matches(path: Path, expected: dict[str, Any]) -> bool:
+    """Remove metadata only while it still names the exact inspected owner."""
+    if not path.exists():
+        return True
+    try:
+        current = read_json(path)
+    except PiDeckError:
+        return False
+    if current != expected:
+        return False
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return True
+    fsync_directory(path.parent)
+    return True
 
 
 def read_stdin_json(maximum: int = 256 * 1024) -> dict[str, Any]:

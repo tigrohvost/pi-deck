@@ -115,6 +115,26 @@ try {
 		["web", "weather"],
 	);
 	assert.deepEqual(router.detectCapabilities("Прочитай https://example.com/report"), ["web"]);
+	assert.deepEqual(
+		router.routeInput(`${router.INTERNAL_RETRY_PREFIX}Закончи исходный ответ.`),
+		{
+			text: "Закончи исходный ответ.",
+			capabilities: [],
+			additive: true,
+			transformed: true,
+		},
+		"an idle bridge retry reset the original turn's optional tools",
+	);
+	assert.deepEqual(
+		router.routeInput("Новый обычный запрос"),
+		{
+			text: "Новый обычный запрос",
+			capabilities: [],
+			additive: false,
+			transformed: false,
+		},
+		"a normal idle prompt did not reset to the compact core",
+	);
 	const promptExtension = await jiti.import(join(workspace, "pideck-system-prompt.ts"));
 	const compactChatPrompt = promptExtension.composeManagedPrompt("chat", "FULL PI PROMPT", undefined);
 	assert.match(compactChatPrompt, /Chat mode has no tools/);

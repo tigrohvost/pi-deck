@@ -39,6 +39,7 @@ import java.util.regex.Pattern;
 import dev.pideck.app.core.AgentMode;
 import dev.pideck.app.core.GenerationSpeed;
 import dev.pideck.app.core.SessionContextUsage;
+import dev.pideck.app.core.TurnOutputContract;
 import dev.pideck.app.core.UiLanguage;
 
 /**
@@ -91,6 +92,9 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         void onMaximumSpeedChanged(boolean enabled);
 
         void onAutostartCoreChanged(boolean enabled);
+
+        /** Non-empty draft text lets the Activity hide core startup behind typing time. */
+        void onComposerIntentChanged(boolean hasText);
 
         void onLanguageChosen(UiLanguage language);
     }
@@ -150,6 +154,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private TextView newSessionAction;
     private boolean contextAvailable;
     private boolean composerDispatchPending;
+    private boolean composerHasText;
     private int queuedPromptCount;
 
     private final List<ConsoleEntry> entries = new ArrayList<>();
@@ -536,6 +541,11 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
             @Override
             public void afterTextChanged(Editable editable) {
+                boolean hasText = !editable.toString().trim().isEmpty();
+                if (hasText != composerHasText) {
+                    composerHasText = hasText;
+                    listener.onComposerIntentChanged(hasText);
+                }
                 updateSendAffordance();
             }
         });
@@ -1215,24 +1225,24 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         if (follow) scrollToEnd();
     }
 
-    public String finishStreaming(String fallback) {
-        return finishStreaming(fallback, null);
+    public String finishStreaming(String terminalAnswer) {
+        return finishStreaming(terminalAnswer, null);
     }
 
-    public String finishStreaming(String fallback, GenerationSpeed exactSpeed) {
+    public String finishStreaming(String terminalAnswer, GenerationSpeed exactSpeed) {
         boolean follow = isNearStreamEnd();
         if (streamingRenderScheduled) {
             removeCallbacks(renderStreamingFrame);
             streamingRenderScheduled = false;
         }
-        String value = streamingText.length() == 0
-                ? (fallback == null || fallback.isBlank()
-                ? t(
+        String value = TurnOutputContract.reconcileTerminal(
+                streamingText.toString(),
+                terminalAnswer,
+                t(
                         "Задача завершена без текстового ответа.",
                         "The task completed without a text response."
                 )
-                : fallback)
-                : streamingText.toString();
+        );
         if (streamingMessage == null) {
             addEntry(completedAnswer(value, System.currentTimeMillis(), exactSpeed));
         } else {
@@ -1297,8 +1307,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     }
 
     public List<ConsoleEntry> entries() {
-        flushStreaming();
-        return new ArrayList<>(entries);
+        return TurnOutputContract.durableSnapshot(entries, streamingEntryIndex);
     }
 
     public void clearEntries() {

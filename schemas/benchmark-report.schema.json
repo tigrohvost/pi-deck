@@ -4,34 +4,190 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schemaVersion", "suiteVersion", "runId", "deviceId", "modelId",
-    "modelSha256", "piVersion", "llamaCppVersion", "contextSize",
-    "samplingProfile", "tasks", "metrics"
+    "schemaVersion",
+    "suiteVersion",
+    "runId",
+    "deviceId",
+    "modelId",
+    "modelSha256",
+    "piVersion",
+    "llamaCppVersion",
+    "contextSize",
+    "samplingProfile",
+    "tasks",
+    "metrics"
   ],
   "properties": {
     "schemaVersion": {"const": 1},
     "suiteVersion": {"const": "suite-v1"},
-    "runId": {"type": "string", "minLength": 8},
-    "deviceId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
-    "modelId": {"type": "string"},
-    "modelSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "piVersion": {"type": "string"},
-    "llamaCppVersion": {"type": "string"},
-    "contextSize": {"type": "integer", "minimum": 512},
-    "samplingProfile": {"type": "object"},
-    "tasks": {"type": "array", "minItems": 24},
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{7,127}$"
+    },
+    "deviceId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "modelId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,127}$"
+    },
+    "modelSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "piVersion": {"type": "string", "minLength": 1, "maxLength": 128},
+    "llamaCppVersion": {"type": "string", "minLength": 1, "maxLength": 128},
+    "contextSize": {"type": "integer", "minimum": 512, "maximum": 1048576},
+    "samplingProfile": {"$ref": "#/$defs/samplingProfile"},
+    "tasks": {
+      "type": "array",
+      "minItems": 24,
+      "items": {"$ref": "#/$defs/taskOutcome"}
+    },
+    "metrics": {"$ref": "#/$defs/metrics"}
+  },
+  "$defs": {
+    "samplingProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "temperature",
+        "topP",
+        "topK",
+        "minP",
+        "presencePenalty",
+        "maxTokens"
+      ],
+      "properties": {
+        "temperature": {"type": "number", "minimum": 0, "maximum": 5},
+        "topP": {"type": "number", "minimum": 0, "maximum": 1},
+        "topK": {"type": "integer", "minimum": 0, "maximum": 100000},
+        "minP": {"type": "number", "minimum": 0, "maximum": 1},
+        "presencePenalty": {"type": "number", "minimum": -2, "maximum": 2},
+        "maxTokens": {"type": "integer", "minimum": 1, "maximum": 1048576}
+      }
+    },
+    "signalOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "evidence"],
+      "properties": {
+        "passed": {"type": "boolean"},
+        "evidence": {"type": "string", "minLength": 1, "maxLength": 4096}
+      }
+    },
+    "taskOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "outcome", "signals", "changedPaths"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^T[0-9]{2}$"},
+        "outcome": {"enum": ["pass", "fail"]},
+        "signals": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/signalOutcome"}
+        },
+        "changedPaths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 4096}
+        },
+        "durationSeconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        }
+      }
+    },
+    "powerOrEnergy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {"enum": ["average_power_watts", "energy_watt_hours"]},
+            "value": {"type": "number", "minimum": 0}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "reason"],
+          "properties": {
+            "kind": {"const": "unavailable"},
+            "reason": {"type": "string", "minLength": 1, "maxLength": 512}
+          }
+        }
+      ]
+    },
+    "temperatureRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit", "start", "end"],
+      "properties": {
+        "unit": {"const": "celsius"},
+        "start": {"type": "number", "minimum": -100, "maximum": 200},
+        "end": {"type": "number", "minimum": -100, "maximum": 200}
+      }
+    },
     "metrics": {
       "type": "object",
+      "additionalProperties": false,
       "required": [
-        "task_success_rate", "invalid_tool_call_rate",
-        "unintended_file_change_count", "outside_workspace_change_count",
-        "session_recovery_rate", "abort_success_rate", "cold_start_seconds",
-        "time_to_first_token_seconds", "time_to_first_tool_call_seconds",
-        "tokens_per_second", "peak_server_rss_mib", "peak_total_termux_rss_mib",
-        "server_crash_count", "oom_count", "battery_delta_percent",
-        "average_power_or_energy_if_available", "thermal_throttling_events",
+        "task_success_rate",
+        "invalid_tool_call_rate",
+        "unintended_file_change_count",
+        "outside_workspace_change_count",
+        "session_recovery_rate",
+        "abort_success_rate",
+        "cold_start_seconds",
+        "time_to_first_token_seconds",
+        "time_to_first_tool_call_seconds",
+        "tokens_per_second",
+        "peak_server_rss_mib",
+        "peak_total_termux_rss_mib",
+        "server_crash_count",
+        "oom_count",
+        "battery_delta_percent",
+        "average_power_or_energy_if_available",
+        "thermal_throttling_events",
         "device_temperature_start_end"
-      ]
+      ],
+      "properties": {
+        "task_success_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "invalid_tool_call_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "unintended_file_change_count": {"type": "integer", "minimum": 0},
+        "outside_workspace_change_count": {"type": "integer", "minimum": 0},
+        "session_recovery_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "abort_success_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "cold_start_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400},
+        "time_to_first_token_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 86400
+        },
+        "time_to_first_tool_call_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 86400
+        },
+        "tokens_per_second": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "peak_server_rss_mib": {"type": "number", "exclusiveMinimum": 0},
+        "peak_total_termux_rss_mib": {"type": "number", "exclusiveMinimum": 0},
+        "server_crash_count": {"type": "integer", "minimum": 0},
+        "oom_count": {"type": "integer", "minimum": 0},
+        "battery_delta_percent": {"type": "number", "minimum": 0, "maximum": 100},
+        "average_power_or_energy_if_available": {"$ref": "#/$defs/powerOrEnergy"},
+        "thermal_throttling_events": {"type": "integer", "minimum": 0},
+        "device_temperature_start_end": {"$ref": "#/$defs/temperatureRange"}
+      }
     }
   }
 }

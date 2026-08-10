@@ -36,7 +36,13 @@ from .common import (
     terminate_exact,
     utc_now,
 )
-from .model_store import load_catalog, model_by_id, private_model_path, verify_private
+from .model_store import (
+    load_catalog,
+    model_by_id,
+    pi_advertised_context_window,
+    private_model_path,
+    verify_private,
+)
 
 SERVER_DIRECTORY = BASE / "server"
 SERVER_METADATA = SERVER_DIRECTORY / "supervisor.json"
@@ -241,7 +247,10 @@ def _write_pi_models(api_key: str, port: int) -> None:
                 "name": f"{model['title']} · PI//DECK {model['tier']}",
                 "reasoning": model["runtime"]["reasoningMode"] == "on",
                 "input": ["text"],
-                "contextWindow": model["runtime"]["recommendedContext"],
+                # Pi 0.82.1 subtracts a fixed 4096-token safety margin before
+                # setting max_tokens. The virtual value cancels only that Pi
+                # margin; llama-server still uses recommendedContext below.
+                "contextWindow": pi_advertised_context_window(model),
                 "maxTokens": model["agent"]["maxTokens"],
                 "cost": {
                     "input": 0,
@@ -469,16 +478,21 @@ def start_server(request: dict[str, Any]) -> dict[str, Any]:
                 try:
                     key = SERVER_API_KEY.read_text(encoding="utf-8").strip()
                     strict_health(port, model_id, key)
+                except (OSError, PiDeckError):
+                    # A managed process with stale/wrong health is safe to replace, but never
+                    # advertise it as READY merely because its PID still exists.
+                    pass
+                else:
+                    # Runtime upgrades can change Pi's provider contract without
+                    # changing the already-running llama-server launch. Refresh
+                    # it atomically before claiming the idempotent start is ready.
+                    _write_pi_models(key, port)
                     return {
                         "state": "READY",
                         "modelId": model_id,
                         "idempotent": True,
                         "port": port,
                     }
-                except (OSError, PiDeckError):
-                    # A managed process with stale/wrong health is safe to replace, but never
-                    # advertise it as READY merely because its PID still exists.
-                    pass
             if not terminate_exact(existing):
                 raise PiDeckError("SERVER_BUSY", "Could not stop the managed previous server")
             _wake_lock(False)

@@ -22,12 +22,12 @@ public class ModelCatalogTest {
     }
 
     @Test
-    public void recommendationUsesAvailableMemoryAndStorage() {
+    public void recommendationPrefersBalancedAgentModelWhenItFits() {
         long storage = 100L * GIB;
         assertEquals("NANO", catalog.recommend(2500L * 1_048_576L, false, storage).tier);
-        assertEquals("EDGE", catalog.recommend(4L * GIB, false, storage).tier);
-        assertEquals("CORE", catalog.recommend(6L * GIB, false, storage).tier);
-        assertEquals("MAX", catalog.recommend(10L * GIB, false, storage).tier);
+        assertEquals("qwen3.5-2b", catalog.recommend(4L * GIB, false, storage).id);
+        assertEquals("qwen3.5-2b", catalog.recommend(6L * GIB, false, storage).id);
+        assertEquals("qwen3.5-2b", catalog.recommend(12L * GIB, false, storage).id);
     }
 
     @Test
@@ -39,6 +39,21 @@ public class ModelCatalogTest {
         ModelSpec edge = catalog.byId("qwen3.5-2b").orElseThrow();
         long onlyEdgeFits = ModelCatalog.requiredStorageForFreshInstall(edge) + 1;
         assertEquals("EDGE", catalog.recommend(12L * GIB, false, onlyEdgeFits).tier);
+
+        ModelSpec nano = catalog.byId("qwen3.5-0.8b").orElseThrow();
+        long onlyNanoFits = ModelCatalog.requiredStorageForFreshInstall(nano) + 1;
+        assertEquals("NANO", catalog.recommend(12L * GIB, false, onlyNanoFits).tier);
+    }
+
+    @Test
+    public void explicitLargerSelectionRemainsAvailable() {
+        ModelSpec max = catalog.byId("qwen3.5-9b").orElseThrow();
+        assertEquals("MAX", max.tier);
+        assertEquals("qwen3.5-9b", catalog.byId(max.id).orElseThrow().id);
+        assertEquals(
+                "qwen3.5-2b",
+                catalog.recommend(12L * GIB, false, 200L * GIB).id
+        );
     }
 
     /**
@@ -50,7 +65,7 @@ public class ModelCatalogTest {
         ModelSpec bonsai = catalog.byId("bonsai-27b").orElseThrow();
         assertEquals("CANDIDATE", bonsai.status);
         assertFalse(ModelCatalog.isRecommendable(bonsai));
-        assertEquals("qwen3.5-9b", catalog.recommend(12L * GIB, false, 200L * GIB).id);
+        assertEquals("qwen3.5-2b", catalog.recommend(12L * GIB, false, 200L * GIB).id);
     }
 
     @Test
@@ -68,7 +83,10 @@ public class ModelCatalogTest {
             assertEquals(40, model.revision.length());
             assertTrue(model.fileName.endsWith(".gguf"));
             assertEquals(64, model.sha256.length());
-            assertTrue(List.of("Apache-2.0", "MIT").contains(model.licenseSpdx));
+            assertTrue(
+                    List.of("Apache-2.0", "MIT", "LicenseRef-LFM-Open-1.0")
+                            .contains(model.licenseSpdx)
+            );
             // No model is promoted without a checked-in benchmark report.
             assertTrue(List.of("CANDIDATE", "EXPERIMENTAL").contains(model.status));
         }
@@ -167,6 +185,15 @@ public class ModelCatalogTest {
         ModelCatalog.parse(raw.replaceFirst(
                 "\"serverArgs\": \\[\\]",
                 "\"serverArgs\": [\"--host\", \"0.0.0.0\"]"
+        ));
+    }
+
+    @Test(expected = JSONException.class)
+    public void outputBudgetMustFitInsideRecommendedContext() throws Exception {
+        String raw = readUtf8(asset("models-v2.json"));
+        ModelCatalog.parse(raw.replaceFirst(
+                "\"maxTokens\": 1024",
+                "\"maxTokens\": 4096"
         ));
     }
 

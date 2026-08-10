@@ -30,6 +30,42 @@ third-party conversion provenance and no current suite report. They therefore
 remain `EXPERIMENTAL`. No Granite, Ministral or Gemma metadata was invented or
 added merely because the specification names those candidates.
 
+## LFM2.5 2.6B (`lfm2.5-2.6b`)
+
+Admitted at `CANDIDATE` on 2026-08-07, and it is the first entry that needed a
+new license on the allowlist. The weights ship under the **LFM Open License
+v1.0** (`LicenseRef-LFM-Open-1.0` in the manifest — the license is not in the
+SPDX registry, so the `LicenseRef-` convention names it). The full text was
+reviewed on 2026-08-07: it is Apache-2.0-derived and grants perpetual,
+royalty-free use, modification and redistribution, with one carve-out —
+commercial use is not licensed for a legal entity above $10M annual revenue
+(section 5). PI//DECK's personal on-device use is squarely inside the grant;
+the deck does not redistribute the weights. The allowlist entry lives in five
+places that all name this review: the manifest schema, `ModelSpec.java`,
+`model_store.py`, `pin_model.py` and the `verifyModelManifest` Gradle task.
+
+Provenance is the strongest in the catalog: `LiquidAI/LFM2.5-2.6B-GGUF` is the
+vendor's own conversion, pinned at `b421ad1d`, `official: true`. The SHA-256
+and byte count come from Hugging Face LFS metadata and were re-verified on the
+device before the entry was committed. `provenanceStatus` stays `INCOMPLETE`
+only because the vendor publishes no quantization command or converter
+revision.
+
+Why admit it at all: on the vendor's published numbers it beats Qwen3.5-4B on
+tool calling (BFCLv4 56.9 against 50.6 in the same table) at 1.67 GiB of
+weights — 2B-class speed with above-4B tool judgment. Two honest caveats are
+in the catalog note. The vendor explicitly does not recommend it for agentic
+coding, which is the deck's main job, so this is a potential tool-calling
+seat, not a Qwen replacement. And the card publishes no TAU2 number. The
+card's `repetition_penalty: 1.1` has no OpenAI-style sampling field, so it
+rides through `serverArgs` as `--repeat-penalty 1.1`; temperature 0.1 and
+top-k 50 are the card's own values.
+
+`CANDIDATE` means what it meant for Bonsai: listed, selectable by hand, never
+auto-offered. Gates 4–7 — pinned-runtime load/health, the 28-task suite, the
+mutation checks and ten clean smokes — have not been run; the row must not
+leave `CANDIDATE` until they are.
+
 ## Bonsai 27B (`bonsai-27b`)
 
 Admitted at `CANDIDATE` on 2026-07-30. Its artifact provenance is stronger than

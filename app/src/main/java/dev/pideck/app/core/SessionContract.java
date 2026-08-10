@@ -18,6 +18,14 @@ public final class SessionContract {
         return !uiConsumed && activeOperationId == null;
     }
 
+    /** State may declare a terminal missing only after Android consumed that state snapshot. */
+    public static boolean mayDeclareTerminalEventMissing(
+            long bridgeLastSequence,
+            long consumedSequence
+    ) {
+        return bridgeLastSequence >= 0L && consumedSequence >= bridgeLastSequence;
+    }
+
     /**
      * Returns a valid differing remote session to apply, otherwise {@code null}.
      *

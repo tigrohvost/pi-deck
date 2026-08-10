@@ -10,11 +10,13 @@ import json
 import os
 import re
 import signal
+import socket
 import stat
 import subprocess
 import sys
 import threading
 import time
+import unicodedata
 import uuid
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,6 +30,7 @@ from .common import (
     atomic_write_bytes,
     atomic_write_json,
     bounded_text,
+    exclusive_file_lock,
     fsync_directory,
     managed_environment,
     metadata_for_process,
@@ -37,16 +40,22 @@ from .common import (
     require_string,
     require_uuid4,
     terminate_exact,
+    unlink_json_if_matches,
     utc_now,
 )
 from .server_supervisor import SERVER_API_KEY, read_server_status, strict_health
-from .model_store import ensure_pi_compaction_settings, model_by_id
+from .model_store import (
+    PI_CONTEXT_CONTRACT_VERSION,
+    ensure_pi_compaction_settings,
+    model_by_id,
+)
 
 BRIDGE_DIRECTORY = BASE / "bridge"
 BRIDGE_CONFIG = BRIDGE_DIRECTORY / "config.json"
 BRIDGE_TOKEN = BRIDGE_DIRECTORY / "token"
 BRIDGE_METADATA = BRIDGE_DIRECTORY / "supervisor.json"
 PI_CHILD_METADATA = BRIDGE_DIRECTORY / "pi-child.json"
+BRIDGE_LIFECYCLE_LOCK = BRIDGE_DIRECTORY / "lifecycle.lock"
 SYSTEM_PROMPT_FILE = BRIDGE_DIRECTORY / "system-prompt.txt"
 EVENT_JOURNAL = BRIDGE_DIRECTORY / "events.jsonl"
 AUDIT_LOG = BRIDGE_DIRECTORY / "approval-audit.jsonl"
@@ -69,6 +78,9 @@ AUDIT_RETAIN_BYTES = 2 * 1024 * 1024
 MAX_PROMPT_BYTES = 64 * 1024
 MAX_SYSTEM_PROMPT_BYTES = 16 * 1024
 MAX_ANSWER_RETRIES = 1
+OUTPUT_DELTA_FLUSH_SECONDS = 0.1
+OUTPUT_DELTA_FLUSH_BYTES = 1024
+INTERNAL_RETRY_PREFIX = "[[PI//DECK:ANSWER_RETRY]]\n"
 EMPTY_PROMPT_SHA256 = hashlib.sha256(b"").hexdigest()
 SYSTEM_PROMPT_MODES = frozenset({"append", "replace"})
 AGENT_MODES = frozenset({"chat", "agent"})
@@ -86,6 +98,19 @@ ANSWER_RETRY_MESSAGE = (
     "Предыдущий ответ был технически некорректен: он состоял только из знаков "
     "форматирования. Ответь на исходный запрос содержательно. Если нужны актуальные "
     "данные, обязательно используй подходящий доступный инструмент. Не упоминай этот повтор."
+)
+SINGLE_LETTER_RETRY_MESSAGE = (
+    "Предыдущий ответ неожиданно оборвался на одной букве. Ответь на исходный запрос "
+    "заново полным законченным сообщением. Не упоминай этот служебный повтор."
+)
+SHORT_REQUIRED_ANSWER_RETRY_MESSAGE = (
+    "Предыдущий ответ неожиданно оборвался на коротком фрагменте, хотя исходный запрос "
+    "требует законченного предложения или объяснения. Ответь заново полным законченным "
+    "сообщением. Не упоминай этот служебный повтор."
+)
+TOKEN_LIMIT_RETRY_MESSAGE = (
+    "Предыдущий ответ достиг лимита вывода и оборвался. Ответь на исходный запрос "
+    "заново, при необходимости короче, но закончи сообщение. Не упоминай этот служебный повтор."
 )
 LIVE_DATA_RETRY_MESSAGE = (
     "Исходный запрос явно требует актуальных данных. Не отвечай из памяти и не ищи "
@@ -132,16 +157,13 @@ def bounded_session_stats(
         "percent": None,
     }
     if isinstance(raw_usage, dict):
-        window = _bounded_count(raw_usage.get("contextWindow"), 1_000_000)
-        if window is not None and window > 0:
-            usage["contextWindow"] = window
         tokens = _bounded_count(raw_usage.get("tokens"), 1_000_000_000)
         if tokens is not None:
             usage["tokens"] = tokens
-            percent = raw_usage.get("percent")
-            if isinstance(percent, (int, float)) and not isinstance(percent, bool):
-                usage["percent"] = max(0, min(999, round(float(percent))))
-            elif usage["contextWindow"] > 0:
+            # Pi sees a virtual window that offsets its fixed 4096-token API
+            # safety margin. Android must continue to show the real llama.cpp
+            # window and recompute utilization against that value.
+            if usage["contextWindow"] > 0:
                 usage["percent"] = max(
                     0, min(999, round(tokens * 100 / usage["contextWindow"]))
                 )
@@ -172,6 +194,257 @@ def is_degenerate_answer(value: str) -> bool:
         character.isspace() or character in DEGENERATE_FORMATTING_CHARS
         for character in candidate
     )
+
+
+def allows_single_letter_answer(value: str) -> bool:
+    """Keeps an explicit one-letter format from being mistaken for an early-EOS fragment."""
+    candidate = " ".join(value.casefold().split())
+    negative_format = (
+        r"\b(?:do not|don't)\s+(?:answer|reply|respond)[^.;!?]{0,32}"
+        r"\b(?:one|single)\s+(?:letter|character)\b",
+        r"\bне\s+(?:отвечай|ответь)[^.;!?]{0,32}"
+        r"\b(?:одной буквой|одну букву|один символ)\b",
+    )
+    if any(re.search(pattern, candidate) for pattern in negative_format):
+        return False
+
+    if any(
+        marker in candidate
+        for marker in ("недостаточ", "insufficient", "not enough")
+    ):
+        return False
+    if _requires_explanation(candidate):
+        return False
+
+    direct_format = (
+        r"\b(?:ответь|верни|напиши|выбери|укажи|назови)\s*[:,\-]?\s*"
+        r"(?:только\s+|ровно\s+)?(?:одной буквой|одну букву|один символ|"
+        r"первую букву|последнюю букву)\b",
+        r"\b(?:reply|respond|answer|return|write|choose|output)\s*[:,\-]?\s*"
+        r"(?:with\s+)?(?:only\s+|exactly\s+)?(?:a\s+)?"
+        r"(?:one|single|first|last)\s+(?:letter|character)\b",
+    )
+    if any(re.search(pattern, candidate) for pattern in direct_format):
+        return True
+
+    return _requests_single_letter_option(candidate)
+
+
+def _requires_explanation(candidate: str) -> bool:
+    """Separates an explanation obligation from an explicitly negated one."""
+    without_explanation = (
+        r"\b(?:do not|don't|dont)\s+(?:briefly\s+)?(?:explain|justify)\b",
+        r"\bwithout\s+(?:an?\s+)?(?:brief\s+)?(?:explanation|justification)\b",
+        r"\bno\s+(?:explanation|justification)\b",
+        r"\b(?:explanation|justification)\s+(?:is\s+)?not\s+(?:required|needed)\b",
+        r"\bне\s+(?:объясняй|поясняй|обосновывай)\b",
+        r"\bбез\s+(?:объяснения|обоснования|пояснения)\b",
+        r"\b(?:объяснение|обоснование|пояснение)\s+не\s+(?:нужно|требуется)\b",
+    )
+    remaining = candidate
+    for pattern in without_explanation:
+        remaining = re.sub(pattern, " ", remaining)
+    obligation = (
+        r"(?:^|[.!?;:]\s*|\b(?:и|затем)\s+(?:кратко\s+)?)"
+        r"(?:объясни|поясни|обоснуй)\b",
+        r"\b(?:пожалуйста,?\s+)?(?:можешь|мог бы)\s+"
+        r"(?:объяснить|пояснить|обосновать)\b",
+        r"\b(?:дай|приведи|добавь)\b[^.!?\n]{0,24}"
+        r"\b(?:объяснение|обоснование|пояснение)\b",
+        r"\bс\s+(?:кратким\s+)?(?:объяснением|обоснованием|пояснением)\b",
+        r"(?:^|[.!?;:]\s*|\b(?:and|then)\s+(?:briefly\s+)?)"
+        r"(?:explain|justify)\b",
+        r"\b(?:please|can you|could you|would you)\s+(?:briefly\s+)?"
+        r"(?:explain|justify)\b",
+        r"\b(?:provide|give|include)\b[^.!?\n]{0,24}"
+        r"\b(?:explanation|justification)\b",
+        r"\bwith\s+(?:an?\s+)?(?:brief\s+)?(?:explanation|justification)\b",
+    )
+    return any(re.search(pattern, remaining) for pattern in obligation)
+
+
+def requires_multiword_answer(value: str) -> bool:
+    """Recognizes explicit prose obligations without rejecting legitimate terse answers."""
+    candidate = " ".join(value.casefold().split())
+    explanation_required = _requires_explanation(candidate)
+    additive_explanation = any(
+        re.search(pattern, candidate)
+        for pattern in (
+            r"\b(?:and|then)\s+(?:briefly\s+)?(?:explain|justify)\b",
+            r"\b(?:и|затем|а\s+затем)\s+(?:кратко\s+)?"
+            r"(?:объясни|поясни|обоснуй)\b",
+        )
+    )
+    at_most_one_word = (
+        r"\b(?:at most|no more than|not more than)\s+"
+        r"(?:one|a single)\s+word\b",
+        r"\b(?:do not|don't|dont)\s+"
+        r"(?:answer|reply|respond|use|write|say)[^.;!?]{0,32}"
+        r"\bmore than\s+(?:one|a single)\s+word\b",
+        r"\b(?:не больше|максимум)\s+(?:одного|одно|одним)\s+"
+        r"слов(?:а|о|ом)\b",
+        r"\bне\s+(?:отвечай|ответь|используй|пиши|напиши)"
+        r"[^.;!?]{0,32}\bбольше\s+чем\s+(?:одним|одно)\s+слов(?:ом|о)\b",
+    )
+    at_most_requested = any(
+        re.search(pattern, candidate) for pattern in at_most_one_word
+    )
+    negated_terse_format = (
+        r"\b(?:do not|don't|dont)\s+(?:answer|reply|respond|define|describe)"
+        r"[^.;!?]{0,32}\b(?:in|with|using)?\s*(?:just\s+|only\s+)?one\s+word\b",
+        r"\bне\s+(?:отвечай|ответь|описывай|опиши|формулируй)"
+        r"[^.;!?]{0,32}\b(?:в\s+)?(?:одном|одним)\s+слов(?:е|ом)\b",
+    )
+    explicit_terse_format = (
+        r"\b(?:in|with|using)\s+(?:just\s+|exactly\s+|only\s+)?"
+        r"(?:one|a single)\s+word\b",
+        r"\b(?:one|a single)\s+word\s+only\b",
+        r"\b(?:one|single)[- ]word\s+(?:answer|response)\b",
+        r"\b(?:answer|reply|respond|return|output|say)\s+(?:with\s+)?"
+        r"(?:only\s+)?(?:yes\s+or\s+no|true\s+or\s+false|ok|found)\b",
+        r"\b(?:в\s+)?(?:ровно\s+|только\s+|всего\s+)?"
+        r"(?:одном|одним)\s+слов(?:е|ом)\b",
+        r"\b(?:ответь|верни|напиши|скажи)\s+(?:только\s+)?"
+        r"(?:да\s+или\s+нет|истина\s+или\s+ложь|ok|found)\b",
+    )
+    terse_is_negated = any(
+        re.search(pattern, candidate) for pattern in negated_terse_format
+    )
+    explicit_terse_requested = not terse_is_negated and any(
+        re.search(pattern, candidate) for pattern in explicit_terse_format
+    )
+    if at_most_requested or explicit_terse_requested:
+        return explanation_required and additive_explanation
+    if explanation_required:
+        return True
+    negated_prose = (
+        r"\b(?:do not|don't|dont)\s+(?:define|describe|summari[sz]e|analy[sz]e)\b",
+        r"\bне\s+(?:описывай|суммируй|анализируй|формулируй)\b",
+    )
+    remaining = candidate
+    for pattern in negated_prose:
+        remaining = re.sub(pattern, " ", remaining)
+    prose_obligation = (
+        r"\b(?:write|give|provide|return|answer|reply|respond)\b"
+        r"[^.!?\n]{0,32}\b(?:a|one|complete|full)\s+"
+        r"(?:complete\s+|full\s+)?sentence\b",
+        r"\bin\s+(?:a|one)\s+(?:complete\s+|full\s+)?sentence\b",
+        r"(?:^|[.!?;:]\s*)(?:please\s+)?"
+        r"(?:define|describe|summari[sz]e|analy[sz]e)\b",
+        r"\b(?:please|can you|could you|would you)\s+"
+        r"(?:define|describe|summari[sz]e|analy[sz]e)\b",
+        r"\b(?:give|provide|write)\b[^.!?\n]{0,24}"
+        r"\b(?:definition|description|summary|analysis)\b",
+        r"\b(?:полным|законченным|одним)\s+предложением\b",
+        r"(?:^|[.!?;:]\s*)(?:пожалуйста,?\s+)?"
+        r"(?:опиши|суммируй|проанализируй|сформулируй)\b",
+        r"\bдай\s+(?:краткое\s+|полное\s+)?определение\b",
+        r"^(?:why|почему)\b",
+    )
+    return any(re.search(pattern, remaining) for pattern in prose_obligation)
+
+
+def _requests_single_letter_option(candidate: str) -> bool:
+    """Recognizes bounded Unicode one-letter choices without a Latin/Cyrillic allowlist."""
+    cue = re.compile(r"\b(?:вариант|option|выбери|укажи|choose|select)\b")
+    if cue.search(candidate) is None:
+        return False
+    separators = re.finditer(r"\s+(?:или|or)\s+|\s*/\s*", candidate)
+    punctuation = "\"'.,:;!?()[]{}<>«»"
+    for separator in separators:
+        left = candidate[: separator.start()]
+        right = candidate[separator.end() :]
+        if cue.search(left[-96:]) is None:
+            continue
+        left_match = re.search(r"(\S+)\s*$", left)
+        right_match = re.match(r"\s*(\S+)", right)
+        if left_match is None or right_match is None:
+            continue
+        left_option = left_match.group(1).strip(punctuation)
+        right_option = right_match.group(1).strip(punctuation)
+        if (
+            is_single_letter_fragment(left_option)
+            and is_single_letter_fragment(right_option)
+        ):
+            return True
+    return False
+
+
+def is_single_letter_fragment(value: str) -> bool:
+    """Recognizes one visible Unicode letter, including lightweight Markdown wrappers."""
+    candidate = unicodedata.normalize("NFC", value)
+    candidate = "".join(
+        character
+        for character in candidate
+        if unicodedata.category(character) != "Cf"
+    ).strip()
+    candidate = unicodedata.normalize("NFC", candidate.strip("`*_~").strip())
+    if not candidate:
+        return False
+    categories = [unicodedata.category(character) for character in candidate]
+    return sum(category.startswith("L") for category in categories) == 1 and all(
+        category.startswith(("L", "M")) for category in categories
+    )
+
+
+def incomplete_answer_reason(
+    message: Any,
+    value: str,
+    single_letter_allowed: bool,
+    multiword_answer_required: bool,
+) -> str | None:
+    """Classifies terminal assistant fragments that must not become successful turns."""
+    if not isinstance(message, dict) or message.get("role") != "assistant":
+        return None
+    stop_reason = message.get("stopReason")
+    if stop_reason == "error":
+        return "provider_error"
+    if stop_reason == "aborted":
+        return "provider_aborted"
+    if stop_reason == "length":
+        return "token_limit"
+    if not single_letter_allowed and is_single_letter_fragment(value):
+        return "single_letter"
+    if multiword_answer_required and _is_short_required_answer_fragment(
+        message, value
+    ):
+        return "short_required_answer"
+    return None
+
+
+def _is_short_required_answer_fragment(message: Any, value: str) -> bool:
+    """Rejects a one-token/one-word fragment only when the prompt explicitly requires prose."""
+    usage = message.get("usage") if isinstance(message, dict) else None
+    output_tokens = (
+        _bounded_count(usage.get("output"), 100_000_000)
+        if isinstance(usage, dict)
+        else None
+    )
+    if output_tokens is not None and 0 < output_tokens <= 1:
+        return True
+    candidate = unicodedata.normalize("NFC", value).strip().strip("`*_~").strip()
+    words = re.findall(r"[^\W_]+", candidate, flags=re.UNICODE)
+    if len(words) > 1:
+        return False
+    unsegmented_ranges = (
+        (0x0E00, 0x109F),  # Thai, Lao and Myanmar
+        (0x1780, 0x17FF),  # Khmer
+        (0x3040, 0x30FF),  # Hiragana and Katakana
+        (0x3400, 0x4DBF),  # CJK Extension A
+        (0x4E00, 0x9FFF),  # CJK unified ideographs
+        (0xAC00, 0xD7AF),  # Hangul syllables
+        (0xF900, 0xFAFF),  # CJK compatibility ideographs
+        (0x20000, 0x2FA1F),  # CJK extensions and compatibility supplement
+    )
+    unsegmented_letters = sum(
+        1
+        for character in candidate
+        if unicodedata.category(character).startswith("L")
+        and any(start <= ord(character) <= end for start, end in unsegmented_ranges)
+    )
+    if unsegmented_letters >= 2 and re.search(r"[。！？]\s*$", candidate):
+        return False
+    return unsegmented_letters < 4
 
 
 def required_live_tools(value: str) -> frozenset[str]:
@@ -453,7 +726,11 @@ class EventJournal:
             self._events.append(event)
             with EVENT_JOURNAL.open("ab", buffering=0) as output:
                 output.write(encoded + b"\n")
-                self._append_count += 1
+                # Live deltas are served from memory and the constructor deliberately starts
+                # a fresh journal, so syncing fragments cannot recover a turn after restart.
+                # A terminal/control sync still commits every preceding delta in one flush.
+                if event_type != "MODEL_OUTPUT_DELTA":
+                    self._append_count += 1
                 if terminal or self._append_count >= 10:
                     os.fsync(output.fileno())
                     self._append_count = 0
@@ -720,7 +997,9 @@ class PiRpcChild:
             if not line:
                 break
             if len(line) > MAX_EVENT_BYTES or not line.endswith(b"\n"):
-                self.bridge.protocol_error("Pi RPC emitted an oversized/unframed JSONL line")
+                self.bridge.protocol_error(
+                    "Pi RPC emitted an oversized/unframed JSONL line", source=self
+                )
                 while line and not line.endswith(b"\n"):
                     line = process.stdout.readline(MAX_EVENT_BYTES + 1)
                 continue
@@ -728,19 +1007,23 @@ class PiRpcChild:
                 value = json.loads(line.decode("utf-8"))
             except (UnicodeError, json.JSONDecodeError):
                 digest = hashlib.sha256(line).hexdigest()[:16]
-                self.bridge.protocol_error(f"Malformed Pi RPC JSON line sha256={digest}")
+                self.bridge.protocol_error(
+                    f"Malformed Pi RPC JSON line sha256={digest}", source=self
+                )
                 continue
             if not isinstance(value, dict) or not isinstance(value.get("type"), str):
-                self.bridge.protocol_error("Pi RPC event misses required type")
+                self.bridge.protocol_error(
+                    "Pi RPC event misses required type", source=self
+                )
                 continue
-            self.bridge.handle_pi_message(value)
+            self.bridge.handle_pi_message(value, source=self)
 
     def _wait_for_exit(self) -> None:
         process = self.process
         if process is None:
             return
         exit_code = process.wait()
-        self.bridge.handle_pi_exit(exit_code, self._stop_expected)
+        self.bridge.handle_pi_exit(exit_code, self._stop_expected, source=self)
 
     def stop(self) -> bool:
         self._stop_expected = True
@@ -773,14 +1056,25 @@ class PiDeckBridge:
         self.abort_requested = False
         self.last_answer = ""
         self.active_failed_reason: str | None = None
+        self.recoverable_pi_failure: str | None = None
         self.answer_retry_count = 0
         self.answer_retry_request_id: str | None = None
+        self.answer_retry_message: str | None = None
         self.answer_retry_exhausted = False
+        self.single_letter_answer_allowed = False
+        self.multiword_answer_required = False
         self.required_live_tools: frozenset[str] = frozenset()
         self.successful_live_tools: set[str] = set()
         self.turn_output_tokens = 0
         self.turn_decode_seconds = 0.0
         self._message_output_started_monotonic: float | None = None
+        self._last_assistant_message_end_fingerprint: str | None = None
+        self._pending_output_delta: list[str] = []
+        self._pending_output_delta_bytes = 0
+        self._last_output_delta_flush_monotonic: float | None = None
+        self._output_delta_emitted = False
+        self._output_delta_timer: threading.Timer | None = None
+        self._output_delta_timer_generation = 0
         self.pending_approvals: dict[str, dict[str, Any]] = {}
         self.pending_new_session: dict[str, str] | None = None
         self.seen_commands: collections.OrderedDict[str, str] = collections.OrderedDict()
@@ -823,6 +1117,10 @@ class PiDeckBridge:
         if not isinstance(payload, dict):
             raise PiDeckError("MALFORMED_COMMAND", "Command payload must be an object")
         with self._lock:
+            if self._shutdown.is_set():
+                raise PiDeckError(
+                    "BRIDGE_STOPPING", "Pi RPC bridge is stopping"
+                )
             if command_type != "APPROVAL_DECISION":
                 if operation_id in self.seen_commands:
                     raise PiDeckError(
@@ -849,6 +1147,8 @@ class PiDeckBridge:
             raise PiDeckError("UNKNOWN_COMMAND", f"Unknown bridge command: {command_type}")
 
     def _ensure_child(self) -> None:
+        if self._shutdown.is_set():
+            raise PiDeckError("BRIDGE_STOPPING", "Pi RPC bridge is stopping")
         if self.child.process is None or self.child.process.poll() is not None:
             if self.active_operation_id is not None:
                 raise PiDeckError("RECONCILE_REQUIRED", "Pi exited during an active turn")
@@ -856,6 +1156,8 @@ class PiDeckBridge:
             self.child.start()
 
     def request_session_stats(self) -> None:
+        if self._shutdown.is_set():
+            return
         if self._stats_request_id is not None:
             return
         self._stats_request_counter += 1
@@ -881,10 +1183,15 @@ class PiDeckBridge:
         self.active_operation_kind = "prompt"
         self.abort_requested = False
         self.active_failed_reason = None
+        self.recoverable_pi_failure = None
         self.last_answer = ""
+        self._reset_output_delta()
         self.answer_retry_count = 0
         self.answer_retry_request_id = None
+        self.answer_retry_message = None
         self.answer_retry_exhausted = False
+        self.single_letter_answer_allowed = allows_single_letter_answer(message)
+        self.multiword_answer_required = requires_multiword_answer(message)
         self.required_live_tools = (
             required_live_tools(message)
             if self.config.get("agentMode") == "agent"
@@ -897,6 +1204,9 @@ class PiDeckBridge:
         except Exception:
             self.active_operation_id = None
             self.active_operation_kind = None
+            self.answer_retry_message = None
+            self.single_letter_answer_allowed = False
+            self.multiword_answer_required = False
             raise
         return {"accepted": True, "operationId": operation_id}
 
@@ -947,13 +1257,18 @@ class PiDeckBridge:
                 "idempotent": True,
             }
         self.abort_requested = True
-        self.child.send({"id": control_operation_id, "type": "abort"})
-        threading.Thread(
-            target=self._abort_fallback,
-            args=(target,),
-            name="pideck-abort-fallback",
-            daemon=True,
-        ).start()
+        try:
+            self.child.send({"id": control_operation_id, "type": "abort"})
+        finally:
+            # A failed flush has an uncertain delivery outcome: Pi may already have
+            # received the abort. Keep the turn marked aborted and always arm the exact
+            # process fallback so it can never later settle as successful.
+            threading.Thread(
+                target=self._abort_fallback,
+                args=(target,),
+                name="pideck-abort-fallback",
+                daemon=True,
+            ).start()
         return {
             "accepted": True,
             "operationId": control_operation_id,
@@ -965,10 +1280,14 @@ class PiDeckBridge:
         deadline = time.monotonic() + 8.0
         while time.monotonic() < deadline:
             with self._lock:
+                if self._shutdown.is_set():
+                    return
                 if self.active_operation_id != target:
                     return
             time.sleep(0.1)
         with self._lock:
+            if self._shutdown.is_set():
+                return
             if self.active_operation_id != target:
                 return
             self._deny_all_approvals("Pi child restart after abort timeout")
@@ -1059,9 +1378,25 @@ class PiDeckBridge:
             "confirmed": confirmed,
         }
 
-    def handle_pi_message(self, value: dict[str, Any]) -> None:
+    def handle_pi_message(
+        self, value: dict[str, Any], source: PiRpcChild | None = None
+    ) -> None:
         with self._lock:
+            if source is not None and (
+                source is not self.child or self._shutdown.is_set()
+            ):
+                return
             message_type = value["type"]
+            update = value.get("assistantMessageEvent")
+            is_text_delta = (
+                message_type == "message_update"
+                and isinstance(update, dict)
+                and update.get("type") == "text_delta"
+            )
+            if not is_text_delta:
+                # Preserve event ordering while keeping the hot token path batched. In
+                # particular, every pending character must precede message_end/tool/terminal.
+                self._flush_output_delta()
             if message_type == "response":
                 self._handle_response(value)
                 return
@@ -1070,6 +1405,7 @@ class PiDeckBridge:
                 return
             operation_id = self.active_operation_id
             if message_type == "agent_start":
+                self._last_assistant_message_end_fingerprint = None
                 self.journal.append("TURN_STARTED", operation_id, self.session_id)
             elif message_type == "turn_start":
                 self.journal.append(
@@ -1078,7 +1414,6 @@ class PiDeckBridge:
                     self.session_id,
                 )
             elif message_type == "message_update":
-                update = value.get("assistantMessageEvent")
                 if (
                     isinstance(update, dict)
                     and isinstance(update.get("type"), str)
@@ -1089,15 +1424,12 @@ class PiDeckBridge:
                 if isinstance(update, dict) and update.get("type") == "text_delta":
                     delta = update.get("delta")
                     if isinstance(delta, str):
-                        self.last_answer += delta
-                        self.journal.append(
-                            "MODEL_OUTPUT_DELTA",
-                            operation_id,
-                            self.session_id,
-                            {"delta": bounded_text(delta, 64 * 1024)},
-                        )
+                        self._queue_output_delta(delta, operation_id)
                 elif isinstance(update, dict) and update.get("type") == "error":
-                    self.active_failed_reason = bounded_text(update.get("error", "model error"), 2048)
+                    self._reject_recoverable_pi_failure(
+                        "provider_error",
+                        {"errorMessage": update.get("error", "model error")},
+                    )
                 elif isinstance(update, dict) and update.get("type") == "toolcall_end":
                     tool_call = update.get("toolCall")
                     if isinstance(tool_call, dict):
@@ -1114,32 +1446,7 @@ class PiDeckBridge:
                             },
                         )
             elif message_type == "message_end":
-                message = value.get("message")
-                self._capture_generation_metrics(message)
-                candidate = self._assistant_text(message)
-                if (
-                    candidate
-                    and is_degenerate_answer(candidate)
-                    and not self._assistant_has_tool_call(message)
-                    and self.active_operation_kind == "prompt"
-                    and not self.abort_requested
-                    and not self.active_failed_reason
-                ):
-                    self._reject_degenerate_answer()
-                elif (
-                    candidate
-                    and self.required_live_tools
-                    and self.required_live_tools.isdisjoint(
-                        self.successful_live_tools
-                    )
-                    and not self._assistant_has_tool_call(message)
-                    and self.active_operation_kind == "prompt"
-                    and not self.abort_requested
-                    and not self.active_failed_reason
-                ):
-                    self._reject_missing_live_tool()
-                elif candidate:
-                    self.last_answer = candidate
+                self._handle_assistant_message_end(value.get("message"))
             elif message_type == "tool_execution_start":
                 self.journal.append(
                     "TOOL_CALL_STARTED",
@@ -1176,6 +1483,17 @@ class PiDeckBridge:
                 # the failure on its own, so the turn is only failed by the model or the child.
             elif message_type == "agent_end":
                 messages = value.get("messages")
+                if isinstance(messages, list):
+                    for message in reversed(messages):
+                        fingerprint = self._assistant_message_fingerprint(message)
+                        if fingerprint is None:
+                            continue
+                        if fingerprint != self._last_assistant_message_end_fingerprint:
+                            # agent_end is Pi's authoritative fallback when a message_end
+                            # frame was absent or unusable. Apply the exact same terminal
+                            # validation before settled can complete the turn.
+                            self._handle_assistant_message_end(message)
+                        break
                 live_data_satisfied = (
                     not self.required_live_tools
                     or not self.required_live_tools.isdisjoint(
@@ -1184,17 +1502,47 @@ class PiDeckBridge:
                 )
                 if (
                     isinstance(messages, list)
+                    and self.answer_retry_count == 0
                     and not self.answer_retry_exhausted
+                    and not self.active_failed_reason
+                    and self.recoverable_pi_failure is None
                     and live_data_satisfied
                 ):
                     for message in reversed(messages):
                         candidate = self._assistant_text(message)
-                        if candidate and not is_degenerate_answer(candidate):
+                        incomplete = (
+                            incomplete_answer_reason(
+                                message,
+                                candidate,
+                                self.single_letter_answer_allowed,
+                                self.multiword_answer_required,
+                            )
+                            is not None
+                            and not self._assistant_has_tool_call(message)
+                        )
+                        if (
+                            candidate
+                            and not is_degenerate_answer(candidate)
+                            and not incomplete
+                        ):
                             self.last_answer = candidate
                             break
             elif message_type == "agent_settled":
                 if self.active_operation_kind == "prompt":
                     if (
+                        self.answer_retry_message is not None
+                        and not self.abort_requested
+                        and (
+                            not self.active_failed_reason
+                            or self.recoverable_pi_failure is not None
+                        )
+                    ):
+                        self.active_failed_reason = None
+                        self.recoverable_pi_failure = None
+                        self._dispatch_answer_retry()
+                        if self.active_failed_reason:
+                            self._complete_active_turn()
+                    elif (
                         self.required_live_tools
                         and self.required_live_tools.isdisjoint(
                             self.successful_live_tools
@@ -1207,7 +1555,9 @@ class PiDeckBridge:
                             "Модель завершила запрос актуальных данных без "
                             "доступного сетевого инструмента."
                         )
-                    self._complete_active_turn()
+                        self._complete_active_turn()
+                    else:
+                        self._complete_active_turn()
             elif message_type == "compaction_start":
                 reason = value.get("reason")
                 if reason not in {"manual", "threshold", "overflow"}:
@@ -1272,11 +1622,106 @@ class PiDeckBridge:
                     {"protocolType": message_type},
                 )
 
+    def _assistant_message_fingerprint(self, message: Any) -> str | None:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            return None
+        encoded = json.dumps(
+            message,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _handle_assistant_message_end(self, message: Any) -> None:
+        fingerprint = self._assistant_message_fingerprint(message)
+        if fingerprint is not None:
+            self._last_assistant_message_end_fingerprint = fingerprint
+        self._capture_generation_metrics(message)
+        candidate = self._assistant_text(message)
+        effective_answer = candidate or self.last_answer
+        has_tool_call = self._assistant_has_tool_call(message)
+        incomplete_reason = incomplete_answer_reason(
+            message,
+            effective_answer,
+            self.single_letter_answer_allowed,
+            self.multiword_answer_required,
+        )
+        is_assistant = fingerprint is not None
+        if (
+            is_assistant
+            and self.recoverable_pi_failure is not None
+            and (bool(candidate) or has_tool_call)
+            and incomplete_reason not in {"provider_error", "provider_aborted"}
+        ):
+            # Pi can recover from a provider failure before agent_settled.
+            # Validate the recovered message normally instead of preserving the
+            # provisional failure from the preceding low-level run.
+            self.active_failed_reason = None
+            self.recoverable_pi_failure = None
+        if (
+            incomplete_reason in {"provider_error", "provider_aborted"}
+            and self.active_operation_kind == "prompt"
+            and not self.abort_requested
+        ):
+            self._reject_recoverable_pi_failure(incomplete_reason, message)
+        elif (
+            incomplete_reason == "token_limit"
+            and not has_tool_call
+            and self.active_operation_kind == "prompt"
+            and not self.abort_requested
+            and not self.active_failed_reason
+        ):
+            self._reject_incomplete_answer("token_limit")
+        elif (
+            effective_answer
+            and is_degenerate_answer(effective_answer)
+            and not has_tool_call
+            and self.active_operation_kind == "prompt"
+            and not self.abort_requested
+            and not self.active_failed_reason
+        ):
+            self._reject_degenerate_answer()
+        elif (
+            effective_answer
+            and self.required_live_tools
+            and self.required_live_tools.isdisjoint(self.successful_live_tools)
+            and not has_tool_call
+            and self.active_operation_kind == "prompt"
+            and not self.abort_requested
+            and not self.active_failed_reason
+        ):
+            self._reject_missing_live_tool()
+        elif (
+            incomplete_reason in {"single_letter", "short_required_answer"}
+            and not has_tool_call
+            and self.active_operation_kind == "prompt"
+            and not self.abort_requested
+            and not self.active_failed_reason
+        ):
+            self._reject_incomplete_answer(incomplete_reason)
+        elif candidate or has_tool_call:
+            # Pi can auto-retry or compact before agent_settled. Any accepted
+            # continuation supersedes the bridge-side retry that was only waiting
+            # for an idle boundary; otherwise we would start an unnecessary third
+            # model turn after Pi has already recovered on its own.
+            self.answer_retry_message = None
+            if candidate:
+                self.last_answer = candidate
+
     def _handle_response(self, value: dict[str, Any]) -> None:
         command_id = value.get("id")
         command = value.get("command")
         success = value.get("success") is True
-        if command == "prompt" and command_id == self.active_operation_id:
+        if command == "prompt" and command_id == self.answer_retry_request_id:
+            self.answer_retry_request_id = None
+            if not success:
+                self.active_failed_reason = (
+                    "Pi отклонил автоматическую повторную попытку: "
+                    + bounded_text(value.get("error", "неизвестная ошибка"), 1024)
+                )
+                self._complete_active_turn()
+        elif command == "prompt" and command_id == self.active_operation_id:
             if success:
                 self.journal.append(
                     "TURN_ACCEPTED", command_id, self.session_id, {"accepted": True}
@@ -1292,13 +1737,9 @@ class PiDeckBridge:
                 )
                 self.active_operation_id = None
                 self.active_operation_kind = None
-        elif command == "follow_up" and command_id == self.answer_retry_request_id:
-            self.answer_retry_request_id = None
-            if not success:
-                self.active_failed_reason = (
-                    "Pi отклонил автоматическую повторную попытку: "
-                    + bounded_text(value.get("error", "неизвестная ошибка"), 1024)
-                )
+                self.answer_retry_message = None
+                self.single_letter_answer_allowed = False
+                self.multiword_answer_required = False
         elif command == "compact" and command_id == self.active_operation_id:
             data = value.get("data")
             payload = bounded_compaction_payload(data)
@@ -1493,6 +1934,7 @@ class PiDeckBridge:
         )
 
     def _complete_active_turn(self) -> None:
+        self._flush_output_delta()
         operation_id = self.active_operation_id
         if operation_id is None:
             return
@@ -1517,24 +1959,129 @@ class PiDeckBridge:
             payload,
             terminal=True,
         )
+        self._clear_active_turn_state()
+        if not self._shutdown.is_set():
+            self.request_session_stats()
+
+    def _clear_active_turn_state(self) -> None:
         self.active_operation_id = None
         self.active_operation_kind = None
         self.abort_requested = False
         self.active_failed_reason = None
+        self.recoverable_pi_failure = None
         self.last_answer = ""
+        self._reset_output_delta()
         self.answer_retry_count = 0
         self.answer_retry_request_id = None
+        self.answer_retry_message = None
         self.answer_retry_exhausted = False
+        self.single_letter_answer_allowed = False
+        self.multiword_answer_required = False
         self.required_live_tools = frozenset()
         self.successful_live_tools = set()
+        self.compacting = False
+        self.compaction_reason = None
+        self._last_assistant_message_end_fingerprint = None
         self._reset_generation_metrics()
         self._stats_request_id = None
-        self.request_session_stats()
 
     def _reset_generation_metrics(self) -> None:
         self.turn_output_tokens = 0
         self.turn_decode_seconds = 0.0
         self._message_output_started_monotonic = None
+
+    def _queue_output_delta(self, delta: str, operation_id: str | None) -> None:
+        """Holds a lone first grapheme, then streams and coalesces the token hot path."""
+        self.last_answer += delta
+        now = time.monotonic()
+        if not self._output_delta_emitted:
+            self._pending_output_delta.append(delta)
+            self._pending_output_delta_bytes += len(delta.encode("utf-8"))
+            hold_initial = not self.single_letter_answer_allowed and (
+                not self.last_answer.strip()
+                or is_degenerate_answer(self.last_answer)
+                or is_single_letter_fragment(self.last_answer)
+            )
+            if hold_initial:
+                return
+            initial_delta = "".join(self._pending_output_delta)
+            self._pending_output_delta = []
+            self._pending_output_delta_bytes = 0
+            self._output_delta_emitted = True
+            self._last_output_delta_flush_monotonic = now
+            self.journal.append(
+                "MODEL_OUTPUT_DELTA",
+                operation_id,
+                self.session_id,
+                {"delta": bounded_text(initial_delta, 64 * 1024)},
+            )
+            return
+
+        self._pending_output_delta.append(delta)
+        self._pending_output_delta_bytes += len(delta.encode("utf-8"))
+        last_flush = self._last_output_delta_flush_monotonic
+        if (
+            self._pending_output_delta_bytes >= OUTPUT_DELTA_FLUSH_BYTES
+            or last_flush is None
+            or now - last_flush >= OUTPUT_DELTA_FLUSH_SECONDS
+        ):
+            self._flush_output_delta(now)
+        else:
+            self._schedule_output_delta_flush(
+                OUTPUT_DELTA_FLUSH_SECONDS - (now - last_flush)
+            )
+
+    def _flush_output_delta(self, now: float | None = None) -> None:
+        self._cancel_output_delta_timer()
+        if not self._pending_output_delta or not self._output_delta_emitted:
+            return
+        delta = "".join(self._pending_output_delta)
+        self._pending_output_delta = []
+        self._pending_output_delta_bytes = 0
+        self._last_output_delta_flush_monotonic = (
+            time.monotonic() if now is None else now
+        )
+        self.journal.append(
+            "MODEL_OUTPUT_DELTA",
+            self.active_operation_id,
+            self.session_id,
+            {"delta": bounded_text(delta, 64 * 1024)},
+        )
+
+    def _schedule_output_delta_flush(self, delay: float) -> None:
+        if self._output_delta_timer is not None:
+            return
+        self._output_delta_timer_generation += 1
+        generation = self._output_delta_timer_generation
+        timer = threading.Timer(
+            max(0.001, delay),
+            self._scheduled_output_delta_flush,
+            args=(generation,),
+        )
+        timer.daemon = True
+        self._output_delta_timer = timer
+        timer.start()
+
+    def _scheduled_output_delta_flush(self, generation: int) -> None:
+        with self._lock:
+            if generation != self._output_delta_timer_generation:
+                return
+            self._output_delta_timer = None
+            self._flush_output_delta()
+
+    def _cancel_output_delta_timer(self) -> None:
+        timer = self._output_delta_timer
+        self._output_delta_timer = None
+        self._output_delta_timer_generation += 1
+        if timer is not None:
+            timer.cancel()
+
+    def _reset_output_delta(self) -> None:
+        self._cancel_output_delta_timer()
+        self._pending_output_delta = []
+        self._pending_output_delta_bytes = 0
+        self._last_output_delta_flush_monotonic = None
+        self._output_delta_emitted = False
 
     def _capture_generation_metrics(self, message: Any) -> None:
         if not isinstance(message, dict) or message.get("role") != "assistant":
@@ -1612,6 +2159,55 @@ class PiDeckBridge:
             {"requiredTools": sorted(self.required_live_tools)},
         )
 
+    def _reject_incomplete_answer(self, reason: str) -> None:
+        retry_message = (
+            TOKEN_LIMIT_RETRY_MESSAGE
+            if reason == "token_limit"
+            else SHORT_REQUIRED_ANSWER_RETRY_MESSAGE
+            if reason == "short_required_answer"
+            else SINGLE_LETTER_RETRY_MESSAGE
+        )
+        self._reject_answer(
+            reason,
+            retry_message,
+            "Модель дважды завершила ответ обрывком; неполный текст не показан.",
+            {"stopReason": "length"} if reason == "token_limit" else None,
+        )
+
+    def _reject_recoverable_pi_failure(
+        self, reason: str, message: Any
+    ) -> None:
+        first_observation = self.recoverable_pi_failure != reason
+        self.last_answer = ""
+        self._reset_output_delta()
+        self._reset_generation_metrics()
+        stop_reason = "error" if reason == "provider_error" else "aborted"
+        error_message = (
+            message.get("errorMessage")
+            if isinstance(message, dict)
+            else None
+        )
+        if isinstance(error_message, str) and error_message.strip():
+            detail = bounded_text(error_message, 1024)
+        elif reason == "provider_error":
+            detail = "Провайдер модели завершил генерацию с ошибкой."
+        else:
+            detail = "Провайдер модели неожиданно прервал генерацию."
+        self.active_failed_reason = detail
+        self.recoverable_pi_failure = reason
+        if first_observation:
+            self.journal.append(
+                "MODEL_OUTPUT_REJECTED",
+                self.active_operation_id,
+                self.session_id,
+                {
+                    "reason": reason,
+                    "attempt": 1,
+                    "willRetry": True,
+                    "stopReason": stop_reason,
+                },
+            )
+
     def _reject_answer(
         self,
         reason: str,
@@ -1620,6 +2216,7 @@ class PiDeckBridge:
         extra_payload: dict[str, Any] | None = None,
     ) -> None:
         self.last_answer = ""
+        self._reset_output_delta()
         self._reset_generation_metrics()
         will_retry = self.answer_retry_count < MAX_ANSWER_RETRIES
         attempt = self.answer_retry_count + 1
@@ -1638,24 +2235,35 @@ class PiDeckBridge:
         )
         if not will_retry:
             self.answer_retry_exhausted = True
+            self.answer_retry_message = None
             self.active_failed_reason = exhausted_message
             return
 
         self.answer_retry_count += 1
+        self.answer_retry_message = retry_message
+
+    def _dispatch_answer_retry(self) -> None:
+        """Starts a rejected-answer retry only after Pi has confirmed it is idle."""
+        retry_message = self.answer_retry_message
+        if retry_message is None:
+            return
+        self.answer_retry_message = None
         request_id = (
             f"pideck-answer-retry:{self.active_operation_id}:"
             f"{self.answer_retry_count}"
         )
         self.answer_retry_request_id = request_id
+        self._last_assistant_message_end_fingerprint = None
         try:
             self.child.send(
                 {
                     "id": request_id,
-                    "type": "follow_up",
-                    "message": retry_message,
+                    "type": "prompt",
+                    "message": INTERNAL_RETRY_PREFIX + retry_message,
                 }
             )
         except PiDeckError as error:
+            self.answer_retry_request_id = None
             self.active_failed_reason = (
                 "Pi не принял автоматическую повторную попытку: "
                 + bounded_text(error.message, 1024)
@@ -1743,8 +2351,18 @@ class PiDeckBridge:
                         pass
                     self._resolve_approval(approval_id, False, "expired")
 
-    def handle_pi_exit(self, exit_code: int, expected: bool) -> None:
+    def handle_pi_exit(
+        self,
+        exit_code: int,
+        expected: bool,
+        source: PiRpcChild | None = None,
+    ) -> None:
         with self._lock:
+            if source is not None and (
+                source is not self.child or self._shutdown.is_set()
+            ):
+                return
+            self._flush_output_delta()
             operation_id = self.active_operation_id
             self.journal.append(
                 "PI_EXITED",
@@ -1772,23 +2390,42 @@ class PiDeckBridge:
                     },
                     terminal=True,
                 )
-                self.active_operation_id = None
-                self.active_operation_kind = None
-                self.abort_requested = False
-                self.compacting = False
-                self.compaction_reason = None
+                self._clear_active_turn_state()
+            if self.pending_new_session is not None:
+                pending = self.pending_new_session
+                self.journal.append(
+                    "TURN_FAILED",
+                    pending["operationId"],
+                    self.session_id,
+                    {
+                        "error": "Pi RPC child exited during session creation",
+                        "reconcileRequired": True,
+                    },
+                    terminal=True,
+                )
+                self.pending_new_session = None
 
-    def protocol_error(self, message: str) -> None:
-        self.journal.append(
-            "BRIDGE_ERROR",
-            self.active_operation_id,
-            self.session_id,
-            {"code": "PROTOCOL_ERROR", "message": bounded_text(message, 2048)},
-        )
+    def protocol_error(
+        self, message: str, source: PiRpcChild | None = None
+    ) -> None:
+        with self._lock:
+            if source is not None and (
+                source is not self.child or self._shutdown.is_set()
+            ):
+                return
+            self.journal.append(
+                "BRIDGE_ERROR",
+                self.active_operation_id,
+                self.session_id,
+                {"code": "PROTOCOL_ERROR", "message": bounded_text(message, 2048)},
+            )
 
     def state(self) -> dict[str, Any]:
+        # The external/native owner path performs authenticated HTTP health I/O. It may
+        # take seconds while llama.cpp is busy, so never hold the Pi stdout/turn lock here.
+        server = read_server_status()
         with self._lock:
-            return {
+            state = {
                 "schemaVersion": 1,
                 "bridgeInstanceId": self.bridge_instance_id,
                 "lastSequence": self.journal.sequence,
@@ -1822,23 +2459,67 @@ class PiDeckBridge:
                     }
                     for approval_id, pending in self.pending_approvals.items()
                 ],
-                "server": read_server_status(),
+                "server": server,
             }
+        return state
 
     def shutdown(self) -> None:
         with self._lock:
             if self._shutdown.is_set():
                 return
             self._shutdown.set()
-            self._deny_all_approvals("bridge shutdown")
-            self.child.stop()
-            self.journal.append(
-                "PI_EXITED",
-                self.active_operation_id,
-                self.session_id,
-                {"expected": True, "reason": "bridge shutdown"},
-                terminal=True,
-            )
+            self._flush_output_delta()
+            operation_id = self.active_operation_id
+            operation_kind = self.active_operation_kind
+            if operation_id is not None:
+                if operation_kind == "prompt":
+                    self.last_answer = ""
+                    self._reset_generation_metrics()
+                    self.active_failed_reason = (
+                        "Pi RPC bridge stopped during the active turn"
+                    )
+                    self._complete_active_turn()
+                else:
+                    self._deny_all_approvals("bridge shutdown")
+                    self.journal.append(
+                        "SESSION_COMPACTION_FAILED",
+                        operation_id,
+                        self.session_id,
+                        {"error": "Pi RPC bridge stopped during compaction"},
+                        terminal=True,
+                    )
+                    self._clear_active_turn_state()
+            else:
+                self._deny_all_approvals("bridge shutdown")
+            if self.pending_new_session is not None:
+                pending = self.pending_new_session
+                self.journal.append(
+                    "TURN_FAILED",
+                    pending["operationId"],
+                    self.session_id,
+                    {"error": "Pi RPC bridge stopped during session creation"},
+                    terminal=True,
+                )
+                self.pending_new_session = None
+            child_stopped = self.child.stop()
+            if child_stopped:
+                self.journal.append(
+                    "PI_EXITED",
+                    operation_id,
+                    self.session_id,
+                    {"expected": True, "reason": "bridge shutdown"},
+                    terminal=True,
+                )
+            else:
+                self.journal.append(
+                    "BRIDGE_ERROR",
+                    operation_id,
+                    self.session_id,
+                    {
+                        "code": "PI_STOP_UNCONFIRMED",
+                        "message": "Pi child exit could not be confirmed during shutdown",
+                    },
+                )
 
 
 class BridgeHttpServer(ThreadingHTTPServer):
@@ -2051,7 +2732,179 @@ def serve(config_path: Path) -> int:
         server.server_close()
 
 
+def _loopback_listener_present(port: int) -> bool:
+    connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        connection.settimeout(0.25)
+        return connection.connect_ex(("127.0.0.1", port)) == 0
+    finally:
+        connection.close()
+
+
+def _shutdown_unidentified_bridge(
+    fallback_port: int,
+    *,
+    require_endpoint: bool,
+) -> bool:
+    """Use the saved authenticated endpoint when supervisor identity is unavailable."""
+    config_exists = BRIDGE_CONFIG.is_file()
+    token_exists = BRIDGE_TOKEN.is_file()
+    if not config_exists and not token_exists:
+        if _loopback_listener_present(fallback_port):
+            raise PiDeckError(
+                "BRIDGE_STOP_UNCONFIRMED",
+                "A loopback listener exists but its authenticated bridge endpoint is unavailable",
+            )
+        if require_endpoint:
+            raise PiDeckError(
+                "BRIDGE_STOP_UNCONFIRMED",
+                "Bridge process identity and authenticated endpoint are both unavailable",
+            )
+        return False
+    if not config_exists or not token_exists:
+        raise PiDeckError(
+            "BRIDGE_STOP_UNCONFIRMED",
+            "Bridge authenticated endpoint metadata is incomplete",
+        )
+    try:
+        config = read_json(BRIDGE_CONFIG)
+        if "port" not in config:
+            raise ValueError("missing port")
+        port = int(config["port"])
+        if port < 1024 or port > 65535:
+            raise ValueError("port")
+        token = validated_token(
+            BRIDGE_TOKEN.read_text(encoding="ascii")
+        ).decode("ascii")
+    except (OSError, UnicodeError, TypeError, ValueError, PiDeckError) as error:
+        raise PiDeckError(
+            "BRIDGE_STOP_UNCONFIRMED",
+            "Bridge authenticated endpoint metadata is unreadable",
+        ) from error
+    if not _loopback_listener_present(port):
+        return False
+    try:
+        import urllib.request
+
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/v1/shutdown",
+            data=b"{}",
+            method="POST",
+            headers={
+                "X-PiDeck-Token": token,
+                "Content-Type": "application/json; charset=utf-8",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=3) as response:
+            result = json.loads(response.read(64 * 1024).decode("utf-8"))
+        if result.get("ok") is not True:
+            raise ValueError("shutdown rejected")
+    except Exception as error:
+        raise PiDeckError(
+            "BRIDGE_STOP_UNCONFIRMED",
+            "Authenticated bridge shutdown could not be confirmed",
+        ) from error
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if not _loopback_listener_present(port):
+            return True
+        time.sleep(0.05)
+    raise PiDeckError(
+        "BRIDGE_STOP_UNCONFIRMED",
+        "Authenticated bridge shutdown returned but its listener is still alive",
+    )
+
+
+def _opaque_metadata_snapshot(path: Path) -> bytes:
+    try:
+        content = path.read_bytes()
+    except OSError as error:
+        raise PiDeckError(
+            "BRIDGE_STOP_UNCONFIRMED",
+            "Bridge metadata changed while its owner was being reconciled",
+        ) from error
+    if not content or len(content) > 1024 * 1024:
+        raise PiDeckError(
+            "BRIDGE_STOP_UNCONFIRMED",
+            "Bridge metadata is invalid and was preserved",
+        )
+    return content
+
+
+def _unlink_opaque_if_matches(path: Path, expected: bytes) -> bool:
+    try:
+        if path.read_bytes() != expected:
+            return False
+        path.unlink()
+    except (FileNotFoundError, OSError):
+        return False
+    fsync_directory(path.parent)
+    return True
+
+
+def _reconcile_recorded_pi_child() -> bool:
+    """Stop a recorded orphan and remove only the metadata record we inspected."""
+    if not PI_CHILD_METADATA.is_file():
+        return False
+    try:
+        metadata = read_json(PI_CHILD_METADATA)
+    except PiDeckError as error:
+        raise PiDeckError(
+            "PI_CHILD_STOP_UNCONFIRMED",
+            "Pi child metadata is unreadable; it was preserved for reconciliation",
+        ) from error
+    if process_alive(metadata) and not terminate_exact(metadata):
+        raise PiDeckError(
+            "PI_CHILD_STOP_UNCONFIRMED",
+            "Pi child did not confirm process exit",
+        )
+    if not unlink_json_if_matches(PI_CHILD_METADATA, metadata):
+        raise PiDeckError(
+            "PI_CHILD_STATE_CHANGED",
+            "Pi child metadata changed during reconciliation",
+        )
+    return True
+
+
+def _bridge_launch_matches(
+    existing: dict[str, Any],
+    *,
+    model_id: str,
+    profile: str,
+    agent_mode: str,
+    session_id: str | None,
+    port: int,
+    token_sha256: str,
+    system_prompt: dict[str, Any],
+    compaction: dict[str, int | bool],
+) -> bool:
+    """Requires a restart when Pi's loaded model/context contract can be stale."""
+    return (
+        existing.get("modelId") == model_id
+        and existing.get("accessProfile") == profile
+        and existing.get("agentMode", "agent") == agent_mode
+        and existing.get("sessionId") == session_id
+        and int(existing.get("port", -1)) == port
+        and existing.get("tokenSha256") == token_sha256
+        and existing.get("piContextContractVersion")
+        == PI_CONTEXT_CONTRACT_VERSION
+        and existing.get("compactionSettings") == compaction
+        and existing.get("systemPromptMode", "default")
+        == system_prompt["systemPromptMode"]
+        and existing.get("systemPromptSha256", EMPTY_PROMPT_SHA256)
+        == system_prompt["systemPromptSha256"]
+        and existing.get("systemPromptBytes", 0)
+        == system_prompt["systemPromptBytes"]
+        and _system_prompt_file_matches(system_prompt)
+    )
+
+
 def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
+    with exclusive_file_lock(BRIDGE_LIFECYCLE_LOCK):
+        return _bootstrap_bridge_locked(request)
+
+
+def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
     operation_id = require_uuid4(request)
     token = require_string(request, "token", 64)
     token_bytes = validated_token(token)
@@ -2095,44 +2948,68 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
     if BRIDGE_METADATA.is_file():
         try:
             existing = read_json(BRIDGE_METADATA)
-        except PiDeckError:
-            existing = {}
-        if process_alive(existing):
-            same = (
-                existing.get("modelId") == model_id
-                and existing.get("accessProfile") == profile
-                and existing.get("agentMode", "agent") == agent_mode
-                and existing.get("sessionId") == session_id
-                and int(existing.get("port", -1)) == port
-                and existing.get("tokenSha256") == token_sha256
-                and existing.get("systemPromptMode", "default")
-                == system_prompt["systemPromptMode"]
-                and existing.get("systemPromptSha256", EMPTY_PROMPT_SHA256)
-                == system_prompt["systemPromptSha256"]
-                and existing.get("systemPromptBytes", 0)
-                == system_prompt["systemPromptBytes"]
-                and _system_prompt_file_matches(system_prompt)
-            )
-            if same:
-                try:
-                    import urllib.request
+        except PiDeckError as error:
+            opaque = _opaque_metadata_snapshot(BRIDGE_METADATA)
+            if not _shutdown_unidentified_bridge(port, require_endpoint=True):
+                raise PiDeckError(
+                    "BRIDGE_BUSY",
+                    "Unreadable bridge metadata has no live authenticated owner; it was preserved",
+                ) from error
+            if not _unlink_opaque_if_matches(BRIDGE_METADATA, opaque):
+                raise PiDeckError(
+                    "BRIDGE_STATE_CHANGED",
+                    "Bridge metadata changed during authenticated replacement",
+                )
+        else:
+            if process_alive(existing):
+                same = _bridge_launch_matches(
+                    existing,
+                    model_id=model_id,
+                    profile=profile,
+                    agent_mode=agent_mode,
+                    session_id=session_id,
+                    port=port,
+                    token_sha256=token_sha256,
+                    system_prompt=system_prompt,
+                    compaction=compaction,
+                )
+                if same:
+                    try:
+                        import urllib.request
 
-                    health_request = urllib.request.Request(
-                        f"http://127.0.0.1:{port}/v1/health",
-                        headers={"X-PiDeck-Token": token},
-                    )
-                    with urllib.request.urlopen(health_request, timeout=1) as response:
-                        health = json.loads(response.read(64 * 1024).decode("utf-8"))
-                    if health.get("ok") is True and health.get("status") == "ok":
-                        return {
-                            "state": "READY",
-                            "port": port,
-                            "idempotent": True,
-                        }
-                except Exception:
-                    pass
-            if not terminate_exact(existing):
-                raise PiDeckError("BRIDGE_BUSY", "Could not stop previous managed bridge")
+                        health_request = urllib.request.Request(
+                            f"http://127.0.0.1:{port}/v1/health",
+                            headers={"X-PiDeck-Token": token},
+                        )
+                        with urllib.request.urlopen(health_request, timeout=1) as response:
+                            health = json.loads(response.read(64 * 1024).decode("utf-8"))
+                        if health.get("ok") is True and health.get("status") == "ok":
+                            return {
+                                "state": "READY",
+                                "port": port,
+                                "idempotent": True,
+                            }
+                    except Exception:
+                        pass
+                if not terminate_exact(existing):
+                    raise PiDeckError("BRIDGE_BUSY", "Could not stop previous managed bridge")
+            else:
+                _shutdown_unidentified_bridge(port, require_endpoint=False)
+            if not unlink_json_if_matches(BRIDGE_METADATA, existing):
+                raise PiDeckError(
+                    "BRIDGE_STATE_CHANGED",
+                    "Bridge metadata changed during replacement",
+                )
+    else:
+        _shutdown_unidentified_bridge(
+            port,
+            require_endpoint=PI_CHILD_METADATA.is_file(),
+        )
+
+    # The Pi process has its own session/process group. A supervisor that needed
+    # SIGKILL can disappear without taking that child with it, so reconcile the
+    # child record before a new daemon gets any chance to replace its metadata.
+    _reconcile_recorded_pi_child()
 
     persist_system_prompt(SYSTEM_PROMPT_FILE, system_prompt_content)
     config = {
@@ -2145,6 +3022,7 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
         "host": "127.0.0.1",
         "port": port,
         "createdAt": utc_now(),
+        "piContextContractVersion": PI_CONTEXT_CONTRACT_VERSION,
         "compaction": compaction,
     }
     config.update(system_prompt)
@@ -2185,6 +3063,8 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
             "sessionId": session_id,
             "port": port,
             "tokenSha256": token_sha256,
+            "piContextContractVersion": PI_CONTEXT_CONTRACT_VERSION,
+            "compactionSettings": compaction,
             "systemPromptMode": system_prompt["systemPromptMode"],
             "systemPromptSha256": system_prompt["systemPromptSha256"],
             "systemPromptBytes": system_prompt["systemPromptBytes"],
@@ -2213,17 +3093,71 @@ def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
 
 
 def stop_bridge() -> dict[str, Any]:
-    if not BRIDGE_METADATA.is_file():
+    with exclusive_file_lock(BRIDGE_LIFECYCLE_LOCK):
+        return _stop_bridge_locked()
+
+
+def _stop_bridge_locked() -> dict[str, Any]:
+    bridge_recorded = BRIDGE_METADATA.is_file()
+    bridge_metadata: dict[str, Any] | None = None
+    bridge_metadata_error: PiDeckError | None = None
+    opaque_bridge_metadata: bytes | None = None
+    if bridge_recorded:
+        try:
+            bridge_metadata = read_json(BRIDGE_METADATA)
+        except PiDeckError as error:
+            bridge_metadata_error = error
+            opaque_bridge_metadata = _opaque_metadata_snapshot(BRIDGE_METADATA)
+
+    if bridge_metadata_error is not None:
+        if not _shutdown_unidentified_bridge(8787, require_endpoint=True):
+            raise PiDeckError(
+                "BRIDGE_STOP_UNCONFIRMED",
+                "Unreadable bridge metadata has no live authenticated owner; state was preserved",
+            ) from bridge_metadata_error
+    elif bridge_metadata is not None:
+        if process_alive(bridge_metadata):
+            if not terminate_exact(bridge_metadata):
+                raise PiDeckError(
+                    "BRIDGE_STOP_UNCONFIRMED", "Bridge did not confirm process exit"
+                )
+        else:
+            try:
+                recorded_port = int(bridge_metadata.get("port", 8787))
+            except (TypeError, ValueError) as error:
+                raise PiDeckError(
+                    "BRIDGE_STOP_UNCONFIRMED",
+                    "Recorded bridge port is invalid; state was preserved",
+                ) from error
+            _shutdown_unidentified_bridge(recorded_port, require_endpoint=False)
+    else:
+        _shutdown_unidentified_bridge(
+            8787,
+            require_endpoint=PI_CHILD_METADATA.is_file(),
+        )
+
+    child_recorded = _reconcile_recorded_pi_child()
+
+    if bridge_metadata_error is not None:
+        if opaque_bridge_metadata is None or not _unlink_opaque_if_matches(
+            BRIDGE_METADATA, opaque_bridge_metadata
+        ):
+            raise PiDeckError(
+                "BRIDGE_STATE_CHANGED",
+                "Bridge metadata changed during authenticated shutdown",
+            )
         SYSTEM_PROMPT_FILE.unlink(missing_ok=True)
-        return {"state": "STOPPED", "idempotent": True}
-    try:
-        metadata = read_json(BRIDGE_METADATA)
-    except PiDeckError:
+        return {"state": "STOPPED", "idempotent": False}
+    if not bridge_recorded:
         SYSTEM_PROMPT_FILE.unlink(missing_ok=True)
-        return {"state": "STALE", "idempotent": True}
-    if process_alive(metadata) and not terminate_exact(metadata):
-        raise PiDeckError("BRIDGE_STOP_UNCONFIRMED", "Bridge did not confirm process exit")
-    BRIDGE_METADATA.unlink(missing_ok=True)
-    PI_CHILD_METADATA.unlink(missing_ok=True)
+        return {"state": "STOPPED", "idempotent": not child_recorded}
+
+    if bridge_metadata is None or not unlink_json_if_matches(
+        BRIDGE_METADATA, bridge_metadata
+    ):
+        raise PiDeckError(
+            "BRIDGE_STATE_CHANGED",
+            "Bridge metadata changed during shutdown",
+        )
     SYSTEM_PROMPT_FILE.unlink(missing_ok=True)
     return {"state": "STOPPED", "idempotent": False}

@@ -15,6 +15,7 @@ export type AgentMode = "chat" | "agent";
 export type ToolCapability = "files" | "web" | "weather" | "exact_edit";
 
 const LOADER_TOOL = "pideck_load_tools";
+export const INTERNAL_RETRY_PREFIX = "[[PI//DECK:ANSWER_RETRY]]\n";
 
 const CORE_TOOLS: Record<AccessProfile, readonly string[]> = {
 	read_only: ["read", "grep", "find", "ls"],
@@ -128,6 +129,27 @@ export function detectCapabilities(text: string): ToolCapability[] {
 	return result;
 }
 
+export function routeInput(
+	text: string,
+	streamingBehavior?: "steer" | "followUp",
+): {
+	text: string;
+	capabilities: ToolCapability[];
+	additive: boolean;
+	transformed: boolean;
+} {
+	const transformed = text.startsWith(INTERNAL_RETRY_PREFIX);
+	const routedText = transformed ? text.slice(INTERNAL_RETRY_PREFIX.length) : text;
+	return {
+		text: routedText,
+		capabilities: detectCapabilities(routedText),
+		// A retry is an idle RPC prompt only because Pi has already settled. It still
+		// belongs to the previous task, so retain every optional tool that task enabled.
+		additive: transformed || streamingBehavior !== undefined,
+		transformed,
+	};
+}
+
 export default function pideckToolRouter(pi: ExtensionAPI) {
 	const profile = configuredProfile();
 	const mode = configuredMode();
@@ -190,9 +212,13 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 
 	pi.on("input", (event) => {
 		// A queued correction belongs to the active task. Add what it needs without removing a
-		// tool that may be referenced by the in-flight conversation. An idle prompt starts lean.
-		activate(detectCapabilities(event.text), event.streamingBehavior !== undefined);
-		return { action: "continue" };
+		// tool that may be referenced by the in-flight conversation. A bridge retry crosses an
+		// idle boundary deliberately and carries a stripped internal marker for the same reason.
+		const routed = routeInput(event.text, event.streamingBehavior);
+		activate(routed.capabilities, routed.additive);
+		return routed.transformed
+			? { action: "transform", text: routed.text, images: event.images }
+			: { action: "continue" };
 	});
 
 	pi.on("tool_call", (event) => {

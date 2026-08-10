@@ -207,3 +207,25 @@ Vulkan exceeded 5.4 GiB before the first token and was stopped.
 MNN CPU therefore remains a guarded prototype candidate, not a backend cutover.
 It needs an upstream cache fix, ten clean restore cycles, the 28-task quality
 suite and Android service/session/abort tests before it can replace llama.cpp.
+
+## llama.cpp b10333 control, measured 2026-08-09
+
+The official Android arm64 b10333 build was staged under the shell UID and run
+beside, not inside, PI//DECK. Both builds used the same Qwen3.5 2B GGUF, 10240
+context, thread/cpu-strict profile, uncached 1099-token prompt and deterministic
+128-token output. The first b10092 sample was frequency-unmatched and is excluded:
+after cooling, the alternating control was effectively tied.
+
+| Cool isolated run | b10092 | b10333 |
+|---|---:|---:|
+| Model load | 17.63 s | 18.97 s |
+| Prompt processing | **77.76 tok/s** | 76.22 tok/s |
+| Decode | 12.68 tok/s | **12.70 tok/s** |
+| Request wall | **24.43 s** | 24.65 s |
+| AP temperature after | 58.4 C | 56.5 C |
+
+Both processes reported cpuset `/`, zero cached prompt tokens and the exact same
+1099/128 token counts. This control provides no performance reason to replace the
+shipped b10092 kernel. It also demonstrates why a single thermally unmatched run
+is not promotion evidence: the discarded b10092 sample was 35.73 s and would
+have falsely implied a 1.45x b10333 win.

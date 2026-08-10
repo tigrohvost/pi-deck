@@ -25,7 +25,10 @@ public final class ModelSpec {
     private static final Set<String> STATUSES = Set.of(
             "DEFAULT", "SUPPORTED", "CANDIDATE", "EXPERIMENTAL", "DEPRECATED", "BLOCKED"
     );
-    private static final Set<String> LICENSES = Set.of("Apache-2.0", "MIT");
+    // LicenseRef-LFM-Open-1.0: LFM Open License v1.0, reviewed 2026-08-07 — Apache-2.0-derived,
+    // full use below a $10M annual-revenue threshold; see docs/model-admission.md.
+    private static final Set<String> LICENSES =
+            Set.of("Apache-2.0", "MIT", "LicenseRef-LFM-Open-1.0");
     private static final Set<String> MANAGED_SERVER_FLAGS = Set.of(
             "-m", "--model", "--alias", "--host", "--port",
             "-c", "--ctx-size", "-np", "--parallel", "-t", "--threads",
@@ -269,6 +272,10 @@ public final class ModelSpec {
                 "toolProtocol", "piProfile", "maxTokens",
                 "supportsToolCalls", "supportsMultiTurnTools"
         ));
+        int maxTokens = positive(agent, "maxTokens");
+        if (maxTokens >= recommendedContext) {
+            throw new JSONException("Model output budget must fit inside recommended context");
+        }
         if (!agent.getBoolean("supportsToolCalls")
                 || !agent.getBoolean("supportsMultiTurnTools")) {
             throw new JSONException("Catalog model does not satisfy the Pi tool contract");
@@ -313,7 +320,7 @@ public final class ModelSpec {
                 sampling.getDouble("presencePenalty"),
                 required(agent, "toolProtocol"),
                 required(agent, "piProfile"),
-                positive(agent, "maxTokens"),
+                maxTokens,
                 positive(memory, "minimumAvailableMiB"),
                 measured
         );

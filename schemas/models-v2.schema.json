@@ -39,7 +39,7 @@
           "additionalProperties": false,
           "required": ["spdx", "weightsUrl", "verifiedAt"],
           "properties": {
-            "spdx": {"enum": ["Apache-2.0", "MIT"]},
+            "spdx": {"enum": ["Apache-2.0", "MIT", "LicenseRef-LFM-Open-1.0"]},
             "weightsUrl": {"type": "string", "pattern": "^https://"},
             "verifiedAt": {"type": "string", "format": "date-time"}
           }

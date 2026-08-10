@@ -149,6 +149,79 @@
       }
     },
     {
+      "id": "lfm2.5-2.6b",
+      "title": "LFM2.5 2.6B",
+      "tier": "EDGE",
+      "status": "CANDIDATE",
+      "note": "Инструментальный агент Liquid: BFCLv4 выше Qwen3.5 4B при весе 1.7 ГиБ. Вендор не рекомендует его для agentic coding; suite-v1 и смоки ещё не пройдены.",
+      "license": {
+        "spdx": "LicenseRef-LFM-Open-1.0",
+        "weightsUrl": "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF",
+        "verifiedAt": "2026-08-07T00:00:00Z"
+      },
+      "source": {
+        "repository": "LiquidAI/LFM2.5-2.6B-GGUF",
+        "revision": "b421ad1d549afeda6a0fb2ad3a697cb5a7879adc",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "lfm2",
+        "upstreamModel": "LiquidAI/LFM2.5-2.6B",
+        "conversion": {
+          "performedBy": "LiquidAI",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "LFM2.5-2.6B-Q4_K_M.gguf",
+        "bytes": 1674454848,
+        "sha256": "79fdf00351b46cf26f020aead28d01889886be87c55fa0eb907e6f9b00bfee14"
+      },
+      "runtime": {
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 10240,
+        "maximumTestedContext": 10240,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": ["--repeat-penalty", "1.1"],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.1,
+        "topP": 1.0,
+        "topK": 50,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "lfm2.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
       "id": "qwen3.5-4b",
       "title": "Qwen3.5 4B",
       "tier": "CORE",

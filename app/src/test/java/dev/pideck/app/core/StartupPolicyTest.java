@@ -73,6 +73,39 @@ public class StartupPolicyTest {
     }
 
     @Test
+    public void typingWarmsAColdCoreWithoutRequiringAutostart() {
+        assertTrue(StartupPolicy.warmsOnComposerIntent(
+                true, true, false, false, false, false
+        ));
+        assertFalse(StartupPolicy.warmsOnComposerIntent(
+                false, true, false, false, false, false
+        ));
+    }
+
+    @Test
+    public void composerWarmupYieldsToPressureWorkAndReadiness() {
+        assertFalse(StartupPolicy.warmsOnComposerIntent(
+                true, true, false, false, false, true
+        ));
+        assertFalse(StartupPolicy.warmsOnComposerIntent(
+                true, true, false, false, true, false
+        ));
+        assertFalse(StartupPolicy.warmsOnComposerIntent(
+                true, false, false, false, false, false
+        ));
+        assertFalse(StartupPolicy.warmsOnComposerIntent(
+                true, true, true, true, false, false
+        ));
+    }
+
+    @Test
+    public void composerCanFinishAnAlreadyLoadedBridgeUnderPressure() {
+        assertTrue(StartupPolicy.warmsOnComposerIntent(
+                true, true, true, false, false, true
+        ));
+    }
+
+    @Test
     public void aPromptAtAColdCoreWaitsInsteadOfBouncing() {
         assertTrue(StartupPolicy.queuesUntilReady(false, true, false));
     }
@@ -99,11 +132,11 @@ public class StartupPolicyTest {
     @Test
     public void persistedQueueUsesTheSameLargeContextThreshold() throws Exception {
         SessionContextUsage belowThreshold = SessionContextUsage.parse(
-                new JSONObject().put("tokens", 7_577).put("contextWindow", 10_240),
+                new JSONObject().put("tokens", 6_143).put("contextWindow", 10_240),
                 10_240
         );
         SessionContextUsage atThreshold = SessionContextUsage.parse(
-                new JSONObject().put("tokens", 7_680).put("contextWindow", 10_240),
+                new JSONObject().put("tokens", 6_144).put("contextWindow", 10_240),
                 10_240
         );
 

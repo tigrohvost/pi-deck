@@ -77,6 +77,24 @@ public final class StartupPolicy {
     }
 
     /**
+     * Non-empty composer text is a stronger intent signal than merely opening the Activity.
+     * Start the expensive model while the user is still typing, but retain the launch policy's
+     * memory guard. Finishing a bridge for an already loaded model remains cheap under pressure.
+     */
+    public static boolean warmsOnComposerIntent(
+            boolean hasText,
+            boolean canWarm,
+            boolean serverReady,
+            boolean bridgeReady,
+            boolean busy,
+            boolean lowMemory
+    ) {
+        if (!hasText || !canWarm || busy) return false;
+        if (serverReady) return !bridgeReady;
+        return !lowMemory;
+    }
+
+    /**
      * A prompt typed at a cold core is intent, not an error. It waits in the queue while the core
      * warms instead of being bounced back with a toast, but only when warming can actually succeed.
      */

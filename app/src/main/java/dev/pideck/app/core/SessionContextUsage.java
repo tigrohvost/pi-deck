@@ -4,6 +4,7 @@ import org.json.JSONObject;
 
 /** Bounded current-context telemetry reported by Pi's get_session_stats RPC command. */
 public final class SessionContextUsage {
+    private static final int PROMPT_CHOICE_PERCENT = 60;
     public final long tokens;
     public final int contextWindow;
     public final int percent;
@@ -53,7 +54,9 @@ public final class SessionContextUsage {
     }
 
     public boolean shouldCompactSoon() {
-        return known() && percent >= 75;
+        if (!known()) return false;
+        long threshold = (contextWindow * (long) PROMPT_CHOICE_PERCENT + 99L) / 100L;
+        return tokens >= threshold;
     }
 
     private static int positiveInt(JSONObject value, String key, int fallback) {

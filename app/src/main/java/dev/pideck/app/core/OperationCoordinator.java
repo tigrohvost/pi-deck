@@ -59,6 +59,27 @@ public final class OperationCoordinator {
         if (id.equals(activeOperationId)) activeOperationId = null;
     }
 
+    /** A late failure callback may mutate state only while this exact operation owns the UI. */
+    public synchronized boolean dispatchFailedIfActive(OperationId id, String error) {
+        if (!id.equals(activeOperationId)) return false;
+        OperationRecord record = store.load(id);
+        if (record == null || record.state.isTerminal()) return false;
+        store.fail(id, error);
+        activeOperationId = null;
+        return true;
+    }
+
+    /** Transport failure after send is ambiguous: retain ownership until bridge reconciliation. */
+    public synchronized boolean dispatchUnknownIfActive(OperationId id) {
+        if (!id.equals(activeOperationId)) return false;
+        OperationRecord record = store.load(id);
+        if (record == null || record.state.isTerminal()) return false;
+        if (record.state != OperationState.UNKNOWN) {
+            store.transition(id, OperationState.UNKNOWN);
+        }
+        return true;
+    }
+
     /**
      * A package replacement kills the Activity and invalidates the installer payload that created
      * the active runtime-install operation. Do not restore that record as a 30-minute busy state;

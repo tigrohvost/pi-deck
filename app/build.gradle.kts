@@ -90,6 +90,7 @@ val verifyModelManifest by tasks.registering {
             val artifact = model["artifact"] as? Map<*, *> ?: error("$id artifact is required")
             val license = model["license"] as? Map<*, *> ?: error("$id license is required")
             val runtime = model["runtime"] as? Map<*, *> ?: error("$id runtime is required")
+            val agent = model["agent"] as? Map<*, *> ?: error("$id agent is required")
             require(id.length <= 128 && id.matches(Regex("[a-z0-9][a-z0-9._-]+"))) {
                 "$id model ID is unsafe"
             }
@@ -114,7 +115,15 @@ val verifyModelManifest by tasks.registering {
             require((artifact["bytes"] as? Number)?.toLong()?.let { it > 0 } == true) {
                 "$id bytes must be positive"
             }
-            require(license["spdx"] in setOf("Apache-2.0", "MIT")) {
+            val recommendedContext = (runtime["recommendedContext"] as? Number)?.toLong()
+                ?: error("$id recommendedContext must be numeric")
+            val maxTokens = (agent["maxTokens"] as? Number)?.toLong()
+                ?: error("$id maxTokens must be numeric")
+            require(recommendedContext > 0 && maxTokens > 0 && maxTokens < recommendedContext) {
+                "$id maxTokens must fit inside recommendedContext"
+            }
+            // LicenseRef-LFM-Open-1.0: reviewed 2026-08-07, see docs/model-admission.md.
+            require(license["spdx"] in setOf("Apache-2.0", "MIT", "LicenseRef-LFM-Open-1.0")) {
                 "$id license is not allowlisted"
             }
             val provenanceStatus = source["provenanceStatus"] as? String
