@@ -128,14 +128,25 @@ def fake_bridge() -> bridge.PiDeckBridge:
     value.abort_requested = False
     value.last_answer = ""
     value.active_failed_reason = None
+    value.recoverable_pi_failure = None
     value.answer_retry_count = 0
     value.answer_retry_request_id = None
+    value.answer_retry_message = None
     value.answer_retry_exhausted = False
+    value.single_letter_answer_allowed = False
+    value.multiword_answer_required = False
     value.required_live_tools = frozenset()
     value.successful_live_tools = set()
     value.turn_output_tokens = 0
     value.turn_decode_seconds = 0.0
     value._message_output_started_monotonic = None
+    value._last_assistant_message_end_fingerprint = None
+    value._pending_output_delta = []
+    value._pending_output_delta_bytes = 0
+    value._last_output_delta_flush_monotonic = None
+    value._output_delta_emitted = False
+    value._output_delta_timer = None
+    value._output_delta_timer_generation = 0
     value.pending_approvals = {}
     value.pending_new_session = None
     value.seen_commands = collections.OrderedDict()
@@ -153,6 +164,15 @@ def fake_bridge() -> bridge.PiDeckBridge:
 class RuntimeTestCase(unittest.TestCase):
     def test_bridge_can_rebind_after_exact_managed_restart(self) -> None:
         self.assertTrue(bridge.BridgeHttpServer.allow_reuse_address)
+
+    def test_lfm_open_license_is_admitted_and_unknown_licenses_stay_rejected(self) -> None:
+        model = tiny_model(b"fixture")
+        model["license"] = {"spdx": "LicenseRef-LFM-Open-1.0"}
+        model_store.validate_model(model)
+
+        model["license"] = {"spdx": "LicenseRef-Unreviewed-1.0"}
+        with self.assertRaises(common.PiDeckError):
+            model_store.validate_model(model)
 
     def test_probe_requires_every_managed_extension_including_tool_router(self) -> None:
         compatibility = {
@@ -375,6 +395,7 @@ class RuntimeTestCase(unittest.TestCase):
     def test_phone_sized_compaction_settings_preserve_unrelated_preferences(self) -> None:
         model = tiny_model(b"GGUF")
         model["runtime"]["recommendedContext"] = 10_240
+        model["agent"]["maxTokens"] = 1_536
         common.atomic_write_json(
             model_store.PI_SETTINGS_PATH,
             {
@@ -387,13 +408,25 @@ class RuntimeTestCase(unittest.TestCase):
                 },
             },
         )
+        common.atomic_write_json(
+            model_store.PI_PROJECT_SETTINGS_PATH,
+            {
+                "projectPreference": "preserved",
+                "compaction": {
+                    "enabled": False,
+                    "reserveTokens": 2_048,
+                    "keepRecentTokens": 20_000,
+                    "projectKey": "preserved",
+                },
+            },
+        )
 
         managed = model_store.ensure_pi_compaction_settings(model)
 
         self.assertEqual(
             {
                 "enabled": True,
-                "reserveTokens": 2_048,
+                "reserveTokens": 5_632,
                 "keepRecentTokens": 2_560,
             },
             managed,
@@ -403,6 +436,96 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual("preserved", saved["compaction"]["customKey"])
         self.assertEqual(managed["reserveTokens"], saved["compaction"]["reserveTokens"])
         self.assertEqual(0o600, model_store.PI_SETTINGS_PATH.stat().st_mode & 0o777)
+        project = common.read_json(model_store.PI_PROJECT_SETTINGS_PATH)
+        self.assertEqual("preserved", project["projectPreference"])
+        self.assertEqual("preserved", project["compaction"]["projectKey"])
+        self.assertEqual(managed, {
+            key: project["compaction"][key]
+            for key in ("enabled", "reserveTokens", "keepRecentTokens")
+        })
+        self.assertEqual(
+            0o600,
+            model_store.PI_PROJECT_SETTINGS_PATH.stat().st_mode & 0o777,
+        )
+
+        advertised = model_store.pi_advertised_context_window(model)
+        actual = model["runtime"]["recommendedContext"]
+        max_tokens = model["agent"]["maxTokens"]
+        self.assertEqual(14_336, advertised)
+        self.assertEqual(actual - max_tokens, advertised - managed["reserveTokens"])
+
+    def test_pi_compaction_does_not_create_absent_project_settings(self) -> None:
+        model = tiny_model(b"GGUF")
+        project_settings = model_store.PI_PROJECT_SETTINGS_PATH
+        self.assertFalse(project_settings.exists())
+
+        model_store.ensure_pi_compaction_settings(model)
+
+        self.assertFalse(project_settings.exists())
+        self.assertFalse(project_settings.parent.exists())
+
+    def test_pi_compaction_rejects_project_settings_symlink_without_writing_target(self) -> None:
+        model = tiny_model(b"GGUF")
+        project_settings = model_store.PI_PROJECT_SETTINGS_PATH
+        project_settings.parent.mkdir(parents=True)
+        external = common.BASE / "external-pi-settings.json"
+        original = b'{"compaction":{"reserveTokens":2048},"outside":true}'
+        external.write_bytes(original)
+        project_settings.symlink_to(external)
+
+        with self.assertRaises(common.PiDeckError) as raised:
+            model_store.ensure_pi_compaction_settings(model)
+
+        self.assertEqual("INVALID_PROJECT_SETTINGS", raised.exception.code)
+        self.assertTrue(project_settings.is_symlink())
+        self.assertEqual(original, external.read_bytes())
+
+    def test_pi_compaction_rejects_project_settings_symlink_directory(self) -> None:
+        model = tiny_model(b"GGUF")
+        project_directory = model_store.PI_PROJECT_SETTINGS_PATH.parent
+        external_directory = common.BASE / "external-pi-directory"
+        external_directory.mkdir()
+        external_settings = external_directory / "settings.json"
+        original = b'{"compaction":{"reserveTokens":2048},"outside":true}'
+        external_settings.write_bytes(original)
+        project_directory.symlink_to(external_directory, target_is_directory=True)
+
+        with self.assertRaises(common.PiDeckError) as raised:
+            model_store.ensure_pi_compaction_settings(model)
+
+        self.assertEqual("INVALID_PROJECT_SETTINGS", raised.exception.code)
+        self.assertTrue(project_directory.is_symlink())
+        self.assertEqual(original, external_settings.read_bytes())
+
+    def test_pi_compaction_rejects_workspace_symlink_without_external_write(self) -> None:
+        model = tiny_model(b"GGUF")
+        workspace = model_store.PI_PROJECT_SETTINGS_PATH.parents[1]
+        workspace.rmdir()
+        external_workspace = common.BASE / "external-workspace"
+        external_settings = external_workspace / ".pi" / "settings.json"
+        external_settings.parent.mkdir(parents=True)
+        original = b'{"compaction":{"reserveTokens":2048},"outside":true}'
+        external_settings.write_bytes(original)
+        workspace.symlink_to(external_workspace, target_is_directory=True)
+
+        with self.assertRaises(common.PiDeckError) as raised:
+            model_store.ensure_pi_compaction_settings(model)
+
+        self.assertEqual("INVALID_PROJECT_SETTINGS", raised.exception.code)
+        self.assertTrue(workspace.is_symlink())
+        self.assertEqual(original, external_settings.read_bytes())
+
+    def test_pi_context_contract_preserves_output_room_for_4k_models(self) -> None:
+        model = tiny_model(b"GGUF")
+        model["runtime"]["recommendedContext"] = 4_096
+        model["agent"]["maxTokens"] = 1_024
+
+        managed = model_store.ensure_pi_compaction_settings(model)
+
+        self.assertEqual(8_192, model_store.pi_advertised_context_window(model))
+        self.assertEqual(5_120, managed["reserveTokens"])
+        self.assertEqual(1_024, managed["keepRecentTokens"])
+        self.assertEqual(3_072, 8_192 - managed["reserveTokens"])
 
     def test_chat_mode_removes_tool_schema_from_pi_context(self) -> None:
         self.assertEqual(["--no-tools"], launcher._profile_arguments("autonomous", "chat"))
@@ -452,6 +575,141 @@ class RuntimeTestCase(unittest.TestCase):
         for valid in ("Да.", "42", "C++", "✅", "a", ""):
             self.assertFalse(bridge.is_degenerate_answer(valid), valid)
 
+    def test_single_letter_intent_detection_is_explicit_and_narrow(self) -> None:
+        for prompt in (
+            "Ответь одной буквой: A или B.",
+            "Верни только один символ.",
+            "Назови первую букву слова Москва.",
+            "Какой вариант верен: A или B?",
+            "Выбери: A или B.",
+            "Reply with exactly one letter: Y or N.",
+            "Return a single character.",
+            "Choose A or B.",
+            "Choose Ω or Ψ.",
+            "Choose é or ñ.",
+            "Выбери: 中 или 文.",
+        ):
+            self.assertTrue(bridge.allows_single_letter_answer(prompt), prompt)
+        for prompt in (
+            "Ответь кратко.",
+            "Выбери лучший вариант.",
+            "Return the answer only.",
+            "Что находится в README?",
+            "Объясни, почему one letter здесь недостаточно.",
+            "Ответь, почему ответ одной буквой недостаточен.",
+            "Do not answer with one letter; explain your reasoning.",
+            "One letter answers are insufficient; explain.",
+            "Выбери одну букву и объясни почему.",
+            "Ответь одной буквой, а затем объясни.",
+            "Choose one letter and explain why.",
+            "Choose A or B and briefly explain why.",
+            "Choose A or B; explain why.",
+            "Choose A or B. Explain why.",
+            "Выбери A или B и кратко объясни.",
+            "Выбери A или B; объясни.",
+            "Выбери A или B. Объясни.",
+            "Choose A or B and provide an explanation.",
+            "Choose A or B with justification.",
+            "Выбери A или B с объяснением.",
+            "Выбери A или B и дай обоснование.",
+        ):
+            self.assertFalse(bridge.allows_single_letter_answer(prompt), prompt)
+        for prompt in (
+            "Choose A or B; do not explain.",
+            "Do not explain; answer with one letter.",
+            "Choose A or B without explanation.",
+            "Choose A or B; explanation is not required.",
+            "Выбери A или B; не объясняй.",
+            "Выбери A или B без объяснения.",
+        ):
+            self.assertTrue(bridge.allows_single_letter_answer(prompt), prompt)
+
+    def test_single_unicode_letter_fragment_detection_handles_visual_wrappers(self) -> None:
+        for fragment in ("О", "A", "**О**", "`A`", "é", "Ω", "中", "О\u200b", "A\u0301"):
+            self.assertTrue(bridge.is_single_letter_fragment(fragment), fragment)
+        for answer in ("Да", "A.", "42", "✅", "C++", ""):
+            self.assertFalse(bridge.is_single_letter_fragment(answer), answer)
+
+    def test_multiword_requirement_detection_is_explicit_and_narrow(self) -> None:
+        for prompt in (
+            "Give a complete sentence defining a bridge.",
+            "Define a bridge.",
+            "Describe the RPC lifecycle.",
+            "Explain why the retry is safe.",
+            "Why is the retry safe?",
+            "Дай определение моста.",
+            "Опиши жизненный цикл RPC.",
+            "Ответь полным предложением.",
+            "Describe it in one word, then explain why.",
+            "Use at most one word for the label, then explain your choice.",
+            "Опиши одним словом, затем объясни почему.",
+        ):
+            self.assertTrue(bridge.requires_multiword_answer(prompt), prompt)
+        for prompt in (
+            "Name the capital of France.",
+            "Reply with one word.",
+            "Define the result in one word.",
+            "Describe a bridge using one word.",
+            "Summarize the result in just one word.",
+            "Define it: one word only.",
+            "Explain in one word.",
+            "Explain why using just one word.",
+            "Describe the status; do not answer with more than one word.",
+            "Summarize the result. Do not use more than one word.",
+            "Return at most one word.",
+            "Do not describe it; name the category.",
+            "Choose A or B.",
+            "Назови столицу Франции.",
+            "Ответь да или нет.",
+            "Сформулируй ровно одним словом.",
+            "Опиши мост в одном слове.",
+            "Объясни одним словом.",
+            "Опиши статус; не отвечай больше чем одним словом.",
+            "Верни максимум одно слово.",
+            "Не описывай; назови категорию.",
+            "Is this a complete sentence? Answer yes or no.",
+            "Does this define a valid bridge? Reply yes or no.",
+            "Run the analyze command and reply OK.",
+            "Does README contain the word describe? Answer yes or no.",
+            "Find the string a sentence and reply FOUND.",
+            "Does README contain the word explain?",
+            "Есть ли в README слово объясни?",
+        ):
+            self.assertFalse(bridge.requires_multiword_answer(prompt), prompt)
+        self.assertTrue(
+            bridge.requires_multiword_answer(
+                "Do not answer in one word; explain the bridge."
+            )
+        )
+
+    def test_required_prose_accepts_substantive_unsegmented_script_sentences(self) -> None:
+        for answer in (
+            "桥是一种跨越障碍连接两地的结构。",
+            "橋は障害物を越えて二つの場所を結ぶ構造です。",
+            "这是桥。",
+            "橋です。",
+        ):
+            message = {
+                "role": "assistant",
+                "content": [{"type": "text", "text": answer}],
+                "stopReason": "stop",
+                "usage": {"output": 12},
+            }
+            self.assertIsNone(
+                bridge.incomplete_answer_reason(message, answer, False, True),
+                answer,
+            )
+        fragment = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "桥梁"}],
+            "stopReason": "stop",
+            "usage": {"output": 2},
+        }
+        self.assertEqual(
+            "short_required_answer",
+            bridge.incomplete_answer_reason(fragment, "桥梁", False, True),
+        )
+
     def test_external_server_adoption_is_health_bound_and_exact(self) -> None:
         model = tiny_model(b"GGUF")
         install_catalog(model)
@@ -491,8 +749,10 @@ class RuntimeTestCase(unittest.TestCase):
             server_supervisor.SERVER_API_KEY.read_bytes(),
         )
 
-    def test_pi_model_config_requests_exact_streaming_usage(self) -> None:
+    def test_pi_model_config_offsets_fixed_api_margin_without_growing_llama_context(self) -> None:
         model = tiny_model(b"GGUF")
+        model["runtime"]["recommendedContext"] = 10_240
+        model["agent"]["maxTokens"] = 1_536
         install_catalog(model)
 
         server_supervisor._write_pi_models("A" * 43, 8080)
@@ -501,6 +761,66 @@ class RuntimeTestCase(unittest.TestCase):
         provider = config["providers"]["pideck"]
         self.assertEqual("openai-completions", provider["api"])
         self.assertTrue(provider["compat"]["supportsUsageInStreaming"])
+        self.assertEqual(14_336, provider["models"][0]["contextWindow"])
+        self.assertEqual(1_536, provider["models"][0]["maxTokens"])
+
+        arguments = server_supervisor.effective_server_arguments(
+            model, Path("/private/model.gguf"), 8, 8080, "A" * 43
+        )
+        self.assertEqual("10240", arguments[arguments.index("-c") + 1])
+
+    def test_idempotent_server_start_refreshes_stale_pi_model_contract(self) -> None:
+        model = tiny_model(b"GGUF")
+        model["runtime"]["recommendedContext"] = 4_096
+        model["agent"]["maxTokens"] = 1_024
+        install_catalog(model)
+        common.atomic_write_json(
+            server_supervisor.SERVER_METADATA,
+            {
+                "port": 8080,
+                "modelSha256": model["artifact"]["sha256"],
+            },
+        )
+        common.atomic_write_json(
+            server_supervisor.SERVER_STATUS,
+            {"state": "READY", "modelId": model["id"]},
+        )
+        common.atomic_write_bytes(
+            server_supervisor.SERVER_API_KEY, b"A" * 43, 0o600
+        )
+        common.atomic_write_json(
+            server_supervisor.PI_MODELS,
+            {"providers": {"pideck": {"models": [{"contextWindow": 4_096}]}}},
+        )
+
+        with (
+            mock.patch.object(
+                server_supervisor,
+                "verify_private",
+                return_value={"state": "READY"},
+            ),
+            mock.patch.object(server_supervisor, "process_alive", return_value=True),
+            mock.patch.object(server_supervisor, "strict_health") as health,
+            mock.patch.object(server_supervisor, "terminate_exact") as terminate,
+            mock.patch.object(server_supervisor.subprocess, "Popen") as popen,
+        ):
+            result = server_supervisor.start_server(
+                {
+                    "schemaVersion": 1,
+                    "operationId": operation_id(),
+                    "modelId": model["id"],
+                    "port": 8080,
+                }
+            )
+
+        self.assertTrue(result["idempotent"])
+        health.assert_called_once_with(8080, model["id"], "A" * 43)
+        terminate.assert_not_called()
+        popen.assert_not_called()
+        refreshed = json.loads(server_supervisor.PI_MODELS.read_text("utf-8"))
+        descriptor = refreshed["providers"]["pideck"]["models"][0]
+        self.assertEqual(8_192, descriptor["contextWindow"])
+        self.assertEqual(1_024, descriptor["maxTokens"])
 
     def test_external_server_adoption_rejects_claim_without_health(self) -> None:
         model = tiny_model(b"GGUF")
@@ -822,6 +1142,52 @@ class RuntimeTestCase(unittest.TestCase):
             )
         self.assertEqual("UNKNOWN_MODEL", raised.exception.code)
 
+    def test_bridge_idempotence_is_fenced_by_loaded_pi_context_contract(self) -> None:
+        token_sha256 = "a" * 64
+        compaction = {
+            "enabled": True,
+            "reserveTokens": 5_120,
+            "keepRecentTokens": 1_024,
+        }
+        system_prompt, _content = bridge.parse_system_prompt_request({})
+        existing = {
+            "modelId": "fixture-model",
+            "accessProfile": "read_only",
+            "agentMode": "agent",
+            "sessionId": None,
+            "port": 8787,
+            "tokenSha256": token_sha256,
+            "piContextContractVersion": model_store.PI_CONTEXT_CONTRACT_VERSION,
+            "compactionSettings": compaction,
+            "systemPromptMode": system_prompt["systemPromptMode"],
+            "systemPromptSha256": system_prompt["systemPromptSha256"],
+            "systemPromptBytes": system_prompt["systemPromptBytes"],
+        }
+
+        def matches(candidate: dict) -> bool:
+            return bridge._bridge_launch_matches(
+                candidate,
+                model_id="fixture-model",
+                profile="read_only",
+                agent_mode="agent",
+                session_id=None,
+                port=8787,
+                token_sha256=token_sha256,
+                system_prompt=system_prompt,
+                compaction=compaction,
+            )
+
+        self.assertTrue(matches(existing))
+        stale_version = dict(existing)
+        stale_version.pop("piContextContractVersion")
+        self.assertFalse(matches(stale_version))
+        stale_compaction = dict(existing)
+        stale_compaction["compactionSettings"] = {
+            **compaction,
+            "reserveTokens": 2_048,
+        }
+        self.assertFalse(matches(stale_compaction))
+
     def test_prompt_stream_terminal_event_and_duplicate_rejection(self) -> None:
         value = fake_bridge()
         identifier = operation_id()
@@ -899,6 +1265,1349 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertFalse(terminal[-1]["payload"]["speedEstimated"])
         self.assertIsNone(value.active_operation_id)
 
+    def test_stream_deltas_are_coalesced_without_losing_text(self) -> None:
+        value = fake_bridge()
+        identifier = operation_id()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": identifier,
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Напиши длинный ответ",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        chunks = ["фрагмент-"] + [str(index % 10) for index in range(100)]
+        with mock.patch.object(bridge, "OUTPUT_DELTA_FLUSH_SECONDS", 60.0):
+            value.handle_pi_message(
+                {
+                    "type": "message_update",
+                    "assistantMessageEvent": {
+                        "type": "text_delta",
+                        "delta": chunks[0],
+                    },
+                }
+            )
+            _gap, first_events = value.journal.after(0, 0)
+            first_deltas = [
+                event for event in first_events
+                if event["type"] == "MODEL_OUTPUT_DELTA"
+            ]
+            self.assertEqual([chunks[0]], [event["payload"]["delta"] for event in first_deltas])
+
+            for chunk in chunks[1:]:
+                value.handle_pi_message(
+                    {
+                        "type": "message_update",
+                        "assistantMessageEvent": {
+                            "type": "text_delta",
+                            "delta": chunk,
+                        },
+                    }
+                )
+            _gap, buffered_events = value.journal.after(0, 0)
+            self.assertEqual(
+                1,
+                sum(event["type"] == "MODEL_OUTPUT_DELTA" for event in buffered_events),
+            )
+
+            answer = "".join(chunks)
+            value.handle_pi_message(
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": answer}],
+                        "stopReason": "stop",
+                    },
+                }
+            )
+            value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        deltas = [
+            event["payload"]["delta"]
+            for event in events
+            if event["type"] == "MODEL_OUTPUT_DELTA"
+        ]
+        self.assertEqual(2, len(deltas))
+        self.assertEqual(answer, "".join(deltas))
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual(answer, terminal[-1]["payload"]["answer"])
+        self.assertEqual([], value._pending_output_delta)
+        self.assertEqual(0, value._pending_output_delta_bytes)
+
+    def test_state_health_probe_does_not_hold_the_turn_lock(self) -> None:
+        value = fake_bridge()
+        health_started = threading.Event()
+        release_health = threading.Event()
+        state_result: list[dict] = []
+
+        def slow_status() -> dict:
+            health_started.set()
+            release_health.wait(2)
+            return {"schemaVersion": 1, "state": "READY"}
+
+        with mock.patch.object(bridge, "read_server_status", side_effect=slow_status):
+            state_thread = threading.Thread(target=lambda: state_result.append(value.state()))
+            state_thread.start()
+            self.assertTrue(health_started.wait(1))
+
+            message_thread = threading.Thread(
+                target=lambda: value.handle_pi_message({"type": "turn_start"})
+            )
+            message_thread.start()
+            message_thread.join(0.5)
+            message_blocked = message_thread.is_alive()
+            release_health.set()
+            message_thread.join(2)
+            state_thread.join(2)
+
+        self.assertFalse(message_blocked, "state health I/O held the Pi message lock")
+        self.assertFalse(message_thread.is_alive())
+        self.assertFalse(state_thread.is_alive())
+        self.assertEqual("READY", state_result[0]["server"]["state"])
+
+    def test_stale_pi_child_callbacks_cannot_mutate_a_new_turn(self) -> None:
+        value = fake_bridge()
+        stale_child = value.child
+        current_child = FakeChild()
+        value.child = current_child
+        current_operation = operation_id()
+        value.active_operation_id = current_operation
+        value.active_operation_kind = "prompt"
+
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "С"},
+            },
+            source=stale_child,
+        )
+        value.handle_pi_message({"type": "agent_settled"}, source=stale_child)
+        value.handle_pi_exit(9, False, source=stale_child)
+
+        self.assertEqual(current_operation, value.active_operation_id)
+        self.assertEqual("", value.last_answer)
+        _gap, events = value.journal.after(0, 0)
+        self.assertFalse(any(
+            event["type"] in {"MODEL_OUTPUT_DELTA", "TURN_COMPLETED", "TURN_FAILED", "PI_EXITED"}
+            for event in events
+        ))
+
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "Н"},
+            },
+            source=current_child,
+        )
+        self.assertEqual("Н", value.last_answer)
+
+    def test_quiet_stream_delta_flushes_within_the_time_bound(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        flushed = threading.Event()
+        original_append = value.journal.append
+
+        def observe_append(*args, **kwargs):
+            event = original_append(*args, **kwargs)
+            if args[0] == "MODEL_OUTPUT_DELTA" and args[3].get("delta") == "следом":
+                flushed.set()
+            return event
+
+        with (
+            mock.patch.object(bridge, "OUTPUT_DELTA_FLUSH_SECONDS", 0.02),
+            mock.patch.object(value.journal, "append", side_effect=observe_append),
+        ):
+            value.handle_pi_message(
+                {
+                    "type": "message_update",
+                    "assistantMessageEvent": {
+                        "type": "text_delta",
+                        "delta": "Старт",
+                    },
+                }
+            )
+            value.handle_pi_message(
+                {
+                    "type": "message_update",
+                    "assistantMessageEvent": {
+                        "type": "text_delta",
+                        "delta": "следом",
+                    },
+                }
+            )
+            self.assertTrue(flushed.wait(0.5), "quiet delta remained buffered")
+
+        _gap, events = value.journal.after(0, 0)
+        deltas = [
+            event["payload"]["delta"]
+            for event in events
+            if event["type"] == "MODEL_OUTPUT_DELTA"
+        ]
+        self.assertEqual(["Старт", "следом"], deltas)
+
+    def test_lone_initial_letter_is_not_published_before_more_text(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "О"},
+            }
+        )
+        _gap, held_events = value.journal.after(0, 0)
+        self.assertFalse(any(
+            event["type"] == "MODEL_OUTPUT_DELTA" for event in held_events
+        ))
+        self.assertIsNone(value._output_delta_timer)
+
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {
+                    "type": "text_delta",
+                    "delta": "твет продолжен",
+                },
+            }
+        )
+        _gap, released_events = value.journal.after(0, 0)
+        deltas = [
+            event["payload"]["delta"]
+            for event in released_events
+            if event["type"] == "MODEL_OUTPUT_DELTA"
+        ]
+        self.assertEqual(["Ответ продолжен"], deltas)
+
+    def test_explicit_single_letter_answer_streams_immediately(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        value.single_letter_answer_allowed = True
+
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "Ω"},
+            }
+        )
+
+        _gap, events = value.journal.after(0, 0)
+        deltas = [
+            event["payload"]["delta"]
+            for event in events
+            if event["type"] == "MODEL_OUTPUT_DELTA"
+        ]
+        self.assertEqual(["Ω"], deltas)
+
+    def test_pending_stream_delta_precedes_tool_control_event(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        with mock.patch.object(bridge, "OUTPUT_DELTA_FLUSH_SECONDS", 60.0):
+            for delta in ("часть ", "ответа"):
+                value.handle_pi_message(
+                    {
+                        "type": "message_update",
+                        "assistantMessageEvent": {
+                            "type": "text_delta",
+                            "delta": delta,
+                        },
+                    }
+                )
+            value.handle_pi_message(
+                {
+                    "type": "message_update",
+                    "assistantMessageEvent": {
+                        "type": "toolcall_end",
+                        "toolCall": {
+                            "id": "tool-after-text",
+                            "name": "read",
+                            "arguments": {"path": "README.md"},
+                        },
+                    },
+                }
+            )
+
+        _gap, events = value.journal.after(0, 0)
+        relevant = [
+            event for event in events
+            if event["type"] in {"MODEL_OUTPUT_DELTA", "TOOL_CALL_REQUESTED"}
+        ]
+        self.assertEqual(
+            ["MODEL_OUTPUT_DELTA", "MODEL_OUTPUT_DELTA", "TOOL_CALL_REQUESTED"],
+            [event["type"] for event in relevant],
+        )
+        self.assertEqual(
+            "часть ответа",
+            "".join(
+                event["payload"]["delta"]
+                for event in relevant
+                if event["type"] == "MODEL_OUTPUT_DELTA"
+            ),
+        )
+
+    def test_single_letter_answer_retries_once_and_never_completes_as_a_fragment(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Объясни устройство RPC bridge",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "О"},
+            }
+        )
+        fragment = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "О"}],
+            "stopReason": "stop",
+        }
+        value.handle_pi_message({"type": "message_end", "message": fragment})
+
+        self.assertEqual("", value.last_answer)
+        self.assertIn("одной букве", value.answer_retry_message)
+        _gap, events = value.journal.after(0, 0)
+        rejected = [
+            event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
+        ]
+        self.assertEqual("single_letter", rejected[-1]["payload"]["reason"])
+
+        # Pi emits agent_end and agent_settled before it can consume stdin sent from
+        # message_end. The retry must therefore be dispatched only after settled, as a
+        # fresh prompt in the same session. That fallback must restore neither the
+        # rejected fragment nor an earlier tool preamble.
+        preamble = {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "Сейчас проверю."},
+                {
+                    "type": "toolCall",
+                    "id": "tool-before-fragment",
+                    "name": "read",
+                    "arguments": {"path": "README.md"},
+                },
+            ],
+            "stopReason": "toolUse",
+        }
+        value.handle_pi_message(
+            {"type": "agent_end", "messages": [preamble, fragment]}
+        )
+        self.assertEqual("", value.last_answer)
+        value.handle_pi_message({"type": "agent_settled"})
+        retry = value.child.sent[-1]
+        self.assertEqual("prompt", retry["type"])
+        self.assertTrue(retry["message"].startswith(bridge.INTERNAL_RETRY_PREFIX))
+        self.assertIn("одной букве", retry["message"])
+        self.assertIsNotNone(value.active_operation_id)
+        _gap, events = value.journal.after(0, 0)
+        self.assertFalse(any(
+            event["type"] in {"TURN_COMPLETED", "TURN_FAILED"}
+            for event in events
+        ))
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": retry["id"],
+                "command": "prompt",
+                "success": True,
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "К"}],
+                    "stopReason": "stop",
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual("", terminal[-1]["payload"]["answer"])
+        self.assertIn("обрывком", terminal[-1]["payload"]["error"])
+        self.assertFalse(
+            any(event["type"] == "TURN_COMPLETED" for event in events)
+        )
+
+    def test_required_sentence_retries_one_token_word_and_keeps_terminal_authoritative(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Give a complete sentence defining a bridge.",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "Bridge"},
+            }
+        )
+        fragment = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "Bridge"}],
+            "stopReason": "stop",
+            # Qwen's tokenizer reports the visible one-word fragment as two
+            # output tokens on the real device; word shape remains authoritative.
+            "usage": {"output": 2},
+        }
+        value.handle_pi_message({"type": "message_end", "message": fragment})
+
+        self.assertEqual("", value.last_answer)
+        self.assertIn("коротком фрагменте", value.answer_retry_message)
+        _gap, events = value.journal.after(0, 0)
+        rejected = [
+            event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
+        ]
+        self.assertEqual("short_required_answer", rejected[-1]["payload"]["reason"])
+
+        value.handle_pi_message({"type": "agent_end", "messages": [fragment]})
+        value.handle_pi_message({"type": "agent_settled"})
+        retry = value.child.sent[-1]
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": retry["id"],
+                "command": "prompt",
+                "success": True,
+            }
+        )
+        full = "A bridge is a structure that connects two places across an obstacle."
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": full}],
+                    "stopReason": "stop",
+                    "usage": {"output": 14},
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual(full, terminal[-1]["payload"]["answer"])
+
+    def test_unrequested_one_word_answer_is_preserved(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Name the capital of France.",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Paris"}],
+                    "stopReason": "stop",
+                    "usage": {"output": 1},
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual("Paris", terminal[-1]["payload"]["answer"])
+
+    def test_agent_end_fallback_rejects_single_letter_without_message_end(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "О"},
+            }
+        )
+        fragment = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "О"}],
+            "stopReason": "stop",
+        }
+
+        value.handle_pi_message({"type": "agent_end", "messages": [fragment]})
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        self.assertFalse(any(
+            event["type"] == "MODEL_OUTPUT_DELTA" for event in events
+        ))
+        self.assertFalse(any(
+            event["type"] == "TURN_COMPLETED" for event in events
+        ))
+        rejected = [
+            event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
+        ]
+        self.assertEqual(["single_letter"], [
+            event["payload"]["reason"] for event in rejected
+        ])
+        retry_prompts = [
+            command for command in value.child.sent
+            if command["type"] == "prompt"
+            and command["id"].startswith("pideck-answer-retry:")
+        ]
+        self.assertEqual(1, len(retry_prompts))
+
+    def test_agent_end_fallback_classifies_length_and_provider_error(self) -> None:
+        length_value = fake_bridge()
+        length_value.active_operation_id = operation_id()
+        length_value.active_operation_kind = "prompt"
+        length_message = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "Частичный ответ"}],
+            "stopReason": "length",
+        }
+        length_value.handle_pi_message(
+            {"type": "agent_end", "messages": [length_message]}
+        )
+        length_value.handle_pi_message({"type": "agent_settled"})
+        _gap, length_events = length_value.journal.after(0, 0)
+        self.assertFalse(any(
+            event["type"] == "TURN_COMPLETED" for event in length_events
+        ))
+        self.assertEqual("", length_value.last_answer)
+
+        error_value = fake_bridge()
+        error_value.active_operation_id = operation_id()
+        error_value.active_operation_kind = "prompt"
+        error_message = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "Частичный ответ"}],
+            "stopReason": "error",
+            "errorMessage": "provider failed",
+        }
+        error_value.handle_pi_message(
+            {"type": "agent_end", "messages": [error_message]}
+        )
+        error_value.handle_pi_message({"type": "agent_settled"})
+        _gap, error_events = error_value.journal.after(0, 0)
+        failed = [event for event in error_events if event["type"] == "TURN_FAILED"]
+        self.assertEqual("", failed[-1]["payload"]["answer"])
+        self.assertFalse(any(
+            event["type"] == "TURN_COMPLETED" for event in error_events
+        ))
+
+    def test_length_stopped_answer_is_retried_and_replaced(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Дай полный разбор",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        partial = "Начало ответа, которое оборвалось"
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": partial},
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": partial}],
+                    "stopReason": "length",
+                },
+            }
+        )
+        self.assertEqual("", value.last_answer)
+        self.assertIn("лимита вывода", value.answer_retry_message)
+
+        value.handle_pi_message({"type": "agent_settled"})
+        retry = value.child.sent[-1]
+        self.assertEqual("prompt", retry["type"])
+
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": retry["id"],
+                "command": "prompt",
+                "success": True,
+            }
+        )
+        answer = "Полный ответ после управляемого повтора."
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": answer}],
+                    "stopReason": "stop",
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual(answer, terminal[-1]["payload"]["answer"])
+
+    def test_rejected_answer_retry_prompt_failure_finishes_original_turn(self) -> None:
+        value = fake_bridge()
+        original_operation = operation_id()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": original_operation,
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Дай содержательный ответ",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "О"}],
+                    "stopReason": "stop",
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+        retry = value.child.sent[-1]
+
+        value.handle_pi_message(
+            {
+                "type": "response",
+                "id": retry["id"],
+                "command": "prompt",
+                "success": False,
+                "error": "busy",
+            }
+        )
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual(original_operation, terminal[-1]["operationId"])
+        self.assertIn("busy", terminal[-1]["payload"]["error"])
+        self.assertIsNone(value.active_operation_id)
+
+    def test_pi_auto_retry_cancels_pending_bridge_retry(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Дай содержательный ответ",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "О"}],
+                    "stopReason": "stop",
+                },
+            }
+        )
+        self.assertIsNotNone(value.answer_retry_message)
+
+        answer = "Pi самостоятельно восстановил полный ответ."
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": answer}],
+                    "stopReason": "stop",
+                },
+            }
+        )
+        self.assertIsNone(value.answer_retry_message)
+        value.handle_pi_message({"type": "agent_settled"})
+
+        retry_prompts = [
+            command
+            for command in value.child.sent
+            if command["type"] == "prompt"
+            and command["id"].startswith("pideck-answer-retry:")
+        ]
+        self.assertEqual([], retry_prompts)
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual(answer, terminal[-1]["payload"]["answer"])
+
+    def test_provider_error_partial_is_never_completed_as_an_answer(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {
+                    "type": "text_delta",
+                    "delta": "Частичный сломанный ответ",
+                },
+            }
+        )
+        failed_message = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "Частичный сломанный ответ"}],
+            "stopReason": "error",
+            "errorMessage": "provider disconnected",
+        }
+        value.handle_pi_message({"type": "message_end", "message": failed_message})
+        preamble = {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "Сейчас проверю."},
+                {
+                    "type": "toolCall",
+                    "id": "tool-before-provider-error",
+                    "name": "read",
+                    "arguments": {"path": "README.md"},
+                },
+            ],
+            "stopReason": "toolUse",
+        }
+        value.handle_pi_message(
+            {"type": "agent_end", "messages": [preamble, failed_message]}
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        rejected = [event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"]
+        self.assertEqual("provider_error", rejected[-1]["payload"]["reason"])
+        terminal = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual("", terminal[-1]["payload"]["answer"])
+        self.assertIn("disconnected", terminal[-1]["payload"]["error"].casefold())
+        self.assertFalse(any(event["type"] == "TURN_COMPLETED" for event in events))
+
+    def test_empty_provider_error_fails_explicitly(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [],
+                    "stopReason": "error",
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        self.assertTrue(any(event["type"] == "TURN_FAILED" for event in events))
+        self.assertFalse(any(event["type"] == "TURN_COMPLETED" for event in events))
+
+    def test_provider_auto_retry_replaces_recoverable_error(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [],
+                    "stopReason": "error",
+                },
+            }
+        )
+        answer = "Полный ответ после автоматического provider retry."
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": answer}],
+                    "stopReason": "stop",
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual(answer, terminal[-1]["payload"]["answer"])
+        self.assertFalse(any(event["type"] == "TURN_FAILED" for event in events))
+
+    def test_empty_provider_retry_does_not_clear_recoverable_error(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [],
+                    "stopReason": "error",
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [],
+                    "stopReason": "stop",
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        failed = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual("", failed[-1]["payload"]["answer"])
+        self.assertFalse(any(event["type"] == "TURN_COMPLETED" for event in events))
+
+    def test_unexpected_provider_abort_fails_instead_of_completing(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        value.active_operation_kind = "prompt"
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Оборвано"}],
+                    "stopReason": "aborted",
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual("", terminal[-1]["payload"]["answer"])
+        self.assertIn("прервал", terminal[-1]["payload"]["error"])
+
+    def test_abort_does_not_dispatch_a_pending_answer_retry(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Дай содержательный ответ",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "О"}],
+                    "stopReason": "stop",
+                },
+            }
+        )
+        value.abort_requested = True
+        value.handle_pi_message({"type": "agent_settled"})
+
+        retry_prompts = [
+            command
+            for command in value.child.sent
+            if command["type"] == "prompt"
+            and command["id"].startswith("pideck-answer-retry:")
+        ]
+        self.assertEqual([], retry_prompts)
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_ABORTED"]
+        self.assertEqual("", terminal[-1]["payload"]["answer"])
+
+    def test_failed_abort_send_keeps_abort_state_and_arms_fallback(self) -> None:
+        value = fake_bridge()
+        target = operation_id()
+        value.active_operation_id = target
+        value.active_operation_kind = "prompt"
+        value.child.send = mock.Mock(
+            side_effect=common.PiDeckError("RPC_EOF", "closed")
+        )
+
+        with mock.patch.object(bridge.threading, "Thread") as thread_class:
+            with self.assertRaises(common.PiDeckError):
+                value._abort(
+                    operation_id(),
+                    {"targetOperationId": target},
+                )
+
+        self.assertTrue(value.abort_requested)
+        thread_class.assert_called_once()
+        thread_class.return_value.start.assert_called_once()
+
+    def test_shutdown_terminalizes_active_turn_and_rejects_new_commands(self) -> None:
+        value = fake_bridge()
+        active = operation_id()
+        value.active_operation_id = active
+        value.active_operation_kind = "prompt"
+        value.last_answer = "О"
+        value.answer_retry_message = bridge.SINGLE_LETTER_RETRY_MESSAGE
+
+        value.shutdown()
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual(active, terminal[-1]["operationId"])
+        self.assertEqual("", terminal[-1]["payload"].get("answer", ""))
+        self.assertIsNone(value.active_operation_id)
+        self.assertIsNone(value.answer_retry_message)
+        sent_before = list(value.child.sent)
+        with self.assertRaisesRegex(common.PiDeckError, "stopping"):
+            value.command(
+                {
+                    "schemaVersion": 1,
+                    "operationId": operation_id(),
+                    "type": "PROMPT",
+                    "payload": {
+                        "message": "Не должен быть принят",
+                        "sessionId": value.session_id,
+                    },
+                }
+            )
+        self.assertEqual(sent_before, value.child.sent)
+
+    def test_shutdown_does_not_claim_an_unconfirmed_child_exit(self) -> None:
+        value = fake_bridge()
+        value.child = FakeChild(stop_result=False)
+
+        value.shutdown()
+
+        _gap, events = value.journal.after(0, 0)
+        errors = [event for event in events if event["type"] == "BRIDGE_ERROR"]
+        self.assertEqual("PI_STOP_UNCONFIRMED", errors[-1]["payload"]["code"])
+        self.assertFalse(any(event["type"] == "PI_EXITED" for event in events))
+
+    def test_stop_bridge_preserves_metadata_when_child_exit_is_unconfirmed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-stop-bridge-") as directory:
+            root = Path(directory)
+            bridge_metadata = root / "bridge.json"
+            child_metadata = root / "child.json"
+            system_prompt = root / "prompt.txt"
+            bridge_metadata.write_text('{"kind":"bridge"}', encoding="utf-8")
+            child_metadata.write_text('{"kind":"child"}', encoding="utf-8")
+            system_prompt.write_text("prompt", encoding="utf-8")
+            with (
+                mock.patch.object(bridge, "BRIDGE_METADATA", bridge_metadata),
+                mock.patch.object(bridge, "PI_CHILD_METADATA", child_metadata),
+                mock.patch.object(bridge, "SYSTEM_PROMPT_FILE", system_prompt),
+                mock.patch.object(
+                    bridge, "process_alive", side_effect=[False, True]
+                ),
+                mock.patch.object(bridge, "terminate_exact", return_value=False),
+            ):
+                with self.assertRaisesRegex(
+                    common.PiDeckError, "did not confirm process exit"
+                ):
+                    bridge.stop_bridge()
+
+            self.assertTrue(bridge_metadata.is_file())
+            self.assertTrue(child_metadata.is_file())
+            self.assertTrue(system_prompt.is_file())
+
+    def test_stop_bridge_reconciles_live_child_without_bridge_metadata(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-stop-orphan-") as directory:
+            root = Path(directory)
+            bridge_metadata = root / "bridge.json"
+            child_metadata = root / "child.json"
+            system_prompt = root / "prompt.txt"
+            child_metadata.write_text('{"kind":"child"}', encoding="utf-8")
+            system_prompt.write_text("prompt", encoding="utf-8")
+            with (
+                mock.patch.object(bridge, "BRIDGE_METADATA", bridge_metadata),
+                mock.patch.object(bridge, "PI_CHILD_METADATA", child_metadata),
+                mock.patch.object(bridge, "SYSTEM_PROMPT_FILE", system_prompt),
+                mock.patch.object(
+                    bridge, "_shutdown_unidentified_bridge", return_value=False
+                ),
+                mock.patch.object(bridge, "process_alive", return_value=True),
+                mock.patch.object(
+                    bridge, "terminate_exact", return_value=True
+                ) as terminate_exact,
+            ):
+                result = bridge.stop_bridge()
+
+            self.assertEqual(
+                {"state": "STOPPED", "idempotent": False},
+                result,
+            )
+            terminate_exact.assert_called_once_with({"kind": "child"})
+            self.assertFalse(child_metadata.exists())
+            self.assertFalse(system_prompt.exists())
+
+    def test_stop_bridge_preserves_orphan_metadata_when_stop_is_unconfirmed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-stop-orphan-") as directory:
+            root = Path(directory)
+            bridge_metadata = root / "bridge.json"
+            child_metadata = root / "child.json"
+            system_prompt = root / "prompt.txt"
+            child_metadata.write_text('{"kind":"child"}', encoding="utf-8")
+            system_prompt.write_text("prompt", encoding="utf-8")
+            with (
+                mock.patch.object(bridge, "BRIDGE_METADATA", bridge_metadata),
+                mock.patch.object(bridge, "PI_CHILD_METADATA", child_metadata),
+                mock.patch.object(bridge, "SYSTEM_PROMPT_FILE", system_prompt),
+                mock.patch.object(
+                    bridge, "_shutdown_unidentified_bridge", return_value=False
+                ),
+                mock.patch.object(bridge, "process_alive", return_value=True),
+                mock.patch.object(bridge, "terminate_exact", return_value=False),
+            ):
+                with self.assertRaises(common.PiDeckError) as raised:
+                    bridge.stop_bridge()
+
+            self.assertEqual("PI_CHILD_STOP_UNCONFIRMED", raised.exception.code)
+            self.assertTrue(child_metadata.is_file())
+            self.assertTrue(system_prompt.is_file())
+
+    def test_stop_bridge_preserves_child_when_corrupt_bridge_owner_is_unknown(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-stop-corrupt-") as directory:
+            root = Path(directory)
+            bridge_metadata = root / "bridge.json"
+            child_metadata = root / "child.json"
+            system_prompt = root / "prompt.txt"
+            bridge_metadata.write_text("not-json", encoding="utf-8")
+            child_metadata.write_text('{"kind":"child"}', encoding="utf-8")
+            system_prompt.write_text("prompt", encoding="utf-8")
+            with (
+                mock.patch.object(bridge, "BRIDGE_METADATA", bridge_metadata),
+                mock.patch.object(bridge, "PI_CHILD_METADATA", child_metadata),
+                mock.patch.object(bridge, "SYSTEM_PROMPT_FILE", system_prompt),
+                mock.patch.object(bridge, "process_alive", return_value=True),
+                mock.patch.object(
+                    bridge,
+                    "_shutdown_unidentified_bridge",
+                    side_effect=common.PiDeckError(
+                        "BRIDGE_STOP_UNCONFIRMED", "endpoint unavailable"
+                    ),
+                ),
+                mock.patch.object(
+                    bridge, "terminate_exact", return_value=True
+                ) as terminate_exact,
+            ):
+                with self.assertRaises(common.PiDeckError) as raised:
+                    bridge.stop_bridge()
+
+            self.assertEqual("BRIDGE_STOP_UNCONFIRMED", raised.exception.code)
+            terminate_exact.assert_not_called()
+            self.assertTrue(child_metadata.exists())
+            self.assertTrue(bridge_metadata.is_file())
+            self.assertTrue(system_prompt.is_file())
+
+    def test_stop_bridge_authenticated_corrupt_owner_then_reconciles_child(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-stop-corrupt-") as directory:
+            root = Path(directory)
+            bridge_metadata = root / "bridge.json"
+            child_metadata = root / "child.json"
+            system_prompt = root / "prompt.txt"
+            bridge_metadata.write_text("not-json", encoding="utf-8")
+            child_metadata.write_text('{"kind":"child"}', encoding="utf-8")
+            system_prompt.write_text("prompt", encoding="utf-8")
+            order: list[str] = []
+
+            def authenticated_shutdown(*_args: object, **_kwargs: object) -> bool:
+                order.append("shutdown")
+                return True
+
+            def terminate(_metadata: dict[str, object]) -> bool:
+                order.append("terminate")
+                return True
+
+            with (
+                mock.patch.object(bridge, "BRIDGE_METADATA", bridge_metadata),
+                mock.patch.object(bridge, "PI_CHILD_METADATA", child_metadata),
+                mock.patch.object(bridge, "SYSTEM_PROMPT_FILE", system_prompt),
+                mock.patch.object(
+                    bridge,
+                    "_shutdown_unidentified_bridge",
+                    side_effect=authenticated_shutdown,
+                ) as shutdown_unidentified,
+                mock.patch.object(bridge, "process_alive", return_value=True),
+                mock.patch.object(bridge, "terminate_exact", side_effect=terminate),
+            ):
+                result = bridge.stop_bridge()
+
+            self.assertEqual({"state": "STOPPED", "idempotent": False}, result)
+            self.assertEqual(["shutdown", "terminate"], order)
+            shutdown_unidentified.assert_called_once_with(8787, require_endpoint=True)
+            self.assertFalse(child_metadata.exists())
+            self.assertFalse(bridge_metadata.exists())
+            self.assertFalse(system_prompt.exists())
+
+    def test_unidentified_bridge_without_sidecars_fails_closed_on_listener(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-stop-endpoint-") as directory:
+            root = Path(directory)
+            with (
+                mock.patch.object(bridge, "BRIDGE_CONFIG", root / "config.json"),
+                mock.patch.object(bridge, "BRIDGE_TOKEN", root / "token"),
+                mock.patch.object(
+                    bridge, "_loopback_listener_present", return_value=True
+                ),
+            ):
+                with self.assertRaises(common.PiDeckError) as raised:
+                    bridge._shutdown_unidentified_bridge(
+                        8787, require_endpoint=False
+                    )
+
+            self.assertEqual("BRIDGE_STOP_UNCONFIRMED", raised.exception.code)
+
+    def test_unidentified_bridge_requires_explicit_port_in_saved_config(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-stop-endpoint-") as directory:
+            root = Path(directory)
+            config = root / "config.json"
+            token = root / "token"
+            config.write_text('{"schemaVersion":1}', encoding="utf-8")
+            token.write_text("A" * 43, encoding="ascii")
+            with (
+                mock.patch.object(bridge, "BRIDGE_CONFIG", config),
+                mock.patch.object(bridge, "BRIDGE_TOKEN", token),
+                mock.patch.object(
+                    bridge, "_loopback_listener_present", return_value=False
+                ),
+            ):
+                with self.assertRaises(common.PiDeckError) as raised:
+                    bridge._shutdown_unidentified_bridge(
+                        8787, require_endpoint=False
+                    )
+
+            self.assertEqual("BRIDGE_STOP_UNCONFIRMED", raised.exception.code)
+
+    def test_bridge_lifecycle_lock_serializes_stop_calls(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-bridge-lock-") as directory:
+            lifecycle_lock = Path(directory) / "lifecycle.lock"
+            guard = threading.Lock()
+            first_entered = threading.Event()
+            active = 0
+            maximum_active = 0
+            failures: list[BaseException] = []
+
+            def stopped() -> dict[str, object]:
+                nonlocal active, maximum_active
+                with guard:
+                    active += 1
+                    maximum_active = max(maximum_active, active)
+                    first_entered.set()
+                time.sleep(0.05)
+                with guard:
+                    active -= 1
+                return {"state": "STOPPED", "idempotent": True}
+
+            def invoke() -> None:
+                try:
+                    bridge.stop_bridge()
+                except BaseException as error:  # pragma: no cover - asserted below
+                    failures.append(error)
+
+            with (
+                mock.patch.object(bridge, "BRIDGE_LIFECYCLE_LOCK", lifecycle_lock),
+                mock.patch.object(bridge, "_stop_bridge_locked", side_effect=stopped),
+            ):
+                first = threading.Thread(target=invoke)
+                second = threading.Thread(target=invoke)
+                first.start()
+                self.assertTrue(first_entered.wait(1.0))
+                second.start()
+                first.join(2.0)
+                second.join(2.0)
+
+            self.assertFalse(first.is_alive())
+            self.assertFalse(second.is_alive())
+            self.assertEqual([], failures)
+            self.assertEqual(1, maximum_active)
+
+    def test_bootstrap_reconciles_orphan_before_spawning_supervisor(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-bootstrap-orphan-") as directory:
+            root = Path(directory)
+            model = tiny_model(b"GGUF")
+            child_metadata = root / "pi-child.json"
+            child_metadata.write_text('{"kind":"child"}', encoding="utf-8")
+            server_key = root / "server.key"
+            server_key.write_text("server-secret", encoding="ascii")
+            bridge_metadata = root / "supervisor.json"
+            bridge_token = root / "token"
+            bridge_config = root / "config.json"
+            system_prompt = root / "system-prompt.txt"
+            lifecycle_lock = root / "lifecycle.lock"
+            request = {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "token": "A" * 43,
+                "modelId": model["id"],
+                "accessProfile": "read_only",
+                "port": 8787,
+            }
+            with (
+                mock.patch.object(bridge, "BRIDGE_METADATA", bridge_metadata),
+                mock.patch.object(bridge, "PI_CHILD_METADATA", child_metadata),
+                mock.patch.object(bridge, "BRIDGE_TOKEN", bridge_token),
+                mock.patch.object(bridge, "BRIDGE_CONFIG", bridge_config),
+                mock.patch.object(bridge, "SYSTEM_PROMPT_FILE", system_prompt),
+                mock.patch.object(bridge, "BRIDGE_LIFECYCLE_LOCK", lifecycle_lock),
+                mock.patch.object(bridge, "SERVER_API_KEY", server_key),
+                mock.patch.object(bridge, "model_by_id", return_value=model),
+                mock.patch.object(
+                    bridge, "ensure_pi_compaction_settings", return_value={}
+                ),
+                mock.patch.object(
+                    bridge,
+                    "read_server_status",
+                    return_value={
+                        "state": "READY",
+                        "modelId": model["id"],
+                        "modelSha256": model["artifact"]["sha256"],
+                        "port": 8080,
+                    },
+                ),
+                mock.patch.object(bridge, "strict_health"),
+                mock.patch.object(
+                    bridge, "_shutdown_unidentified_bridge", return_value=False
+                ),
+                mock.patch.object(bridge, "process_alive", return_value=True),
+                mock.patch.object(bridge, "terminate_exact", return_value=False),
+                mock.patch.object(bridge.subprocess, "Popen") as popen,
+            ):
+                with self.assertRaises(common.PiDeckError) as raised:
+                    bridge.bootstrap_bridge(request)
+
+            self.assertEqual("PI_CHILD_STOP_UNCONFIRMED", raised.exception.code)
+            popen.assert_not_called()
+            self.assertTrue(child_metadata.is_file())
+            self.assertFalse(bridge_token.exists())
+            self.assertFalse(bridge_config.exists())
+            self.assertFalse(system_prompt.exists())
+
+    def test_child_reconcile_does_not_unlink_replacement_metadata(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-child-cas-") as directory:
+            metadata_path = Path(directory) / "pi-child.json"
+            inspected = {"owner": "old"}
+            replacement = {"owner": "new"}
+            common.atomic_write_json(metadata_path, inspected)
+
+            def terminate(_metadata: dict) -> bool:
+                common.atomic_write_json(metadata_path, replacement)
+                return True
+
+            with (
+                mock.patch.object(bridge, "PI_CHILD_METADATA", metadata_path),
+                mock.patch.object(bridge, "process_alive", return_value=True),
+                mock.patch.object(bridge, "terminate_exact", side_effect=terminate),
+            ):
+                with self.assertRaises(common.PiDeckError) as raised:
+                    bridge._reconcile_recorded_pi_child()
+
+            self.assertEqual("PI_CHILD_STATE_CHANGED", raised.exception.code)
+            self.assertEqual(replacement, common.read_json(metadata_path))
+
+    def test_stop_does_not_unlink_replacement_supervisor_metadata(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-supervisor-cas-") as directory:
+            root = Path(directory)
+            metadata_path = root / "supervisor.json"
+            child_path = root / "pi-child.json"
+            prompt_path = root / "system-prompt.txt"
+            lifecycle_lock = root / "lifecycle.lock"
+            inspected = {"owner": "old"}
+            replacement = {"owner": "new"}
+            common.atomic_write_json(metadata_path, inspected)
+            prompt_path.write_text("prompt", encoding="utf-8")
+
+            def terminate(_metadata: dict) -> bool:
+                common.atomic_write_json(metadata_path, replacement)
+                return True
+
+            with (
+                mock.patch.object(bridge, "BRIDGE_METADATA", metadata_path),
+                mock.patch.object(bridge, "PI_CHILD_METADATA", child_path),
+                mock.patch.object(bridge, "SYSTEM_PROMPT_FILE", prompt_path),
+                mock.patch.object(bridge, "BRIDGE_LIFECYCLE_LOCK", lifecycle_lock),
+                mock.patch.object(bridge, "process_alive", return_value=True),
+                mock.patch.object(bridge, "terminate_exact", side_effect=terminate),
+            ):
+                with self.assertRaises(common.PiDeckError) as raised:
+                    bridge.stop_bridge()
+
+            self.assertEqual("BRIDGE_STATE_CHANGED", raised.exception.code)
+            self.assertEqual(replacement, common.read_json(metadata_path))
+            self.assertTrue(prompt_path.is_file())
+
+    def test_explicit_single_letter_request_is_preserved(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Ответь одной буквой: A или B.",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        value.handle_pi_message(
+            {
+                "type": "message_end",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "A"}],
+                    "stopReason": "stop",
+                },
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
+        self.assertEqual("A", terminal[-1]["payload"]["answer"])
+        self.assertFalse(any(
+            event["type"] == "MODEL_OUTPUT_REJECTED" for event in events
+        ))
+
     def test_markdown_only_answer_is_cleared_retried_once_and_replaced(self) -> None:
         value = fake_bridge()
         identifier = operation_id()
@@ -927,10 +2636,8 @@ class RuntimeTestCase(unittest.TestCase):
             }
         )
 
-        retry = value.child.sent[-1]
-        self.assertEqual("follow_up", retry["type"])
-        self.assertIn("исходный запрос", retry["message"])
         self.assertEqual("", value.last_answer)
+        self.assertIn("исходный запрос", value.answer_retry_message)
         _gap, events = value.journal.after(0, 0)
         rejected = [
             event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
@@ -938,11 +2645,14 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual(1, len(rejected))
         self.assertTrue(rejected[-1]["payload"]["willRetry"])
 
+        value.handle_pi_message({"type": "agent_settled"})
+        retry = value.child.sent[-1]
+        self.assertEqual("prompt", retry["type"])
         value.handle_pi_message(
             {
                 "type": "response",
                 "id": retry["id"],
-                "command": "follow_up",
+                "command": "prompt",
                 "success": True,
             }
         )
@@ -990,12 +2700,14 @@ class RuntimeTestCase(unittest.TestCase):
             },
         }
         value.handle_pi_message(invalid_message)
+        value.handle_pi_message({"type": "agent_settled"})
         retry = value.child.sent[-1]
+        self.assertEqual("prompt", retry["type"])
         value.handle_pi_message(
             {
                 "type": "response",
                 "id": retry["id"],
-                "command": "follow_up",
+                "command": "prompt",
                 "success": True,
             }
         )
@@ -1014,7 +2726,12 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertIn("дважды", terminal[-1]["payload"]["error"])
         self.assertEqual(
             1,
-            len([command for command in value.child.sent if command["type"] == "follow_up"]),
+            len([
+                command
+                for command in value.child.sent
+                if command["type"] == "prompt"
+                and command["id"].startswith("pideck-answer-retry:")
+            ]),
         )
 
     def test_live_data_answer_requires_tool_and_recovers_once(self) -> None:
@@ -1044,10 +2761,8 @@ class RuntimeTestCase(unittest.TestCase):
         }
         value.handle_pi_message(refusal)
 
-        retry = value.child.sent[-1]
-        self.assertEqual("follow_up", retry["type"])
-        self.assertIn("weather", retry["message"])
         self.assertEqual("", value.last_answer)
+        self.assertIn("weather", value.answer_retry_message)
         _gap, events = value.journal.after(0, 0)
         rejected = [
             event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
@@ -1058,11 +2773,14 @@ class RuntimeTestCase(unittest.TestCase):
             rejected[-1]["payload"]["requiredTools"],
         )
 
+        value.handle_pi_message({"type": "agent_settled"})
+        retry = value.child.sent[-1]
+        self.assertEqual("prompt", retry["type"])
         value.handle_pi_message(
             {
                 "type": "response",
                 "id": retry["id"],
-                "command": "follow_up",
+                "command": "prompt",
                 "success": True,
             }
         )
@@ -1112,12 +2830,14 @@ class RuntimeTestCase(unittest.TestCase):
             },
         }
         value.handle_pi_message(answer_without_tool)
+        value.handle_pi_message({"type": "agent_settled"})
         retry = value.child.sent[-1]
+        self.assertEqual("prompt", retry["type"])
         value.handle_pi_message(
             {
                 "type": "response",
                 "id": retry["id"],
-                "command": "follow_up",
+                "command": "prompt",
                 "success": True,
             }
         )
@@ -1168,7 +2888,9 @@ class RuntimeTestCase(unittest.TestCase):
             }
         )
 
-        self.assertEqual("follow_up", value.child.sent[-1]["type"])
+        self.assertIsNotNone(value.answer_retry_message)
+        value.handle_pi_message({"type": "agent_settled"})
+        self.assertEqual("prompt", value.child.sent[-1]["type"])
         self.assertEqual(set(), value.successful_live_tools)
 
     def test_session_stats_are_bounded_and_emitted_without_message_content(self) -> None:
@@ -1201,6 +2923,19 @@ class RuntimeTestCase(unittest.TestCase):
         _gap, events = value.journal.after(0, 0)
         changed = [event for event in events if event["type"] == "SESSION_STATS_CHANGED"]
         self.assertEqual(768, changed[-1]["payload"]["contextUsage"]["tokens"])
+
+        virtual = bridge.bounded_session_stats(
+            {
+                "contextUsage": {
+                    "tokens": 768,
+                    "contextWindow": 5_120,
+                    "percent": 15,
+                }
+            },
+            1_024,
+        )
+        self.assertEqual(1_024, virtual["contextUsage"]["contextWindow"])
+        self.assertEqual(75, virtual["contextUsage"]["percent"])
 
     def test_manual_compaction_has_its_own_terminal_contract(self) -> None:
         value = fake_bridge()
@@ -1488,10 +3223,10 @@ class RuntimeTestCase(unittest.TestCase):
                 self.messages: list[dict] = []
                 self.errors: list[str] = []
 
-            def handle_pi_message(self, value: dict) -> None:
+            def handle_pi_message(self, value: dict, source=None) -> None:
                 self.messages.append(value)
 
-            def protocol_error(self, message: str) -> None:
+            def protocol_error(self, message: str, source=None) -> None:
                 self.errors.append(message)
 
         owner = CaptureBridge()
@@ -1533,10 +3268,10 @@ class RuntimeTestCase(unittest.TestCase):
                 messages: list[dict] = []
                 errors: list[str] = []
 
-                def handle_pi_message(self, value: dict) -> None:
+                def handle_pi_message(self, value: dict, source=None) -> None:
                     self.messages.append(value)
 
-                def protocol_error(self, message: str) -> None:
+                def protocol_error(self, message: str, source=None) -> None:
                     self.errors.append(message)
 
             owner = CaptureBridge()
@@ -1568,6 +3303,26 @@ class RuntimeTestCase(unittest.TestCase):
         )
         self.assertTrue(event["payload"]["truncated"])
 
+    def test_delta_journal_defers_fsync_until_terminal(self) -> None:
+        journal = bridge.EventJournal(operation_id())
+        with mock.patch.object(bridge.os, "fsync") as fsync:
+            for index in range(50):
+                journal.append(
+                    "MODEL_OUTPUT_DELTA",
+                    "operation",
+                    "session",
+                    {"delta": str(index)},
+                )
+            fsync.assert_not_called()
+            journal.append(
+                "TURN_COMPLETED",
+                "operation",
+                "session",
+                {"answer": "done"},
+                terminal=True,
+            )
+            fsync.assert_called_once()
+
     def test_http_bridge_requires_token_and_uses_constant_contract(self) -> None:
         value = fake_bridge()
         server = bridge.BridgeHttpServer(("127.0.0.1", 0), value)
@@ -1593,6 +3348,28 @@ class RuntimeTestCase(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
+
+    def test_unexpected_pi_death_mid_turn_fails_closed(self) -> None:
+        value = fake_bridge()
+        operation = operation_id()
+        value.active_operation_id = operation
+        value.active_operation_kind = "prompt"
+        value.handle_pi_message(
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "Начал"},
+            },
+            source=value.child,
+        )
+
+        value.handle_pi_exit(9, False, source=value.child)
+
+        self.assertIsNone(value.active_operation_id)
+        _gap, events = value.journal.after(0, 0)
+        failed = [event for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual(operation, failed[-1]["operationId"])
+        self.assertTrue(any(event["type"] == "PI_EXITED" for event in events))
+        self.assertFalse(any(event["type"] == "TURN_COMPLETED" for event in events))
 
 
 class DecisionHeaderTestCase(unittest.TestCase):
