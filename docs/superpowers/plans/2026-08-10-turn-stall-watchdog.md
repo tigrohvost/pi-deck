@@ -528,9 +528,12 @@ Append this bullet to the «Не выпущено» list in `CHANGELOG.md`, matc
   (окно покрывает измеренные 173 с молчаливого replay контекста), дека
   переводит операцию в UNKNOWN, сверяется с авторитетным `/state` и показывает
   карточку с выбором «ждать/прервать» вместо 45-минутного молчания. Общий
-  предел 45 минут сохраняется. Turn, который bridge подтверждает активным,
-  получает новое окно наблюдения, а не вечный busy; подтверждение активности
-  само по себе прогрессом не считается.
+  предел 45 минут сохраняется и терминален: после него автоматических новых
+  окон нет, последняя карточка — финальное слово, и её текст называет
+  настоящую причину (превышен общий предел, а не «событий не было»); «Ждать
+  ещё» вручную открывает новое полное окно. До предела turn, который bridge
+  подтверждает активным, получает новое окно наблюдения, а не вечный busy;
+  подтверждение активности само по себе прогрессом не считается.
 ```
 
 - [ ] **Step 2: Add the doc note**
@@ -546,7 +549,9 @@ window (`OperationKind.stallTimeoutMs`); the pre-existing overall deadline
 (45 minutes for an agent turn) still caps the whole operation. On expiry the
 client moves the operation to `UNKNOWN`, fetches `/v1/state`, and either
 reconciles a terminal outcome or, if the bridge still reports the operation
-active, shows the wait/abort card and starts a fresh window. A `/v1/state`
+active, shows the wait/abort card and starts a fresh window — but only until
+the overall deadline. Past it the card is final: no automatic re-arm, and the
+manual "wait longer" action opens a fresh full window. A `/v1/state`
 confirmation is deliberately not progress — only events are.
 ```
 
@@ -567,3 +572,23 @@ their contents depend on measured results that do not exist yet. The spec's
 device-level gate for Stage 0 («0 зависаний в смоках») runs with the release
 smokes on the phone; this plan's exit criterion is green unit and runtime
 suites plus the pinned bridge contract test.
+
+## Amendment, 2026-08-10 (review ruling)
+
+Task 2's review proved a plan-mandated defect: the unconditional
+`handleBridgeState` re-arm plus the 1-second reschedule floor turns the
+post-cap state into a ~1 Hz card/RPC/disk loop (for `NEW_SESSION`, where
+`timeoutMs == stallTimeoutMs`, starting ~61 s in). The human ruled the fix
+governs over the plan text:
+
+- `EXPIRED` is terminal. The `handleBridgeState` re-arm is gated:
+  `stallState == null && now - active.createdAtMs < active.kind.timeoutMs()`.
+  The last card is the final word; «Ждать ещё» remains the manual escape and
+  resets both windows.
+- `reportWatchdog` distinguishes the verdicts: the STALLED sentence keeps
+  «Событий не было N мин», the EXPIRED sentence states the overall limit was
+  exceeded. Still Russian-literal.
+- `StallWatchdogTest` pins that a watchdog restored past its overall deadline
+  is `EXPIRED` immediately with the 1 ms delay floor.
+
+The Task 4 changelog/doc snippets above were updated to match.
