@@ -62,6 +62,7 @@ import dev.pideck.app.core.OperationId;
 import dev.pideck.app.core.OperationKind;
 import dev.pideck.app.core.OperationRecord;
 import dev.pideck.app.core.OperationState;
+import dev.pideck.app.core.PendingPromptDispatch;
 import dev.pideck.app.core.OperationStore;
 import dev.pideck.app.core.PiJsonOutput;
 import dev.pideck.app.core.RpcBridgeClient;
@@ -70,6 +71,7 @@ import dev.pideck.app.core.RuntimeScripts;
 import dev.pideck.app.core.SessionContract;
 import dev.pideck.app.core.SessionId;
 import dev.pideck.app.core.SessionContextUsage;
+import dev.pideck.app.core.StallWatchdog;
 import dev.pideck.app.core.StartupPolicy;
 import dev.pideck.app.core.SystemPromptSettings;
 import dev.pideck.app.core.TermuxBridge;
@@ -99,6 +101,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     );
     /** Warming takes two steps, server then bridge. Beyond that a queued prompt is being lied to. */
     private static final int MAX_QUEUED_WARM_ATTEMPTS = 3;
+    /** Ignore accidental one-frame edits while still hiding the 19-30 second model load. */
+    private static final long COMPOSER_WARM_DELAY_MS = 900L;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
@@ -125,6 +129,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private int cpuThreads;
     private boolean lowMemory;
     private boolean modelSelectionRequired;
+    private boolean activityStarted;
+    private boolean composerHasText;
+    private boolean composerWarmAttempted;
 
     private boolean linkConfirmed;
     private boolean serverReady;
@@ -149,7 +156,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private boolean sessionsRequested;
     private String sessionsFault = "";
     private Runnable watchdog;
-    private OperationId watchdogOperationId;
+    private StallWatchdog stallState;
     private int heartbeatTick;
     private boolean startupProbeAttempted;
     private AlertDialog approvalDialog;
@@ -165,6 +172,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private long lastRateUpdateUptimeMs;
     private String pendingPromptAfterCompaction;
     private String pendingPromptAfterNewSession;
+    private final PendingPromptDispatch pendingRpcPrompt = new PendingPromptDispatch();
     private AlertDialog contextWarningDialog;
 
     private final Runnable heartbeat = new Runnable() {
@@ -177,6 +185,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             main.postDelayed(this, heartbeatDelay());
         }
     };
+
+    private final Runnable composerWarmup = this::maybeWarmCoreForComposerIntent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -262,9 +272,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     @Override
     protected void onStart() {
         super.onStart();
+        activityStarted = true;
         CommandEvents.addListener(this);
         main.post(heartbeat);
         main.post(this::probeRuntimeOnLaunch);
+        scheduleComposerWarmup();
         startRpcPolling();
     }
 
@@ -281,8 +293,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     @Override
     protected void onStop() {
         super.onStop();
+        activityStarted = false;
         CommandEvents.removeListener(this);
         main.removeCallbacks(heartbeat);
+        main.removeCallbacks(composerWarmup);
         prefs.saveTranscript(deck.entries());
     }
 
@@ -558,6 +572,17 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         // Turning it on while looking at a cold deck means it should be warm now, not next launch.
         if (enabled) warmCore();
         refreshUi();
+    }
+
+    @Override
+    public void onComposerIntentChanged(boolean hasText) {
+        composerHasText = hasText;
+        main.removeCallbacks(composerWarmup);
+        if (!hasText) {
+            composerWarmAttempted = false;
+            return;
+        }
+        scheduleComposerWarmup();
     }
 
     @Override
@@ -1456,32 +1481,43 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
      * arrives. Without this the deck stays in its busy state forever with the input disabled.
      */
     private void armWatchdog(OperationId operationId, OperationKind kind) {
-        armWatchdog(operationId, kind, kind.timeoutMs());
+        stallState = new StallWatchdog(operationId, kind, System.currentTimeMillis());
+        scheduleWatchdogCheck();
     }
 
     private void armRestoredWatchdog(OperationRecord operation) {
-        long elapsed = Math.max(0L, System.currentTimeMillis() - operation.createdAtMs);
-        long remaining = Math.max(1_000L, operation.kind.timeoutMs() - elapsed);
-        armWatchdog(operation.operationId, operation.kind, remaining);
+        stallState = new StallWatchdog(
+                operation.operationId,
+                operation.kind,
+                operation.createdAtMs,
+                System.currentTimeMillis()
+        );
+        scheduleWatchdogCheck();
     }
 
-    private void armWatchdog(
-            OperationId operationId,
-            OperationKind kind,
-            long timeout
-    ) {
-        cancelWatchdog(null);
-        if (timeout <= 0L) return;
-        watchdogOperationId = operationId;
+    private void scheduleWatchdogCheck() {
+        if (watchdog != null) main.removeCallbacks(watchdog);
+        watchdog = null;
+        if (stallState == null) return;
+        StallWatchdog armed = stallState;
         watchdog = () -> {
             watchdog = null;
-            OperationId active = operations.activeOperationId();
-            if (!busy || !operationId.equals(active)) return;
+            if (stallState != armed) return;
+            OperationId operationId = armed.operationId();
+            if (!busy || !operationId.equals(operations.activeOperationId())) return;
+            long now = System.currentTimeMillis();
+            if (armed.verdict(now) == StallWatchdog.Verdict.WAIT) {
+                scheduleWatchdogCheck();
+                return;
+            }
+            long silent = armed.silentForMs(now);
+            stallState = null;
             operations.timeout(operationId);
-            watchdogOperationId = null;
             setBusy(true, "Ответа нет");
-            reportWatchdog(operationId, kind, timeout);
-            if (kind == OperationKind.AGENT_TURN || kind == OperationKind.NEW_SESSION) {
+            reportWatchdog(operationId, armed.kind(), silent);
+            if (armed.kind() == OperationKind.AGENT_TURN
+                    || armed.kind() == OperationKind.NEW_SESSION
+                    || armed.kind() == OperationKind.COMPACT_SESSION) {
                 io.execute(() -> {
                     try {
                         JSONObject state = rpc.state();
@@ -1492,7 +1528,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 });
             }
         };
-        main.postDelayed(watchdog, timeout);
+        main.postDelayed(
+                watchdog,
+                Math.max(1_000L, armed.nextCheckDelayMs(System.currentTimeMillis()))
+        );
     }
 
     /**
@@ -1503,7 +1542,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         FailureCardView.Failure failure = new FailureCardView.Failure(
                 "Связь потеряна",
                 "Команда идёт слишком долго",
-                "Termux не ответил за " + (waited / 60_000L) + " мин. Так бывает, когда Android "
+                "Событий не было " + Math.max(1L, waited / 60_000L) + " мин. Так бывает, когда Android "
                         + "выгружает его ради экономии батареи. Часть изменений могла быть уже "
                         + "применена — проверьте рабочую папку перед повтором.",
                 false
@@ -1515,7 +1554,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
         failure.primary("Ждать ещё", () -> {
             append(ConsoleEntry.Channel.SYSTEM, "Жду ещё; операция " + operationId + ".");
-            armWatchdog(operationId, kind, kind.timeoutMs());
+            armWatchdog(operationId, kind);
         });
         if (kind == OperationKind.AGENT_TURN) {
             failure.secondary("Прервать задачу", this::abortAgent);
@@ -1526,13 +1565,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void cancelWatchdog(OperationId completedOperationId) {
         if (completedOperationId != null
-                && watchdogOperationId != null
-                && !completedOperationId.equals(watchdogOperationId)) {
+                && stallState != null
+                && !completedOperationId.equals(stallState.operationId())) {
             return;
         }
         if (watchdog != null) main.removeCallbacks(watchdog);
         watchdog = null;
-        watchdogOperationId = null;
+        stallState = null;
     }
 
     private boolean canRunAgent() {
@@ -1620,6 +1659,28 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         "The server is already running; raising the Pi RPC bridge.")
                 : t("Автозапуск: гружу " + selectedModel.title + ".",
                         "Autostart: loading " + selectedModel.title + "."));
+        warmCore();
+    }
+
+    private void scheduleComposerWarmup() {
+        main.removeCallbacks(composerWarmup);
+        if (!activityStarted || !composerHasText || composerWarmAttempted) return;
+        main.postDelayed(composerWarmup, COMPOSER_WARM_DELAY_MS);
+    }
+
+    private void maybeWarmCoreForComposerIntent() {
+        if (!activityStarted || composerWarmAttempted) return;
+        if (!StartupPolicy.warmsOnComposerIntent(
+                composerHasText,
+                canWarmCore(),
+                serverReady,
+                bridgeReady,
+                busy,
+                lowMemory
+        )) {
+            return;
+        }
+        composerWarmAttempted = true;
         warmCore();
     }
 
@@ -1877,11 +1938,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         )
                 );
             } catch (Exception error) {
-                runOnUiThread(() -> {
-                    contextCompacting = false;
-                    setInferenceActive(false, "");
-                    failRpcDispatch(operation.operationId, error);
-                });
+                runOnUiThread(() -> failRpcDispatch(operation.operationId, error));
             }
         });
     }
@@ -2944,6 +3001,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 && pendingPromptAfterCompaction == null
                 && pendingPromptAfterNewSession == null) {
             main.post(this::dispatchQueuedPrompt);
+            scheduleComposerWarmup();
         }
     }
 
@@ -3004,6 +3062,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             .put("agentMode", agentMode.wireName())
             );
             operations.dispatched(operation.operationId);
+            pendingRpcPrompt.begin(operation.operationId, prompt);
             deck.setComposerDispatchPending(true);
             turnStartedAtUptimeMs = SystemClock.uptimeMillis();
             firstOutputAtUptimeMs = 0L;
@@ -3025,7 +3084,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 payload.put("message", prompt);
                 payload.put("sessionId", sessionId);
                 rpc.command(operation.operationId, "PROMPT", payload);
-                runOnUiThread(() -> deck.acknowledgePrompt(prompt));
+                runOnUiThread(() -> acknowledgeRpcPrompt(operation.operationId));
             } catch (Exception error) {
                 runOnUiThread(() -> failRpcDispatch(operation.operationId, error));
             }
@@ -3214,6 +3273,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     : state.optString(remoteField, null);
             if (active.operationId.toString().equals(remote)) {
                 operations.reconcileRunning(active.operationId);
+                if (stallState == null) {
+                    armRestoredWatchdog(active);
+                }
+                if (active.kind == OperationKind.AGENT_TURN) {
+                    acknowledgeRpcPrompt(active.operationId);
+                }
                 busy = true;
                 String phase = active.kind == OperationKind.COMPACT_SESSION
                         ? t("Сжимаю историю", "Compacting history")
@@ -3229,21 +3294,30 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     || active.kind == OperationKind.NEW_SESSION
                     || active.kind == OperationKind.COMPACT_SESSION)
                     && active.state == OperationState.UNKNOWN) {
-                operations.reconcileTerminalMissing(
-                        active.operationId,
-                        "Bridge has no active turn and no terminal event is available"
-                );
-                cancelWatchdog(active.operationId);
-                deck.discardStreaming();
-                setBusy(false, null);
-                append(ConsoleEntry.Channel.ERROR,
-                        t(
-                                "Bridge подтвердил отсутствие активного turn, но terminal event утрачен. "
-                                        + "Операция завершена как FAILED и не повторялась автоматически.",
-                                "The bridge confirmed there is no active turn, but its terminal "
-                                        + "event was lost. The operation was marked FAILED and "
-                                        + "was not retried automatically."
-                        ));
+                long bridgeLastSequence = state.optLong("lastSequence", -1L);
+                if (SessionContract.mayDeclareTerminalEventMissing(
+                        bridgeLastSequence,
+                        prefs.bridgeSequence()
+                )) {
+                    operations.reconcileTerminalMissing(
+                            active.operationId,
+                            "Bridge has no active turn and no terminal event is available"
+                    );
+                    cancelWatchdog(active.operationId);
+                    deck.discardStreaming();
+                    releaseRpcPrompt(active.operationId);
+                    setBusy(false, null);
+                    append(ConsoleEntry.Channel.ERROR,
+                            t(
+                                    "Bridge подтвердил отсутствие активного turn, но terminal event утрачен. "
+                                            + "Операция завершена как FAILED и не повторялась автоматически.",
+                                    "The bridge confirmed there is no active turn, but its terminal "
+                                            + "event was lost. The operation was marked FAILED and "
+                                            + "was not retried automatically."
+                            ));
+                } else {
+                    setBusy(true, "OPERATION STATE // JOURNAL CATCH-UP");
+                }
             } else if ((active.kind == OperationKind.AGENT_TURN
                     || active.kind == OperationKind.NEW_SESSION
                     || active.kind == OperationKind.COMPACT_SESSION)
@@ -3259,7 +3333,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void handleBridgeGap(String instanceId, long earliestReceived) {
-        prefs.setBridgeCursor(instanceId, Math.max(0L, earliestReceived - 1L));
+        // A gap invalidates the speculative preview. The terminal event remains authoritative and
+        // can reconstruct the answer without promoting an incomplete row into the transcript.
+        deck.discardStreaming();
         OperationRecord active = operations.active();
         if (active != null && !active.state.isTerminal()) {
             operations.timeout(active.operationId);
@@ -3272,11 +3348,17 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         "The bridge reported EVENT_GAP; a full state reconciliation ran. "
                                 + "The prompt was not retried automatically."
                 ));
+        prefs.saveTranscript(deck.entries());
+        prefs.setBridgeCursor(instanceId, Math.max(0L, earliestReceived - 1L));
     }
 
     private void handleBridgeEvent(BridgeEvent event) {
         observedBridgeInstance = event.bridgeInstanceId;
-        prefs.setBridgeCursor(event.bridgeInstanceId, event.sequence);
+        if (event.operationId != null
+                && stallState != null
+                && stallState.progress(event.operationId, System.currentTimeMillis())) {
+            scheduleWatchdogCheck();
+        }
         boolean refreshState = switch (event.type) {
             case MODEL_OUTPUT_DELTA, MODEL_OUTPUT_REJECTED, MODEL_THINKING_STARTED,
                     TOOL_CALL_REQUESTED,
@@ -3315,6 +3397,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case TURN_ACCEPTED -> {
                 if (event.operationId != null
                         && event.operationId.equals(operations.activeOperationId())) {
+                    acknowledgeRpcPrompt(event.operationId);
                     setBusy(true, contextPhaseLabel(t(
                             "Готовлю контекст", "Preparing context"
                     )));
@@ -3348,6 +3431,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (event.operationId != null
                         && event.operationId.equals(operations.activeOperationId())) {
                     deck.discardStreaming();
+                    prefs.saveTranscript(deck.entries());
                     firstOutputAtUptimeMs = 0L;
                     streamedCharacters = 0L;
                     lastRateUpdateUptimeMs = SystemClock.uptimeMillis();
@@ -3471,6 +3555,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
         }
         if (refreshState) refreshUi();
+        // Persist acknowledgement only after the event's UI mutation. A process death may replay
+        // an event, but it cannot durably acknowledge a rejection before its preview was removed.
+        prefs.setBridgeCursor(event.bridgeInstanceId, event.sequence);
     }
 
     private void completeRpcOperation(BridgeEvent event) {
@@ -3515,6 +3602,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
         }
         cancelWatchdog(event.operationId);
+        if (record.kind == OperationKind.AGENT_TURN) {
+            acknowledgeRpcPrompt(event.operationId);
+        }
         if (record.kind == OperationKind.AGENT_TURN
                 || record.kind == OperationKind.COMPACT_SESSION) {
             setInferenceActive(false, "");
@@ -3735,13 +3825,32 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void failRpcDispatch(OperationId operationId, Exception error) {
-        cancelWatchdog(operationId);
         OperationRecord record = operationStore.load(operationId);
+        boolean definitive = RpcBridgeClient.isDefinitiveCommandRejection(error);
+        boolean ownsUi;
         try {
-            operations.dispatchFailed(operationId, safeException(error));
+            ownsUi = definitive
+                    ? operations.dispatchFailedIfActive(operationId, safeException(error))
+                    : operations.dispatchUnknownIfActive(operationId);
         } catch (RuntimeException ignored) {
+            ownsUi = false;
         }
-        deck.setComposerDispatchPending(false);
+        if (!ownsUi) return;
+        if (!definitive) {
+            setBusy(true, "OPERATION STATE // UNKNOWN");
+            append(ConsoleEntry.Channel.SYSTEM,
+                    t(
+                            "Bridge мог принять RPC-команду, но подтверждение потеряно. "
+                                    + "Сверяю журнал и состояние; запрос не повторяется.",
+                            "The bridge may have accepted the RPC command, but its acknowledgement "
+                                    + "was lost. Reconciling the journal and state; the command "
+                                    + "will not be retried."
+                    ));
+            return;
+        }
+
+        cancelWatchdog(operationId);
+        releaseRpcPrompt(operationId);
         if (record != null && (record.kind == OperationKind.AGENT_TURN
                 || record.kind == OperationKind.COMPACT_SESSION)) {
             setInferenceActive(false, "");
@@ -3760,6 +3869,17 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         "The RPC command was not accepted; it was not retried automatically.\n"
                 )
                         + safeException(error));
+    }
+
+    private void acknowledgeRpcPrompt(OperationId operationId) {
+        String prompt = pendingRpcPrompt.acknowledge(operationId);
+        if (prompt != null) deck.acknowledgePrompt(prompt);
+    }
+
+    private void releaseRpcPrompt(OperationId operationId) {
+        if (pendingRpcPrompt.release(operationId)) {
+            deck.setComposerDispatchPending(false);
+        }
     }
 
     private void changeAccessProfile(AccessProfile target) {
