@@ -46,6 +46,8 @@ jobs:
 
       - name: Verify exact Pi RPC and extension protocol
         run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ripgrep
           npm install --prefix build/pi-protocol --ignore-scripts --no-audit --no-fund \
             @earendil-works/pi-coding-agent@0.82.1
           # run_tests extension checks execute a real pytest run
