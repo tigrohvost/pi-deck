@@ -471,7 +471,10 @@ class PiRpcProtocolTest(unittest.TestCase):
                 )
                 provider_request = FakeLlamaHandler.requests.get_nowait()
                 self.assertEqual(256, provider_request.get("max_tokens"))
-                self.assertIs(provider_request.get("cache_prompt"), True)
+                # The first request of a newly started Pi session must not reuse
+                # llama-server's single slot: it can still contain recurrent
+                # state from an unrelated previous session.
+                self.assertIs(provider_request.get("cache_prompt"), False)
                 tool_names = {
                     tool.get("function", {}).get("name")
                     for tool in provider_request.get("tools", [])
