@@ -49,8 +49,9 @@ if [[ "${cmake_version}" != "cmake version 3.22.1-g37088a8" \
 fi
 
 strip_tool="${ndk_root}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-if [[ ! -x "${strip_tool}" ]]; then
-    printf 'Android NDK llvm-strip is missing.\n' >&2
+host_cxx="${ndk_root}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
+if [[ ! -x "${strip_tool}" || ! -x "${host_cxx}" ]]; then
+    printf 'Android NDK host clang++ or llvm-strip is missing.\n' >&2
     exit 2
 fi
 
@@ -97,6 +98,7 @@ SOURCE_DATE_EPOCH="${source_date_epoch}" "${cmake_bin}" \
     -DLLAMA_BUILD_EXAMPLES=OFF \
     -DLLAMA_BUILD_UI=OFF \
     -DLLAMA_USE_PREBUILT_UI=OFF \
+    -DHOST_CXX_COMPILER="${host_cxx}" \
     -DLLAMA_LLGUIDANCE=OFF \
     -DLLAMA_BUILD_MTMD=OFF
 SOURCE_DATE_EPOCH="${source_date_epoch}" "${cmake_bin}" \
