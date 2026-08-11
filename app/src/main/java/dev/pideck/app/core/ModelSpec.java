@@ -25,6 +25,7 @@ public final class ModelSpec {
     private static final Set<String> STATUSES = Set.of(
             "DEFAULT", "SUPPORTED", "CANDIDATE", "EXPERIMENTAL", "DEPRECATED", "BLOCKED"
     );
+    private static final Set<String> SERVER_FLAVORS = Set.of("stock", "nanbeige42");
     // LicenseRef-LFM-Open-1.0: LFM Open License v1.0, reviewed 2026-08-07 — Apache-2.0-derived,
     // full use below a $10M annual-revenue threshold; see docs/model-admission.md.
     private static final Set<String> LICENSES =
@@ -65,6 +66,7 @@ public final class ModelSpec {
     public final String fileName;
     public final long bytes;
     public final String sha256;
+    public final String serverFlavor;
     public final String minimumLlamaCppVersion;
     public final int recommendedContext;
     public final int maximumTestedContext;
@@ -100,6 +102,7 @@ public final class ModelSpec {
             String fileName,
             long bytes,
             String sha256,
+            String serverFlavor,
             String minimumLlamaCppVersion,
             int recommendedContext,
             int maximumTestedContext,
@@ -134,6 +137,7 @@ public final class ModelSpec {
         this.fileName = fileName;
         this.bytes = bytes;
         this.sha256 = sha256;
+        this.serverFlavor = serverFlavor;
         this.minimumLlamaCppVersion = minimumLlamaCppVersion;
         this.recommendedContext = recommendedContext;
         this.maximumTestedContext = maximumTestedContext;
@@ -213,10 +217,22 @@ public final class ModelSpec {
 
         JSONObject runtime = value.getJSONObject("runtime");
         requireKeys(runtime, Set.of(
-                "minimumLlamaCppVersion", "recommendedContext", "maximumTestedContext",
+                "serverFlavor", "minimumLlamaCppVersion",
+                "recommendedContext", "maximumTestedContext",
                 "parallelSlots", "requiresJinja", "serverArgs",
                 "chatTemplateMode", "reasoningMode", "speculative"
         ));
+        String serverFlavor = required(runtime, "serverFlavor");
+        if (!SERVER_FLAVORS.contains(serverFlavor)) {
+            throw new JSONException("Unsupported native server flavor: " + serverFlavor);
+        }
+        String minimumLlamaCppVersion = required(runtime, "minimumLlamaCppVersion");
+        String expectedRuntimeBuild = "nanbeige42".equals(serverFlavor)
+                ? "nanbeige42-c6640a1"
+                : "b10092";
+        if (!expectedRuntimeBuild.equals(minimumLlamaCppVersion)) {
+            throw new JSONException("Native server flavor and minimum runtime disagree");
+        }
         int recommendedContext = positive(runtime, "recommendedContext");
         int maximumContext = positive(runtime, "maximumTestedContext");
         if (recommendedContext > maximumContext) {
@@ -303,7 +319,8 @@ public final class ModelSpec {
                 file,
                 bytes,
                 sha256,
-                required(runtime, "minimumLlamaCppVersion"),
+                serverFlavor,
+                minimumLlamaCppVersion,
                 recommendedContext,
                 maximumContext,
                 positive(runtime, "parallelSlots"),
@@ -333,6 +350,30 @@ public final class ModelSpec {
 
     public String humanSize() {
         return humanBytes(bytes);
+    }
+
+    /** Returns the only packaged executable this catalog entry may launch. */
+    public String nativeServerLibraryName() {
+        switch (serverFlavor) {
+            case "stock":
+                return "libpideck_llama_server.so";
+            case "nanbeige42":
+                return "libpideck_nanbeige_server.so";
+            default:
+                throw new IllegalStateException("Unsupported native server flavor: " + serverFlavor);
+        }
+    }
+
+    /** Exact runtime identity sent to the durable Termux-side adoption contract. */
+    public String nativeRuntimeBuild() {
+        switch (serverFlavor) {
+            case "stock":
+                return "b10092";
+            case "nanbeige42":
+                return "nanbeige42-c6640a1";
+            default:
+                throw new IllegalStateException("Unsupported native server flavor: " + serverFlavor);
+        }
     }
 
     /**

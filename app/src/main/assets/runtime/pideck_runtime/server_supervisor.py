@@ -55,7 +55,10 @@ PI_MODELS = BASE / "pi" / "models.json"
 BRIDGE_PORT = 8787
 DEFAULT_SERVER_PORT = 8080
 EXTERNAL_OWNER = "android-native"
-EXTERNAL_RUNTIME_BUILD = "b10092"
+EXTERNAL_RUNTIME_BUILDS = {
+    "stock": "b10092",
+    "nanbeige42": "nanbeige42-c6640a1",
+}
 API_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
 CPU_SET_PATTERN = re.compile(r"^[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*$")
 MANAGED_SERVER_FLAGS = {
@@ -612,7 +615,11 @@ def adopt_external_server(request: dict[str, Any]) -> dict[str, Any]:
     model = model_by_id(model_id)
     if request.get("owner") != EXTERNAL_OWNER:
         raise PiDeckError("INVALID_OWNER", "External server owner is not allowlisted")
-    if request.get("runtimeBuild") != EXTERNAL_RUNTIME_BUILD:
+    server_flavor = model["runtime"]["serverFlavor"]
+    expected_runtime_build = EXTERNAL_RUNTIME_BUILDS.get(server_flavor)
+    if expected_runtime_build is None:
+        raise PiDeckError("WRONG_RUNTIME", "Model native server flavor is not allowlisted")
+    if request.get("runtimeBuild") != expected_runtime_build:
         raise PiDeckError("WRONG_RUNTIME", "External llama.cpp build is not pinned")
     if request.get("modelSha256") != model["artifact"]["sha256"]:
         raise PiDeckError("WRONG_MODEL_HASH", "External GGUF hash does not match catalog")
@@ -646,7 +653,7 @@ def adopt_external_server(request: dict[str, Any]) -> dict[str, Any]:
         "schemaVersion": 1,
         "state": "READY",
         "owner": EXTERNAL_OWNER,
-        "runtimeBuild": EXTERNAL_RUNTIME_BUILD,
+        "runtimeBuild": expected_runtime_build,
         "operationId": operation_id,
         "modelId": model_id,
         "modelSha256": model["artifact"]["sha256"],

@@ -10,16 +10,19 @@ flowchart LR
   OC --> RC[RpcBridgeClient]
   OC --> NC[NativeLlamaController]
   NC --> NS[Android foreground service]
-  NS --> LS[llama-server b10092]
+  NS --> LS[stock llama-server b10092]
+  NS --> NB[Nanbeige sidecar c6640a1]
   NS --> MS[Android private GGUF store]
   TC --> RT[Versioned Python runtime]
   RC -->|token plus loopback HTTP| BR[PiDeck bridge]
   BR -->|JSONL stdin stdout| PI[Pi 0.82.1 RPC]
-  PI -->|API key plus loopback HTTP| LS[llama-server]
+  PI -->|API key plus loopback HTTP| LS
+  PI -->|same authenticated API| NB
   PI --> TR[profile-safe tool router]
   TR -->|managed web and weather tools| WEB[fixed public endpoints]
   RT --> AD[Exact-health server adoption]
   AD --> LS
+  AD --> NB
 ```
 
 Android creates a canonical UUIDv4 before dispatch. That `operationId` is

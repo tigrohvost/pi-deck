@@ -26,7 +26,6 @@ import java.util.concurrent.Executors;
 /** Coordinates native server readiness with the durable Termux-side Pi provider contract. */
 public final class NativeLlamaController {
     private static final String PREFS = "native_llama_controller";
-    private static final String RUNTIME_BUILD = "b10092";
     private static final int PORT = 8080;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static final Set<String> ACTIVE = ConcurrentHashMap.newKeySet();
@@ -177,7 +176,7 @@ public final class NativeLlamaController {
             request.put("port", PORT);
             request.put("apiKey", apiKey);
             request.put("owner", "android-native");
-            request.put("runtimeBuild", RUNTIME_BUILD);
+            request.put("runtimeBuild", model.nativeRuntimeBuild());
             request.put("pid", pid);
             request.put("decodeThreads", profile.decodeThreads);
             request.put("batchThreads", profile.batchThreads);

@@ -40,6 +40,10 @@ PI_CONTEXT_CONTRACT_VERSION = 3
 # LicenseRef-LFM-Open-1.0: LFM Open License v1.0, reviewed 2026-08-07 — Apache-2.0-derived,
 # full use below a $10M annual-revenue threshold; see docs/model-admission.md.
 ALLOWED_LICENSES = {"Apache-2.0", "MIT", "LicenseRef-LFM-Open-1.0"}
+SERVER_FLAVOR_BUILDS = {
+    "stock": "b10092",
+    "nanbeige42": "nanbeige42-c6640a1",
+}
 
 
 def load_catalog() -> dict[str, Any]:
@@ -87,6 +91,8 @@ def validate_model(model: dict[str, Any]) -> None:
         provenance_status = source["provenanceStatus"]
         spdx = license_value["spdx"]
         context = runtime["recommendedContext"]
+        server_flavor = runtime["serverFlavor"]
+        minimum_runtime = runtime["minimumLlamaCppVersion"]
         max_tokens = model["agent"]["maxTokens"]
         repository = source["repository"]
     except (KeyError, TypeError) as error:
@@ -106,6 +112,9 @@ def validate_model(model: dict[str, Any]) -> None:
         or spdx not in ALLOWED_LICENSES
         or not isinstance(context, int)
         or context < 512
+        or not isinstance(server_flavor, str)
+        or not isinstance(minimum_runtime, str)
+        or SERVER_FLAVOR_BUILDS.get(server_flavor) != minimum_runtime
         or not isinstance(max_tokens, int)
         or isinstance(max_tokens, bool)
         or max_tokens < 1

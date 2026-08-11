@@ -8,6 +8,7 @@ import base64
 import binascii
 import hashlib
 import json
+import re
 import tarfile
 import urllib.parse
 import uuid
@@ -70,6 +71,52 @@ def verified_pi_hashes(raw_tarball: bytes, metadata: dict[str, Any]) -> list[dic
         {"alg": "SHA-1", "content": actual_sha1},
         {"alg": "SHA-512", "content": actual_sha512},
     ]
+
+
+def sidecar_component(metadata: dict[str, Any]) -> dict[str, Any]:
+    try:
+        flavor = metadata["flavor"]
+        build = metadata["build"]
+        repository = metadata["repository"]
+        commit = metadata["commit"]
+        sha256 = metadata["sha256"]
+    except (KeyError, TypeError) as error:
+        raise ValueError("Native sidecar metadata is incomplete") from error
+    if (
+        not isinstance(flavor, str)
+        or re.fullmatch(r"[a-z0-9][a-z0-9._-]+", flavor) is None
+        or not isinstance(build, str)
+        or not build
+        or not isinstance(repository, str)
+        or not repository.startswith("https://github.com/")
+        or not isinstance(commit, str)
+        or re.fullmatch(r"[0-9a-f]{40}", commit) is None
+        or not isinstance(sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", sha256) is None
+    ):
+        raise ValueError("Native sidecar metadata is unsafe")
+    reference = (
+        "pkg:generic/llama-cpp-"
+        + urllib.parse.quote(flavor, safe="")
+        + "@"
+        + urllib.parse.quote(build, safe="")
+    )
+    return {
+        "type": "library",
+        "name": "llama-cpp-" + flavor,
+        "version": build,
+        "bom-ref": reference,
+        "purl": reference,
+        "hashes": [{"alg": "SHA-256", "content": sha256}],
+        "externalReferences": [
+            {"type": "vcs", "url": repository + "#" + commit}
+        ],
+        "properties": [
+            {"name": "pideck:runtimeFlavor", "value": flavor},
+            {"name": "pideck:sourceCommit", "value": commit},
+            {"name": "pideck:resolution", "value": "pinned-source-build"},
+        ],
+    }
 
 
 def main() -> int:
@@ -206,6 +253,10 @@ def main() -> int:
                 ],
             }
         )
+    native_components.extend(
+        sidecar_component(value)
+        for value in compatibility["llamaCpp"].get("sidecars", [])
+    )
     ordered_components = [app] + sorted(
         [*components_by_ref.values(), *native_components],
         key=lambda item: item["bom-ref"],

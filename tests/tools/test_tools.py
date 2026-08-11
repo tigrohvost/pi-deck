@@ -414,6 +414,24 @@ class ToolTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             generate_sbom.verified_pi_hashes(tarball + b"-tampered", metadata)
 
+    def test_sbom_records_pinned_native_sidecar_source_and_binary_hash(self) -> None:
+        metadata = {
+            "flavor": "nanbeige42",
+            "build": "nanbeige42-c6640a1",
+            "repository": "https://github.com/Nanbeige/llama.cpp.git",
+            "commit": "c" * 40,
+            "sha256": "d" * 64,
+        }
+        result = generate_sbom.sidecar_component(metadata)
+        self.assertEqual("llama-cpp-nanbeige42", result["name"])
+        self.assertEqual([{"alg": "SHA-256", "content": "d" * 64}], result["hashes"])
+        self.assertEqual(
+            "https://github.com/Nanbeige/llama.cpp.git#" + "c" * 40,
+            result["externalReferences"][0]["url"],
+        )
+        with self.assertRaises(ValueError):
+            generate_sbom.sidecar_component({**metadata, "commit": "main"})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -119,6 +119,16 @@ val verifyModelManifest by tasks.registering {
                 ?: error("$id recommendedContext must be numeric")
             val maxTokens = (agent["maxTokens"] as? Number)?.toLong()
                 ?: error("$id maxTokens must be numeric")
+            val serverFlavor = runtime["serverFlavor"] as? String
+                ?: error("$id serverFlavor must be a string")
+            val expectedRuntimeBuild = when (serverFlavor) {
+                "stock" -> "b10092"
+                "nanbeige42" -> "nanbeige42-c6640a1"
+                else -> error("$id serverFlavor is not allowlisted")
+            }
+            require(runtime["minimumLlamaCppVersion"] == expectedRuntimeBuild) {
+                "$id minimum runtime does not match serverFlavor"
+            }
             require(recommendedContext > 0 && maxTokens > 0 && maxTokens < recommendedContext) {
                 "$id maxTokens must fit inside recommendedContext"
             }
@@ -258,6 +268,21 @@ tasks.register("verifyNativeRuntime") {
         require(root["schemaVersion"] == 1 && root["build"] == "b10092") {
             "Unsupported native runtime manifest"
         }
+        val sidecars = root["sidecars"] as? List<*>
+            ?: error("native runtime sidecars are missing")
+        require(sidecars.size == 1) { "Exactly one pinned native sidecar is required" }
+        val nanbeige = sidecars.single() as? Map<*, *>
+            ?: error("Nanbeige sidecar metadata must be an object")
+        require(
+            nanbeige == mapOf(
+                "flavor" to "nanbeige42",
+                "build" to "nanbeige42-c6640a1",
+                "repository" to "https://github.com/Nanbeige/llama.cpp.git",
+                "commit" to "c6640a1c0cf7b38df342b67021a3900b04d092e7",
+                "ndkRevision" to "28.2.13676358",
+                "file" to "libpideck_nanbeige_server.so",
+            )
+        ) { "Nanbeige sidecar metadata is not exactly pinned" }
         val entries = root["files"] as? List<*> ?: error("native runtime files are missing")
         val expected = entries.associate { raw ->
             val item = raw as? Map<*, *> ?: error("native runtime entry must be an object")

@@ -27,8 +27,10 @@ jobs:
 
       - name: Restore pinned llama.cpp Android runtime
         run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.1.12297006"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;27.1.12297006" "ndk;28.2.13676358" "cmake;3.22.1"
           ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.1.12297006" \
+            PIDECK_NANBEIGE_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" \
             ./tools/vendor_llama_android.sh
 
       - name: Test, lint and assemble debug plus unsigned release
@@ -68,13 +70,15 @@ jobs:
             --output build/supply-chain/pi-deck.cdx.json
           cp app/src/main/assets/models-v2.json build/supply-chain/
           cp app/src/main/assets/compatibility.json build/supply-chain/
+          cp app/src/main/assets/native-runtime.json build/supply-chain/
           python3 tools/write_checksums.py \
             --output build/supply-chain/SHA256SUMS \
             app/build/outputs/apk/debug/app-debug.apk \
             app/build/outputs/apk/release/app-release-unsigned.apk \
             build/supply-chain/pi-deck.cdx.json \
             build/supply-chain/models-v2.json \
-            build/supply-chain/compatibility.json
+            build/supply-chain/compatibility.json \
+            build/supply-chain/native-runtime.json
 
       - name: Upload debug APK (not a production release)
         uses: actions/upload-artifact@v7
@@ -138,8 +142,10 @@ jobs:
 
       - name: Restore pinned llama.cpp Android runtime
         run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.1.12297006"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;27.1.12297006" "ndk;28.2.13676358" "cmake;3.22.1"
           ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.1.12297006" \
+            PIDECK_NANBEIGE_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" \
             ./tools/vendor_llama_android.sh
 
       - name: Build production-signed release
@@ -167,6 +173,7 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk build/release/pi-deck.apk
           cp app/src/main/assets/models-v2.json build/release/
           cp app/src/main/assets/compatibility.json build/release/
+          cp app/src/main/assets/native-runtime.json build/release/
           cp docs/implementation-baseline.md build/release/
           cp docs/release-process.md build/release/BUILD-INSTRUCTIONS.md
           python3 tools/write_checksums.py --output build/release/SHA256SUMS \
@@ -174,6 +181,7 @@ jobs:
             build/release/pi-deck.cdx.json \
             build/release/models-v2.json \
             build/release/compatibility.json \
+            build/release/native-runtime.json \
             build/release/implementation-baseline.md \
             build/release/BUILD-INSTRUCTIONS.md
 
@@ -185,6 +193,7 @@ jobs:
             build/release/pi-deck.cdx.json
             build/release/models-v2.json
             build/release/compatibility.json
+            build/release/native-runtime.json
             build/release/implementation-baseline.md
             build/release/BUILD-INSTRUCTIONS.md
             build/release/SHA256SUMS

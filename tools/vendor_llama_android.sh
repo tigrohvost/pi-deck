@@ -50,5 +50,7 @@ install -m 0755 "${source_dir}/llama-server" \
     "${destination}/libpideck_llama_server.so"
 
 "${strip_tool}" --strip-unneeded "${destination}"/*.so
+"${repo_dir}/tools/build_nanbeige_android.sh" \
+    "${destination}/libpideck_nanbeige_server.so"
 printf 'Vendored llama.cpp %s Android arm64 runtime into %s\n' \
     "${LLAMA_BUILD}" "${destination}"

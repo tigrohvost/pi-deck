@@ -114,11 +114,13 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "minimumLlamaCppVersion", "recommendedContext", "maximumTestedContext",
+            "serverFlavor", "minimumLlamaCppVersion",
+            "recommendedContext", "maximumTestedContext",
             "parallelSlots", "requiresJinja", "serverArgs", "chatTemplateMode", "reasoningMode",
             "speculative"
           ],
           "properties": {
+            "serverFlavor": {"enum": ["stock", "nanbeige42"]},
             "minimumLlamaCppVersion": {"type": "string", "minLength": 1},
             "recommendedContext": {"type": "integer", "minimum": 512},
             "maximumTestedContext": {"type": "integer", "minimum": 512},

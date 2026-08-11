@@ -24,7 +24,16 @@
     "owner": "android-native",
     "minimumVersion": "b10092",
     "maximumTestedVersion": "b10092",
-    "requiredCapabilities": ["server", "jinja", "reasoning", "api-key"]
+    "requiredCapabilities": ["server", "jinja", "reasoning", "api-key"],
+    "sidecars": [
+      {
+        "flavor": "nanbeige42",
+        "build": "nanbeige42-c6640a1",
+        "repository": "https://github.com/Nanbeige/llama.cpp.git",
+        "commit": "c6640a1c0cf7b38df342b67021a3900b04d092e7",
+        "sha256": "322773286c63d9634afaf64bfc546d7eaab47b0f66b686e77be1b44cefd506d0"
+      }
+    ]
   },
   "termux": {
     "minimumVersion": "0.118.0",

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "2026.07.30.1",
+  "catalogVersion": "2026.08.11.1",
   "models": [
     {
       "id": "qwen3.5-0.8b",
@@ -37,6 +37,7 @@
         "sha256": "57d1997790d1744fba5b40a7317df71ea5e2acee28c47e78f0cce39c0703f8cf"
       },
       "runtime": {
+        "serverFlavor": "stock",
         "minimumLlamaCppVersion": "b10092",
         "recommendedContext": 4096,
         "maximumTestedContext": 8192,
@@ -110,6 +111,7 @@
         "sha256": "57a1085840f497d764a7fc5d346922dbde961efb54cc792ea81d694fd846a1d8"
       },
       "runtime": {
+        "serverFlavor": "stock",
         "minimumLlamaCppVersion": "b10092",
         "recommendedContext": 10240,
         "maximumTestedContext": 10240,
@@ -183,6 +185,7 @@
         "sha256": "79fdf00351b46cf26f020aead28d01889886be87c55fa0eb907e6f9b00bfee14"
       },
       "runtime": {
+        "serverFlavor": "stock",
         "minimumLlamaCppVersion": "b10092",
         "recommendedContext": 10240,
         "maximumTestedContext": 10240,
@@ -214,6 +217,154 @@
         "minimumAvailableMiB": 3072,
         "measuredPeakRssMiB": null,
         "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "ministral-3-3b-instruct-2512",
+      "title": "Ministral 3 3B Instruct",
+      "tier": "EDGE",
+      "status": "CANDIDATE",
+      "note": "Официальный edge-instruct Mistral с нативными tool calls и JSON. Минимальный smoke на SM-S918B пройден (≈0,5 ток/с); русский язык и suite-v1/v2 ещё не проверены.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF",
+        "verifiedAt": "2026-08-11T00:00:00Z"
+      },
+      "source": {
+        "repository": "mistralai/Ministral-3-3B-Instruct-2512-GGUF",
+        "revision": "eb599d408350ea2bb60452cb86be7c7b2fc28227",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "mistral3",
+        "upstreamModel": "mistralai/Ministral-3-3B-Instruct-2512",
+        "conversion": {
+          "performedBy": "mistralai",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": "b35d4dfe56c142746f54dbd64f579faab2744308",
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
+        "bytes": 2147023008,
+        "sha256": "9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.05,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "ministral3-local",
+        "maxTokens": 2048,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 4096,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "nanbeige4.2-3b",
+      "title": "Nanbeige4.2 3B",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Looped agentic-модель с отдельным закреплённым runtime Nanbeige. Официально заявлены английский и китайский; русский, suite-v1/v2 и скорость ещё не проверены.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/owao/Nanbeige4.2-3B-GGUF",
+        "verifiedAt": "2026-08-11T00:00:00Z"
+      },
+      "source": {
+        "repository": "owao/Nanbeige4.2-3B-GGUF",
+        "revision": "6784dff2a81a3713ddba6be7978a4534189c789c",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "nanbeige",
+        "upstreamModel": "Nanbeige/Nanbeige4.2-3B",
+        "conversion": {
+          "performedBy": "owao",
+          "tool": "llama.cpp (Nanbeige fork)",
+          "toolRevision": null,
+          "upstreamRevision": "5d54321e9e01e0d026f8e371046678fc384dca39",
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Nanbeige4.2-3B-Q4_K_M.gguf",
+        "bytes": 2574807904,
+        "sha256": "ffe1b9b8ee95ec4b962c379905aa8be6f72ae9c4645c6c70e3b6ff7b197e6ef4"
+      },
+      "runtime": {
+        "serverFlavor": "nanbeige42",
+        "minimumLlamaCppVersion": "nanbeige42-c6640a1",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": ["--reasoning-budget", "1024"],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 1.0,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "nanbeige4.2-local",
+        "maxTokens": 3072,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 5120,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
       },
       "benchmark": {
         "suiteVersion": null,
@@ -256,6 +407,7 @@
         "sha256": "13c16f426047e2de38cd075bdade4a7bcbc8c774384876f677740cda65f8a983"
       },
       "runtime": {
+        "serverFlavor": "stock",
         "minimumLlamaCppVersion": "b10092",
         "recommendedContext": 8192,
         "maximumTestedContext": 8192,
@@ -329,6 +481,7 @@
         "sha256": "d784ce9eda1a5a7b51e8f705a9e6310844bf4f173654d115823c775fdea56d43"
       },
       "runtime": {
+        "serverFlavor": "stock",
         "minimumLlamaCppVersion": "b10092",
         "recommendedContext": 4096,
         "maximumTestedContext": 8192,
@@ -402,6 +555,7 @@
         "sha256": "17ef842e47450caeb8eaa3ebfbbab5d2f2278b62b79be107985fb69a2f819aa0"
       },
       "runtime": {
+        "serverFlavor": "stock",
         "minimumLlamaCppVersion": "b10092",
         "recommendedContext": 4096,
         "maximumTestedContext": 4096,

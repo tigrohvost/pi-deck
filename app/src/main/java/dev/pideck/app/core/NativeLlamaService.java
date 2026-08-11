@@ -40,6 +40,7 @@ public final class NativeLlamaService extends Service {
     public static final String EXTRA_OPERATION_ID = "operation_id";
     public static final String EXTRA_MODEL_ID = "model_id";
     public static final String EXTRA_MODEL_PATH = "model_path";
+    public static final String EXTRA_SERVER_FLAVOR = "server_flavor";
     public static final String EXTRA_PROFILE = "profile";
     public static final String EXTRA_ARGUMENTS = "arguments";
     public static final String EXTRA_PHASE = "phase";
@@ -101,6 +102,7 @@ public final class NativeLlamaService extends Service {
                 .putExtra(EXTRA_OPERATION_ID, operationId.toString())
                 .putExtra(EXTRA_MODEL_ID, model.id)
                 .putExtra(EXTRA_MODEL_PATH, modelFile.getAbsolutePath())
+                .putExtra(EXTRA_SERVER_FLAVOR, model.serverFlavor)
                 .putExtra(EXTRA_PROFILE, profile.toString())
                 .putStringArrayListExtra(EXTRA_ARGUMENTS, new ArrayList<>(arguments));
         if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent);
@@ -176,12 +178,15 @@ public final class NativeLlamaService extends Service {
         String operationId = intent.getStringExtra(EXTRA_OPERATION_ID);
         String modelId = intent.getStringExtra(EXTRA_MODEL_ID);
         String modelPath = intent.getStringExtra(EXTRA_MODEL_PATH);
+        String serverFlavor = intent.getStringExtra(EXTRA_SERVER_FLAVOR);
         String profile = intent.getStringExtra(EXTRA_PROFILE);
         ArrayList<String> arguments = intent.getStringArrayListExtra(EXTRA_ARGUMENTS);
         promote("Загружаю " + safeLabel(modelId) + "…");
         writeState("STARTING", operationId, modelId, profile, -1L, "");
         new Thread(
-                () -> launch(operationId, modelId, modelPath, profile, arguments),
+                () -> launch(
+                        operationId, modelId, modelPath, serverFlavor, profile, arguments
+                ),
                 "pideck-native-llama-launch"
         ).start();
         return START_NOT_STICKY;
@@ -206,6 +211,7 @@ public final class NativeLlamaService extends Service {
             String operationId,
             String modelId,
             String modelPath,
+            String serverFlavor,
             String profile,
             ArrayList<String> arguments
     ) {
@@ -225,7 +231,7 @@ public final class NativeLlamaService extends Service {
             File libraryDir = new File(getApplicationInfo().nativeLibraryDir).getCanonicalFile();
             File executable = new File(
                     libraryDir,
-                    "libpideck_llama_server.so"
+                    serverLibraryForFlavor(serverFlavor)
             ).getCanonicalFile();
             if (!executable.isFile() || !executable.canExecute()) {
                 throw new IOException("Встроенный llama-server недоступен для запуска");
@@ -261,6 +267,12 @@ public final class NativeLlamaService extends Service {
         } catch (IOException | IllegalArgumentException error) {
             fail(operationId, modelId, profile, safeError(error));
         }
+    }
+
+    static String serverLibraryForFlavor(String flavor) {
+        if ("stock".equals(flavor)) return "libpideck_llama_server.so";
+        if ("nanbeige42".equals(flavor)) return "libpideck_nanbeige_server.so";
+        throw new IllegalArgumentException("Неизвестный native runtime: " + safeLabel(flavor));
     }
 
     private void pumpLog(InputStream input) {
@@ -385,7 +397,7 @@ public final class NativeLlamaService extends Service {
                 "Локальное AI-ядро",
                 NotificationManager.IMPORTANCE_LOW
         );
-        channel.setDescription("Qwen работает локально на CPU телефона");
+        channel.setDescription("Модель работает локально на CPU телефона");
         getSystemService(NotificationManager.class).createNotificationChannel(channel);
     }
 

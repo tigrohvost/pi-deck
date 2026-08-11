@@ -27,8 +27,53 @@ artifact.
 
 Current Qwen3.5 artifacts preserve existing compatibility but have incomplete
 third-party conversion provenance and no current suite report. They therefore
-remain `EXPERIMENTAL`. No Granite, Ministral or Gemma metadata was invented or
-added merely because the specification names those candidates.
+remain `EXPERIMENTAL`. Granite and Gemma metadata is not added merely because
+the specification names those candidates.
+
+## Ministral 3 3B Instruct (`ministral-3-3b-instruct-2512`)
+
+Admitted at `CANDIDATE` on 2026-08-11 from Mistral AI's official GGUF
+repository. The Q4_K_M artifact is pinned to repository revision
+`eb599d408350ea2bb60452cb86be7c7b2fc28227`, 2,147,023,008 bytes and SHA-256
+`9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8`.
+The upstream weights revision is recorded separately as `b35d4dfe56c1`.
+It keeps `provenanceStatus: INCOMPLETE` because the official GGUF repository
+does not publish the exact converter revision, quantization command and build
+environment required by gate 3.
+
+The bundled b10092 runtime contains the Mistral3 architecture and its tool
+template path, so `runtime.serverFlavor` remains `stock`. The profile follows
+the vendor's low-temperature instruction setting and exposes the embedded
+Jinja tool contract. The vendor model card does not list Russian among its
+declared languages. A minimal SM-S918B compatibility smoke completed with an
+exact `PIDECK_OK` response, about 23.18 prompt tok/s and 0.54 decode tok/s; the
+full suites, Russian behavior and multi-turn tool use remain unverified. The
+row is therefore manual-only and cannot be recommended automatically.
+
+## Nanbeige4.2 3B (`nanbeige4.2-3b`)
+
+Admitted at `CANDIDATE` on 2026-08-11. The Q4_K_M conversion is third-party,
+pinned to `owao/Nanbeige4.2-3B-GGUF` revision `6784dff2a81a3713ddba6be7978a4534189c789c`,
+2,574,807,904 bytes and SHA-256
+`ffe1b9b8ee95ec4b962c379905aa8be6f72ae9c4645c6c70e3b6ff7b197e6ef4`.
+The official upstream weights are independently pinned at `5d54321e9e01`.
+The converter did not publish a reproducible conversion record, so provenance
+is explicitly `INCOMPLETE`.
+
+Nanbeige's architecture is not supported by the stock b10092 build. Replacing
+the global server would put every existing profile on an unvalidated fork, so
+the app instead packages one isolated, statically linked Android executable.
+`tools/build_nanbeige_android.sh` fetches the official Nanbeige llama.cpp fork
+at exact commit `c6640a1c0cf7b38df342b67021a3900b04d092e7`, requires exact NDK
+28.2.13676358 and emits `libpideck_nanbeige_server.so`. The catalog flavor,
+foreground service allowlist, adoption build ID and native manifest must all
+agree before it can reach `READY`; stock models continue to launch b10092.
+
+The sampling and 1024-token reasoning budget follow the model's agentic mode,
+but its publisher only claims English and Chinese. Russian behavior, tool-loop
+conformance, memory, speed, the complete device suites and ten clean smokes are
+still unmeasured. It remains visible for explicit selection and download but
+is excluded from recommendation until those gates pass.
 
 ## LFM2.5 2.6B (`lfm2.5-2.6b`)
 

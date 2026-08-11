@@ -83,10 +83,51 @@ public final class RuntimeAssetBundle {
             script.append("""
                     export DEBIAN_FRONTEND=noninteractive
                     printf '[01/06] synchronizing Termux packages\\n'
-                    pkg update -y
+                    UPDATE_LOG="$RUNTIME/pkg-update.log"
+                    PACKAGE_SOURCE=configured
+                    if pkg update -y >"$UPDATE_LOG" 2>&1; then
+                      cat "$UPDATE_LOG"
+                    else
+                      update_status=$?
+                      cat "$UPDATE_LOG" >&2
+                      if ! grep -Eq \
+                        'File has unexpected size|Hash Sum mismatch|Mirror sync in progress' \
+                        "$UPDATE_LOG"; then
+                        exit "$update_status"
+                      fi
+                      printf '%s\\n' \
+                        'Configured Termux mirror is inconsistent; using the signed official repository.' \
+                        >&2
+                      OFFICIAL_SOURCE="$RUNTIME/termux-main-official.list"
+                      OFFICIAL_SOURCE_PARTS="$RUNTIME/apt-sourceparts-empty"
+                      mkdir -p "$OFFICIAL_SOURCE_PARTS"
+                      chmod 700 "$OFFICIAL_SOURCE_PARTS"
+                      printf '%s\\n' \
+                        'deb https://packages.termux.dev/apt/termux-main stable main' \
+                        >"$OFFICIAL_SOURCE.tmp"
+                      chmod 600 "$OFFICIAL_SOURCE.tmp"
+                      mv -f "$OFFICIAL_SOURCE.tmp" "$OFFICIAL_SOURCE"
+                      official_termux_apt() {
+                        apt-get \
+                          -o "Dir::Etc::sourcelist=$OFFICIAL_SOURCE" \
+                          -o "Dir::Etc::sourceparts=$OFFICIAL_SOURCE_PARTS" \
+                          -o "APT::Get::List-Cleanup=0" \
+                          -o "Acquire::Retries=2" \
+                          "$@"
+                      }
+                      official_termux_apt update
+                      PACKAGE_SOURCE=official
+                    fi
+                    rm -f "$UPDATE_LOG"
                     printf '[02/06] installing Termux agent runtime\\n'
-                    pkg install -y -o Dpkg::Options::=--force-confold \
-                      nodejs python curl git ripgrep jq procps termux-exec termux-api
+                    if [ "$PACKAGE_SOURCE" = official ]; then
+                      official_termux_apt install -y \
+                        -o Dpkg::Options::=--force-confold \
+                        nodejs python curl git ripgrep jq procps termux-exec termux-api
+                    else
+                      pkg install -y -o Dpkg::Options::=--force-confold \
+                        nodejs python curl git ripgrep jq procps termux-exec termux-api
+                    fi
                     """);
         } else {
             script.append("""

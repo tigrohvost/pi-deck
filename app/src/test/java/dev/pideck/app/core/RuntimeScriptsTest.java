@@ -73,7 +73,7 @@ public class RuntimeScriptsTest {
         String ready = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
-                 "runtimeContractVersion":47,
+                 "runtimeContractVersion":48,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
                  "pythonVersion":"3.13","llamaVersion":"b10092"}
                 """.replace("\n ", "");
@@ -83,10 +83,10 @@ public class RuntimeScriptsTest {
                 ready.replace("\"state\":\"READY\"", "\"state\":\"NOT_READY\"")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":47", "\"runtimeContractVersion\":46")
+                ready.replace("\"runtimeContractVersion\":48", "\"runtimeContractVersion\":47")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":47,", "")
+                ready.replace("\"runtimeContractVersion\":48,", "")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 "noise {\"schemaVersion\":1,\"ok\":true,\"state\":\"READY\"}"
@@ -125,6 +125,24 @@ public class RuntimeScriptsTest {
         assertFalse(script.contains("@latest"));
         assertFalse(script.contains("pkg install -y llama-cpp"));
         assertFalse(script.contains("python llama-cpp"));
+    }
+
+    @Test
+    public void installerFallsBackWithoutReplacingTheConfiguredTermuxMirror() {
+        Map<String, byte[]> contents = new LinkedHashMap<>();
+        contents.put("models-v2.json", "{}".getBytes(StandardCharsets.UTF_8));
+        contents.put("compatibility.json", "{}".getBytes(StandardCharsets.UTF_8));
+        contents.put("runtime/AGENTS.default.md", "default\n".getBytes(StandardCharsets.UTF_8));
+
+        String script = RuntimeAssetBundle.buildFromContents(contents, true);
+
+        assertTrue(script.contains("pkg update -y"));
+        assertTrue(script.contains("File has unexpected size|Hash Sum mismatch|Mirror sync in progress"));
+        assertTrue(script.contains("https://packages.termux.dev/apt/termux-main"));
+        assertTrue(script.contains("Dir::Etc::sourcelist=$OFFICIAL_SOURCE"));
+        assertTrue(script.contains("APT::Get::List-Cleanup=0"));
+        assertFalse(script.contains("termux-change-repo"));
+        assertFalse(script.contains("sed -i"));
     }
 
     @Test

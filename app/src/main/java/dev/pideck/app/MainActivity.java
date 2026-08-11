@@ -2807,6 +2807,14 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "DEEP · reasoning up to 1024 tokens · ≈7 tok/s"
             );
             case "qwen3.5-9b" -> t("Эксперимент · медленно", "Experimental · slow");
+            case "ministral-3-3b-instruct-2512" -> t(
+                    "Кандидат · smoke ≈0,5 ток/с",
+                    "Candidate · smoke ≈0.5 tok/s"
+            );
+            case "nanbeige4.2-3b" -> t(
+                    "Agentic-кандидат · скорость не измерена",
+                    "Agentic candidate · speed not measured"
+            );
             case "bonsai-27b" -> t("Не для диалога · ≈1 ток/с", "Not for chat · ≈1 tok/s");
             default -> t(
                     "Скорость зависит от телефона",
@@ -2826,6 +2834,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "DEEP: bounded reasoning for harder coding tasks; slower than FAST.";
             case "qwen3.5-9b" ->
                     "A multi-step profile with high OOM risk; it needs a separate device benchmark.";
+            case "ministral-3-3b-instruct-2512" ->
+                    "Official edge instruct model with native tool calls and JSON. A minimal "
+                            + "SM-S918B smoke passed; Russian and suite-v1/v2 are not validated yet.";
+            case "nanbeige4.2-3b" ->
+                    "Looped agentic model with a separate pinned Nanbeige runtime. The vendor "
+                            + "lists English and Chinese; Russian, suite-v1/v2, and speed are "
+                            + "not validated yet.";
             case "bonsai-27b" ->
                     "27B in a 1-bit packing: it fits a flagship's memory but decodes at about "
                             + "1.2 tok/s. Hand-picked only.";

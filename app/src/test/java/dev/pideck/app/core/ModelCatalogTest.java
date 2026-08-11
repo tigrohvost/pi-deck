@@ -65,7 +65,46 @@ public class ModelCatalogTest {
         ModelSpec bonsai = catalog.byId("bonsai-27b").orElseThrow();
         assertEquals("CANDIDATE", bonsai.status);
         assertFalse(ModelCatalog.isRecommendable(bonsai));
+        assertFalse(ModelCatalog.isRecommendable(
+                catalog.byId("ministral-3-3b-instruct-2512").orElseThrow()
+        ));
+        assertFalse(ModelCatalog.isRecommendable(
+                catalog.byId("nanbeige4.2-3b").orElseThrow()
+        ));
         assertEquals("qwen3.5-2b", catalog.recommend(12L * GIB, false, 200L * GIB).id);
+    }
+
+    @Test
+    public void newAgentModelsUsePinnedArtifactsAndMatchingNativeRuntimes() {
+        ModelSpec ministral = catalog.byId("ministral-3-3b-instruct-2512").orElseThrow();
+        assertEquals("mistralai/Ministral-3-3B-Instruct-2512-GGUF", ministral.repo);
+        assertEquals(2_147_023_008L, ministral.bytes);
+        assertEquals(
+                "9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8",
+                ministral.sha256
+        );
+        assertEquals("stock", ministral.serverFlavor);
+        assertEquals("libpideck_llama_server.so", ministral.nativeServerLibraryName());
+        assertEquals(
+                ministral.nativeServerLibraryName(),
+                NativeLlamaService.serverLibraryForFlavor(ministral.serverFlavor)
+        );
+        assertEquals("b10092", ministral.nativeRuntimeBuild());
+
+        ModelSpec nanbeige = catalog.byId("nanbeige4.2-3b").orElseThrow();
+        assertEquals("owao/Nanbeige4.2-3B-GGUF", nanbeige.repo);
+        assertEquals(2_574_807_904L, nanbeige.bytes);
+        assertEquals(
+                "ffe1b9b8ee95ec4b962c379905aa8be6f72ae9c4645c6c70e3b6ff7b197e6ef4",
+                nanbeige.sha256
+        );
+        assertEquals("nanbeige42", nanbeige.serverFlavor);
+        assertEquals("libpideck_nanbeige_server.so", nanbeige.nativeServerLibraryName());
+        assertEquals(
+                nanbeige.nativeServerLibraryName(),
+                NativeLlamaService.serverLibraryForFlavor(nanbeige.serverFlavor)
+        );
+        assertEquals("nanbeige42-c6640a1", nanbeige.nativeRuntimeBuild());
     }
 
     @Test
@@ -183,6 +222,15 @@ public class ModelCatalogTest {
         ModelCatalog.parse(raw.replaceFirst(
                 "\"catalogVersion\"",
                 "\"unexpected\":true,\"catalogVersion\""
+        ));
+    }
+
+    @Test(expected = JSONException.class)
+    public void unknownNativeServerFlavorIsRejected() throws Exception {
+        String raw = readUtf8(asset("models-v2.json"));
+        ModelCatalog.parse(raw.replaceFirst(
+                "\"serverFlavor\": \"stock\"",
+                "\"serverFlavor\": \"floating-fork\""
         ));
     }
 

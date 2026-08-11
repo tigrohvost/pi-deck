@@ -57,6 +57,8 @@ def tiny_model(content: bytes, expected_sha: str | None = None) -> dict:
             "sha256": expected_sha or hashlib.sha256(content).hexdigest(),
         },
         "runtime": {
+            "serverFlavor": "stock",
+            "minimumLlamaCppVersion": "b10092",
             "recommendedContext": 1024,
             "maximumTestedContext": 2048,
             "parallelSlots": 1,
@@ -774,6 +776,44 @@ class RuntimeTestCase(unittest.TestCase):
             ("A" * 43).encode("ascii"),
             server_supervisor.SERVER_API_KEY.read_bytes(),
         )
+
+    def test_nanbeige_adoption_requires_its_pinned_sidecar(self) -> None:
+        model = tiny_model(b"GGUF")
+        model["runtime"]["serverFlavor"] = "nanbeige42"
+        model["runtime"]["minimumLlamaCppVersion"] = "nanbeige42-c6640a1"
+        install_catalog(model)
+        request = {
+            "schemaVersion": 1,
+            "operationId": operation_id(),
+            "modelId": model["id"],
+            "modelSha256": model["artifact"]["sha256"],
+            "owner": "android-native",
+            "runtimeBuild": "nanbeige42-c6640a1",
+            "port": 8080,
+            "apiKey": "A" * 43,
+            "pid": 4242,
+            "decodeThreads": 5,
+            "batchThreads": 8,
+            "decodeCpuSet": "3-7",
+            "batchCpuSet": "0-7",
+        }
+        with (
+            mock.patch.object(server_supervisor, "strict_health"),
+            mock.patch.object(server_supervisor, "_write_pi_models"),
+            mock.patch.object(server_supervisor, "_wake_lock"),
+        ):
+            result = server_supervisor.adopt_external_server(request)
+        self.assertEqual("READY", result["state"])
+        self.assertEqual(
+            "nanbeige42-c6640a1",
+            server_supervisor.read_server_status()["runtimeBuild"],
+        )
+
+        request["operationId"] = operation_id()
+        request["runtimeBuild"] = "b10092"
+        with self.assertRaises(common.PiDeckError) as raised:
+            server_supervisor.adopt_external_server(request)
+        self.assertEqual("WRONG_RUNTIME", raised.exception.code)
 
     def test_pi_model_config_offsets_fixed_api_margin_without_growing_llama_context(self) -> None:
         model = tiny_model(b"GGUF")
