@@ -16,8 +16,9 @@ public class GenerationSpeedTest {
         GenerationSpeed speed = GenerationSpeed.fromStreaming(380L, 5_000L);
 
         assertEquals(20.0d, speed.tokensPerSecond, 0.001d);
+        assertEquals(100L, speed.outputTokens);
         assertTrue(speed.estimated);
-        assertEquals("≈20.0 ток/с", speed.label(Locale.US));
+        assertEquals("≈100 ток. · ≈20.0 ток/с", speed.label(Locale.US));
     }
 
     @Test
@@ -31,13 +32,13 @@ public class GenerationSpeedTest {
 
         assertFalse(speed.estimated);
         assertEquals(75L, speed.outputTokens);
-        assertEquals("18.8 ток/с", speed.label(Locale.US));
+        assertEquals("75 ток. · 18.8 ток/с", speed.label(Locale.US));
         assertEquals(
-                "18.8 tok/s",
+                "75 tok · 18.8 tok/s",
                 speed.label(Locale.US, UiLanguage.ENGLISH)
         );
         assertEquals(
-                "Final speed 18.8 tok/s, 75 output tokens",
+                "Final: 75 tok · 18.8 tok/s",
                 speed.contentDescription(Locale.US, UiLanguage.ENGLISH)
         );
     }

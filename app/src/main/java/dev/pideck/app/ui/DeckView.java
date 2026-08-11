@@ -826,6 +826,20 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         generationRateLabel.setVisibility(VISIBLE);
     }
 
+    /** Displays an elapsed inference phase before the provider can report generated tokens. */
+    public void setGenerationProgress(String label) {
+        if (label == null || label.isBlank()) {
+            generationRateLabel.setText("");
+            generationRateLabel.setContentDescription(null);
+            generationRateLabel.setVisibility(GONE);
+            return;
+        }
+        generationRateLabel.setText(label);
+        generationRateLabel.setContentDescription(label);
+        generationRateLabel.setTextColor(p.muted);
+        generationRateLabel.setVisibility(VISIBLE);
+    }
+
     /** Every JSONL event moves the execution row, not just the first one. */
     public void setExecutionLabel(String label) {
         if (executionRow.isRunning()) executionRow.setOperation(label);

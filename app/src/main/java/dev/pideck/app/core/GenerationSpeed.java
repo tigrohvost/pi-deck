@@ -23,7 +23,8 @@ public final class GenerationSpeed {
         if (characters <= 0L || elapsedMs < 250L) return null;
         double seconds = elapsedMs / 1_000.0d;
         double rate = characters / APPROXIMATE_CHARACTERS_PER_TOKEN / seconds;
-        return valid(rate) ? new GenerationSpeed(rate, -1L, true) : null;
+        long outputTokens = Math.max(1L, Math.round(characters / APPROXIMATE_CHARACTERS_PER_TOKEN));
+        return valid(rate) ? new GenerationSpeed(rate, outputTokens, true) : null;
     }
 
     public static GenerationSpeed fromTerminal(JSONObject payload) {
@@ -51,8 +52,11 @@ public final class GenerationSpeed {
         number.setGroupingUsed(false);
         number.setMinimumFractionDigits(1);
         number.setMaximumFractionDigits(1);
-        return (estimated ? "≈" : "") + number.format(tokensPerSecond)
+        String tokens = (estimated ? "≈" : "") + outputTokens
+                + language.pick(" ток.", " tok");
+        String rate = (estimated ? "≈" : "") + number.format(tokensPerSecond)
                 + language.pick(" ток/с", " tok/s");
+        return tokens + " · " + rate;
     }
 
     public String contentDescription(Locale locale) {
@@ -60,17 +64,10 @@ public final class GenerationSpeed {
     }
 
     public String contentDescription(Locale locale, UiLanguage language) {
-        String description = language.pick(
-                (estimated ? "Примерная" : "Итоговая") + " скорость ",
-                (estimated ? "Estimated" : "Final") + " speed "
+        return language.pick(
+                estimated ? "Примерно " : "Итог: ",
+                estimated ? "Estimated " : "Final: "
         ) + label(locale, language).replace("≈", "");
-        if (!estimated && outputTokens > 0L) {
-            description += language.pick(
-                    ", " + outputTokens + " выходных токенов",
-                    ", " + outputTokens + " output tokens"
-            );
-        }
-        return description;
     }
 
     private static boolean valid(double rate) {

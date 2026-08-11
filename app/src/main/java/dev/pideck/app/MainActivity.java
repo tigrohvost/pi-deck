@@ -172,6 +172,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private long firstOutputAtUptimeMs;
     private long streamedCharacters;
     private long lastRateUpdateUptimeMs;
+    private String inferencePhase = "";
     private String pendingPromptAfterCompaction;
     private String pendingPromptAfterNewSession;
     private final PendingPromptDispatch pendingRpcPrompt = new PendingPromptDispatch();
@@ -185,6 +186,20 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             heartbeatTick++;
             refreshUi();
             main.postDelayed(this, heartbeatDelay());
+        }
+    };
+
+    private final Runnable inferenceProgressTicker = new Runnable() {
+        @Override
+        public void run() {
+            if (!inferenceActive || turnStartedAtUptimeMs <= 0L || firstOutputAtUptimeMs > 0L) {
+                return;
+            }
+            long elapsedSeconds = Math.max(
+                    0L, (SystemClock.uptimeMillis() - turnStartedAtUptimeMs) / 1_000L
+            );
+            deck.setGenerationProgress(inferencePhase + " · " + formatTurnElapsed(elapsedSeconds));
+            main.postDelayed(this, 1_000L);
         }
     };
 
@@ -2093,7 +2108,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private void updateStreamingRate() {
         long now = SystemClock.uptimeMillis();
         if (firstOutputAtUptimeMs <= 0L
-                || now - firstOutputAtUptimeMs < 1_000L
+                || now - firstOutputAtUptimeMs < 250L
                 || now - lastRateUpdateUptimeMs < 750L) {
             return;
         }
@@ -2108,8 +2123,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 + speed.label(uiLanguage.locale, uiLanguage));
     }
 
+    private String formatTurnElapsed(long seconds) {
+        long minutes = Math.min(99L, seconds / 60L);
+        long remainder = seconds % 60L;
+        return String.format(Locale.ROOT, "%02d:%02d", minutes, remainder);
+    }
+
     private void setInferenceActive(boolean active, String phase) {
         inferenceActive = active;
+        inferencePhase = active ? (phase == null ? "" : phase) : "";
+        main.removeCallbacks(inferenceProgressTicker);
+        if (active && turnStartedAtUptimeMs > 0L && firstOutputAtUptimeMs == 0L) {
+            main.post(inferenceProgressTicker);
+        }
         applyScreenSpeedPolicy();
         NativeLlamaService.Snapshot nativeState = NativeLlamaService.snapshot(this);
         if (!nativeState.isStartingOrReady()) return;
