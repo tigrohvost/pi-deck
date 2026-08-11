@@ -88,8 +88,8 @@
     },
     {
       "name": "libpideck_nanbeige_server.so",
-      "bytes": 10181064,
-      "sha256": "322773286c63d9634afaf64bfc546d7eaab47b0f66b686e77be1b44cefd506d0"
+      "bytes": 10180704,
+      "sha256": "68d8b71f1b3ecb8e43a34477df9ac4fd4ec3ccbb537b06820d452c92f457884d"
     }
   ]
 }

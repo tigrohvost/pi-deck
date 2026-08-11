@@ -106,7 +106,12 @@ SOURCE_DATE_EPOCH="${source_date_epoch}" "${cmake_bin}" \
 
 mkdir -p "$(dirname "${destination}")"
 install -m 0755 "${build_dir}/bin/llama-server" "${destination}"
+# LLD derives the build ID before the final strip, so otherwise-identical
+# binaries built under different absolute runner paths retain different note
+# bytes. The note is not used by Android; removing it makes the pinned ELF
+# reproducible without changing any executable section.
 "${strip_tool}" --strip-unneeded "${destination}"
+"${strip_tool}" --remove-section=.note.gnu.build-id "${destination}"
 
 printf 'Built %s (%s) into %s\n' \
     "${NANBEIGE_BUILD}" "${NANBEIGE_COMMIT}" "${destination}"
