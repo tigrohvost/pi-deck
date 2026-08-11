@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "files": {
+    ".pideck-benchmark-fixture": "suite-v2\n",
+    "README.md": "PI//DECK agent benchmark fixture\n\nA tiny offline project used only by the authenticated device benchmark.\n",
+    "src/__init__.py": "",
+    "src/calculator.py": "def divide(left: float, right: float) -> float:\n    return left / right\n",
+    "src/counter.py": "class Counter:\n    def __init__(self) -> None:\n        self.value = 0\n\n    def bump(self) -> int:\n        self.value += 2  # Deliberate benchmark bug: expected increment is one.\n        return self.value\n",
+    "src/service.py": "class GreetingService:\n    def greet(self, name: str) -> str:\n        return f\"Hello, {name}!\"\n",
+    "src/slug.py": "def slugify(value: str) -> str:\n    return value.strip().replace(\" \", \"_\").lower()\n",
+    "tests/test_counter.py": "from src.counter import Counter\n\n\ndef test_bump_increments_once() -> None:\n    assert Counter().bump() == 1\n",
+    "tests/test_service.py": "from src.service import GreetingService\n\n\ndef test_greet() -> None:\n    assert GreetingService().greet(\"Ada\") == \"Hello, Ada!\"\n",
+    "tests/test_slug.py": "from src.slug import slugify\n\n\ndef test_slug_uses_hyphens() -> None:\n    assert slugify(\"  Agent Deck  \") == \"agent-deck\"\n",
+    "docs/literal.txt": "first\\nsecond\nthird\n",
+    "docs/todos.txt": "TODO alpha\nTODO beta\nTODO gamma\n",
+    "docs/offline-current-note.txt": "This fixture is deliberately not a source of current facts. Marker: STATIC_ONLY_740.\n"
+  }
+}

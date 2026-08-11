@@ -5,6 +5,7 @@ import org.json.JSONObject;
 /** Bounded current-context telemetry reported by Pi's get_session_stats RPC command. */
 public final class SessionContextUsage {
     private static final int PROMPT_CHOICE_PERCENT = 60;
+    private static final int SMART_COMPACTION_PERCENT = 55;
     public final long tokens;
     public final int contextWindow;
     public final int percent;
@@ -56,6 +57,13 @@ public final class SessionContextUsage {
     public boolean shouldCompactSoon() {
         if (!known()) return false;
         long threshold = (contextWindow * (long) PROMPT_CHOICE_PERCENT + 99L) / 100L;
+        return tokens >= threshold;
+    }
+
+    /** Starts an idle checkpoint before the next user prompt reaches the blocking choice. */
+    public boolean shouldSmartCompact() {
+        if (!known()) return false;
+        long threshold = (contextWindow * (long) SMART_COMPACTION_PERCENT + 99L) / 100L;
         return tokens >= threshold;
     }
 

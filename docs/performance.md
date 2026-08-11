@@ -258,3 +258,185 @@ morning failed before sampling — one launched seconds after `adb install -r`
 killed the core (the harness deliberately does not ignite it), one lost the
 USB link mid-run — and produced no report; they are not part of this
 evidence.
+
+## llama.cpp OpenCL on Adreno 740, measured 2026-08-11
+
+An isolated llama.cpp b10333 build with the embedded Adreno OpenCL kernels
+successfully discovered the SM-S918B GPU as `OpenCL 3.0 Adreno(TM) 740` and ran
+Qwen3.5 4B without a driver crash. This is experimental hardware for this
+backend: Adreno 740 is not in llama.cpp's upstream list of verified devices.
+
+The sweep compared the same armv8.2/dotprod/fp16 candidate binary with zero,
+8, 16, then all model layers offloaded. Ratios below use the matching zero-layer
+row; the promotion gate remains prompt processing at least 2x, decode at least
+0.95x and no crashes.
+
+| Workload | GPU layers | Prompt tok/s | vs CPU | Decode tok/s | vs CPU |
+|---|---:|---:|---:|---:|---:|
+| 128 prompt / 8 decode | 0 | 18.47 | 1.00x | 3.42 | 1.00x |
+| 128 prompt / 8 decode | 8 | 22.54 | 1.22x | 2.88 | 0.84x |
+| 128 prompt / 8 decode | 16 | 24.36 | 1.32x | 2.97 | 0.87x |
+| 128 prompt / 8 decode | all | **28.19** | **1.53x** | 3.00 | 0.88x |
+| 512 prompt / 8 decode | 0 | 27.28 | 1.00x | **7.30** | 1.00x |
+| 512 prompt / 8 decode | all | 34.46 | 1.26x | 3.70 | 0.51x |
+
+OpenCL is functional on this phone, but no measured layer setting passes either
+half of the performance gate: the best prefill gain is only 1.53x, and every
+layer-offload setting slows interactive decoding. The retained command record
+does not prove that the zero-layer row used `--device none`; b10333 can still
+offload individual operations at `-ngl 0`. The sweep therefore rules out the
+tested 8/16/all-layer variants, not op-only offload in isolation. PI//DECK
+remains CPU-only because no accelerator promotion has been proven and packages
+no experimental OpenCL binary. Raw build metadata, measurements, and this
+limitation are in `benchmarks/out/adreno740-opencl-2026-08-11.json`.
+
+### Can CPU and Adreno compute one turn in parallel?
+
+Not usefully with the current OpenCL backend. llama.cpp calls partial layer
+offload "CPU+GPU hybrid inference", but transformer and Qwen3.5 recurrent layers
+still form a dependency chain: the next split consumes the previous split's
+output. `--split-mode row` and `tensor` are explicitly multi-GPU modes, not a
+CPU/GPU tensor-parallel mode. The scheduler only enables pipeline parallelism
+for more than one accelerator device, ignores CPU for that test, and requires
+async compute plus events on every accelerator
+([b10333 scheduler source](https://github.com/ggml-org/llama.cpp/blob/08659901c43b51de735740f1cf61bb82fbe0c4e4/src/llama-context.cpp#L422-L447)).
+
+The b10333 OpenCL backend advertises neither async compute nor events, exposes no
+async tensor-copy callback, and falls back to synchronized copies at split
+boundaries
+([OpenCL capabilities](https://github.com/ggml-org/llama.cpp/blob/08659901c43b51de735740f1cf61bb82fbe0c4e4/ggml/src/ggml-opencl/ggml-opencl.cpp#L10770-L10780),
+[scheduler copy path](https://github.com/ggml-org/llama.cpp/blob/08659901c43b51de735740f1cf61bb82fbe0c4e4/ggml/src/ggml-backend.cpp#L1715-L1725)).
+Shared phone RAM avoids PCIe, but does not remove command submission, device
+buffer conversion, or those synchronization points. This matches the measured
+shape above: more offload helps wide prefill, while every token of sequential
+decode gets slower.
+
+`--override-tensor` is useful mainly for sparse MoE models, where conditional
+experts can remain on CPU and shared tensors fit on GPU. Qwen3.5 4B's published
+layout instead has 32 layers grouped as three Gated DeltaNet blocks followed by
+one attention block, with an ordinary FFN
+([official model card](https://huggingface.co/Qwen/Qwen3.5-4B#model-overview)).
+Splitting its recurrent weights more finely would add backend boundaries rather
+than create independent work. A hypothetical
+"Vulkan/OpenCL for prefill, CPU for decode" mode also cannot be implemented in
+the app layer: llama.cpp fixes tensor, KV, and recurrent-state placement when a
+model context is created. Two live contexts would duplicate roughly 3 GiB of
+weights and still need exact KV/recurrent-state transfer. Therefore PI//DECK's
+runtime and model catalog are **not** rewritten for phase switching or tensor
+overrides.
+
+### Vulkan on Adreno 740: measured and rejected
+
+Vulkan was the one remaining backend worth an isolated measurement. In b10333
+it does implement async copies and events
+([Vulkan capabilities](https://github.com/ggml-org/llama.cpp/blob/08659901c43b51de735740f1cf61bb82fbe0c4e4/ggml/src/ggml-vulkan/ggml-vulkan.cpp#L17881-L17894))
+and has native `SSM_CONV` and `GATED_DELTA_NET` paths used by Qwen3.5. This still
+does not make one token CPU/GPU-parallel, but it can reduce the OpenCL boundary
+cost and execute the recurrent graph more coherently on a compatible GPU.
+
+`tools/build_llama_vulkan_android.sh` now reproducibly builds pinned llama.cpp
+b10333, Vulkan-Headers 1.3.275 and SPIR-V Headers 1.3.275 with NDK r28c. The
+upstream candidate was staged by SHA-256 on an SM-S918B running Android 16.
+The physically GPU-free controls completed at 19.85/4.00 tok/s for p128/n32
+and 17.38/4.00 tok/s for p512/n32. Every GPU-enabled variant — op-only,
+8 layers, 16 layers, all layers, and all layers with recurrent/KV state on CPU
+— aborted with exit 134 while the Qualcomm driver created
+`matmul_q6_k_f32_f16acc_aligned_m`. The raw sweep is in
+`benchmarks/out/adreno740-vulkan-2026-08-11.json`.
+
+This was not only an unlucky aligned specialization. Diagnostic, opt-in source
+fallbacks moved Q6_K operations to CPU; the driver then rejected Q4_K, followed
+by Q8_0. Aligned, unaligned, FP16-accumulation, and FP32-only forms all failed
+with `vk::Device::createComputePipeline: ErrorUnknown`. Moving every matrix
+weight to CPU exposed the same failure in FlashAttention. After FlashAttention
+was disabled, a 32-token prompt completed at 15.88 tok/s, but decode exited 139;
+keeping KV and recurrent state on CPU still exited 139 after a 14.91 tok/s
+prompt. Qwen3.5 4B contains 124 Q4_K, 16 Q5_K, and 49 Q6_K tensors out of 441,
+so removing those kernels also removes the dominant GPU work and creates many
+CPU/GPU boundaries.
+
+The diagnostic backend patch was therefore discarded rather than shipped as a
+fragile workaround. No Vulkan server correctness or suite-v2 run was warranted:
+the candidate did not complete a single decode token. Detailed negative
+evidence is in
+`benchmarks/out/adreno740-vulkan-diagnostics-2026-08-11.json`; build hashes and
+the rejected device status are in
+`benchmarks/out/adreno740-vulkan-build-2026-08-11.json`.
+
+The retained probe remains a reproducible re-test command for a materially new
+llama.cpp Vulkan backend or phone driver:
+
+```bash
+python3 tools/adb_accelerator_probe.py \
+  --candidate build/runtime-candidates/vulkan-b10333-adreno740 \
+  --device-model /data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf \
+  --output benchmarks/out/adreno740-vulkan-DEVICE-DATE.json
+```
+
+It compares a physically GPU-free control (`-dev none`, op offload off),
+op-only offload, 8/16/all layers, and full offload with recurrent/KV state kept
+on CPU. It verifies every staged binary by SHA-256, uses 3 repetitions at both
+128 and 512 prompt tokens, waits for CPU clock recovery before every workload,
+records thermal state and crashes, and fails closed if any workload is missing.
+Promotion still requires at least 2.0x prefill and 0.95x decode on **both**
+prompt sizes. The current device result is an explicit rejection, not a pending
+candidate. PI//DECK remains CPU-only, and neither the runtime, model catalog,
+nor APK packages the experimental Vulkan binaries.
+
+## Suite-v2 2B/4B boundary, measured 2026-08-11
+
+The executable suite-v2 was used as a targeted tier-boundary probe on the same
+SM-S918B. These rows are **not** full model-admission results: Q05 is one scoped
+repair, and only the runtime 46 CPU-only build is comparable between models.
+
+| Model / task | Outcome | Tool calls | Total turn | Native prefill | Native decode |
+|---|---|---:|---:|---:|---:|
+| Qwen3.5 2B / Q05 | fail safely | 6 | 289.07 s | 8,329 tok / 221.73 s = 37.56 tok/s | 714 tok / 65.12 s = 10.97 tok/s |
+| Qwen3.5 4B / Q05 | **pass** | **3** | 368.41 s | 3,437 tok / 285.47 s = 12.04 tok/s | 509 tok / 80.54 s = 6.32 tok/s |
+
+The 2B run stayed inside the six-call and file-scope guards and produced the
+desired line, but chose the wrong nearby anchor and never obtained a passing
+test. The 4B run selected the exact `6:e9` anchor, changed only
+`src/counter.py`, and completed `read -> pideck_replace_lines -> run_tests` with
+the offline zero-fixture test passing. Raw reports are
+`benchmarks/out/suite-v2-qwen3.5-2b-runtime46-q05-2026-08-11.json` and
+`benchmarks/out/suite-v2-qwen3.5-4b-runtime46-q05-2026-08-11.json`.
+
+Q06 exposed two runtime faults rather than another fair model score. Runtime 46
+left a model-supplied `tests/test_service.py` in both `path` and `expr`, so the
+fallback interpreted the path as a `-k` filter and selected zero tests. The next
+provider request reused a low-similarity prompt prefix (`LCP=0.171`) after the
+tool schema changed. Native logging reached 100% prefill at 1,678 tokens after
+456.92 s (3.67 tok/s), then emitted no decode progress until the turn was
+manually aborted. The report records 1,421.24 s total and 1,169.26 s from the
+last completed tool to the terminal abort:
+`benchmarks/out/suite-v2-qwen3.5-4b-runtime46-q06q07-2026-08-11.json`.
+
+Runtime contract 47 fixes both contracts: a test path is removed from `expr`
+while a real `-k` or node ID is retained, and `cache_prompt` is enabled only
+when every previous message remains an exact prefix and all non-message request
+fields, including the dynamic tool schema, are unchanged. Host extension,
+protocol, and runtime suites cover those rules. A post-deploy 2B Q06 attempt is
+explicitly excluded from quality and speed evidence: the preceding 4B stall
+left about 4.3 GiB in device swap, and the first streamed tool request arrived
+only at 359.91 s; it was aborted before that tool completed or the cache
+transition under test occurred. Its diagnostic report is
+`benchmarks/out/suite-v2-qwen3.5-2b-runtime47-q06-2026-08-11.json`.
+
+### What is worth optimizing in 4B?
+
+Yes, but as a bounded **DEEP escalation tier**, not the default agent and not by
+GPU offload. Q05 demonstrates a real capability gain over 2B, while its 359.86 s
+TTFT and sustained thermal drop from 0.771 to 0.440 big-core headroom make it
+unacceptable for routine turns. The next promotion experiment is:
+
+1. keep Qwen3.5 2B as the default and escalate only scoped repairs that need
+   stronger anchor choice, multi-file reasoning, or a safe retry after 2B fails;
+2. A/B the 4B reasoning budget at 256, 512, and 1,024 tokens on Q05-Q07, then run
+   the full suite-v2 before changing the shipped 1,024-token setting;
+3. repeat the 4/5/6 decode-thread and batch-thread profile sweep from a cool,
+   swap-clean device, with latency, correctness, thermal, and stall gates;
+4. retain Q4_K_M unless a Q5 candidate wins the full suite: extra quantization
+   quality is not useful if its memory pressure makes the interactive path swap;
+5. keep CPU-only inference until a materially newer backend and Qualcomm driver
+   pass both the prompt and decode gates above.

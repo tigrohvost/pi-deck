@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-08-11T11:58:11.258371Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q03",
+    "Q04"
+  ],
+  "outcomes": [
+    {
+      "id": "Q03",
+      "category": "code_navigation",
+      "outcome": "fail",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=src/calculator\\.py.*(?:line|строк)[^0-9]*1|src/calculator\\.py:1; answer='Открыл файл `/data/data/com.termux/files/home/.pideck/workspace/.pideck-bench/0c278222-63fc-4338-9a36-b29a53285d22/fixture/src/calculator.py`.\\n\\nФункция `divide` находится в относительном пути:\\n**fixture/src/calculator.py**, строка **1**.'"
+        },
+        "required_tool:code_nav": {
+          "passed": false,
+          "evidence": "tools=['bash', 'bash', 'bash', 'bash', 'read', 'bash']"
+        },
+        "bounded_tool_calls": {
+          "passed": false,
+          "evidence": "6 <= 2; tools=['bash', 'bash', 'bash', 'bash', 'read', 'bash']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Открыл файл `/data/data/com.termux/files/home/.pideck/workspace/.pideck-bench/0c278222-63fc-4338-9a36-b29a53285d22/fixture/src/calculator.py`.\n\nФункция `divide` находится в относительном пути:\n**fixture/src/calculator.py**, строка **1**.",
+      "toolNames": [
+        "bash",
+        "bash",
+        "bash",
+        "bash",
+        "read",
+        "bash"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 127.81261,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 59.649041,
+        "totalTurnSeconds": 137.260835,
+        "provider": {
+          "outputTokens": 596,
+          "decodeSeconds": 43.583,
+          "decodeTokensPerSecond": 13.68,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 89.10611,
+            "tokens": 3043,
+            "tokensPerSecond": 34.15
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 7,
+            "prefill": {
+              "seconds": 89.10611,
+              "tokens": 3043,
+              "tokensPerSecond": 34.15
+            },
+            "decode": {
+              "seconds": 46.40279,
+              "tokens": 596,
+              "tokensPerSecond": 12.844
+            }
+          }
+        },
+        "tools": {
+          "requested": 6,
+          "completed": 6,
+          "failed": 1,
+          "names": [
+            "bash",
+            "read"
+          ],
+          "executionSeconds": 0.526957,
+          "postToolToTerminalSeconds": 11.567391
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 20,
+        "start": {
+          "monotonicSeconds": 68496.347856,
+          "batteryLevelPercent": 100,
+          "batteryTemperatureC": 38.4,
+          "batteryVoltageV": 4.296,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3187200,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.949,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 1
+        },
+        "end": {
+          "monotonicSeconds": 68640.954117,
+          "batteryLevelPercent": 100,
+          "batteryTemperatureC": 40.4,
+          "batteryVoltageV": 4.233,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2227200,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.663,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 3
+        },
+        "minimumBigCoreHeadroom": 0.663,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 2,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q04",
+      "category": "missing_path_restraint",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=не (?:существует|найден)|отсутствует|not found|does not exist|No such file; answer='Файл `docs/definitely-missing.txt` не существует. Я сообщу об этом и остановлюсь, так как задача требует именно одного чтения файла из указанного каталога.'"
+        },
+        "required_tool:read": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "forbidden_tool:find": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "forbidden_tool:pideck_bash": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "forbidden_tool:code_nav": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 1; tools=['read']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Файл `docs/definitely-missing.txt` не существует. Я сообщу об этом и остановлюсь, так как задача требует именно одного чтения файла из указанного каталога.",
+      "toolNames": [
+        "read"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 11.100063,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 20.857987,
+        "totalTurnSeconds": 26.466242,
+        "provider": {
+          "outputTokens": 178,
+          "decodeSeconds": 12.795,
+          "decodeTokensPerSecond": 13.91,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 13.45615,
+            "tokens": 617,
+            "tokensPerSecond": 45.853
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 13.45615,
+              "tokens": 617,
+              "tokensPerSecond": 45.853
+            },
+            "decode": {
+              "seconds": 12.77943,
+              "tokens": 178,
+              "tokensPerSecond": 13.929
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 1,
+          "names": [
+            "read"
+          ],
+          "executionSeconds": 0.006772,
+          "postToolToTerminalSeconds": 5.597118
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 5,
+        "start": {
+          "monotonicSeconds": 68690.281613,
+          "batteryLevelPercent": 100,
+          "batteryTemperatureC": 40.6,
+          "batteryVoltageV": 4.296,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 3
+        },
+        "end": {
+          "monotonicSeconds": 68724.089761,
+          "batteryLevelPercent": 100,
+          "batteryTemperatureC": 40.5,
+          "batteryVoltageV": 4.265,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3187200,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.949,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 3
+        },
+        "minimumBigCoreHeadroom": 0.949,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "qwen3.5-2b",
+  "accessProfile": "autonomous",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 1,
+    "failed": 1,
+    "successRate": 0.5,
+    "medianTtftSeconds": 69.456337,
+    "medianTurnSeconds": 81.863538
+  }
+}

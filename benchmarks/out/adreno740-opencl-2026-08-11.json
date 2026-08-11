@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-11T06:44:31Z",
+  "device": {
+    "model": "Samsung SM-S918B",
+    "soc": "SM8550",
+    "android": 16,
+    "gpu": "QUALCOMM Adreno(TM) 740",
+    "opencl": "OpenCL 3.0",
+    "ramGiB": 12
+  },
+  "build": {
+    "llamaCppCommit": "08659901c43b51de735740f1cf61bb82fbe0c4e4",
+    "llamaCppBuild": 10333,
+    "openclHeadersCommit": "c9c8ccfab584f9f7610057c4633dbd3df7e012cc",
+    "openclLoaderCommit": "18fdcd58286376124f938948aa8ed156079c1c16",
+    "androidAbi": "arm64-v8a",
+    "androidApi": 28,
+    "cpuArch": "armv8.2-a+dotprod+fp16",
+    "openclTarget": 300,
+    "adrenoKernels": true,
+    "embeddedKernels": true,
+    "sharedLibraries": false
+  },
+  "model": {
+    "path": "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+    "type": "qwen35 4B Q4_K - Medium",
+    "bytes": 3002058752,
+    "parameters": 4326350848
+  },
+  "method": {
+    "threads": 8,
+    "repetitions": 1,
+    "cpuMask": "0xff",
+    "gate": {
+      "minimumPromptRatio": 2.0,
+      "minimumDecodeRatio": 0.95,
+      "requireNoCrash": true
+    },
+    "notes": [
+      "CPU and GPU rows use the same statically linked candidate binary.",
+      "The retained record proves n_gpu_layers=0 for the control, but not --device none; llama.cpp b10333 may still offload individual ops, so this is a zero-layer control rather than a physically GPU-free baseline.",
+      "This sweep rejects the measured 8/16/all layer-offload variants. A separate probe must compare explicit op-only offload with --device none before any backend promotion.",
+      "The 128-token sweep uses batch and micro-batch 128; the 512-token pair uses 512.",
+      "The first non-ARM-optimized CPU build and a memory-pressured dynamic tg64 run are excluded.",
+      "Kernel discovery, 8-layer, 16-layer, and full-offload runs all exited cleanly."
+    ]
+  },
+  "samples": [
+    {
+      "promptTokens": 128,
+      "generatedTokens": 8,
+      "gpuLayers": 0,
+      "promptTokensPerSecond": 18.473746,
+      "decodeTokensPerSecond": 3.415353,
+      "promptRatio": 1.0,
+      "decodeRatio": 1.0
+    },
+    {
+      "promptTokens": 128,
+      "generatedTokens": 8,
+      "gpuLayers": 8,
+      "promptTokensPerSecond": 22.544823,
+      "decodeTokensPerSecond": 2.876445,
+      "promptRatio": 1.220371,
+      "decodeRatio": 0.842210
+    },
+    {
+      "promptTokens": 128,
+      "generatedTokens": 8,
+      "gpuLayers": 16,
+      "promptTokensPerSecond": 24.357521,
+      "decodeTokensPerSecond": 2.969089,
+      "promptRatio": 1.318494,
+      "decodeRatio": 0.869336
+    },
+    {
+      "promptTokens": 128,
+      "generatedTokens": 8,
+      "gpuLayers": 99,
+      "promptTokensPerSecond": 28.185007,
+      "decodeTokensPerSecond": 2.995792,
+      "promptRatio": 1.525679,
+      "decodeRatio": 0.877154
+    },
+    {
+      "promptTokens": 512,
+      "generatedTokens": 8,
+      "gpuLayers": 0,
+      "promptTokensPerSecond": 27.279660,
+      "decodeTokensPerSecond": 7.304133,
+      "promptRatio": 1.0,
+      "decodeRatio": 1.0
+    },
+    {
+      "promptTokens": 512,
+      "generatedTokens": 8,
+      "gpuLayers": 99,
+      "promptTokensPerSecond": 34.457735,
+      "decodeTokensPerSecond": 3.699485,
+      "promptRatio": 1.263129,
+      "decodeRatio": 0.506492
+    }
+  ],
+  "verdict": {
+    "openclAvailable": true,
+    "driverCrashes": 0,
+    "bestPromptRatio": 1.525679,
+    "bestDecodeRatioAtBestPrompt": 0.877154,
+    "gatePassed": false,
+    "action": "Keep production profiles CPU-only; do not package or enable the OpenCL backend."
+  }
+}

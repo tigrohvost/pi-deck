@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "fixtureAsset": "runtime/pideck-benchmark-fixture-v2.json",
+  "tasks": [
+    {
+      "id": "Q01",
+      "category": "direct_format",
+      "prompt": "Ответь ровно строкой PIDECK_V2_OK и больше ничего не добавляй. Не используй инструменты.",
+      "expected": {"exactAnswer": "PIDECK_V2_OK", "maxToolCalls": 0, "noFileChanges": true}
+    },
+    {
+      "id": "Q02",
+      "category": "prompt_context",
+      "prompt": "Маркер уже дан в этом сообщении: CONTEXT_740. Верни только сам маркер, не исследуй workspace и не используй инструменты.",
+      "expected": {"exactAnswer": "CONTEXT_740", "maxToolCalls": 0, "noFileChanges": true}
+    },
+    {
+      "id": "Q03",
+      "category": "code_navigation",
+      "prompt": "В каталоге {fixture} найди определение функции divide. Сначала используй code_nav, затем укажи относительный файл и номер строки. Ничего не меняй.",
+      "expected": {"requiredTools": ["code_nav"], "answerRegex": "src/calculator\\.py.*(?:line|строк)[^0-9]*1|src/calculator\\.py:1", "maxToolCalls": 2, "noFileChanges": true}
+    },
+    {
+      "id": "Q04",
+      "category": "missing_path_restraint",
+      "prompt": "В каталоге {fixture} вызови read ровно один раз для файла docs/definitely-missing.txt. Если файл отсутствует, сразу сообщи об этом и остановись: не вызывай find, bash, code_nav или другие инструменты.",
+      "expected": {"requiredTools": ["read"], "forbiddenTools": ["find", "pideck_bash", "code_nav"], "answerRegex": "не (?:существует|найден)|отсутствует|not found|does not exist|No such file", "maxToolCalls": 1, "noFileChanges": true}
+    },
+    {
+      "id": "Q05",
+      "category": "single_file_repair",
+      "prompt": "В каталоге {fixture} исправь только off-by-one в src/counter.py и запусти точный тест tests/test_counter.py. Не меняй другие файлы.",
+      "expected": {"requiredTools": ["run_tests"], "allowedChangedPaths": ["src/counter.py"], "fileContains": {"src/counter.py": "self.value += 1"}, "pytestTarget": "tests/test_counter.py", "maxToolCalls": 6}
+    },
+    {
+      "id": "Q06",
+      "category": "multifile_refactor",
+      "prompt": "В каталоге {fixture} переименуй публичный метод GreetingService.greet в welcome, обнови его тест и запусти tests/test_service.py. Другие файлы не меняй.",
+      "expected": {"requiredTools": ["run_tests"], "allowedChangedPaths": ["src/service.py", "tests/test_service.py"], "fileContains": {"src/service.py": "def welcome(", "tests/test_service.py": ".welcome("}, "pytestTarget": "tests/test_service.py", "maxToolCalls": 8}
+    },
+    {
+      "id": "Q07",
+      "category": "test_repair",
+      "prompt": "В каталоге {fixture} запусти только tests/test_slug.py, найди причину единственного падения, исправь src/slug.py и повтори этот тест. Не трогай другие файлы.",
+      "expected": {"requiredTools": ["run_tests"], "allowedChangedPaths": ["src/slug.py"], "fileContains": {"src/slug.py": "replace(\" \", \"-\")"}, "pytestTarget": "tests/test_slug.py", "maxToolCalls": 8}
+    },
+    {
+      "id": "Q08",
+      "category": "bounded_search",
+      "prompt": "В каталоге {fixture} найди все TODO одним вызовом code_nav. Ответ должен занимать не больше 10 строк. Ничего не меняй.",
+      "expected": {"requiredTools": ["code_nav"], "answerRegex": "TODO alpha", "maxAnswerLines": 10, "maxToolCalls": 1, "noFileChanges": true}
+    },
+    {
+      "id": "Q09",
+      "category": "live_data_negation",
+      "prompt": "Не ищи актуальные данные и не используй интернет. Из текста этого сообщения верни только маркер STATIC_ONLY_740.",
+      "expected": {"exactAnswer": "STATIC_ONLY_740", "forbiddenTools": ["web_research", "weather"], "maxToolCalls": 0, "noFileChanges": true}
+    },
+    {
+      "id": "Q10",
+      "category": "web_research",
+      "prompt": "Найди в сети текущую официальную стабильную версию Python и назови версию вместе с URL источника. Используй web_research ровно один раз.",
+      "expected": {"requiredTools": ["web_research"], "answerRegex": "https?://", "maxToolCalls": 1, "noFileChanges": true}
+    },
+    {
+      "id": "Q11",
+      "category": "tool_selection",
+      "prompt": "Какая сейчас погода в Москве? Используй weather, а не общий веб-поиск, и ответь кратко.",
+      "expected": {"requiredTools": ["weather"], "forbiddenTools": ["web_research"], "maxToolCalls": 1, "noFileChanges": true}
+    },
+    {
+      "id": "Q12",
+      "category": "literal_read",
+      "prompt": "В каталоге {fixture} прочитай docs/literal.txt и дословно различи последовательность обратный-слеш+n и настоящий перевод строки. Ничего не меняй.",
+      "expected": {"requiredTools": ["read"], "answerRegex": "\\\\n", "maxToolCalls": 2, "noFileChanges": true}
+    }
+  ]
+}

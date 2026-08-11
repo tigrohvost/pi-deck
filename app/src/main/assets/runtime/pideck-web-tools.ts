@@ -15,6 +15,9 @@ const MAX_QUERY_CHARS = 500;
 const MAX_RESULTS = 5;
 const MAX_SNIPPET_CHARS = 520;
 const MAX_PAGE_CHARS = 8_000;
+const MAX_RESEARCH_PAGE_CHARS = 2_800;
+const RESEARCH_CACHE_TTL_MS = 10 * 60 * 1_000;
+const MAX_RESEARCH_CACHE_ENTRIES = 32;
 /**
  * Low on purpose. The fallback tells a third party which URL is being read, so it must fire
  * only when the direct read genuinely produced nothing usable — a JavaScript-only shell — and
@@ -28,6 +31,20 @@ type SearchResult = {
 	url: string;
 	snippet: string;
 };
+
+type PageResult = {
+	provider: string;
+	title: string;
+	text: string;
+	truncated: boolean;
+};
+
+type ResearchResult = {
+	text: string;
+	details: Record<string, unknown>;
+};
+
+const researchCache = new Map<string, { expiresAt: number; result: ResearchResult }>();
 
 function requestSignal(signal?: AbortSignal): AbortSignal {
 	const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
@@ -398,6 +415,156 @@ async function readPage(target: string, signal?: AbortSignal): Promise<{
 	};
 }
 
+function queryTerms(query: string): string[] {
+	return [...new Set(
+		query
+			.toLocaleLowerCase()
+			.split(/[^\p{L}\p{N}_-]+/u)
+			.map((value) => value.trim())
+			.filter((value) => value.length >= 3),
+	)].slice(0, 12);
+}
+
+/** Selects relevant paragraphs instead of blindly returning the first page bytes. */
+export function relevantPageText(text: string, query: string): string {
+	const terms = queryTerms(query);
+	if (terms.length === 0) {
+		return text.length <= MAX_PAGE_CHARS
+			? text
+			: `${text.slice(0, MAX_PAGE_CHARS).trimEnd()}…`;
+	}
+	const chunks = text
+		.split(/\n\s*\n|(?<=\.)\s+(?=[\p{Lu}\d])/u)
+		.map((value, index) => ({ value: value.trim(), index }))
+		.filter(({ value }) => value.length >= 40)
+		.map((chunk) => ({
+			...chunk,
+			score: terms.reduce((total, term) => {
+				const folded = chunk.value.toLocaleLowerCase();
+				return total + (folded.includes(term) ? 1 : 0);
+			}, 0),
+		}));
+	const ranked = chunks
+		.filter(({ score }) => score > 0)
+		.sort((left, right) => right.score - left.score || left.index - right.index)
+		.slice(0, 8)
+		.sort((left, right) => left.index - right.index);
+	const selected = ranked.length > 0 ? ranked : chunks.slice(0, 4);
+	let output = "";
+	for (const { value } of selected) {
+		if (output.length + value.length + 2 > MAX_RESEARCH_PAGE_CHARS) break;
+		output += `${output ? "\n\n" : ""}${value}`;
+	}
+	if (!output) output = text.slice(0, MAX_RESEARCH_PAGE_CHARS).trimEnd();
+	return output.length < text.length ? `${output}…` : output;
+}
+
+function cacheGet(key: string): ResearchResult | undefined {
+	const cached = researchCache.get(key);
+	if (!cached) return undefined;
+	if (cached.expiresAt <= Date.now()) {
+		researchCache.delete(key);
+		return undefined;
+	}
+	researchCache.delete(key);
+	researchCache.set(key, cached);
+	return {
+		text: cached.result.text,
+		details: { ...cached.result.details, cached: true },
+	};
+}
+
+function cachePut(key: string, result: ResearchResult): void {
+	researchCache.delete(key);
+	researchCache.set(key, { expiresAt: Date.now() + RESEARCH_CACHE_TTL_MS, result });
+	while (researchCache.size > MAX_RESEARCH_CACHE_ENTRIES) {
+		const oldest = researchCache.keys().next().value as string | undefined;
+		if (oldest === undefined) break;
+		researchCache.delete(oldest);
+	}
+}
+
+async function researchUrl(target: string, signal?: AbortSignal): Promise<ResearchResult> {
+	const key = `url:${target}`;
+	const cached = cacheGet(key);
+	if (cached) return cached;
+	const page = await readPage(target, signal);
+	const result = {
+		text: formatPage(target, page),
+		details: {
+			mode: "url",
+			provider: page.provider,
+			characters: page.text.length,
+			truncated: page.truncated,
+			cached: false,
+		},
+	};
+	cachePut(key, result);
+	return result;
+}
+
+async function researchQuery(
+	query: string,
+	maxSources: number,
+	signal?: AbortSignal,
+): Promise<ResearchResult> {
+	const key = `query:${maxSources}:${query.toLocaleLowerCase()}`;
+	const cached = cacheGet(key);
+	if (cached) return cached;
+	const search = await webSearch(query, signal);
+	const selected = search.results.slice(0, maxSources);
+	const pages = await Promise.all(selected.map(async (item) => {
+		try {
+			const page = await readPage(item.url, signal);
+			return { item, page };
+		} catch (error) {
+			if (signal?.aborted) throw error;
+			return {
+				item,
+				error: error instanceof Error ? error.message : String(error),
+			};
+		}
+	}));
+	const lines = [
+		`Запрос: ${query}`,
+		`Провайдер поиска: ${search.provider}. Прочитано источников: ${selected.length}.`,
+	];
+	for (let index = 0; index < pages.length; index++) {
+		const entry = pages[index];
+		lines.push("", `Источник ${index + 1}: ${entry.item.title}`, `URL: ${entry.item.url}`);
+		if ("page" in entry) {
+			lines.push(
+				`Способ чтения: ${entry.page.provider}.`,
+				"",
+				relevantPageText(entry.page.text, query),
+			);
+		} else {
+			lines.push(`Страница не прочитана: ${entry.error}`);
+			if (entry.item.snippet) lines.push(`Поисковый фрагмент: ${entry.item.snippet}`);
+		}
+	}
+	const remaining = search.results.slice(selected.length, MAX_RESULTS);
+	if (remaining.length > 0) {
+		lines.push("", "Дополнительные результаты:");
+		for (const item of remaining) {
+			lines.push(`- ${item.title} — ${item.url}${item.snippet ? ` — ${item.snippet}` : ""}`);
+		}
+	}
+	lines.push("", "Ответь по прочитанным данным и укажи использованные URL.");
+	const result = {
+		text: lines.join("\n"),
+		details: {
+			mode: "query",
+			provider: search.provider,
+			resultCount: search.results.length,
+			readCount: selected.length,
+			cached: false,
+		},
+	};
+	cachePut(key, result);
+	return result;
+}
+
 function formatPage(
 	target: string,
 	page: { provider: string; title: string; text: string; truncated: boolean },
@@ -502,71 +669,46 @@ async function lookupWeather(location: string, signal?: AbortSignal): Promise<st
 
 export default function pideckWebTools(pi: ExtensionAPI) {
 	pi.registerTool({
-		name: "web_search",
-		label: "Web search",
+		name: "web_research",
+		label: "Web research",
 		description:
-			"Search the live public web for current information and return compact results with source URLs.",
-		promptSnippet: "Search the live web and return compact sourced results",
+			"Research a live-web query or read one URL in a single bounded call, returning source URLs and relevant page excerpts.",
+		promptSnippet: "Search and read live web sources in one bounded call",
 		promptGuidelines: [
-			"Use web_search whenever the user explicitly asks to search the internet or needs current information; do not pretend to have searched.",
-			"After web_search, answer from its results and include the relevant source URLs.",
+			"Use web_research for explicit web requests, current information, or a supplied URL; do not pretend to have searched.",
+			"Pass either a focused search query or one exact URL, then answer from the returned excerpts and cite their URLs.",
 		],
 		parameters: Type.Object({
-			query: Type.String({
-				description: "A focused web search query",
-				minLength: 1,
-				maxLength: MAX_QUERY_CHARS,
-			}),
-		}),
-		async execute(_toolCallId, params, signal) {
-			const query = String(params.query ?? "").trim();
-			if (!query || query.length > MAX_QUERY_CHARS) {
-				throw new Error("Search query is empty or too long");
-			}
-			const result = await webSearch(query, signal);
-			return {
-				content: [{
-					type: "text",
-					text: formatSearchResults(result.provider, result.results),
-				}],
-				details: { provider: result.provider, resultCount: result.results.length },
-			};
-		},
-	});
-
-	pi.registerTool({
-		name: "web_fetch",
-		label: "Read web page",
-		description:
-			"Read one web page by URL and return its main text, bounded to a phone-sized excerpt.",
-		promptSnippet: "Read the text of one web page by URL",
-		promptGuidelines: [
-			"After web_search returns a URL, use web_fetch to read that page before answering questions its snippet does not already settle.",
-			"Pass one exact http or https URL; web_fetch does not accept a search query.",
-			"Cite the URL you read.",
-		],
-		parameters: Type.Object({
-			url: Type.String({
-				description: "An exact http or https page URL",
+			request: Type.String({
+				description: "A focused search query or one exact http/https URL",
 				minLength: 1,
 				maxLength: MAX_URL_CHARS,
 			}),
+			maxSources: Type.Optional(Type.Integer({
+				description: "Search results to read; use 1 for a narrow fact and 2 for verification",
+				minimum: 1,
+				maximum: 2,
+			})),
 		}),
 		async execute(_toolCallId, params, signal) {
-			const raw = String(params.url ?? "").trim();
-			if (!raw || raw.length > MAX_URL_CHARS) {
-				throw new Error("Page URL is empty or too long");
+			const request = String(params.request ?? "").trim();
+			if (!request || request.length > MAX_URL_CHARS) {
+				throw new Error("Web research request is empty or too long");
 			}
-			const target = safeHttpUrl(raw);
-			if (!target) throw new Error("Page URL must be an absolute http or https URL");
-			const page = await readPage(target, signal);
+			const target = safeHttpUrl(request);
+			if (!target && request.length > MAX_QUERY_CHARS) {
+				throw new Error("Search query is too long");
+			}
+			const requestedSources = Number(params.maxSources ?? 2);
+			const maxSources = Number.isInteger(requestedSources)
+				? Math.max(1, Math.min(2, requestedSources))
+				: 2;
+			const result = target
+				? await researchUrl(target, signal)
+				: await researchQuery(request, maxSources, signal);
 			return {
-				content: [{ type: "text", text: formatPage(target, page) }],
-				details: {
-					provider: page.provider,
-					characters: page.text.length,
-					truncated: page.truncated,
-				},
+				content: [{ type: "text", text: result.text }],
+				details: result.details,
 			};
 		},
 	});

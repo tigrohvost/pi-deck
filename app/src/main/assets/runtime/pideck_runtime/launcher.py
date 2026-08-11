@@ -14,6 +14,8 @@ from typing import Any
 
 from . import RUNTIME_CONTRACT_VERSION, RUNTIME_VERSION
 from .bridge import (
+    AGENT_BASE_PROMPT,
+    CODE_NAV_EXTENSION,
     LOCAL_CACHE_EXTENSION,
     CONTEXT_GUARD_EXTENSION,
     HASHLINE_EXTENSION,
@@ -22,6 +24,7 @@ from .bridge import (
     SYSTEM_PROMPT_EXTENSION,
     TOOL_ROUTER_EXTENSION,
     WEB_TOOLS_EXTENSION,
+    agent_base_prompt,
     bootstrap_bridge,
     parse_system_prompt_request,
     persist_system_prompt,
@@ -62,19 +65,25 @@ from .server_supervisor import (
 )
 
 
+def pi_thinking_level(model: dict[str, Any]) -> str:
+    """Mirrors the managed server reasoning mode for one-shot Pi runs."""
+    runtime = model.get("runtime") if isinstance(model, dict) else None
+    return "low" if isinstance(runtime, dict) and runtime.get("reasoningMode") == "on" else "off"
+
+
 def _profile_arguments(profile: str, agent_mode: str = "agent") -> list[str]:
     if agent_mode == "chat":
         return ["--no-tools"]
     if profile == "read_only":
         return [
             "--tools",
-            "read,grep,find,ls,web_search,web_fetch,weather,pideck_load_tools",
+            "read,code_nav,web_research,weather,pideck_load_tools",
         ]
     if profile == "confirm_changes":
         return [
             "--no-builtin-tools",
             "--tools",
-            "read,grep,find,ls,web_search,web_fetch,weather,"
+            "read,code_nav,web_research,weather,"
             "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
             "pideck_load_tools",
             "--extension",
@@ -83,7 +92,7 @@ def _profile_arguments(profile: str, agent_mode: str = "agent") -> list[str]:
     if profile == "autonomous":
         return [
             "--tools",
-            "read,bash,edit,write,grep,find,ls,web_search,web_fetch,weather,"
+            "read,bash,edit,write,code_nav,web_research,weather,"
             "pideck_replace_lines,run_tests,pideck_load_tools",
         ]
     raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
@@ -118,6 +127,11 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
             "SYSTEM_PROMPT_EXTENSION_MISSING",
             "Managed system-prompt extension is not installed",
         )
+    if not AGENT_BASE_PROMPT.is_file():
+        raise PiDeckError(
+            "AGENT_BASE_PROMPT_MISSING",
+            "Compact managed agent base prompt is not installed",
+        )
     if not CONTEXT_GUARD_EXTENSION.is_file():
         raise PiDeckError(
             "CONTEXT_GUARD_EXTENSION_MISSING",
@@ -143,6 +157,11 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
             "WEB_TOOLS_EXTENSION_MISSING",
             "Managed web-tools extension is not installed",
         )
+    if not CODE_NAV_EXTENSION.is_file():
+        raise PiDeckError(
+            "CODE_NAV_EXTENSION_MISSING",
+            "Managed code-navigation extension is not installed",
+        )
     if not TOOL_ROUTER_EXTENSION.is_file():
         raise PiDeckError(
             "TOOL_ROUTER_EXTENSION_MISSING",
@@ -159,7 +178,9 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         "--model",
         model_id,
         "--thinking",
-        "off",
+        pi_thinking_level(model),
+        "--system-prompt",
+        agent_base_prompt(),
         "--session-dir",
         str(BASE / "sessions"),
         "--approve",
@@ -179,6 +200,8 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         str(CONTEXT_GUARD_EXTENSION),
         "--extension",
         str(WEB_TOOLS_EXTENSION),
+        "--extension",
+        str(CODE_NAV_EXTENSION),
         "--extension",
         str(TOOL_ROUTER_EXTENSION),
     ]

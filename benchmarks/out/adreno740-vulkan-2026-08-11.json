@@ -1,0 +1,990 @@
+{
+  "schemaVersion": 1,
+  "status": "measured",
+  "candidate": {
+    "directory": "/home/che/dev/pi-deck-android/build/runtime-candidates/vulkan-b10333-adreno740",
+    "artifacts": [
+      {
+        "name": "llama-bench",
+        "bytes": 28432320,
+        "sha256": "fcfbe7313a9a8801fc224850e39098777b81379f6030e15e00c529458d569189"
+      },
+      {
+        "name": "libomp.so",
+        "bytes": 965024,
+        "sha256": "f30aa5c388ff0cc9d6c06962981d024dc52797fadb26e6ef4cd84f5e4bdc4643"
+      },
+      {
+        "name": "libc++_shared.so",
+        "bytes": 1253544,
+        "sha256": "cd61762848882a16c8244c964a6f396c0caa0b440588a210ce9cc4ab0e6d9f0c"
+      },
+      {
+        "name": "llama-server",
+        "bytes": 37197488,
+        "sha256": "5f6a339f7e9a74439bd226b4b13555e6de2936b66a48c9814018f291e0cb45aa"
+      }
+    ]
+  },
+  "model": "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+  "method": {
+    "variants": [
+      "cpu",
+      "op-offload",
+      "hybrid-8",
+      "hybrid-16",
+      "accelerator-all",
+      "accelerator-all-cpu-state"
+    ],
+    "promptTokens": [
+      128,
+      512
+    ],
+    "generatedTokens": 32,
+    "repetitions": 3,
+    "threads": 8,
+    "cpuMask": "0xff",
+    "expectedBackend": "Vulkan",
+    "cooldown": true
+  },
+  "plan": [
+    {
+      "variant": "cpu",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1"
+      ]
+    },
+    {
+      "variant": "cpu",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1"
+      ]
+    },
+    {
+      "variant": "op-offload",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "0",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "op-offload",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "0",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "hybrid-8",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "8",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "hybrid-8",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "8",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "hybrid-16",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "16",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "hybrid-16",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "16",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "accelerator-all",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "99",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "accelerator-all",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "99",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "accelerator-all-cpu-state",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "99",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "1"
+      ]
+    },
+    {
+      "variant": "accelerator-all-cpu-state",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-ngl",
+        "99",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "1"
+      ]
+    }
+  ],
+  "stagedCandidateSha256": {
+    "llama-bench": "fcfbe7313a9a8801fc224850e39098777b81379f6030e15e00c529458d569189",
+    "libomp.so": "f30aa5c388ff0cc9d6c06962981d024dc52797fadb26e6ef4cd84f5e4bdc4643",
+    "libc++_shared.so": "cd61762848882a16c8244c964a6f396c0caa0b440588a210ce9cc4ab0e6d9f0c",
+    "llama-server": "5f6a339f7e9a74439bd226b4b13555e6de2936b66a48c9814018f291e0cb45aa"
+  },
+  "device": {
+    "serial": null,
+    "model": "SM-S918B",
+    "soc": "SM8550",
+    "android": "16",
+    "backendListing": [
+      "Available devices:",
+      "  Vulkan0: Adreno (TM) 740 (11300 MiB, 11300 MiB free)",
+      "",
+      "ggml_vulkan: Found 1 Vulkan devices:",
+      "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none"
+    ]
+  },
+  "samples": [
+    {
+      "variant": "cpu",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-3",
+          "milliCelsius": 52400
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2592000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.771,
+        "hottestComputeZone": {
+          "zone": "cpu-1-8",
+          "milliCelsius": 89600
+        }
+      },
+      "promptTokensPerSecond": 19.847945,
+      "decodeTokensPerSecond": 4.00351,
+      "benchmark": {
+        "build_commit": "0865990",
+        "build_number": 1,
+        "cpu_info": "CPU",
+        "gpu_info": "Adreno (TM) 740",
+        "backends": "Vulkan",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 0,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "cpu",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 48100
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2227200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.663,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 64700
+        }
+      },
+      "promptTokensPerSecond": 17.377958,
+      "decodeTokensPerSecond": 4.000444,
+      "benchmark": {
+        "build_commit": "0865990",
+        "build_number": 1,
+        "cpu_info": "CPU",
+        "gpu_info": "Adreno (TM) 740",
+        "backends": "Vulkan",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 0,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "op-offload",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 55200
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    },
+    {
+      "variant": "op-offload",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 48100
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-8",
+          "milliCelsius": 61500
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    },
+    {
+      "variant": "hybrid-8",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 52100
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    },
+    {
+      "variant": "hybrid-8",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-0",
+          "milliCelsius": 54800
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 54000
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    },
+    {
+      "variant": "hybrid-16",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 52800
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    },
+    {
+      "variant": "hybrid-16",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-1",
+          "milliCelsius": 46500
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 54000
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    },
+    {
+      "variant": "accelerator-all",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 51300
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 58400
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    },
+    {
+      "variant": "accelerator-all",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-6",
+          "milliCelsius": 50500
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 55600
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    },
+    {
+      "variant": "accelerator-all-cpu-state",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 47700
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-5",
+          "milliCelsius": 59200
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    },
+    {
+      "variant": "accelerator-all-cpu-state",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-3",
+          "milliCelsius": 58000
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 58400
+        }
+      },
+      "error": "llama-bench exited 134",
+      "logTail": [
+        "ggml_vulkan: Found 1 Vulkan devices:",
+        "ggml_vulkan: 0 = Adreno (TM) 740 (Qualcomm Technologies Inc. Adreno Vulkan Driver) | uma: 1 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+        "ggml_vulkan: Compute pipeline creation failed for matmul_q6_k_f32_f16acc_aligned_m",
+        "ggml_vulkan: vk::Device::createComputePipeline: ErrorUnknown",
+        "libc++abi: terminating due to uncaught exception of type vk::SystemError: vk::Device::createComputePipeline: ErrorUnknown"
+      ]
+    }
+  ],
+  "verdict": {
+    "gate": {
+      "minimumPromptRatio": 2.0,
+      "minimumDecodeRatio": 0.95,
+      "requireAllPromptSizes": true,
+      "requireNoCrash": true
+    },
+    "variants": {
+      "op-offload": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "error": "llama-bench exited 134"
+          },
+          {
+            "promptTokens": 512,
+            "error": "llama-bench exited 134"
+          }
+        ],
+        "minimumPromptRatio": null,
+        "minimumDecodeRatio": null,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "hybrid-8": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "error": "llama-bench exited 134"
+          },
+          {
+            "promptTokens": 512,
+            "error": "llama-bench exited 134"
+          }
+        ],
+        "minimumPromptRatio": null,
+        "minimumDecodeRatio": null,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "hybrid-16": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "error": "llama-bench exited 134"
+          },
+          {
+            "promptTokens": 512,
+            "error": "llama-bench exited 134"
+          }
+        ],
+        "minimumPromptRatio": null,
+        "minimumDecodeRatio": null,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "accelerator-all": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "error": "llama-bench exited 134"
+          },
+          {
+            "promptTokens": 512,
+            "error": "llama-bench exited 134"
+          }
+        ],
+        "minimumPromptRatio": null,
+        "minimumDecodeRatio": null,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "accelerator-all-cpu-state": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "error": "llama-bench exited 134"
+          },
+          {
+            "promptTokens": 512,
+            "error": "llama-bench exited 134"
+          }
+        ],
+        "minimumPromptRatio": null,
+        "minimumDecodeRatio": null,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      }
+    },
+    "gatePassed": false,
+    "winner": null,
+    "action": "Keep the production runtime CPU-only."
+  }
+}

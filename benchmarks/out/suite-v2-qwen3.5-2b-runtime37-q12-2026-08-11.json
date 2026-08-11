@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-08-11T13:25:10.982212Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q12"
+  ],
+  "outcomes": [
+    {
+      "id": "Q12",
+      "category": "literal_read",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=\\\\n; answer='The file has already been read successfully. The sequence of lines is:\\n\\n1:52| first\\\\nsecond\\n2:96| third\\n3:ac| \\n\\nThis is the literal content as stored in the file, and it has not been changed.'"
+        },
+        "required_tool:read": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 2; tools=['read']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "The file has already been read successfully. The sequence of lines is:\n\n1:52| first\\nsecond\n2:96| third\n3:ac| \n\nThis is the literal content as stored in the file, and it has not been changed.",
+      "toolNames": [
+        "read"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 34.708983,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 41.504853,
+        "totalTurnSeconds": 65.039177,
+        "provider": {
+          "outputTokens": 153,
+          "decodeSeconds": 10.631,
+          "decodeTokensPerSecond": 14.39,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 53.42939,
+            "tokens": 2019,
+            "tokensPerSecond": 37.788
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 53.42939,
+              "tokens": 2019,
+              "tokensPerSecond": 37.788
+            },
+            "decode": {
+              "seconds": 10.61129,
+              "tokens": 153,
+              "tokensPerSecond": 14.419
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 0,
+          "names": [
+            "read"
+          ],
+          "executionSeconds": 0.056292,
+          "postToolToTerminalSeconds": 23.472137
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 11,
+        "start": {
+          "monotonicSeconds": 73715.454416,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 39.2,
+          "batteryVoltageV": 4.222,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2956800,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.88,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 1
+        },
+        "end": {
+          "monotonicSeconds": 73787.417084,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 39.8,
+          "batteryVoltageV": 4.22,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2342400,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.697,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 0.697,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "qwen3.5-2b",
+  "accessProfile": "autonomous",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "successRate": 1.0,
+    "medianTtftSeconds": 34.708983,
+    "medianTurnSeconds": 65.039177
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-08-11T15:14:55.043507Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q05"
+  ],
+  "outcomes": [
+    {
+      "id": "Q05",
+      "category": "single_file_repair",
+      "outcome": "fail",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "required_tool:run_tests": {
+          "passed": true,
+          "evidence": "tools=['read', 'read', 'run_tests', 'pideck_replace_lines', 'pideck_replace_lines']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "5 <= 6; tools=['read', 'read', 'run_tests', 'pideck_replace_lines', 'pideck_replace_lines']"
+        },
+        "changed_paths_bounded": {
+          "passed": true,
+          "evidence": "changed=[]; unexpected=[]"
+        },
+        "file_contains:src/counter.py": {
+          "passed": false,
+          "evidence": "expected fragment 'self.value += 1'"
+        },
+        "tests_pass": {
+          "passed": false,
+          "evidence": "path='data/data/com.termux/files/home/.pideck/workspace/AGENTS.md'; expected suffix='tests/test_counter.py'; source edit succeeds. Fix only a named source file; then run_tests will be enabled again.\"}], \"details\": {\"runner\": \"zero-fixture\", \"path\": \"/data/data/com.termux/files/home/.pideck/workspace/.pideck-bench/abf74fbf-0a81-4e62-a920-8bd7837062ec/fixture/tests/test_counter.py\", \"status\": 5, \"timedOut\": false, \"bytes\": 46}}"
+        }
+      },
+      "changedPaths": [],
+      "answer": "<tool_call>\n<function=pideck_replace_lines>\n<parameter=path>\ndata/data/com.termux/files/home/.pideck/workspace/AGENTS.md\n</parameter>\n<parameter=edits>\n[{\"anchor\": \"b5\", \"text\": \"        self.value += 1  # Deliberate benchmark bug: expected increment is one.\"}]\n</parameter>\n</function>\n</tool_call>",
+      "toolNames": [
+        "read",
+        "read",
+        "run_tests",
+        "pideck_replace_lines",
+        "pideck_replace_lines"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 234.314007,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 47.818687,
+        "totalTurnSeconds": 242.598163,
+        "provider": {
+          "outputTokens": 401,
+          "decodeSeconds": 30.543,
+          "decodeTokensPerSecond": 13.13,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 206.47075,
+            "tokens": 7322,
+            "tokensPerSecond": 35.463
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 6,
+            "prefill": {
+              "seconds": 206.47075,
+              "tokens": 7322,
+              "tokensPerSecond": 35.463
+            },
+            "decode": {
+              "seconds": 34.01527,
+              "tokens": 401,
+              "tokensPerSecond": 11.789
+            }
+          }
+        },
+        "tools": {
+          "requested": 5,
+          "completed": 5,
+          "failed": 2,
+          "names": [
+            "read",
+            "run_tests",
+            "pideck_replace_lines"
+          ],
+          "executionSeconds": 0.67885,
+          "postToolToTerminalSeconds": 67.843486
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 31,
+        "start": {
+          "monotonicSeconds": 80299.571932,
+          "batteryLevelPercent": 98,
+          "batteryTemperatureC": 41.3,
+          "batteryVoltageV": 4.218,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3187200,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.949,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "end": {
+          "monotonicSeconds": 80551.167393,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 43.5,
+          "batteryVoltageV": 4.231,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 1248000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.371,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 3
+        },
+        "minimumBigCoreHeadroom": 0.371,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 1.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "qwen3.5-2b",
+  "accessProfile": "autonomous",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 0,
+    "failed": 1,
+    "successRate": 0.0,
+    "medianTtftSeconds": 234.314007,
+    "medianTurnSeconds": 242.598163
+  }
+}

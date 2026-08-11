@@ -43,6 +43,25 @@ class AdbAgentBenchmarkTests(unittest.TestCase):
             with self.assertRaises(benchmark.BenchmarkError):
                 benchmark.read_bridge_token(path)
 
+    def test_tool_args_accept_bridge_json_string_but_fail_closed(self) -> None:
+        self.assertEqual(
+            {"path": "/workspace/tests/test_counter.py"},
+            benchmark.normalized_tool_args(
+                '{"path":"/workspace/tests/test_counter.py"}'
+            ),
+        )
+        self.assertEqual({"path": "tests"}, benchmark.normalized_tool_args({"path": "tests"}))
+        self.assertEqual({}, benchmark.normalized_tool_args("[1, 2]"))
+        self.assertEqual({}, benchmark.normalized_tool_args("not-json"))
+
+        self.assertEqual(
+            {"path": "/workspace/tests/test_counter.py", "status": 0},
+            benchmark.normalized_tool_result_details(
+                '{"content":[],"details":{"path":"/workspace/tests/test_counter.py","status":0}}'
+            ),
+        )
+        self.assertEqual({}, benchmark.normalized_tool_result_details("not-json"))
+
     def test_battery_and_thermal_tags_are_typed(self) -> None:
         battery = benchmark.parse_battery(
             """

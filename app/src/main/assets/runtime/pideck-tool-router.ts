@@ -9,6 +9,9 @@
 
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { join, resolve, sep } from "node:path";
+
+import { explicitNavigationScope } from "./pideck-code-nav.ts";
 
 export type AccessProfile = "read_only" | "confirm_changes" | "autonomous";
 export type AgentMode = "chat" | "agent";
@@ -18,12 +21,10 @@ const LOADER_TOOL = "pideck_load_tools";
 export const INTERNAL_RETRY_PREFIX = "[[PI//DECK:ANSWER_RETRY]]\n";
 
 const CORE_TOOLS: Record<AccessProfile, readonly string[]> = {
-	read_only: ["read", "grep", "find", "ls"],
+	read_only: ["read", "code_nav"],
 	confirm_changes: [
 		"read",
-		"grep",
-		"find",
-		"ls",
+		"code_nav",
 		"pideck_bash",
 		"pideck_write",
 		"pideck_replace_lines",
@@ -34,19 +35,19 @@ const CORE_TOOLS: Record<AccessProfile, readonly string[]> = {
 const OPTIONAL_TOOLS: Record<AccessProfile, Record<ToolCapability, readonly string[]>> = {
 	read_only: {
 		files: [],
-		web: ["web_search", "web_fetch"],
+		web: ["web_research"],
 		weather: ["weather"],
 		exact_edit: [],
 	},
 	confirm_changes: {
 		files: [],
-		web: ["web_search", "web_fetch"],
+		web: ["web_research"],
 		weather: ["weather"],
 		exact_edit: ["pideck_edit"],
 	},
 	autonomous: {
-		files: ["grep", "find", "ls"],
-		web: ["web_search", "web_fetch"],
+		files: ["code_nav"],
+		web: ["web_research"],
 		weather: ["weather"],
 		exact_edit: ["edit"],
 	},
@@ -70,6 +71,99 @@ const WEB_CUES = [
 	"browse the web",
 	"look up online",
 	"find online",
+] as const;
+
+const CURRENT_WEB_CUES = [
+	"последние новости",
+	"что произошло сегодня",
+	"кто сейчас ",
+	"актуальная версия",
+	"текущая версия",
+	"сколько сейчас стоит",
+	"цена сейчас",
+	"latest version",
+	"latest release",
+	"today's news",
+	"current price",
+	"who is currently ",
+] as const;
+
+const CODE_CUES = [
+	"code_nav",
+	"где определ",
+	"найди определение",
+	"найди символ",
+	"найди функцию",
+	"найди класс",
+	"найди файл",
+	"структур проекта",
+	"структур репозитор",
+	"stack trace",
+	"стектрейс",
+	"definition of",
+	"find definition",
+	"find the function",
+	"find the class",
+	"find the file",
+	"project structure",
+	"repository structure",
+] as const;
+
+const READ_ONLY_NAVIGATION_CUES = [
+	"ничего не меняй",
+	"не меняй ничего",
+	"ничего не изменяй",
+	"не изменяй ничего",
+	"без изменений файлов",
+	"только для чтения",
+	"do not change anything",
+	"don't change anything",
+	"make no changes",
+	"without changing files",
+	"read-only",
+] as const;
+
+const LOCATION_ONLY_CUES = [
+	"номер строки",
+	"строку определения",
+	"файл и строк",
+	"путь и строк",
+	"line number",
+	"file and line",
+	"path and line",
+] as const;
+
+const CONTENT_REVIEW_CUES = [
+	"объясни",
+	"прочитай",
+	"покажи содержимое",
+	"суммируй",
+	"explain",
+	"read the",
+	"show the contents",
+	"summarize",
+] as const;
+
+const SCOPED_CHANGE_CUES = [
+	"не меняй другие файлы",
+	"другие файлы не меняй",
+	"не трогай другие файлы",
+	"только в ",
+	"do not change other files",
+	"don't change other files",
+	"change only ",
+] as const;
+
+const MUTATION_CUES = [
+	"исправ",
+	"переимен",
+	"обнови",
+	"замени",
+	"почини",
+	"fix ",
+	"repair ",
+	"rename ",
+	"update ",
 ] as const;
 
 const WEATHER_CUES = [
@@ -108,6 +202,227 @@ export function coreTools(profile: AccessProfile): string[] {
 	return [...CORE_TOOLS[profile], LOADER_TOOL];
 }
 
+export function isReadOnlyNavigationRequest(text: string): boolean {
+	const candidate = text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+	return detectCapabilities(candidate).includes("files")
+		&& READ_ONLY_NAVIGATION_CUES.some((cue) => candidate.includes(cue));
+}
+
+export function explicitlyRequestedSoleTool(text: string): string | undefined {
+	const candidate = text
+		.toLocaleLowerCase()
+		.replace(/[`"']/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+	const forbidsOthers = [
+		"другие инструменты",
+		"других инструментов",
+		"никаких других инструментов",
+		"no other tools",
+		"without other tools",
+	].some((cue) => candidate.includes(cue));
+	const requestsOneRead = [
+		"вызови read ровно один раз",
+		"используй read ровно один раз",
+		"вызови инструмент read ровно один раз",
+		"используй инструмент read ровно один раз",
+		"call read exactly once",
+		"use read exactly once",
+		"call the read tool exactly once",
+		"use the read tool exactly once",
+	].some((cue) => candidate.includes(cue));
+	if (forbidsOthers && requestsOneRead) return "read";
+
+	const forbidsChanges = READ_ONLY_NAVIGATION_CUES.some((cue) =>
+		candidate.includes(cue));
+	const requestsOneCodeNav = [
+		"одним вызовом code_nav",
+		"вызови code_nav ровно один раз",
+		"используй code_nav ровно один раз",
+		"call code_nav exactly once",
+		"use code_nav exactly once",
+	].some((cue) => candidate.includes(cue));
+	if (forbidsChanges && requestsOneCodeNav) return "code_nav";
+
+	const requestsOneWebResearch = [
+		"web_research ровно один раз",
+		"одним вызовом web_research",
+		"call web_research exactly once",
+		"use web_research exactly once",
+	].some((cue) => candidate.includes(cue));
+	if (requestsOneWebResearch) return "web_research";
+
+	const requestsWeatherInstead = [
+		"используй weather, а не",
+		"вызови weather, а не",
+		"use weather, not",
+		"use weather instead of",
+	].some((cue) => candidate.includes(cue));
+	if (requestsWeatherInstead) return "weather";
+
+	const requestsReadOnlyFile = forbidsChanges
+		&& /(?:прочитай|прочти|read)\s+\S*(?:\/|\.[a-z0-9]{1,8})(?:\s|$)/iu.test(candidate);
+	return requestsReadOnlyFile ? "read" : undefined;
+}
+
+function cleanExplicitPath(value: string | undefined): string | undefined {
+	let candidate = value?.trim();
+	if (!candidate) return undefined;
+	while (candidate.length > 1 && /[),;:!?]$/u.test(candidate)) {
+		candidate = candidate.slice(0, -1);
+	}
+	return candidate || undefined;
+}
+
+/** Finds a file path the user explicitly attached to a read request. */
+export function explicitReadPath(text: string): string | undefined {
+	const forFile = text.match(
+		/(?:для\s+файла|for\s+(?:the\s+)?file)\s+[`"'«]?([^\s`"'»<>]+)[`"'»]?/iu,
+	);
+	if (forFile?.[1]) return cleanExplicitPath(forFile[1]);
+	const direct = text.match(
+		/(?:прочитай|прочти)(?:\s+файл)?\s+[`"'«]?([^\s`"'»<>]+)[`"'»]?|(?:read)(?:\s+(?:the\s+)?file)?\s+[`"']?([^\s`"'<>]+)[`"']?/iu,
+	);
+	return cleanExplicitPath(direct?.[1] ?? direct?.[2]);
+}
+
+/** Combines the user's explicit directory and file without trusting model arguments. */
+export function explicitReadTarget(text: string): string | undefined {
+	const requested = explicitReadPath(text);
+	if (!requested) return undefined;
+	if (requested.startsWith("/")) return requested;
+	const scope = explicitNavigationScope(text);
+	return scope ? join(scope, requested) : requested;
+}
+
+/** Lexically confines an explicit read target to Pi's current workspace. */
+export function safeReadTarget(cwd: string, target: string): string | undefined {
+	const root = resolve(cwd);
+	const candidate = resolve(root, target);
+	return candidate === root || candidate.startsWith(`${root}${sep}`)
+		? candidate
+		: undefined;
+}
+
+/** Extracts exact file paths named by the user, excluding the directory scope itself. */
+export function explicitFilePaths(text: string): string[] {
+	const matches = [...text.matchAll(
+		/(?:^|[\s`"'«(])((?:\.{0,2}\/|\/)?(?:[\p{L}\p{N}_@.+-]+\/)+[\p{L}\p{N}_@.+-]+\.[A-Za-z0-9]{1,8})(?=$|[\s`"'»).,;:!?])/gu,
+	)];
+	return [...new Set(matches.map((match) => match[1]).filter(Boolean))];
+}
+
+export function explicitFileTargets(text: string): string[] {
+	const scope = explicitNavigationScope(text);
+	return explicitFilePaths(text).map((path) => {
+		if (path.startsWith("/")) return path;
+		return scope ? join(scope, path) : path;
+	});
+}
+
+/** A bounded existing-file repair can run without a general-purpose shell. */
+export function isScopedRepairRequest(text: string): boolean {
+	const candidate = text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+	return explicitFilePaths(text).length > 0
+		&& SCOPED_CHANGE_CUES.some((cue) => candidate.includes(cue))
+		&& MUTATION_CUES.some((cue) => candidate.includes(cue))
+		&& /(?:тест\p{L}*|pytest|\btests?\b)/iu.test(candidate);
+}
+
+function isTestTarget(path: string): boolean {
+	const candidate = path.replace(/\\/g, "/").toLocaleLowerCase();
+	const name = candidate.slice(candidate.lastIndexOf("/") + 1);
+	return candidate.includes("/tests/") || name.startsWith("test_");
+}
+
+/** Matches a model path to a user-named target, with a safe source-file fallback. */
+export function selectScopedTarget(
+	requestedPath: string,
+	targets: readonly string[],
+	preferTest = false,
+): string | undefined {
+	const normalized = requestedPath.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+	if (normalized) {
+		// A model may legitimately ask to read either a named source or a named test.
+		// Honour that exact user-scoped file before applying the source/test preference,
+		// which exists only to choose a safe fallback for invented paths.
+		const exact = targets.find((target) => {
+			const normalizedTarget = target.replace(/\\/g, "/");
+			return normalizedTarget === normalized
+				|| normalizedTarget.endsWith(`/${normalized.replace(/^\/+/, "")}`)
+				|| normalizedTarget.slice(normalizedTarget.lastIndexOf("/") + 1)
+					=== normalized.slice(normalized.lastIndexOf("/") + 1);
+		});
+		if (exact) return exact;
+	}
+	const eligible = targets.filter((target) => isTestTarget(target) === preferTest);
+	const pool = eligible.length > 0 ? eligible : [...targets];
+	return pool[0];
+}
+
+function sameFileReference(reference: string, target: string): boolean {
+	const normalizedReference = reference
+		.trim()
+		.replace(/^["']|["']$/g, "")
+		.replace(/\\/g, "/")
+		.replace(/^\.\//, "");
+	const normalizedTarget = target.replace(/\\/g, "/").replace(/^\.\//, "");
+	if (!normalizedReference) return false;
+	return normalizedReference === normalizedTarget
+		|| normalizedTarget.endsWith(`/${normalizedReference.replace(/^\/+/, "")}`)
+		|| normalizedReference.endsWith(`/${normalizedTarget.replace(/^\/+/, "")}`)
+		|| normalizedReference.slice(normalizedReference.lastIndexOf("/") + 1)
+			=== normalizedTarget.slice(normalizedTarget.lastIndexOf("/") + 1);
+}
+
+/**
+ * A small model sometimes puts a pytest path into `expr` instead of `path`.
+ * Once the router has enforced the exact user-named file, retaining that value
+ * as `pytest -k <path>` selects zero tests. Preserve a real -k expression (or a
+ * pytest node ID), but remove the duplicate path-only filter.
+ */
+export function normalizeScopedTestExpression(raw: string, target: string): string | undefined {
+	let candidate = raw.trim();
+	if (!candidate) return undefined;
+	const explicitFilter = /(?:^|\s)-k\s+(.+)$/iu.exec(candidate);
+	if (explicitFilter?.[1]) return explicitFilter[1].trim();
+	candidate = candidate.replace(/^(?:(?:python3?|py)\s+-m\s+)?pytest\s+/iu, "").trim();
+	const [pathPart, ...nodeParts] = candidate.split("::");
+	const pathToken = pathPart.trim().split(/\s+/u, 1)[0] ?? "";
+	if (!sameFileReference(pathToken, target)) return raw;
+	const nodeExpression = nodeParts.map((part) => part.trim()).filter(Boolean).at(-1);
+	return nodeExpression || undefined;
+}
+
+export function requiresExactlyOneToolCall(text: string): boolean {
+	const candidate = text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+	return [
+		"ровно один раз",
+		"одним вызовом",
+		"exactly once",
+		"one call",
+	].some((cue) => candidate.includes(cue));
+}
+
+export function isLocationOnlyNavigationRequest(text: string): boolean {
+	const candidate = text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+	return isReadOnlyNavigationRequest(candidate)
+		&& LOCATION_ONLY_CUES.some((cue) => candidate.includes(cue))
+		&& !CONTENT_REVIEW_CUES.some((cue) => candidate.includes(cue));
+}
+
+export function taskCoreTools(profile: AccessProfile, text: string): string[] {
+	const soleTool = explicitlyRequestedSoleTool(text);
+	if (soleTool) return [soleTool];
+	if (profile === "autonomous" && isScopedRepairRequest(text)) {
+		return ["read", "pideck_replace_lines", "run_tests"];
+	}
+	if (isLocationOnlyNavigationRequest(text)) return ["code_nav"];
+	return isReadOnlyNavigationRequest(text)
+		? ["read", "code_nav"]
+		: coreTools(profile);
+}
+
 export function optionalCapabilities(profile: AccessProfile): ToolCapability[] {
 	return (Object.keys(OPTIONAL_TOOLS[profile]) as ToolCapability[]).filter(
 		(capability) => OPTIONAL_TOOLS[profile][capability].length > 0,
@@ -116,17 +431,47 @@ export function optionalCapabilities(profile: AccessProfile): ToolCapability[] {
 
 export function detectCapabilities(text: string): ToolCapability[] {
 	const candidate = text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
-	const webRequested = WEB_CUES.some((cue) => candidate.includes(cue));
+	const webRequested = [...WEB_CUES, ...CURRENT_WEB_CUES]
+		.some((cue) => candidate.includes(cue));
 	const urlProvided = /(?:^|\s)https?:\/\/\S+/i.test(text);
+	const codeNavigationRequested = CODE_CUES.some((cue) => candidate.includes(cue));
 	const weatherMentioned = /(?:^|[^\p{L}\p{N}_])(?:погод\p{L}*|weather|forecast)(?:$|[^\p{L}\p{N}_])/u
 		.test(candidate);
 	const weatherRequested = weatherMentioned && (
 		webRequested || WEATHER_CUES.some((cue) => candidate.includes(cue))
 	);
 	const result: ToolCapability[] = [];
+	if (codeNavigationRequested) result.push("files");
 	if (webRequested || urlProvided) result.push("web");
 	if (weatherRequested) result.push("weather");
 	return result;
+}
+
+/** Hard-removes every tool when the user explicitly wants a direct, provided answer. */
+export function disablesTools(text: string): boolean {
+	const candidate = text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+	const explicitForbid = [
+		"не используй инструмент",
+		"не вызывай инструмент",
+		"без инструментов",
+		"do not use tools",
+		"do not use any tools",
+		"don't use tools",
+		"without tools",
+	].some((cue) => candidate.includes(cue));
+	const answerIsProvided = [
+		"уже дан в этом сообщении",
+		"из текста этого сообщения",
+		"already given in this message",
+		"from this message",
+	].some((cue) => candidate.includes(cue));
+	const exactOutput = [
+		"верни только",
+		"ответь ровно",
+		"return only",
+		"reply exactly",
+	].some((cue) => candidate.includes(cue));
+	return explicitForbid || (answerIsProvided && exactOutput);
 }
 
 export function routeInput(
@@ -153,6 +498,14 @@ export function routeInput(
 export default function pideckToolRouter(pi: ExtensionAPI) {
 	const profile = configuredProfile();
 	const mode = configuredMode();
+	let oneShotTool: string | undefined;
+	let oneShotStopsOnError = false;
+	let scopedReadTarget: string | undefined;
+	let scopedRepairTargets: string[] = [];
+	let scopedRepairAnchors = new Map<string, Map<string, string[]>>();
+	let scopedRepairEditFailures = new Map<string, number>();
+	let scopedRepairReadTargets = new Set<string>();
+	let scopedRepairTestFailed = false;
 	const capabilities = optionalCapabilities(profile);
 	const allowed = new Set([
 		...CORE_TOOLS[profile],
@@ -160,14 +513,18 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		LOADER_TOOL,
 	]);
 
-	function activate(requested: readonly ToolCapability[], additive: boolean): string[] {
+	function activate(
+		requested: readonly ToolCapability[],
+		additive: boolean,
+		text?: string,
+	): string[] {
 		if (mode === "chat") {
 			pi.setActiveTools([]);
 			return [];
 		}
 		const base = additive
 			? pi.getActiveTools().filter((name) => allowed.has(name))
-			: coreTools(profile);
+			: taskCoreTools(profile, text ?? "");
 		const additions = requested.flatMap((capability) =>
 			OPTIONAL_TOOLS[profile][capability] ?? []);
 		const active = unique([...base, ...additions]).filter((name) => allowed.has(name));
@@ -207,6 +564,14 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", () => {
+		oneShotTool = undefined;
+		oneShotStopsOnError = false;
+		scopedReadTarget = undefined;
+		scopedRepairTargets = [];
+		scopedRepairAnchors = new Map();
+		scopedRepairEditFailures = new Map();
+		scopedRepairReadTargets = new Set();
+		scopedRepairTestFailed = false;
 		activate([], false);
 	});
 
@@ -215,18 +580,274 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		// tool that may be referenced by the in-flight conversation. A bridge retry crosses an
 		// idle boundary deliberately and carries a stripped internal marker for the same reason.
 		const routed = routeInput(event.text, event.streamingBehavior);
-		activate(routed.capabilities, routed.additive);
+		if (disablesTools(routed.text)) {
+			oneShotTool = undefined;
+			oneShotStopsOnError = false;
+			scopedReadTarget = undefined;
+			scopedRepairTargets = [];
+			scopedRepairAnchors = new Map();
+			scopedRepairEditFailures = new Map();
+			scopedRepairReadTargets = new Set();
+			scopedRepairTestFailed = false;
+			pi.setActiveTools([]);
+		} else {
+			// A normal input starts a new task. Remember an explicit one-tool contract so
+			// the completed result can remove the schema before the next model round.
+			// Additive steer/follow-up messages belong to the in-flight task and must not
+			// silently reset an already consumed contract.
+			if (!routed.additive) {
+				scopedRepairAnchors = new Map();
+				scopedRepairEditFailures = new Map();
+				scopedRepairReadTargets = new Set();
+				scopedRepairTestFailed = false;
+				oneShotTool = explicitlyRequestedSoleTool(routed.text);
+				oneShotStopsOnError = requiresExactlyOneToolCall(routed.text);
+				scopedReadTarget = explicitReadTarget(routed.text);
+				scopedRepairTargets = isScopedRepairRequest(routed.text)
+					? explicitFileTargets(routed.text)
+					: [];
+			}
+			activate(routed.capabilities, routed.additive, routed.text);
+		}
 		return routed.transformed
 			? { action: "transform", text: routed.text, images: event.images }
 			: { action: "continue" };
 	});
 
-	pi.on("tool_call", (event) => {
+	pi.on("tool_result", (event) => {
+		if (
+			oneShotTool !== undefined
+			&& event.toolName === oneShotTool
+			&& (oneShotStopsOnError || !event.isError)
+		) {
+			// setActiveTools affects the provider schema of the following model round.
+			// Clearing it here makes "exactly once" structural: even a small model cannot
+			// repeat a successful or failed lookup while trying to second-guess the result.
+			oneShotTool = undefined;
+			oneShotStopsOnError = false;
+			pi.setActiveTools([]);
+			const authoritativeStatus = event.isError
+				? "TOOL RESULT: вызов завершился ошибкой; сообщи её как факт."
+				: event.toolName === "read" && scopedReadTarget !== undefined
+					? `READ SUCCEEDED: точный файл ${scopedReadTarget} уже прочитан. `
+						+ "Следующий text block — его авторитетное содержимое."
+					: "TOOL SUCCEEDED: следующий text block — авторитетный результат вызова.";
+			return {
+				content: [
+					{ type: "text" as const, text: authoritativeStatus },
+					...event.content,
+					{
+						type: "text" as const,
+						text:
+							"Одноразовый вызов завершён. Сейчас ответь пользователю обычным текстом "
+							+ "по результату выше; не создавай, не копируй и не повторяй tool call. "
+							+ "При успехе не заявляй, что доступ, чтение или поиск невозможны.",
+					},
+				],
+			};
+		}
+		if (scopedRepairTargets.length > 0 && event.toolName === "read") {
+			const actualPath = String((event.input as { path?: unknown }).path ?? "");
+			if (!event.isError) {
+				const byDigest = new Map<string, string[]>();
+				for (const part of event.content) {
+					if (part.type !== "text") continue;
+					for (const match of part.text.matchAll(/(?:^|\n)(\d{1,6}:([0-9a-f]{2}))\|/gu)) {
+						const anchors = byDigest.get(match[2]) ?? [];
+						anchors.push(match[1]);
+						byDigest.set(match[2], anchors);
+					}
+				}
+				if (byDigest.size > 0) scopedRepairAnchors.set(actualPath, byDigest);
+				scopedRepairReadTargets.add(actualPath);
+				if (scopedRepairReadTargets.size >= scopedRepairTargets.length) {
+					pi.setActiveTools(pi.getActiveTools().filter((name) => name !== "read"));
+				}
+			}
+			return {
+				content: [
+					{
+						type: "text" as const,
+						text: event.isError
+							? `READ FAILED for ${actualPath}: the following error is authoritative.`
+							: `READ SUCCEEDED for ${actualPath}: the following text is the authoritative file content.`,
+					},
+					...event.content,
+					{
+						type: "text" as const,
+						text: event.isError
+							? "Correct the named path once; do not rediscover the workspace."
+							: "Use this content now. Do not reread this path or rediscover it with shell commands.",
+					},
+				],
+			};
+		}
+		if (scopedRepairTargets.length > 0 && event.toolName === "pideck_replace_lines") {
+			const actualPath = String((event.input as { path?: unknown }).path ?? "");
+			if (event.isError) {
+				const failures = (scopedRepairEditFailures.get(actualPath) ?? 0) + 1;
+				scopedRepairEditFailures.set(actualPath, failures);
+				if (failures >= 2) {
+					pi.setActiveTools([]);
+					scopedRepairTargets = [];
+					scopedRepairAnchors = new Map();
+					scopedRepairEditFailures = new Map();
+					scopedRepairReadTargets = new Set();
+					scopedRepairTestFailed = false;
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: `EDIT RETRY LIMIT REACHED for ${actualPath}.`,
+							},
+							...event.content,
+							{
+								type: "text" as const,
+								text: "Stop now and report that the scoped edit could not be applied safely; do not emit another tool call.",
+							},
+						],
+					};
+				}
+			} else {
+				scopedRepairEditFailures.delete(actualPath);
+				if (scopedRepairTestFailed && allowed.has("run_tests")) {
+					pi.setActiveTools(unique([...pi.getActiveTools(), "run_tests"]));
+					scopedRepairTestFailed = false;
+				}
+			}
+			return {
+				content: [
+					{
+						type: "text" as const,
+						text: event.isError
+							? `EDIT FAILED for ${actualPath}.`
+							: `EDIT SUCCEEDED for ${actualPath}.`,
+					},
+					...event.content,
+					{
+						type: "text" as const,
+						text: event.isError
+							? "One correction remains. Use exactly one full line:hash anchor from the authoritative read or the returned current anchors."
+							: "Do not reread the changed file. Edit any other named file, or run the exact named test now.",
+					},
+				],
+			};
+		}
+		if (scopedRepairTargets.length > 0 && event.toolName === "run_tests") {
+			const status = (event.details as { status?: unknown } | undefined)?.status;
+			if (status === 0) {
+				pi.setActiveTools([]);
+				scopedRepairTargets = [];
+				scopedRepairAnchors = new Map();
+				scopedRepairEditFailures = new Map();
+				scopedRepairReadTargets = new Set();
+				scopedRepairTestFailed = false;
+			} else {
+				scopedRepairTestFailed = true;
+				pi.setActiveTools(pi.getActiveTools().filter((name) => name !== "run_tests"));
+			}
+			return {
+				content: [
+					{
+						type: "text" as const,
+						text: status === 0
+							? "TEST PASSED: this verdict is authoritative."
+							: "TEST FAILED: use the following failure as authoritative evidence.",
+					},
+					...event.content,
+					{
+						type: "text" as const,
+						text: status === 0
+							? "The requested repair is verified. Finish with a concise factual answer and no more tools."
+							: "The same test is now unavailable until a source edit succeeds. Fix only a named source file; then run_tests will be enabled again.",
+					},
+				],
+			};
+		}
+		return undefined;
+	});
+
+	pi.on("tool_call", (event, context) => {
 		if (!allowed.has(event.toolName) || mode === "chat") {
 			return {
 				block: true,
 				reason: "Tool is outside the active PI//DECK access profile",
 			};
+		}
+		if (event.toolName === "read" && (scopedReadTarget !== undefined || scopedRepairTargets.length > 0)) {
+			const input = event.input as { path?: unknown; offset?: unknown; limit?: unknown };
+			const requested = String(input.path ?? "");
+			const intended = scopedReadTarget
+				?? selectScopedTarget(requested, scopedRepairTargets, false);
+			let target = intended === undefined
+				? undefined
+				: safeReadTarget(context.cwd, intended);
+			if (target === undefined) {
+				return {
+					block: true,
+					reason: "The user-scoped read path must stay inside the current workspace",
+				};
+			}
+			if (scopedRepairTargets.length > 0 && scopedRepairReadTargets.has(target)) {
+				const unread = scopedRepairTargets
+					.map((candidate) => safeReadTarget(context.cwd, candidate))
+					.find((candidate): candidate is string =>
+						candidate !== undefined && !scopedRepairReadTargets.has(candidate));
+				if (unread !== undefined) target = unread;
+			}
+			const requestedName = requested.replace(/\\/g, "/").split("/").at(-1) ?? "";
+			const targetName = target.replace(/\\/g, "/").split("/").at(-1) ?? "";
+			if (scopedRepairTargets.length > 0 && requestedName !== targetName) {
+				delete input.offset;
+				delete input.limit;
+			}
+			input.path = target;
+		}
+		if (event.toolName === "pideck_replace_lines" && scopedRepairTargets.length > 0) {
+			const input = event.input as { path?: unknown; edits?: unknown };
+			const intended = selectScopedTarget(String(input.path ?? ""), scopedRepairTargets, false);
+			const target = intended === undefined
+				? undefined
+				: safeReadTarget(context.cwd, intended);
+			if (target === undefined) {
+				return { block: true, reason: "Edit target must be one of the user-scoped files" };
+			}
+			input.path = target;
+			const anchorIndex = scopedRepairAnchors.get(target);
+			if (anchorIndex !== undefined && Array.isArray(input.edits)) {
+				for (const edit of input.edits) {
+					if (edit === null || typeof edit !== "object" || Array.isArray(edit)) continue;
+					const fields = edit as Record<string, unknown>;
+					for (const field of ["anchor", "throughAnchor"] as const) {
+						const digest = String(fields[field] ?? "").trim();
+						if (!/^[0-9a-f]{2}$/u.test(digest)) continue;
+						const matches = anchorIndex.get(digest) ?? [];
+						if (matches.length === 1) fields[field] = matches[0];
+					}
+				}
+			}
+		}
+		if (event.toolName === "run_tests" && scopedRepairTargets.length > 0) {
+			const input = event.input as { path?: unknown; expr?: unknown };
+			const requestedPath = String(input.path ?? "");
+			const requestedExpr = String(input.expr ?? "");
+			const intended = selectScopedTarget(
+				requestedPath || requestedExpr,
+				scopedRepairTargets,
+				true,
+			);
+			const target = intended === undefined
+				? undefined
+				: safeReadTarget(context.cwd, intended);
+			if (target === undefined) {
+				return { block: true, reason: "Test target must be one of the user-scoped files" };
+			}
+			input.path = target;
+			if (requestedExpr) {
+				const expression = normalizeScopedTestExpression(requestedExpr, target);
+				if (expression === undefined) delete input.expr;
+				else input.expr = expression;
+			}
 		}
 		return undefined;
 	});

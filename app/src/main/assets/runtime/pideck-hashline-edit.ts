@@ -14,8 +14,9 @@
  */
 
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import path, { extname } from "node:path";
 
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -31,6 +32,7 @@ import {
 const MAX_ANNOTATED_LINES = 4_000;
 const MAX_EDITS = 24;
 const MAX_REPLACEMENT_CHARS = 16_000;
+const SYNTAX_CHECK_TIMEOUT_MS = 5_000;
 const ANCHOR = /^(\d{1,6}):([0-9a-f]{2})$/;
 /** Trailing note `read` appends after the file body; it must not be annotated as content. */
 const READ_NOTE = /^\[(?:Showing lines |.* more lines in file|Line \d+ is ).*\]$/;
@@ -124,11 +126,21 @@ function verify(fileLines: string[], anchor: Anchored, label: string): number {
 	return index;
 }
 
-type Replacement = { from: number; to: number; text: string };
+type Replacement = {
+	from: number;
+	to: number;
+	text: string;
+	allowIndentationChange: boolean;
+};
 
 function planEdits(
 	fileLines: string[],
-	edits: Array<{ anchor?: unknown; throughAnchor?: unknown; text?: unknown }>,
+	edits: Array<{
+		anchor?: unknown;
+		throughAnchor?: unknown;
+		text?: unknown;
+		allowIndentationChange?: unknown;
+	}>,
 ): Replacement[] {
 	const planned: Replacement[] = [];
 	for (const edit of edits) {
@@ -145,7 +157,12 @@ function planEdits(
 		if (text.length > MAX_REPLACEMENT_CHARS) {
 			throw new Error("Замена длиннее допустимого размера");
 		}
-		planned.push({ from, to, text });
+		planned.push({
+			from,
+			to,
+			text,
+			allowIndentationChange: edit.allowIndentationChange === true,
+		});
 	}
 	planned.sort((left, right) => left.from - right.from);
 	for (let index = 1; index < planned.length; index++) {
@@ -164,6 +181,75 @@ function applyEdits(fileLines: string[], planned: Replacement[]): string[] {
 		result.splice(from, to - from + 1, ...(text === "" ? [] : text.split("\n")));
 	}
 	return result;
+}
+
+/**
+ * A 2B model often copies the complete statement but drops only its leading whitespace.
+ * Repair that narrow case without guessing at operator fragments or multi-line structure.
+ */
+
+function normalizedPythonIndent(
+	filename: string,
+	fileLines: string[],
+	planned: Replacement[],
+): { planned: Replacement[]; inherited: boolean } {
+	if (extname(filename).toLowerCase() !== ".py") {
+		return { planned, inherited: false };
+	}
+	let inherited = false;
+	const adjusted = planned.map((edit) => {
+		if (edit.allowIndentationChange || edit.text === "") {
+			return edit;
+		}
+		const originalLine = fileLines[edit.from];
+		const replacementLine = edit.text.split("\n", 1)[0];
+		if (originalLine.trim() === "" || replacementLine.trim() === "") return edit;
+		const originalIndent = /^[\t ]*/.exec(originalLine)?.[0] ?? "";
+		const replacementIndent = /^[\t ]*/.exec(replacementLine)?.[0] ?? "";
+		if (originalIndent === replacementIndent) return edit;
+		if (replacementIndent === "" && !edit.text.includes("\n")
+			&& originalIndent !== "" && /^[A-Za-z_]/.test(edit.text)) {
+			inherited = true;
+			return { ...edit, text: originalIndent + edit.text };
+		}
+		const number = edit.from + 1;
+		throw new Error(
+			"Правка не сохранена: ведущий отступ Python отличается от адресованной строки. "
+				+ "Для обычной замены выбери якорь нужной строки и передай целую строку с тем же отступом. "
+				+ "allowIndentationChange=true используй только для намеренной перестройки блока.\n"
+				+ anchorWindow(fileLines, number),
+		);
+	});
+	return { planned: adjusted, inherited };
+}
+
+const PYTHON_SOURCE_CHECK = [
+	"import ast, sys",
+	"source = sys.stdin.buffer.read()",
+	"try:",
+	"    ast.parse(source, sys.argv[1])",
+	"except (SyntaxError, ValueError) as error:",
+	"    line = getattr(error, 'lineno', None)",
+	"    sys.stderr.write('%s%s\\n' % (error, (' (line %s)' % line) if line else ''))",
+	"    sys.exit(1)",
+].join("\n");
+
+/** Returns a bounded syntax error; checker failures themselves remain fail-open. */
+function pythonSyntaxError(filename: string, source: string): string | undefined {
+	if (extname(filename).toLowerCase() !== ".py") return undefined;
+	const result = spawnSync(
+		process.env.PIDECK_SYNTAX_CHECK_PYTHON || "python3",
+		["-c", PYTHON_SOURCE_CHECK, filename],
+		{
+			input: source,
+			encoding: "utf8",
+			stdio: ["pipe", "ignore", "pipe"],
+			timeout: SYNTAX_CHECK_TIMEOUT_MS,
+			maxBuffer: 16 * 1024,
+		},
+	);
+	if (result.error || result.signal !== null || result.status === 0) return undefined;
+	return String(result.stderr ?? "").trim().slice(0, 1024) || "invalid Python syntax";
 }
 
 export default function pideckHashlineEdit(pi: ExtensionAPI) {
@@ -216,6 +302,9 @@ export default function pideckHashlineEdit(pi: ExtensionAPI) {
 					text: Type.String({
 						description: "Replacement lines without anchors; empty deletes",
 					}),
+					allowIndentationChange: Type.Optional(Type.Boolean({
+						description: "Explicitly allow changing the first Python line's indentation",
+					})),
 				}),
 				{ minItems: 1, maxItems: MAX_EDITS },
 			),
@@ -241,7 +330,24 @@ export default function pideckHashlineEdit(pi: ExtensionAPI) {
 			}
 			const fileLines = original.split("\n");
 			const edits = params.edits as Array<Record<string, unknown>>;
-			const planned = planEdits(fileLines, edits);
+			let planned = planEdits(fileLines, edits);
+			const normalizedIndent = normalizedPythonIndent(resolved, fileLines, planned);
+			planned = normalizedIndent.planned;
+			let updated = applyEdits(fileLines, planned).join("\n");
+			let syntaxFailure = pythonSyntaxError(resolved, updated);
+			if (syntaxFailure !== undefined) {
+				const reusable = planned
+					.map((edit) => {
+						const number = edit.from + 1;
+						return `${anchorFor(number, fileLines[edit.from])}| ${fileLines[edit.from]}`;
+					})
+					.join("\n");
+				throw new Error(
+					"Правка не сохранена: получился синтаксически неверный Python. "
+						+ "Поле text должно содержать целую строку с отступом, а не фрагмент.\n"
+						+ `${syntaxFailure}\nДействующий якорь исходника:\n${reusable}`,
+				);
+			}
 
 			if (process.env.PIDECK_HASHLINE_APPROVAL !== "none") {
 				const removed = planned
@@ -266,7 +372,6 @@ export default function pideckHashlineEdit(pi: ExtensionAPI) {
 				if (!allow) throw new Error("PI//DECK approval denied or expired");
 			}
 
-			const updated = applyEdits(fileLines, planned).join("\n");
 			writeFileSync(resolved, updated, { encoding: "utf8" });
 			const summary = planned
 				.map((edit) => `${edit.from + 1}-${edit.to + 1} → ${lineCount(edit.text)} строк`)
@@ -277,7 +382,11 @@ export default function pideckHashlineEdit(pi: ExtensionAPI) {
 					text: `Готово: ${target}. Заменено ${summary}. `
 						+ "Якоря устарели — прочитай файл заново перед следующей правкой.",
 				}],
-				details: { path: resolved, edits: planned.length },
+				details: {
+					path: resolved,
+					edits: planned.length,
+					inheritedIndentation: normalizedIndent.inherited,
+				},
 			};
 		},
 	});

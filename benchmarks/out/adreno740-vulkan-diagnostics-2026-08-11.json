@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-11",
+  "status": "rejected",
+  "device": {
+    "product": "Samsung SM-S918B",
+    "soc": "SM8550",
+    "gpu": "Adreno 740",
+    "android": "16",
+    "vulkanDriver": "Qualcomm Technologies Inc. Adreno Vulkan Driver",
+    "reportedFeatures": {
+      "uma": true,
+      "fp16": true,
+      "integerDotProduct": false,
+      "matrixCores": "none"
+    }
+  },
+  "model": {
+    "path": "/data/local/tmp/pideck-speculative/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+    "sha256": "13c16f426047e2de38cd075bdade4a7bcbc8c774384876f677740cda65f8a983",
+    "tensorCount": 441,
+    "tensorTypes": {
+      "F32": 232,
+      "Q8_0": 20,
+      "Q4_K": 124,
+      "Q5_K": 16,
+      "Q6_K": 49
+    }
+  },
+  "upstreamCandidate": {
+    "llamaCppCommit": "08659901c43b51de735740f1cf61bb82fbe0c4e4",
+    "llamaBenchSha256": "fcfbe7313a9a8801fc224850e39098777b81379f6030e15e00c529458d569189",
+    "sweep": "benchmarks/out/adreno740-vulkan-2026-08-11.json",
+    "result": "All op-only, 8-layer, 16-layer, all-layer, and all-layer-with-CPU-state variants exited 134 while creating matmul_q6_k_f32_f16acc_aligned_m."
+  },
+  "diagnosticFallback": {
+    "llamaBenchSha256": "95bdd0ea5a3762ff8302f36ae5d0ca83095948fe879a80ae224485ccef74f2ba",
+    "llamaServerSha256": "f9877136114d7e9133b4e17e29451bf83a3b09f87dd58e2aab1268ab79edc01d",
+    "sourceDisposition": "The diagnostic backend patch was intentionally not retained because no safe configuration completed decode.",
+    "attempts": [
+      {
+        "change": "Use an unaligned matmul specialization",
+        "result": "Q6_K failed with ErrorUnknown in both FP16-accumulation and FP32-only pipelines."
+      },
+      {
+        "change": "Keep Q6_K matmul and embedding operations on CPU",
+        "result": "The next Q4_K aligned and unaligned pipelines failed with ErrorUnknown."
+      },
+      {
+        "change": "Keep all Q4_K, Q5_K, and Q6_K operations on CPU",
+        "result": "Q8_0 aligned, unaligned, and FP32-only matmul pipelines failed with ErrorUnknown."
+      },
+      {
+        "change": "Keep every matrix weight on CPU and disable host-op offload",
+        "result": "The FlashAttention pipeline failed with ErrorUnknown."
+      },
+      {
+        "change": "Also disable FlashAttention",
+        "result": "A 32-token prompt completed at 15.878993 tok/s, then the one-token decode process exited 139."
+      },
+      {
+        "change": "Also keep KV and recurrent state on CPU",
+        "result": "A 32-token prompt completed at 14.906349 tok/s, then the one-token decode process exited 139."
+      }
+    ]
+  },
+  "verdict": {
+    "promotionGatePassed": false,
+    "productionRuntimeChanged": false,
+    "action": "Keep the production runtime CPU-only; re-test only after a material llama.cpp Vulkan or device-driver change."
+  }
+}

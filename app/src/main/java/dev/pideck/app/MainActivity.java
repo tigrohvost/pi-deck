@@ -165,6 +165,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private String pendingModelDocumentId;
     private SessionContextUsage contextUsage;
     private boolean contextCompacting;
+    private String smartCompactionAttemptSession;
+    private long smartCompactionAttemptTokens = -1L;
     private boolean inferenceActive;
     private long turnStartedAtUptimeMs;
     private long firstOutputAtUptimeMs;
@@ -571,6 +573,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 ));
         // Turning it on while looking at a cold deck means it should be warm now, not next launch.
         if (enabled) warmCore();
+        refreshUi();
+    }
+
+    @Override
+    public void onSmartCompactionChanged(boolean enabled) {
+        prefs.setSmartCompaction(enabled);
+        append(ConsoleEntry.Channel.SYSTEM, enabled
+                ? t(
+                        "Умное сжатие будет создавать checkpoint в простое около 55% контекста.",
+                        "Smart compaction will create an idle checkpoint near 55% context."
+                )
+                : t(
+                        "Автоматическое сжатие отключено; ручная кнопка остаётся доступна.",
+                        "Automatic compaction is off; the manual action remains available."
+                ));
+        if (enabled) main.post(this::maybeSmartCompactSession);
         refreshUi();
     }
 
@@ -1913,6 +1931,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void compactSession() {
+        compactSession(false);
+    }
+
+    private void compactSession(boolean automatic) {
         if (busy || !bridgeReady) {
             if (pendingPromptAfterCompaction != null) {
                 pendingPromptAfterCompaction = null;
@@ -1926,9 +1948,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
         OperationRecord operation;
         try {
+            JSONObject request = json("sessionId", prefs.ensureSessionId());
+            put(request, "automatic", automatic);
             operation = operations.begin(
                     OperationKind.COMPACT_SESSION,
-                    json("sessionId", prefs.ensureSessionId())
+                    request
             );
             operations.dispatched(operation.operationId);
             contextCompacting = true;
@@ -1951,14 +1975,46 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         "COMPACT",
                         json(
                                 "customInstructions",
-                                "Сохрани цель пользователя, принятые решения, изменённые и "
-                                        + "прочитанные файлы, результаты проверок и незавершённые шаги."
+                                "Создай точный checkpoint для продолжения работы. Сохрани: цель и "
+                                        + "ограничения пользователя; подтверждённые факты отдельно от "
+                                        + "гипотез; принятые решения; точные относительные пути прочитанных "
+                                        + "и изменённых файлов; выполненные команды и результаты тестов "
+                                        + "pass/fail; ошибки, незавершённые шаги и следующий конкретный шаг. "
+                                        + "Не выдумывай выполненные действия и не теряй отрицательные "
+                                        + "результаты. Удали только повторения и подробности, не нужные для "
+                                        + "продолжения."
                         )
                 );
             } catch (Exception error) {
                 runOnUiThread(() -> failRpcDispatch(operation.operationId, error));
             }
         });
+    }
+
+    private void maybeSmartCompactSession() {
+        if (!prefs.smartCompaction()
+                || busy
+                || !bridgeReady
+                || contextCompacting
+                || !prefs.hasSession()
+                || contextUsage == null
+                || !contextUsage.shouldSmartCompact()) {
+            return;
+        }
+        String session = prefs.ensureSessionId();
+        if (session.equals(smartCompactionAttemptSession)
+                && contextUsage.tokens < smartCompactionAttemptTokens + 512L) {
+            return;
+        }
+        smartCompactionAttemptSession = session;
+        smartCompactionAttemptTokens = contextUsage.tokens;
+        append(ConsoleEntry.Channel.SYSTEM, t(
+                "Контекст достиг " + contextUsage.percent
+                        + "%. Создаю idle checkpoint до следующего запроса.",
+                "Context reached " + contextUsage.percent
+                        + "%. Creating an idle checkpoint before the next prompt."
+        ));
+        compactSession(true);
     }
 
     private void abortAgent() {
@@ -2442,6 +2498,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         state.agentMode = agentMode;
         state.maximumSpeed = prefs.maximumSpeed();
         state.autostartCore = prefs.autostartCore();
+        state.smartCompaction = prefs.smartCompaction();
         state.language = uiLanguage;
 
         for (ModelSpec model : modelCatalog.all()) state.models.add(modelRow(model));
@@ -2741,8 +2798,14 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private String speedProfile(ModelSpec model) {
         return switch (model.id) {
             case "qwen3.5-0.8b" -> t("Быстро · ≈52 ток/с", "Fast · ≈52 tok/s");
-            case "qwen3.5-2b" -> t("Баланс · ≈19 ток/с", "Balanced · ≈19 tok/s");
-            case "qwen3.5-4b" -> t("Точнее · ≈7 ток/с", "More precise · ≈7 tok/s");
+            case "qwen3.5-2b" -> t(
+                    "FAST · без скрытого рассуждения · ≈19 ток/с",
+                    "FAST · direct · ≈19 tok/s"
+            );
+            case "qwen3.5-4b" -> t(
+                    "DEEP · рассуждение ≤1024 токенов · ≈7 ток/с",
+                    "DEEP · reasoning up to 1024 tokens · ≈7 tok/s"
+            );
             case "qwen3.5-9b" -> t("Эксперимент · медленно", "Experimental · slow");
             case "bonsai-27b" -> t("Не для диалога · ≈1 ток/с", "Not for chat · ≈1 tok/s");
             default -> t(
@@ -2758,9 +2821,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case "qwen3.5-0.8b" ->
                     "The fastest profile for phones with limited available memory.";
             case "qwen3.5-2b" ->
-                    "A lightweight local agent for small edits and quick answers.";
+                    "FAST: direct answers without hidden reasoning for everyday edits.";
             case "qwen3.5-4b" ->
-                    "The main flagship-phone profile; its device benchmark is not published yet.";
+                    "DEEP: bounded reasoning for harder coding tasks; slower than FAST.";
             case "qwen3.5-9b" ->
                     "A multi-step profile with high OOM risk; it needs a separate device benchmark.";
             case "bonsai-27b" ->
@@ -3349,6 +3412,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             setInferenceActive(false, "");
         }
         refreshUi();
+        main.postDelayed(this::maybeSmartCompactSession, 750L);
     }
 
     private void handleBridgeGap(String instanceId, long earliestReceived) {
@@ -3510,6 +3574,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         selectedModel.recommendedContext
                 );
                 refreshUi();
+                main.post(this::maybeSmartCompactSession);
             }
             case CONTEXT_COMPACTION_STARTED -> {
                 contextCompacting = true;
@@ -3647,6 +3712,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                 "A new Pi RPC session opened without hidden replay."
                         ));
                 contextUsage = SessionContextUsage.empty(selectedModel.recommendedContext);
+                smartCompactionAttemptSession = null;
+                smartCompactionAttemptTokens = -1L;
                 deck.setGenerationSpeed(null);
                 String pending = pendingPromptAfterNewSession;
                 pendingPromptAfterNewSession = null;
@@ -3728,6 +3795,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
         }
         operations.markConsumed(event.operationId);
+        if (record.kind == OperationKind.AGENT_TURN) {
+            main.postDelayed(this::maybeSmartCompactSession, 750L);
+        }
     }
 
     private void showApproval(BridgeEvent event) {

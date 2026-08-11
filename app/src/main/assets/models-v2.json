@@ -80,7 +80,7 @@
       "title": "Qwen3.5 2B",
       "tier": "EDGE",
       "status": "EXPERIMENTAL",
-      "note": "Лёгкий локальный агент для небольших правок и быстрых ответов.",
+      "note": "FAST: прямые ответы без скрытого рассуждения; быстрый профиль для повседневных правок.",
       "license": {
         "spdx": "Apache-2.0",
         "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF",
@@ -226,7 +226,7 @@
       "title": "Qwen3.5 4B",
       "tier": "CORE",
       "status": "EXPERIMENTAL",
-      "note": "Основной профиль для флагманского телефона; device benchmark ещё не опубликован.",
+      "note": "DEEP: Qwen 4B с ограниченным внутренним рассуждением для сложных правок; медленнее FAST.",
       "license": {
         "spdx": "Apache-2.0",
         "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF",
@@ -261,25 +261,25 @@
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": [],
+        "serverArgs": ["--reasoning-budget", "1024"],
         "chatTemplateMode": "embedded",
-        "reasoningMode": "off",
+        "reasoningMode": "on",
         "speculative": {
           "mode": "off",
           "draftMax": 0
         }
       },
       "sampling": {
-        "temperature": 0.7,
-        "topP": 0.8,
+        "temperature": 0.6,
+        "topP": 0.95,
         "topK": 20,
         "minP": 0.0,
-        "presencePenalty": 1.5
+        "presencePenalty": 0.0
       },
       "agent": {
         "toolProtocol": "openai",
         "piProfile": "qwen3.5-local",
-        "maxTokens": 2048,
+        "maxTokens": 3072,
         "supportsToolCalls": true,
         "supportsMultiTurnTools": true
       },

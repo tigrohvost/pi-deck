@@ -1,0 +1,309 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-08-11T12:21:51.005948Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q03",
+    "Q04"
+  ],
+  "outcomes": [
+    {
+      "id": "Q03",
+      "category": "code_navigation",
+      "outcome": "fail",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=src/calculator\\.py.*(?:line|строк)[^0-9]*1|src/calculator\\.py:1; answer='Найден: `./.pideck-bench/45043de9-882b-49af-aa02-2c86a063089a/fixture/src/calculator.py:1:5`\\n\\nФайл находится в подпапке `fixture`, поэтому относительный путь — это `src/calculator.py`.'"
+        },
+        "required_tool:code_nav": {
+          "passed": true,
+          "evidence": "tools=['code_nav', 'code_nav', 'code_nav', 'code_nav', 'code_nav']"
+        },
+        "bounded_tool_calls": {
+          "passed": false,
+          "evidence": "5 <= 2; tools=['code_nav', 'code_nav', 'code_nav', 'code_nav', 'code_nav']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Найден: `./.pideck-bench/45043de9-882b-49af-aa02-2c86a063089a/fixture/src/calculator.py:1:5`\n\nФайл находится в подпапке `fixture`, поэтому относительный путь — это `src/calculator.py`.",
+      "toolNames": [
+        "code_nav",
+        "code_nav",
+        "code_nav",
+        "code_nav",
+        "code_nav"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 74.970601,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 35.713072,
+        "totalTurnSeconds": 81.329449,
+        "provider": {
+          "outputTokens": 274,
+          "decodeSeconds": 16.955,
+          "decodeTokensPerSecond": 16.16,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 60.11387,
+            "tokens": 2369,
+            "tokensPerSecond": 39.409
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 6,
+            "prefill": {
+              "seconds": 60.11387,
+              "tokens": 2369,
+              "tokensPerSecond": 39.409
+            },
+            "decode": {
+              "seconds": 19.70797,
+              "tokens": 274,
+              "tokensPerSecond": 13.903
+            }
+          }
+        },
+        "tools": {
+          "requested": 5,
+          "completed": 5,
+          "failed": 3,
+          "names": [
+            "code_nav"
+          ],
+          "executionSeconds": 0.293495,
+          "postToolToTerminalSeconds": 28.526936
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 13,
+        "start": {
+          "monotonicSeconds": 69916.598752,
+          "batteryLevelPercent": 99,
+          "batteryTemperatureC": 40.1,
+          "batteryVoltageV": 4.226,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 1
+        },
+        "end": {
+          "monotonicSeconds": 70005.777716,
+          "batteryLevelPercent": 99,
+          "batteryTemperatureC": 41.2,
+          "batteryVoltageV": 4.231,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2342400,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.697,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 0.697,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q04",
+      "category": "missing_path_restraint",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=не (?:существует|найден)|отсутствует|not found|does not exist|No such file; answer='Файл `docs/definitely-missing.txt` не существует. Я остановлюсь и сообщу об этом, как вы просили.'"
+        },
+        "required_tool:read": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "forbidden_tool:find": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "forbidden_tool:pideck_bash": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "forbidden_tool:code_nav": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 1; tools=['read']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Файл `docs/definitely-missing.txt` не существует. Я остановлюсь и сообщу об этом, как вы просили.",
+      "toolNames": [
+        "read"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 36.878957,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 47.667935,
+        "totalTurnSeconds": 54.130594,
+        "provider": {
+          "outputTokens": 173,
+          "decodeSeconds": 13.16,
+          "decodeTokensPerSecond": 13.15,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 40.74742,
+            "tokens": 2028,
+            "tokensPerSecond": 49.77
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 40.74742,
+              "tokens": 2028,
+              "tokensPerSecond": 49.77
+            },
+            "decode": {
+              "seconds": 13.1506,
+              "tokens": 173,
+              "tokensPerSecond": 13.155
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 1,
+          "names": [
+            "read"
+          ],
+          "executionSeconds": 0.014927,
+          "postToolToTerminalSeconds": 6.444022
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 9,
+        "start": {
+          "monotonicSeconds": 70035.471326,
+          "batteryLevelPercent": 99,
+          "batteryTemperatureC": 41.4,
+          "batteryVoltageV": 4.24,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "end": {
+          "monotonicSeconds": 70096.960977,
+          "batteryLevelPercent": 99,
+          "batteryTemperatureC": 41.4,
+          "batteryVoltageV": 4.225,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2726400,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.811,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 3
+        },
+        "minimumBigCoreHeadroom": 0.811,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "qwen3.5-2b",
+  "accessProfile": "autonomous",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 1,
+    "failed": 1,
+    "successRate": 0.5,
+    "medianTtftSeconds": 55.924779,
+    "medianTurnSeconds": 67.730021
+  }
+}

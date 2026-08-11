@@ -88,6 +88,32 @@ def read_bridge_token(path: Path) -> str:
     return token
 
 
+def normalized_tool_args(value: Any) -> dict[str, Any]:
+    """Accept the bridge's JSON-string wire form without trusting non-object JSON."""
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str):
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def normalized_tool_result_details(value: Any) -> dict[str, Any]:
+    """Read bounded extension details from the bridge's JSON result preview."""
+    if not isinstance(value, str):
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("details"), dict):
+        return {}
+    return parsed["details"]
+
+
 def parse_battery(raw: str) -> dict[str, Any]:
     values: dict[str, str] = {}
     for line in raw.splitlines():
@@ -647,6 +673,25 @@ class BridgeClient:
         query = urllib.parse.urlencode({"after": after, "timeoutMs": timeout_ms})
         return self._request("GET", f"/v1/events?{query}", timeout=timeout_ms / 1000 + 5)
 
+    def prepare_benchmark(self, run_id: str) -> dict[str, Any]:
+        value = self._request(
+            "POST", "/v1/benchmark/prepare", {"runId": run_id}, timeout=15
+        )
+        snapshot = value.get("snapshot")
+        if not isinstance(snapshot, dict):
+            raise BenchmarkError("Bridge benchmark fixture response is missing")
+        return snapshot
+
+    def benchmark_snapshot(self, run_id: str) -> dict[str, Any]:
+        query = urllib.parse.urlencode({"runId": run_id})
+        value = self._request(
+            "GET", f"/v1/benchmark/snapshot?{query}", timeout=15
+        )
+        snapshot = value.get("snapshot")
+        if not isinstance(snapshot, dict):
+            raise BenchmarkError("Bridge benchmark snapshot is missing")
+        return snapshot
+
 
 class EnvironmentSampler:
     def __init__(self, snapshot: Callable[[], dict[str, Any]], interval: float):
@@ -871,12 +916,54 @@ class AgentBenchmark:
             self._context_tokens(after_state),
             native_timings,
         )
+        terminal = next(
+            (event for event in reversed(events) if event.get("type") in TERMINAL_EVENTS),
+            {},
+        )
+        terminal_payload = (
+            terminal.get("payload") if isinstance(terminal.get("payload"), dict) else {}
+        )
+        requested_tools: list[dict[str, Any]] = []
+        completed_tools: dict[str, dict[str, Any]] = {}
+        for event in events:
+            payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+            call_id = payload.get("toolCallId")
+            if event.get("type") == "TOOL_CALL_REQUESTED":
+                requested_tools.append(
+                    {
+                        "id": call_id,
+                        "name": payload.get("toolName"),
+                        "args": normalized_tool_args(payload.get("args")),
+                    }
+                )
+            elif event.get("type") == "TOOL_CALL_COMPLETED" and isinstance(call_id, str):
+                result_preview = payload.get("resultPreview")
+                result_details = normalized_tool_result_details(result_preview)
+                completed_tools[call_id] = {
+                    "isError": payload.get("isError") is True,
+                    "resultPreview": result_preview,
+                    "details": result_details,
+                }
+        for tool in requested_tools:
+            completion = completed_tools.get(tool.get("id"))
+            if completion is not None:
+                tool["completion"] = completion
+                effective = dict(tool.get("args", {}))
+                details = completion.get("details", {})
+                for key in ("path", "expr"):
+                    if isinstance(details.get(key), str):
+                        effective[key] = details[key]
+                tool["effectiveArgs"] = effective
         return {
             "label": label,
             "promptSha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
             "promptBytes": len(prompt.encode("utf-8")),
             "sessionResetSeconds": round(reset_seconds, 6),
             "turn": turn,
+            "transcript": {
+                "answer": terminal_payload.get("answer", ""),
+                "tools": requested_tools,
+            },
             "environment": summarize_environment(environment_samples),
             "environmentSamples": environment_samples,
         }

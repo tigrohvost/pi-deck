@@ -1,0 +1,563 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-08-11T13:11:49.158954Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q09",
+    "Q10",
+    "Q11",
+    "Q12"
+  ],
+  "outcomes": [
+    {
+      "id": "Q09",
+      "category": "live_data_negation",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "exact_answer": {
+          "passed": true,
+          "evidence": "answer='STATIC_ONLY_740'"
+        },
+        "forbidden_tool:web_research": {
+          "passed": true,
+          "evidence": "tools=[]"
+        },
+        "forbidden_tool:weather": {
+          "passed": true,
+          "evidence": "tools=[]"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "0 <= 0; tools=[]"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "STATIC_ONLY_740",
+      "toolNames": [],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 11.465444,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": null,
+        "totalTurnSeconds": 11.893383,
+        "provider": {
+          "outputTokens": 7,
+          "decodeSeconds": 0.421,
+          "decodeTokensPerSecond": 16.62,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 11.39398,
+            "tokens": 629,
+            "tokensPerSecond": 55.205
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 1,
+            "prefill": {
+              "seconds": 11.39398,
+              "tokens": 629,
+              "tokensPerSecond": 55.205
+            },
+            "decode": {
+              "seconds": 0.41897,
+              "tokens": 7,
+              "tokensPerSecond": 16.708
+            }
+          }
+        },
+        "tools": {
+          "requested": 0,
+          "completed": 0,
+          "failed": 0,
+          "names": [],
+          "executionSeconds": 0.0,
+          "postToolToTerminalSeconds": null
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 4,
+        "start": {
+          "monotonicSeconds": 72913.027708,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 39.0,
+          "batteryVoltageV": 4.192,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "end": {
+          "monotonicSeconds": 72932.463718,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 39.1,
+          "batteryVoltageV": 4.201,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 1.0,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 0,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q10",
+      "category": "web_research",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=https?://; answer='Точная дата выхода Python 3.13.0 указана как **7 октября 2024 года** на сайте python.org (https://www.python.org/downloads/release/python-3130/). Это официальная стабильная версия, которая вышла после релиза с исправлениями и тестированиям '"
+        },
+        "required_tool:web_research": {
+          "passed": true,
+          "evidence": "tools=['web_research']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 1; tools=['web_research']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Точная дата выхода Python 3.13.0 указана как **7 октября 2024 года** на сайте python.org (https://www.python.org/downloads/release/python-3130/). Это официальная стабильная версия, которая вышла после релиза с исправлениями и тестированиям в конце 2024 года.\n\nСсылка: https://www.python.org/downloads/release/python-3130/",
+      "toolNames": [
+        "web_research"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 50.866582,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 21.173686,
+        "totalTurnSeconds": 57.83244,
+        "provider": {
+          "outputTokens": 148,
+          "decodeSeconds": 9.916,
+          "decodeTokensPerSecond": 14.93,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 44.23258,
+            "tokens": 2332,
+            "tokensPerSecond": 52.721
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 44.23258,
+              "tokens": 2332,
+              "tokensPerSecond": 52.721
+            },
+            "decode": {
+              "seconds": 10.51672,
+              "tokens": 148,
+              "tokensPerSecond": 14.073
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 0,
+          "names": [
+            "web_research"
+          ],
+          "executionSeconds": 2.863897,
+          "postToolToTerminalSeconds": 33.789961
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 10,
+        "start": {
+          "monotonicSeconds": 72944.571644,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 39.1,
+          "batteryVoltageV": 4.201,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "end": {
+          "monotonicSeconds": 73010.000411,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 39.4,
+          "batteryVoltageV": 4.219,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3187200,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.949,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 0.949,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q11",
+      "category": "tool_selection",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "required_tool:weather": {
+          "passed": true,
+          "evidence": "tools=['weather']"
+        },
+        "forbidden_tool:web_research": {
+          "passed": true,
+          "evidence": "tools=['weather']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 1; tools=['weather']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Сейчас в Москве переменная облачность, температура 24.2 °C (ощущается 22.5 °C), влажность 43%, ветер 13.3 км/ч, осадки нет. В ближайшие дни ожидается ливни с высокой вероятностью выпадения дождевых капель.",
+      "toolNames": [
+        "weather"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 37.927269,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 18.473077,
+        "totalTurnSeconds": 42.965954,
+        "provider": {
+          "outputTokens": 96,
+          "decodeSeconds": 6.307,
+          "decodeTokensPerSecond": 15.22,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 34.99723,
+            "tokens": 1861,
+            "tokensPerSecond": 53.176
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 34.99723,
+              "tokens": 1861,
+              "tokensPerSecond": 53.176
+            },
+            "decode": {
+              "seconds": 6.77467,
+              "tokens": 96,
+              "tokensPerSecond": 14.17
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 0,
+          "names": [
+            "weather"
+          ],
+          "executionSeconds": 0.972532,
+          "postToolToTerminalSeconds": 23.515606
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 8,
+        "start": {
+          "monotonicSeconds": 73022.108892,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 39.8,
+          "batteryVoltageV": 4.224,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "end": {
+          "monotonicSeconds": 73072.588934,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 40.3,
+          "batteryVoltageV": 4.224,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2956800,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.88,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 0.88,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 2,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q12",
+      "category": "literal_read",
+      "outcome": "fail",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": false,
+          "evidence": "pattern=\\\\n; answer='Я получил ошибку доступа к файлу AGENTS.md, так как он находится в пути `/data/data/com.termux/files/home/.pideck/workspace/AGENTS.md`, но я не могу напрямую читать файлы по таким абсолютным путям из текущего рабочего каталога. Однако, учит'"
+        },
+        "required_tool:read": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 2; tools=['read']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Я получил ошибку доступа к файлу AGENTS.md, так как он находится в пути `/data/data/com.termux/files/home/.pideck/workspace/AGENTS.md`, но я не могу напрямую читать файлы по таким абсолютным путям из текущего рабочего каталога. Однако, учитывая контекст вашей задачи — вы просчитали последовательность в файле `docs/literal.txt` и хотите сохранить исходную строку обратный-слеш+n без изменений.\n\nУ вас есть два варианта:\n\n1.  **Если вы можете открыть файл `docs/literal.txt`** (или его аналог) на устройстве или локально, просто скопируйте содержимое и сохраните его в каталог `.pideck-bench/8b120679-58fa-4826-9baa-2676dd9b16fc/docs/literal.txt` (или любое другое имя), чтобы убедиться, что последовательность `n\\|` сохранена.\n\n2.  **Если вы хотите, чтобы я проверил этот файл через терминал**, выполните команду:\n    ```bash\n    cat docs/literal.txt\n    ```\n    (если путь существует) или просто найдите файл и откройте его содержимое в любом текстовом редакторе на Android/Termux.\n\n**Чтобы выполнить вашу просьбу «дословно различи» (отсортировать), вам нужно:**\n1.  Открыть файл `docs/literal.txt`.\n2.  Найти строку с последовательностью обратный-слеш+n (`n\\|`).\n3.  Сохранить её в исходном виде, не меняя ни один символ.\n\nПосле этого вы можете назвать этот сохраненный файл тем же именем, что и оригинал (например, `literal.txt`), чтобы он остался на месте, либо записать его куда-то другое.",
+      "toolNames": [
+        "read"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 30.107307,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 23.297985,
+        "totalTurnSeconds": 63.057902,
+        "provider": {
+          "outputTokens": 446,
+          "decodeSeconds": 35.303,
+          "decodeTokensPerSecond": 12.63,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 27.03693,
+            "tokens": 1340,
+            "tokensPerSecond": 49.562
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 27.03693,
+              "tokens": 1340,
+              "tokensPerSecond": 49.562
+            },
+            "decode": {
+              "seconds": 35.7177,
+              "tokens": 446,
+              "tokensPerSecond": 12.487
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 1,
+          "names": [
+            "read"
+          ],
+          "executionSeconds": 0.019406,
+          "postToolToTerminalSeconds": 39.732435
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 9,
+        "start": {
+          "monotonicSeconds": 73084.821406,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 40.3,
+          "batteryVoltageV": 4.224,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "end": {
+          "monotonicSeconds": 73153.050221,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 40.7,
+          "batteryVoltageV": 4.205,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2476800,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.737,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 3
+        },
+        "minimumBigCoreHeadroom": 0.737,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "qwen3.5-2b",
+  "accessProfile": "autonomous",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 3,
+    "failed": 1,
+    "successRate": 0.75,
+    "medianTtftSeconds": 34.017288,
+    "medianTurnSeconds": 50.399197
+  }
+}

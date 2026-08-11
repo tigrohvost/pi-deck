@@ -249,6 +249,24 @@ class PiRpcProtocolTest(unittest.TestCase):
                 / "runtime"
                 / "pideck-web-tools.ts"
             )
+            code_nav_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-code-nav.ts"
+            )
+            agent_base_prompt = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-agent-base-prompt.md"
+            )
             tool_router_extension = (
                 REPOSITORY
                 / "app"
@@ -268,6 +286,8 @@ class PiRpcProtocolTest(unittest.TestCase):
                 "fixture-model",
                 "--thinking",
                 "off",
+                "--system-prompt",
+                str(agent_base_prompt),
                 "--session-dir",
                 str(sessions),
                 "--session-id",
@@ -290,10 +310,12 @@ class PiRpcProtocolTest(unittest.TestCase):
                 "--extension",
                 str(web_tools_extension),
                 "--extension",
+                str(code_nav_extension),
+                "--extension",
                 str(tool_router_extension),
                 "--no-builtin-tools",
                 "--tools",
-                "read,grep,find,ls,web_search,web_fetch,weather,"
+                "read,code_nav,web_research,weather,"
                 "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
                 "pideck_load_tools",
                 "--extension",
@@ -457,8 +479,8 @@ class PiRpcProtocolTest(unittest.TestCase):
                 }
                 self.assertIn("pideck_load_tools", tool_names)
                 self.assertIn("pideck_bash", tool_names)
-                self.assertNotIn("web_search", tool_names)
-                self.assertNotIn("web_fetch", tool_names)
+                self.assertIn("code_nav", tool_names)
+                self.assertNotIn("web_research", tool_names)
                 self.assertNotIn("weather", tool_names)
                 self.assertNotIn("pideck_edit", tool_names)
                 self.assertIn(
@@ -518,8 +540,7 @@ class PiRpcProtocolTest(unittest.TestCase):
                     if isinstance(tool, dict)
                 }
                 self.assertIn("pideck_load_tools", routed_tool_names)
-                self.assertIn("web_search", routed_tool_names, routed_events)
-                self.assertIn("web_fetch", routed_tool_names)
+                self.assertIn("web_research", routed_tool_names, routed_events)
                 self.assertNotIn("weather", routed_tool_names)
                 self.assertFalse(
                     any(value.get("type") == "extension_error" for value in routed_events),

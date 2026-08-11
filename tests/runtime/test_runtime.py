@@ -162,6 +162,26 @@ def fake_bridge() -> bridge.PiDeckBridge:
 
 
 class RuntimeTestCase(unittest.TestCase):
+    def test_compact_agent_prompt_is_passed_as_text_not_as_a_path(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-base-prompt-") as directory:
+            prompt = Path(directory) / "base.md"
+            prompt.write_text("  compact instructions\n", encoding="utf-8")
+            with mock.patch.object(bridge, "AGENT_BASE_PROMPT", prompt):
+                value = bridge.agent_base_prompt()
+
+        self.assertEqual("compact instructions", value)
+        self.assertNotEqual(str(prompt), value)
+
+    def test_fast_and_deep_models_select_matching_pi_thinking_semantics(self) -> None:
+        fast = tiny_model(b"fast")
+        deep = tiny_model(b"deep")
+        deep["runtime"]["reasoningMode"] = "on"
+
+        self.assertEqual("off", bridge.pi_thinking_level(fast))
+        self.assertEqual("low", bridge.pi_thinking_level(deep))
+        self.assertEqual("off", launcher.pi_thinking_level(fast))
+        self.assertEqual("low", launcher.pi_thinking_level(deep))
+
     def test_bridge_can_rebind_after_exact_managed_restart(self) -> None:
         self.assertTrue(bridge.BridgeHttpServer.allow_reuse_address)
 
@@ -534,31 +554,37 @@ class RuntimeTestCase(unittest.TestCase):
         )
         self.assertIn("pideck_bash", confirm_tools)
         self.assertIn("pideck_load_tools", confirm_tools)
-        self.assertIn("web_search", confirm_tools)
+        self.assertIn("web_research", confirm_tools)
+        self.assertIn("code_nav", confirm_tools)
         self.assertIn("weather", confirm_tools)
         autonomous_tools = ",".join(
             launcher._profile_arguments("autonomous", "agent")
         )
         self.assertIn("pideck_load_tools", autonomous_tools)
-        self.assertIn("web_search", autonomous_tools)
+        self.assertIn("web_research", autonomous_tools)
         self.assertIn("weather", autonomous_tools)
         read_only_tools = ",".join(
             launcher._profile_arguments("read_only", "agent")
         )
         self.assertIn("pideck_load_tools", read_only_tools)
-        self.assertIn("web_search", read_only_tools)
+        self.assertIn("web_research", read_only_tools)
+        self.assertIn("code_nav", read_only_tools)
         self.assertIn("weather", read_only_tools)
 
     def test_explicit_live_data_request_detection_is_narrow(self) -> None:
         self.assertEqual(
-            frozenset({"weather", "web_search"}),
+            frozenset({"weather", "web_research"}),
             bridge.required_live_tools(
                 "поищи в сети погоду в Москве и напиши здесь"
             ),
         )
         self.assertEqual(
-            frozenset({"web_search"}),
+            frozenset({"web_research"}),
             bridge.required_live_tools("Найди в интернете документацию Pi"),
+        )
+        self.assertEqual(
+            frozenset({"web_research"}),
+            bridge.required_live_tools("Какая текущая версия Pi?"),
         )
         for prompt in (
             "Объясни, почему меняется погода",
@@ -2769,7 +2795,7 @@ class RuntimeTestCase(unittest.TestCase):
         ]
         self.assertEqual("live_tool_required", rejected[-1]["payload"]["reason"])
         self.assertEqual(
-            ["weather", "web_search"],
+            ["weather", "web_research"],
             rejected[-1]["payload"]["requiredTools"],
         )
 
@@ -3348,6 +3374,64 @@ class RuntimeTestCase(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
+
+    def test_authenticated_benchmark_fixture_is_additive_bounded_and_snapshotable(self) -> None:
+        bridge.BENCHMARK_FIXTURE_FILE.write_bytes(
+            (RUNTIME_ROOT / "pideck-benchmark-fixture-v2.json").read_bytes()
+        )
+        run_id = operation_id()
+
+        prepared = bridge.prepare_benchmark_run({"runId": run_id})
+
+        self.assertEqual(f".pideck-bench/{run_id}/fixture", prepared["fixturePath"])
+        self.assertEqual(
+            "PI//DECK agent benchmark fixture\n\n"
+            "A tiny offline project used only by the authenticated device benchmark.\n",
+            prepared["entries"]["fixture/README.md"]["text"],
+        )
+        self.assertEqual(
+            "must remain unchanged\n",
+            prepared["entries"]["outside-sentinel.txt"]["text"],
+        )
+        with self.assertRaises(common.PiDeckError) as raised:
+            bridge.prepare_benchmark_run({"runId": run_id})
+        self.assertEqual("DUPLICATE_BENCHMARK_RUN", raised.exception.code)
+
+        counter = bridge.BENCHMARK_ROOT / run_id / "fixture" / "src" / "counter.py"
+        counter.write_text("changed\n", encoding="utf-8")
+        snapshot = bridge.benchmark_snapshot(run_id)
+        self.assertEqual("changed\n", snapshot["entries"]["fixture/src/counter.py"]["text"])
+        self.assertNotEqual(prepared["snapshotSha256"], snapshot["snapshotSha256"])
+
+    def test_benchmark_snapshot_never_follows_agent_created_symlinks(self) -> None:
+        bridge.BENCHMARK_FIXTURE_FILE.write_bytes(
+            (RUNTIME_ROOT / "pideck-benchmark-fixture-v2.json").read_bytes()
+        )
+        run_id = operation_id()
+        bridge.prepare_benchmark_run({"runId": run_id})
+        link = bridge.BENCHMARK_ROOT / run_id / "fixture" / "leak"
+        link.symlink_to("/etc/passwd")
+
+        snapshot = bridge.benchmark_snapshot(run_id)
+
+        self.assertEqual("symlink", snapshot["entries"]["fixture/leak"]["kind"])
+        self.assertNotIn("text", snapshot["entries"]["fixture/leak"])
+
+    def test_benchmark_snapshot_rejects_unbounded_directory_nesting(self) -> None:
+        bridge.BENCHMARK_FIXTURE_FILE.write_bytes(
+            (RUNTIME_ROOT / "pideck-benchmark-fixture-v2.json").read_bytes()
+        )
+        run_id = operation_id()
+        bridge.prepare_benchmark_run({"runId": run_id})
+        nested = bridge.BENCHMARK_ROOT / run_id / "fixture"
+        for index in range(9):
+            nested = nested / f"d{index}"
+            nested.mkdir()
+
+        with self.assertRaises(common.PiDeckError) as raised:
+            bridge.benchmark_snapshot(run_id)
+
+        self.assertEqual("BENCHMARK_STATE_TOO_LARGE", raised.exception.code)
 
     def test_unexpected_pi_death_mid_turn_fails_closed(self) -> None:
         value = fake_bridge()

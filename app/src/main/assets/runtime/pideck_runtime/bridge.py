@@ -20,7 +20,7 @@ import unicodedata
 import uuid
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -67,8 +67,13 @@ SYNTAX_CHECK_EXTENSION = BASE / "runtime" / "pideck-syntax-check.ts"
 RUN_TESTS_EXTENSION = BASE / "runtime" / "pideck-run-tests.ts"
 CONTEXT_GUARD_EXTENSION = BASE / "runtime" / "pideck-context-guard.ts"
 WEB_TOOLS_EXTENSION = BASE / "runtime" / "pideck-web-tools.ts"
+CODE_NAV_EXTENSION = BASE / "runtime" / "pideck-code-nav.ts"
 TOOL_ROUTER_EXTENSION = BASE / "runtime" / "pideck-tool-router.ts"
 PERMISSION_EXTENSION = BASE / "runtime" / "pideck-permission-gate.ts"
+AGENT_BASE_PROMPT = BASE / "runtime" / "pideck-agent-base-prompt.md"
+BENCHMARK_FIXTURE_FILE = BASE / "runtime" / "pideck-benchmark-fixture-v2.json"
+BENCHMARK_ROOT = BASE / "workspace" / ".pideck-bench"
+BENCHMARK_LOCK = BRIDGE_DIRECTORY / "benchmark.lock"
 MAX_EVENT_BYTES = 256 * 1024
 MAX_EVENTS = 10_000
 MAX_JOURNAL_BYTES = 20 * 1024 * 1024
@@ -115,10 +120,217 @@ TOKEN_LIMIT_RETRY_MESSAGE = (
 LIVE_DATA_RETRY_MESSAGE = (
     "Исходный запрос явно требует актуальных данных. Не отвечай из памяти и не ищи "
     "эти данные в файлах workspace. Обязательно вызови weather для погоды или "
-    "web_search для поиска в сети, затем ответь по результату инструмента. "
+    "web_research для поиска в сети, затем ответь по результату инструмента. "
     "Не упоминай эту служебную инструкцию."
 )
-LIVE_DATA_TOOL_NAMES = frozenset({"web_search", "weather"})
+LIVE_DATA_TOOL_NAMES = frozenset({"web_research", "weather"})
+MAX_BENCHMARK_FILES = 128
+MAX_BENCHMARK_FILE_BYTES = 64 * 1024
+MAX_BENCHMARK_TOTAL_BYTES = 512 * 1024
+MAX_BENCHMARK_DEPTH = 8
+MAX_AGENT_BASE_PROMPT_BYTES = 4 * 1024
+
+
+def agent_base_prompt() -> str:
+    """Returns prompt text for Pi's CLI; --system-prompt does not accept a file path."""
+    try:
+        raw = AGENT_BASE_PROMPT.read_bytes()
+    except OSError as error:
+        raise PiDeckError(
+            "AGENT_BASE_PROMPT_MISSING", "Compact managed agent base prompt is not installed"
+        ) from error
+    if not raw or len(raw) > MAX_AGENT_BASE_PROMPT_BYTES or b"\x00" in raw:
+        raise PiDeckError("INVALID_AGENT_BASE_PROMPT", "Managed agent base prompt is invalid")
+    try:
+        value = raw.decode("utf-8").strip()
+    except UnicodeDecodeError as error:
+        raise PiDeckError("INVALID_AGENT_BASE_PROMPT", "Managed agent base prompt is not UTF-8") from error
+    if not value:
+        raise PiDeckError("INVALID_AGENT_BASE_PROMPT", "Managed agent base prompt is empty")
+    return value
+
+
+def pi_thinking_level(model: dict[str, Any]) -> str:
+    """Keeps Pi's transcript semantics aligned with the server's hard reasoning profile."""
+    runtime = model.get("runtime") if isinstance(model, dict) else None
+    return "low" if isinstance(runtime, dict) and runtime.get("reasoningMode") == "on" else "off"
+
+
+def _safe_benchmark_relative_path(value: Any) -> PurePosixPath:
+    if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 240:
+        raise PiDeckError("INVALID_BENCHMARK_FIXTURE", "Fixture path is invalid")
+    path = PurePosixPath(value)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise PiDeckError("INVALID_BENCHMARK_FIXTURE", "Fixture path must stay relative")
+    return path
+
+
+def _private_directory(path: Path, *, create: bool) -> None:
+    if create:
+        try:
+            path.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+    try:
+        state = path.lstat()
+    except OSError as error:
+        raise PiDeckError("BENCHMARK_STORAGE_UNAVAILABLE", "Benchmark storage is unavailable") from error
+    if stat.S_ISLNK(state.st_mode) or not stat.S_ISDIR(state.st_mode):
+        raise PiDeckError("UNSAFE_BENCHMARK_STORAGE", "Benchmark storage must be a real directory")
+    os.chmod(path, 0o700)
+
+
+def _benchmark_run_directory(run_id: str) -> Path:
+    parsed = require_uuid4({"runId": run_id}, "runId")
+    return BENCHMARK_ROOT / parsed
+
+
+def _read_benchmark_file(path: Path, expected: os.stat_result) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise PiDeckError("UNSAFE_BENCHMARK_STATE", "Benchmark file changed while reading") from error
+    try:
+        actual = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(actual.st_mode)
+            or (actual.st_dev, actual.st_ino) != (expected.st_dev, expected.st_ino)
+            or actual.st_size < 0
+            or actual.st_size > MAX_BENCHMARK_FILE_BYTES
+        ):
+            raise PiDeckError("UNSAFE_BENCHMARK_STATE", "Benchmark file is not safely bounded")
+        chunks: list[bytes] = []
+        remaining = MAX_BENCHMARK_FILE_BYTES + 1
+        while remaining > 0:
+            chunk = os.read(descriptor, min(16 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        content = b"".join(chunks)
+        if len(content) > MAX_BENCHMARK_FILE_BYTES:
+            raise PiDeckError("UNSAFE_BENCHMARK_STATE", "Benchmark file exceeds the size limit")
+        return content
+    finally:
+        os.close(descriptor)
+
+
+def benchmark_snapshot(run_id: str) -> dict[str, Any]:
+    run_directory = _benchmark_run_directory(run_id)
+    _private_directory(BENCHMARK_ROOT, create=False)
+    _private_directory(run_directory, create=False)
+    marker = run_directory / ".pideck-benchmark-v2"
+    try:
+        marker_state = marker.lstat()
+        marker_value = _read_benchmark_file(marker, marker_state)
+    except OSError as error:
+        raise PiDeckError("UNKNOWN_BENCHMARK_RUN", "Benchmark run is unavailable") from error
+    if marker_value != (run_id + "\n").encode("ascii"):
+        raise PiDeckError("UNSAFE_BENCHMARK_STORAGE", "Benchmark run marker is invalid")
+
+    entries: dict[str, dict[str, Any]] = {}
+    total_bytes = 0
+    visited_entries = 0
+
+    def visit(directory: Path, depth: int) -> None:
+        nonlocal total_bytes, visited_entries
+        if depth > MAX_BENCHMARK_DEPTH:
+            raise PiDeckError("BENCHMARK_STATE_TOO_LARGE", "Benchmark directory nesting is too deep")
+        try:
+            children = sorted(os.scandir(directory), key=lambda child: child.name)
+        except OSError as error:
+            raise PiDeckError("UNSAFE_BENCHMARK_STATE", "Benchmark directory is unreadable") from error
+        for child in children:
+            visited_entries += 1
+            if visited_entries > MAX_BENCHMARK_FILES:
+                raise PiDeckError("BENCHMARK_STATE_TOO_LARGE", "Benchmark run has too many entries")
+            relative = Path(child.path).relative_to(run_directory).as_posix()
+            try:
+                child_state = child.stat(follow_symlinks=False)
+            except OSError as error:
+                raise PiDeckError("UNSAFE_BENCHMARK_STATE", "Benchmark entry changed while reading") from error
+            if stat.S_ISDIR(child_state.st_mode):
+                visit(Path(child.path), depth + 1)
+                continue
+            if stat.S_ISLNK(child_state.st_mode):
+                entries[relative] = {"kind": "symlink", "size": child_state.st_size}
+                continue
+            if not stat.S_ISREG(child_state.st_mode):
+                entries[relative] = {"kind": "special", "size": child_state.st_size}
+                continue
+            content = _read_benchmark_file(Path(child.path), child_state)
+            total_bytes += len(content)
+            if total_bytes > MAX_BENCHMARK_TOTAL_BYTES:
+                raise PiDeckError("BENCHMARK_STATE_TOO_LARGE", "Benchmark run exceeds the size limit")
+            try:
+                text = content.decode("utf-8")
+            except UnicodeDecodeError:
+                text = None
+            entries[relative] = {
+                "kind": "file",
+                "size": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "text": text,
+            }
+
+    visit(run_directory, 0)
+    canonical = json.dumps(entries, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return {
+        "runId": run_id,
+        "fixturePath": f".pideck-bench/{run_id}/fixture",
+        "entries": entries,
+        "snapshotSha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+    }
+
+
+def prepare_benchmark_run(request: dict[str, Any]) -> dict[str, Any]:
+    run_id = require_uuid4(request, "runId")
+    fixture = read_json(BENCHMARK_FIXTURE_FILE, MAX_BENCHMARK_TOTAL_BYTES)
+    if fixture.get("schemaVersion") != 1 or fixture.get("suiteVersion") != "suite-v2":
+        raise PiDeckError("INVALID_BENCHMARK_FIXTURE", "Unsupported benchmark fixture")
+    files = fixture.get("files")
+    if not isinstance(files, dict) or not files or len(files) > MAX_BENCHMARK_FILES - 2:
+        raise PiDeckError("INVALID_BENCHMARK_FIXTURE", "Benchmark fixture files are invalid")
+
+    validated: list[tuple[PurePosixPath, bytes]] = []
+    total_bytes = 0
+    for raw_path, raw_content in files.items():
+        relative = _safe_benchmark_relative_path(raw_path)
+        if not isinstance(raw_content, str):
+            raise PiDeckError("INVALID_BENCHMARK_FIXTURE", "Fixture content must be text")
+        content = raw_content.encode("utf-8")
+        if len(content) > MAX_BENCHMARK_FILE_BYTES:
+            raise PiDeckError("INVALID_BENCHMARK_FIXTURE", "Fixture file exceeds the size limit")
+        total_bytes += len(content)
+        if total_bytes > MAX_BENCHMARK_TOTAL_BYTES:
+            raise PiDeckError("INVALID_BENCHMARK_FIXTURE", "Fixture exceeds the total size limit")
+        validated.append((relative, content))
+
+    with exclusive_file_lock(BENCHMARK_LOCK):
+        _private_directory(BENCHMARK_ROOT, create=True)
+        run_directory = _benchmark_run_directory(run_id)
+        try:
+            run_directory.mkdir(mode=0o700)
+        except FileExistsError as error:
+            raise PiDeckError("DUPLICATE_BENCHMARK_RUN", "Benchmark run already exists") from error
+        fixture_directory = run_directory / "fixture"
+        fixture_directory.mkdir(mode=0o700)
+        atomic_write_bytes(
+            run_directory / ".pideck-benchmark-v2",
+            (run_id + "\n").encode("ascii"),
+            0o600,
+        )
+        atomic_write_bytes(
+            run_directory / "outside-sentinel.txt",
+            b"must remain unchanged\n",
+            0o600,
+        )
+        for relative, content in validated:
+            destination = fixture_directory.joinpath(*relative.parts)
+            destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            atomic_write_bytes(destination, content, 0o600)
+    return benchmark_snapshot(run_id)
 
 
 def _bounded_count(value: Any, maximum: int = 100_000_000) -> int | None:
@@ -470,6 +682,18 @@ def required_live_tools(value: str) -> frozenset[str]:
             "browse the web",
             "look up online",
             "find online",
+            "последние новости",
+            "что произошло сегодня",
+            "кто сейчас ",
+            "актуальная версия",
+            "текущая версия",
+            "сколько сейчас стоит",
+            "цена сейчас",
+            "latest version",
+            "latest release",
+            "today's news",
+            "current price",
+            "who is currently ",
         )
     )
     weather_mentioned = re.search(
@@ -497,7 +721,7 @@ def required_live_tools(value: str) -> frozenset[str]:
     if weather_requested:
         return LIVE_DATA_TOOL_NAMES
     if web_requested:
-        return frozenset({"web_search"})
+        return frozenset({"web_research"})
     return frozenset()
 
 
@@ -809,6 +1033,11 @@ class PiRpcChild:
                 "SYSTEM_PROMPT_EXTENSION_MISSING",
                 "Managed system-prompt extension is not installed",
             )
+        if not AGENT_BASE_PROMPT.is_file():
+            raise PiDeckError(
+                "AGENT_BASE_PROMPT_MISSING",
+                "Compact managed agent base prompt is not installed",
+            )
         if not HASHLINE_EXTENSION.is_file():
             raise PiDeckError(
                 "HASHLINE_EXTENSION_MISSING",
@@ -834,6 +1063,11 @@ class PiRpcChild:
                 "WEB_TOOLS_EXTENSION_MISSING",
                 "Managed web-tools extension is not installed",
             )
+        if not CODE_NAV_EXTENSION.is_file():
+            raise PiDeckError(
+                "CODE_NAV_EXTENSION_MISSING",
+                "Managed code-navigation extension is not installed",
+            )
         if not TOOL_ROUTER_EXTENSION.is_file():
             raise PiDeckError(
                 "TOOL_ROUTER_EXTENSION_MISSING",
@@ -849,7 +1083,9 @@ class PiRpcChild:
             "--model",
             model_id,
             "--thinking",
-            "off",
+            pi_thinking_level(model),
+            "--system-prompt",
+            agent_base_prompt(),
             "--session-dir",
             str(BASE / "sessions"),
             "--approve",
@@ -869,6 +1105,8 @@ class PiRpcChild:
             str(CONTEXT_GUARD_EXTENSION),
             "--extension",
             str(WEB_TOOLS_EXTENSION),
+            "--extension",
+            str(CODE_NAV_EXTENSION),
             "--extension",
             str(TOOL_ROUTER_EXTENSION),
         ]
@@ -949,7 +1187,7 @@ class PiRpcChild:
         if profile == "read_only":
             return [
                 "--tools",
-                "read,grep,find,ls,web_search,web_fetch,weather,pideck_load_tools",
+                "read,code_nav,web_research,weather,pideck_load_tools",
             ]
         if profile == "confirm_changes":
             if not PERMISSION_EXTENSION.is_file():
@@ -959,7 +1197,7 @@ class PiRpcChild:
             return [
                 "--no-builtin-tools",
                 "--tools",
-                "read,grep,find,ls,web_search,web_fetch,weather,"
+                "read,code_nav,web_research,weather,"
                 "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
                 "pideck_load_tools",
                 "--extension",
@@ -968,7 +1206,7 @@ class PiRpcChild:
         if profile == "autonomous":
             return [
                 "--tools",
-                "read,bash,edit,write,grep,find,ls,web_search,web_fetch,weather,"
+                "read,bash,edit,write,code_nav,web_research,weather,"
                 "pideck_replace_lines,run_tests,pideck_load_tools",
             ]
         raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
@@ -2463,6 +2701,19 @@ class PiDeckBridge:
             }
         return state
 
+    def prepare_benchmark(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Creates a fresh additive fixture without touching a user's existing files."""
+        with self._lock:
+            if self.active_operation_id is not None or self.pending_new_session is not None:
+                raise PiDeckError("BENCHMARK_BUSY", "Benchmark fixture requires an idle agent")
+        return prepare_benchmark_run(request)
+
+    def benchmark_snapshot(self, run_id: str) -> dict[str, Any]:
+        with self._lock:
+            if self.active_operation_id is not None:
+                raise PiDeckError("BENCHMARK_BUSY", "Benchmark snapshot requires an idle agent")
+        return benchmark_snapshot(run_id)
+
     def shutdown(self) -> None:
         with self._lock:
             if self._shutdown.is_set():
@@ -2628,6 +2879,19 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if parsed.path == "/v1/benchmark/snapshot":
+            query = parse_qs(parsed.query)
+            try:
+                run_id = query.get("runId", [""])[0]
+                snapshot = self.server.bridge.benchmark_snapshot(run_id)
+            except PiDeckError as error:
+                self._error(error)
+                return
+            self._json(
+                HTTPStatus.OK,
+                {"schemaVersion": 1, "ok": True, "snapshot": snapshot},
+            )
+            return
         self._json(
             HTTPStatus.NOT_FOUND,
             {
@@ -2663,6 +2927,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 self._json(
                     HTTPStatus.ACCEPTED,
                     {"schemaVersion": 1, "ok": True, **response},
+                )
+                return
+            if parsed.path == "/v1/benchmark/prepare":
+                snapshot = self.server.bridge.prepare_benchmark(self._body())
+                self._json(
+                    HTTPStatus.CREATED,
+                    {"schemaVersion": 1, "ok": True, "snapshot": snapshot},
                 )
                 return
             if parsed.path == "/v1/shutdown":

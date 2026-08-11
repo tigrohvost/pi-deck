@@ -12,12 +12,14 @@
 
 import assert from "node:assert/strict";
 import {
+	chmodSync,
 	cpSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -34,15 +36,16 @@ const EXTENSIONS = [
 	"pideck-run-tests.ts",
 	"pideck-context-guard.ts",
 	"pideck-web-tools.ts",
+	"pideck-code-nav.ts",
 	"pideck-tool-router.ts",
 	"pideck-permission-gate.ts",
 ];
 const EXPECTED_TOOLS = [
 	"pideck_replace_lines",
 	"run_tests",
-	"web_search",
-	"web_fetch",
+	"web_research",
 	"weather",
+	"code_nav",
 	"pideck_load_tools",
 	"pideck_bash",
 	"pideck_edit",
@@ -85,6 +88,11 @@ try {
 	);
 	assert.deepEqual(loaded.errors, [], "Pi reported extension load errors");
 	assert.equal(loaded.extensions.length, EXTENSIONS.length, "an extension failed to load");
+	let activeTools = [];
+	loaded.runtime.getActiveTools = () => [...activeTools];
+	loaded.runtime.setActiveTools = (names) => {
+		activeTools = [...names];
+	};
 
 	const tools = new Map();
 	const toolResultHandlers = [];
@@ -99,6 +107,61 @@ try {
 
 	assert.deepEqual([...tools.keys()], EXPECTED_TOOLS, "registered tool set changed");
 
+	const cacheExtension = loaded.extensions[0];
+	const cacheSessionStart = cacheExtension.handlers.get("session_start")?.[0];
+	const cacheProviderRequest = cacheExtension.handlers.get("before_provider_request")?.[0];
+	assert.equal(typeof cacheSessionStart, "function", "local cache has no session reset");
+	assert.equal(typeof cacheProviderRequest, "function", "local cache has no provider hook");
+	await cacheSessionStart({ type: "session_start", reason: "new" });
+	assert.deepEqual(
+		await cacheProviderRequest({
+			type: "before_provider_request",
+			payload: { messages: [], tools: [{ name: "read" }] },
+		}),
+		{ messages: [], tools: [{ name: "read" }], cache_prompt: false },
+		"a new session reused the previous llama slot",
+	);
+	assert.deepEqual(
+		await cacheProviderRequest({
+			type: "before_provider_request",
+			payload: { messages: [{ role: "user", content: "read it" }], tools: [{ name: "read" }] },
+		}),
+		{
+			messages: [{ role: "user", content: "read it" }],
+			tools: [{ name: "read" }],
+			cache_prompt: true,
+		},
+		"a same-session tool round lost prompt caching",
+	);
+	assert.equal(
+		(await cacheProviderRequest({
+			type: "before_provider_request",
+			payload: {
+				messages: [
+					{ role: "user", content: "read it" },
+					{ role: "assistant", content: "tool result" },
+				],
+				tools: [{ name: "write" }],
+			},
+		})).cache_prompt,
+		false,
+		"a changed tool schema reused hybrid recurrent state",
+	);
+	assert.equal(
+		(await cacheProviderRequest({
+			type: "before_provider_request",
+			payload: { messages: [{ role: "user", content: "unrelated" }], tools: [{ name: "write" }] },
+		})).cache_prompt,
+		false,
+		"a rewritten message prefix reused hybrid recurrent state",
+	);
+	await cacheSessionStart({ type: "session_start", reason: "resume" });
+	assert.equal(
+		(await cacheProviderRequest({ type: "before_provider_request", payload: {} })).cache_prompt,
+		false,
+		"a resumed session reused a stale llama slot",
+	);
+
 	const requireFromPackage = createRequire(join(packageDirectory, "package.json"));
 	const { createJiti } = requireFromPackage("jiti");
 	const jiti = createJiti(import.meta.url, { moduleCache: false });
@@ -109,12 +172,394 @@ try {
 	);
 	assert.deepEqual(router.detectCapabilities("Объясни слово «погода»"), []);
 	assert.deepEqual(router.detectCapabilities("поищи в интернете документацию Pi"), ["web"]);
+	assert.deepEqual(router.detectCapabilities("Какая текущая версия Pi?"), ["web"]);
+	assert.deepEqual(router.detectCapabilities("Найди функцию divide"), ["files"]);
+	assert.deepEqual(
+		router.detectCapabilities(
+			"Найди определение функции divide. Сначала используй code_nav.",
+		),
+		["files"],
+		"the suite-v2 navigation wording did not activate code_nav",
+	);
+	assert.deepEqual(
+		router.taskCoreTools(
+			"autonomous",
+			"Найди определение функции divide. Сначала используй code_nav, затем укажи относительный файл и номер строки. Ничего не меняй.",
+		),
+		["code_nav"],
+		"a read-only navigation request retained broad shell or mutation tools",
+	);
+	assert.deepEqual(
+		router.taskCoreTools(
+			"autonomous",
+			"Найди функцию divide, объясни её и ничего не меняй.",
+		),
+		["read", "code_nav"],
+		"a content-review request lost read",
+	);
+	assert.deepEqual(
+		router.taskCoreTools(
+			"autonomous",
+			"Найди функцию divide, исправь её и запусти тесты.",
+		),
+		router.coreTools("autonomous"),
+		"a mutating navigation request lost its implementation tools",
+	);
+	assert.deepEqual(
+		router.taskCoreTools(
+			"autonomous",
+			"Вызови read ровно один раз. Не вызывай bash, code_nav или другие инструменты.",
+		),
+		["read"],
+		"an explicit single-tool request retained unrelated tools",
+	);
+	assert.deepEqual(
+		router.taskCoreTools(
+			"autonomous",
+			"В каталоге /workspace найди все TODO одним вызовом code_nav. Ничего не меняй.",
+		),
+		["code_nav"],
+	);
+	assert.deepEqual(
+		router.taskCoreTools(
+			"autonomous",
+			"Найди текущую версию и используй web_research ровно один раз.",
+		),
+		["web_research"],
+	);
+	assert.deepEqual(
+		router.taskCoreTools(
+			"autonomous",
+			"Какая погода? Используй weather, а не общий веб-поиск.",
+		),
+		["weather"],
+	);
+	assert.deepEqual(
+		router.taskCoreTools(
+			"autonomous",
+			"Прочитай docs/literal.txt и ничего не меняй.",
+		),
+		["read"],
+	);
+	assert.equal(
+		router.explicitReadTarget(
+			"В каталоге /workspace/fixture прочитай docs/literal.txt и ничего не меняй.",
+		),
+		"/workspace/fixture/docs/literal.txt",
+	);
+	assert.equal(router.safeReadTarget("/workspace", "/workspace/fixture/a.txt"), "/workspace/fixture/a.txt");
+	assert.equal(router.safeReadTarget("/workspace", "/outside/a.txt"), undefined);
+	const repairPrompt = `В каталоге ${workspace} исправь только off-by-one в src/counter.py `
+		+ "и запусти точный тест tests/test_counter.py. Не меняй другие файлы.";
+	assert.deepEqual(
+		router.explicitFilePaths(repairPrompt),
+		["src/counter.py", "tests/test_counter.py"],
+	);
+	const repairTargets = router.explicitFileTargets(repairPrompt);
+	assert.equal(
+		router.selectScopedTarget(repairTargets[1], repairTargets, false),
+		repairTargets[1],
+		"an exact test target lost to the preferred source fallback",
+	);
+	assert.equal(
+		router.normalizeScopedTestExpression("tests/test_counter.py", repairTargets[1]),
+		undefined,
+		"a test path would be retained as an impossible -k expression",
+	);
+	assert.equal(
+		router.normalizeScopedTestExpression("pytest tests/test_counter.py::test_increment", repairTargets[1]),
+		"test_increment",
+	);
+	assert.equal(
+		router.normalizeScopedTestExpression("pytest -k test_increment", repairTargets[1]),
+		"test_increment",
+	);
+	assert.equal(router.isScopedRepairRequest(repairPrompt), true);
+	assert.deepEqual(
+		router.taskCoreTools("autonomous", repairPrompt),
+		["read", "pideck_replace_lines", "run_tests"],
+		"bounded repair retained broad bash discovery",
+	);
+	const routerExtension = loaded.extensions.find((extension) =>
+		extension.path.endsWith("pideck-tool-router.ts"));
+	const routerSessionStart = routerExtension?.handlers.get("session_start")?.[0];
+	const routerInput = routerExtension?.handlers.get("input")?.[0];
+	const routerToolResult = routerExtension?.handlers.get("tool_result")?.[0];
+	const routerToolCall = routerExtension?.handlers.get("tool_call")?.[0];
+	assert.equal(typeof routerSessionStart, "function", "tool router has no session reset");
+	assert.equal(typeof routerInput, "function", "tool router has no input hook");
+	assert.equal(typeof routerToolResult, "function", "tool router has no result hook");
+	assert.equal(typeof routerToolCall, "function", "tool router has no call hook");
+	await routerSessionStart({ type: "session_start", reason: "new" });
+	await routerInput({
+		type: "input",
+		text: "В каталоге /workspace найди все TODO одним вызовом code_nav. Ничего не меняй.",
+		source: "rpc",
+	});
+	assert.deepEqual(activeTools, ["code_nav"], "one-shot input retained another tool");
+	const oneShotResult = await routerToolResult({
+		type: "tool_result",
+		toolName: "code_nav",
+		toolCallId: "one-shot",
+		input: { query: "TODO", path: "/workspace" },
+		isError: false,
+		content: [{ type: "text", text: "TODO alpha" }],
+	});
+	assert.deepEqual(activeTools, [], "one-shot tool remained in the next provider schema");
+	assert.match(
+		oneShotResult.content.at(-1).text,
+		/ответь пользователю обычным текстом/iu,
+		"one-shot result did not tell the model to answer instead of repeating markup",
+	);
+	assert.match(
+		oneShotResult.content[0].text,
+		/TOOL SUCCEEDED/u,
+		"one-shot result did not lead with authoritative success",
+	);
+	await routerInput({
+		type: "input",
+		text: `В каталоге ${workspace} прочитай docs/literal.txt и ничего не меняй.`,
+		source: "rpc",
+	});
+	assert.deepEqual(activeTools, ["read"], "explicit read retained unrelated tools");
+	const readCall = {
+		type: "tool_call",
+		toolName: "read",
+		toolCallId: "scoped-read",
+		input: { path: "/data/data/com.termux/files/home/.pideck/workspace/AGENTS.md" },
+	};
+	assert.equal(await routerToolCall(readCall, { cwd: workspace }), undefined);
+	assert.equal(
+		readCall.input.path,
+		join(workspace, "docs", "literal.txt"),
+		"model read path overrode the user's explicit file scope",
+	);
+	assert.equal(await routerToolResult({
+		type: "tool_result",
+		toolName: "read",
+		toolCallId: "scoped-read",
+		input: readCall.input,
+		isError: true,
+		content: [{ type: "text", text: "missing" }],
+	}), undefined);
+	assert.deepEqual(activeTools, ["read"], "ordinary read error consumed its retry");
+	await routerInput({ type: "input", text: repairPrompt, source: "rpc" });
+	assert.deepEqual(
+		activeTools,
+		["read", "pideck_replace_lines", "run_tests"],
+		"live bounded repair retained broad bash discovery",
+	);
+	const repairRead = {
+		type: "tool_call",
+		toolName: "read",
+		toolCallId: "repair-read",
+		input: { path: "AGENTS.md", offset: 25, limit: 100 },
+	};
+	assert.equal(await routerToolCall(repairRead, { cwd: workspace }), undefined);
+	assert.equal(repairRead.input.path, join(workspace, "src", "counter.py"));
+	assert.equal(repairRead.input.offset, undefined, "corrected read retained a hallucinated offset");
+	const repairReadResult = await routerToolResult({
+		type: "tool_result",
+		toolName: "read",
+		toolCallId: "repair-read",
+		input: repairRead.input,
+		isError: false,
+		content: [{
+			type: "text",
+			text: "1:b4| class Counter:\n6:e9|         self.value += 2",
+		}],
+	});
+	assert.match(repairReadResult.content[0].text, /READ SUCCEEDED/u);
+	assert.deepEqual(
+		activeTools,
+		["read", "pideck_replace_lines", "run_tests"],
+		"successful repair read prematurely removed edit tools",
+	);
+	const repairRepeatRead = {
+		type: "tool_call",
+		toolName: "read",
+		toolCallId: "repair-repeat-read",
+		input: { path: "AGENTS.md", offset: 35, limit: 100 },
+	};
+	assert.equal(await routerToolCall(repairRepeatRead, { cwd: workspace }), undefined);
+	assert.equal(
+		repairRepeatRead.input.path,
+		join(workspace, "tests", "test_counter.py"),
+		"a repeated invented read did not advance to the next user-scoped file",
+	);
+	assert.equal(repairRepeatRead.input.offset, undefined);
+	await routerToolResult({
+		type: "tool_result",
+		toolName: "read",
+		toolCallId: "repair-repeat-read",
+		input: repairRepeatRead.input,
+		isError: false,
+		content: [{ type: "text", text: "1:aa| def test_counter():" }],
+	});
+	assert.deepEqual(
+		activeTools,
+		["pideck_replace_lines", "run_tests"],
+		"read remained available after every user-scoped file was read once",
+	);
+	const repairEdit = {
+		type: "tool_call",
+		toolName: "pideck_replace_lines",
+		toolCallId: "repair-edit",
+		input: {
+			path: "AGENTS.md",
+			edits: [{ anchor: "e9", text: "        self.value += 1" }],
+		},
+	};
+	assert.equal(await routerToolCall(repairEdit, { cwd: workspace }), undefined);
+	assert.equal(repairEdit.input.path, join(workspace, "src", "counter.py"));
+	assert.equal(
+		repairEdit.input.edits[0].anchor,
+		"6:e9",
+		"a unique digest from the authoritative read was not restored to its full anchor",
+	);
+	const failedRepairEdit = {
+		type: "tool_result",
+		toolName: "pideck_replace_lines",
+		toolCallId: "repair-edit",
+		input: repairEdit.input,
+		isError: true,
+		content: [{ type: "text", text: "stale anchor" }],
+	};
+	const firstRepairFailure = await routerToolResult(failedRepairEdit);
+	assert.match(firstRepairFailure.content.at(-1).text, /One correction remains/u);
+	assert.deepEqual(activeTools, ["pideck_replace_lines", "run_tests"]);
+	const secondRepairFailure = await routerToolResult(failedRepairEdit);
+	assert.match(secondRepairFailure.content[0].text, /EDIT RETRY LIMIT REACHED/u);
+	assert.deepEqual(activeTools, [], "repeated scoped edit failure retained a looping tool schema");
+	await routerInput({ type: "input", text: repairPrompt, source: "rpc" });
+	const repairTest = {
+		type: "tool_call",
+		toolName: "run_tests",
+		toolCallId: "repair-test",
+		input: { expr: "tests/test_counter.py" },
+	};
+	assert.equal(await routerToolCall(repairTest, { cwd: workspace }), undefined);
+	assert.equal(repairTest.input.path, join(workspace, "tests", "test_counter.py"));
+	assert.equal(
+		repairTest.input.expr,
+		undefined,
+		"a model-supplied test path remained active as a -k expression",
+	);
+	const failedRepairTest = await routerToolResult({
+		type: "tool_result",
+		toolName: "run_tests",
+		toolCallId: "repair-test-failed",
+		input: repairTest.input,
+		isError: false,
+		content: [{ type: "text", text: "1 failed" }],
+		details: { status: 1 },
+	});
+	assert.match(failedRepairTest.content.at(-1).text, /unavailable until a source edit/u);
+	assert.deepEqual(
+		activeTools,
+		["read", "pideck_replace_lines"],
+		"a failed scoped test could be repeated without a source edit",
+	);
+	await routerToolResult({
+		type: "tool_result",
+		toolName: "pideck_replace_lines",
+		toolCallId: "repair-after-test",
+		input: { path: join(workspace, "src", "counter.py") },
+		isError: false,
+		content: [{ type: "text", text: "edited" }],
+	});
+	assert.deepEqual(
+		activeTools,
+		["read", "pideck_replace_lines", "run_tests"],
+		"a successful correction did not re-enable the exact test",
+	);
+	assert.equal(await routerToolCall(repairTest, { cwd: workspace }), undefined);
+	const repairTestResult = await routerToolResult({
+		type: "tool_result",
+		toolName: "run_tests",
+		toolCallId: "repair-test",
+		input: repairTest.input,
+		isError: false,
+		content: [{ type: "text", text: "1 passed" }],
+		details: { status: 0 },
+	});
+	assert.match(repairTestResult.content[0].text, /TEST PASSED/u);
+	assert.deepEqual(activeTools, [], "passing scoped test retained further tools");
 	assert.deepEqual(router.detectCapabilities("Какая погода в Москве?"), ["weather"]);
 	assert.deepEqual(
 		router.detectCapabilities("Поищи в сети погоду в Москве"),
 		["web", "weather"],
 	);
 	assert.deepEqual(router.detectCapabilities("Прочитай https://example.com/report"), ["web"]);
+	assert.equal(router.disablesTools("Ответь ровно OK. Не используй инструменты."), true);
+	assert.equal(
+		router.disablesTools("Маркер уже дан в этом сообщении: OK. Верни только его."),
+		true,
+	);
+	assert.equal(
+		router.disablesTools("Прочитай файл и не вызывай после ошибки другие инструменты."),
+		false,
+	);
+	const codeNav = tools.get("code_nav");
+	writeFileSync(join(workspace, "nav-target.ts"), "export function locateMe() { return 7; }\n");
+	const codeNavInput = loaded.extensions[7].handlers.get("input")?.[0];
+	assert.equal(typeof codeNavInput, "function", "code_nav has no explicit-scope input hook");
+	await codeNavInput({
+		type: "input",
+		text: `В каталоге ${workspace} найди определение функции locateMe.`,
+		source: "rpc",
+	});
+	const navigation = await codeNav.execute(
+		"nav",
+		{
+			query: "функция locateMe",
+			path: join(dirname(workspace), "hallucinated-AGENTS.md"),
+		},
+		undefined,
+		undefined,
+		{ cwd: workspace, hasUI: false, mode: "rpc" },
+	);
+	assert.match(navigation.content[0].text, /nav-target\.ts:1:/);
+	assert.match(navigation.content[0].text, /search terms: .*locateMe/);
+	const queryFallback = await codeNav.execute(
+		"nav-fallback",
+		{ query: "", path: "/" },
+		undefined,
+		undefined,
+		{ cwd: workspace, hasUI: false, mode: "rpc" },
+	);
+	assert.match(queryFallback.content[0].text, /code_nav query: locateMe/);
+	const codeNavSessionStart = loaded.extensions[7].handlers.get("session_start")?.[0];
+	assert.equal(typeof codeNavSessionStart, "function", "code_nav has no scope reset");
+	await codeNavSessionStart({ type: "session_start", reason: "new" });
+	await assert.rejects(
+		codeNav.execute(
+			"escape",
+			{ query: "secret", path: ".." },
+			undefined,
+			undefined,
+			{ cwd: workspace, hasUI: false, mode: "rpc" },
+		),
+		/must stay inside/,
+	);
+	symlinkSync(join(packageDirectory, "package.json"), join(workspace, "nav-outside"));
+	await assert.rejects(
+		codeNav.execute(
+			"symlink-escape",
+			{ query: "name", path: "nav-outside" },
+			undefined,
+			undefined,
+			{ cwd: workspace, hasUI: false, mode: "rpc" },
+		),
+		/must not follow a symlink outside/,
+	);
+	const webTools = await jiti.import(join(workspace, "pideck-web-tools.ts"));
+	const relevant = webTools.relevantPageText(
+		"Unrelated introduction about flowers.\n\nAdreno 740 supports the measured GPU path.\n\nUnrelated ending.",
+		"Adreno 740 GPU",
+	);
+	assert.match(relevant, /Adreno 740/);
+	assert.doesNotMatch(relevant, /flowers/);
 	assert.deepEqual(
 		router.routeInput(`${router.INTERNAL_RETRY_PREFIX}Закончи исходный ответ.`),
 		{
@@ -179,12 +624,37 @@ try {
 	const context = { cwd: workspace, hasUI: false, mode: "rpc" };
 	await tools.get("pideck_replace_lines").execute(
 		"check",
-		{ path: target, edits: [{ anchor, text: "        self.value += 1" }] },
+		{ path: target, edits: [{ anchor, text: "self.value += 1" }] },
 		undefined,
 		undefined,
 		context,
 	);
-	assert.match(readFileSync(target, "utf8"), /self\.value \+= 1/, "anchored edit did not apply");
+	assert.match(
+		readFileSync(target, "utf8"),
+		/^        self\.value \+= 1$/m,
+		"anchored edit did not inherit a missing Python indent",
+	);
+	const beforeWrongLevel = readFileSync(target, "utf8");
+	const methodAnchor = rendered.split("\n").find((line) => line.includes("def bump")).split("|")[0];
+	await assert.rejects(
+		tools.get("pideck_replace_lines").execute(
+			"wrong-python-level",
+			{
+				path: target,
+				edits: [{ anchor: methodAnchor, text: "        self.value += 1" }],
+			},
+			undefined,
+			undefined,
+			context,
+		),
+		/ведущий отступ Python/iu,
+		"a body statement replaced a Python method definition at another indent level",
+	);
+	assert.equal(
+		readFileSync(target, "utf8"),
+		beforeWrongLevel,
+		"a refused Python indentation change modified the file",
+	);
 
 	await assert.rejects(
 		tools.get("pideck_replace_lines").execute(
@@ -196,6 +666,41 @@ try {
 		),
 		/не совпала/,
 		"a stale anchor was accepted",
+	);
+
+	// A small model may send only the arithmetic fragment instead of the complete indented
+	// replacement line. Reject it before write: the syntax-note hook runs after a mutation and
+	// therefore cannot make a broken workspace atomic on its own.
+	const atomicTarget = join(workspace, "atomic.py");
+	const atomicBefore = "def value():\n    return 1\n";
+	writeFileSync(atomicTarget, atomicBefore);
+	const atomicRead = await hashline({
+		type: "tool_result",
+		toolName: "read",
+		toolCallId: "atomic-read",
+		input: { path: atomicTarget },
+		isError: false,
+		content: [{ type: "text", text: atomicBefore }],
+	});
+	const atomicAnchor = atomicRead.content[0].text
+		.split("\n")
+		.find((line) => line.includes("return 1"))
+		.split("|")[0];
+	await assert.rejects(
+		tools.get("pideck_replace_lines").execute(
+			"atomic-invalid",
+			{ path: atomicTarget, edits: [{ anchor: atomicAnchor, text: "+ 1" }] },
+			undefined,
+			undefined,
+			context,
+		),
+		/Правка не сохранена.*целую строку/su,
+		"a syntactically invalid Python fragment was written",
+	);
+	assert.equal(
+		readFileSync(atomicTarget, "utf8"),
+		atomicBefore,
+		"a refused Python edit changed the original file",
 	);
 
 	// Observed on device: refused with only "read it again", the model gave up on the tool.
@@ -471,9 +976,32 @@ try {
 		);
 		assert.match(
 			unavailable.content[0].text,
-			/bash/,
-			"a missing pytest must name the bash fallback instead of crashing",
+			/runner недоступен/i,
+			"a missing Python runner was not reported honestly",
 		);
+	} finally {
+		delete process.env.PIDECK_RUN_TESTS_PYTHON;
+	}
+
+	// Termux intentionally has Python but no pytest package in the base runtime. A bounded
+	// zero-argument test must still be executable without silently pretending pytest exists.
+	const noSitePython = join(workspace, "python-no-site");
+	writeFileSync(noSitePython, '#!/bin/sh\nexec python3 -S "$@"\n');
+	chmodSync(noSitePython, 0o700);
+	process.env.PIDECK_RUN_TESTS_PYTHON = noSitePython;
+	try {
+		const fallback = await runTests.execute(
+			"tests-zero-fixture",
+			{ path: "test_ok.py", expr: "pytest -k test_ok" },
+			undefined,
+			undefined,
+			{ cwd: passingWorkspace, hasUI: false, mode: "rpc" },
+		);
+		assert.match(fallback.content[0].text, /1 passed/);
+		assert.match(fallback.content[0].text, /offline zero-fixture fallback/);
+		assert.equal(fallback.details.runner, "zero-fixture");
+		assert.equal(fallback.details.status, 0);
+		assert.equal(fallback.details.expr, "test_ok");
 	} finally {
 		delete process.env.PIDECK_RUN_TESTS_PYTHON;
 	}
@@ -501,3 +1029,7 @@ try {
 } finally {
 	rmSync(workspace, { recursive: true, force: true });
 }
+
+// Pi's loader may leave internal handles alive after all assertions have completed. This is a
+// one-shot verifier, so exit only after the cleanup above; assertion failures never reach here.
+process.exit(0);

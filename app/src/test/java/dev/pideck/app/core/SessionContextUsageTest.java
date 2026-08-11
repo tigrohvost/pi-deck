@@ -45,11 +45,28 @@ public class SessionContextUsageTest {
     }
 
     @Test
+    public void smartCompactionStartsAtExactFiftyFivePercent() throws Exception {
+        SessionContextUsage below = SessionContextUsage.parse(
+                new JSONObject().put("tokens", 5_631).put("contextWindow", 10_240),
+                10_240
+        );
+        SessionContextUsage atThreshold = SessionContextUsage.parse(
+                new JSONObject().put("tokens", 5_632).put("contextWindow", 10_240),
+                10_240
+        );
+
+        assertFalse(below.shouldSmartCompact());
+        assertTrue(atThreshold.shouldSmartCompact());
+        assertFalse(atThreshold.shouldCompactSoon());
+    }
+
+    @Test
     public void missingTelemetryRemainsUnknown() {
         SessionContextUsage usage = SessionContextUsage.parse(null, 8_192);
 
         assertFalse(usage.known());
         assertEquals(8_192, usage.contextWindow);
         assertFalse(usage.shouldCompactSoon());
+        assertFalse(usage.shouldSmartCompact());
     }
 }

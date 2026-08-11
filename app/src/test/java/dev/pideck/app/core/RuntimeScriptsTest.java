@@ -73,7 +73,7 @@ public class RuntimeScriptsTest {
         String ready = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
-                 "runtimeContractVersion":23,
+                 "runtimeContractVersion":47,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
                  "pythonVersion":"3.13","llamaVersion":"b10092"}
                 """.replace("\n ", "");
@@ -83,10 +83,10 @@ public class RuntimeScriptsTest {
                 ready.replace("\"state\":\"READY\"", "\"state\":\"NOT_READY\"")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":23", "\"runtimeContractVersion\":22")
+                ready.replace("\"runtimeContractVersion\":47", "\"runtimeContractVersion\":46")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":23,", "")
+                ready.replace("\"runtimeContractVersion\":47,", "")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 "noise {\"schemaVersion\":1,\"ok\":true,\"state\":\"READY\"}"
@@ -132,6 +132,8 @@ public class RuntimeScriptsTest {
         Map<String, byte[]> contents = new LinkedHashMap<>();
         for (String relative : List.of(
                 "AGENTS.default.md",
+                "pideck-agent-base-prompt.md",
+                "pideck-benchmark-fixture-v2.json",
                 "pideck-local-cache.ts",
                 "pideck-system-prompt.ts",
                 "pideck-hashline-edit.ts",
@@ -139,6 +141,7 @@ public class RuntimeScriptsTest {
                 "pideck-run-tests.ts",
                 "pideck-context-guard.ts",
                 "pideck-web-tools.ts",
+                "pideck-code-nav.ts",
                 "pideck-tool-router.ts",
                 "pideck-permission-gate.ts",
                 "pideck_runtime/__init__.py",

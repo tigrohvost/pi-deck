@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-08-11T13:20:09.851460Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q12"
+  ],
+  "outcomes": [
+    {
+      "id": "Q12",
+      "category": "literal_read",
+      "outcome": "fail",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": false,
+          "evidence": "pattern=\\\\n; answer='Я не могу прочитать файлы из каталога `.pideck-bench/b88ec9ed-7148-4b71-9a55-a0cf28fc53d9/fixture` напрямую или выполнить команду `cat` с абсолютным путем, так как я работаю в локальном рабочем пространстве на Android. Доступ к файлам внутр'"
+        },
+        "required_tool:read": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 2; tools=['read']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Я не могу прочитать файлы из каталога `.pideck-bench/b88ec9ed-7148-4b71-9a55-a0cf28fc53d9/fixture` напрямую или выполнить команду `cat` с абсолютным путем, так как я работаю в локальном рабочем пространстве на Android. Доступ к файлам внутри `.pideck-bench/` требует использования специальных инструментов для работы с бинарными или специализированными архивами (например, `pideck-archiver` или чтение через `file`), что выходит за рамки предоставленных базовых команд (`read`, `cat`).\n\nПоскольку я не могу открыть этот каталог и выполнить требуемое различение файлов прямо здесь, я должен ответить пользователю о моих возможностях.",
+      "toolNames": [
+        "read"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 38.8562,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 23.222075,
+        "totalTurnSeconds": 51.942345,
+        "provider": {
+          "outputTokens": 219,
+          "decodeSeconds": 15.387,
+          "decodeTokensPerSecond": 14.23,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 35.29541,
+            "tokens": 1858,
+            "tokensPerSecond": 52.641
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 35.29541,
+              "tokens": 1858,
+              "tokensPerSecond": 52.641
+            },
+            "decode": {
+              "seconds": 15.77712,
+              "tokens": 219,
+              "tokensPerSecond": 13.881
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 0,
+          "names": [
+            "read"
+          ],
+          "executionSeconds": 0.049205,
+          "postToolToTerminalSeconds": 28.658051
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 9,
+        "start": {
+          "monotonicSeconds": 73415.127118,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 39.8,
+          "batteryVoltageV": 4.225,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "end": {
+          "monotonicSeconds": 73473.044474,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 40.1,
+          "batteryVoltageV": 4.204,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2956800,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.88,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 0.88,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "qwen3.5-2b",
+  "accessProfile": "autonomous",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 0,
+    "failed": 1,
+    "successRate": 0.0,
+    "medianTtftSeconds": 38.8562,
+    "medianTurnSeconds": 51.942345
+  }
+}

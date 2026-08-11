@@ -114,6 +114,13 @@ public class ModelCatalogTest {
         );
         assertTrue(nanoArgs.contains("--api-key"));
         assertFalse(nanoArgs.contains("0.0.0.0"));
+        assertEquals("off", catalog.byId("qwen3.5-2b").orElseThrow().reasoningMode);
+        assertEquals("on", core.reasoningMode);
+        assertEquals("1024", coreArgs.get(coreArgs.indexOf("--reasoning-budget") + 1));
+        assertEquals(0.6, core.temperature, 0.0001);
+        assertEquals(0.95, core.topP, 0.0001);
+        assertEquals(0.0, core.presencePenalty, 0.0001);
+        assertEquals(3072, core.maxTokens);
     }
 
     @Test

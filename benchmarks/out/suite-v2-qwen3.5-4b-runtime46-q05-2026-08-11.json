@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-08-11T15:33:50.752026Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q05"
+  ],
+  "outcomes": [
+    {
+      "id": "Q05",
+      "category": "single_file_repair",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "required_tool:run_tests": {
+          "passed": true,
+          "evidence": "tools=['read', 'pideck_replace_lines', 'run_tests']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "3 <= 6; tools=['read', 'pideck_replace_lines', 'run_tests']"
+        },
+        "changed_paths_bounded": {
+          "passed": true,
+          "evidence": "changed=['src/counter.py']; unexpected=[]"
+        },
+        "file_contains:src/counter.py": {
+          "passed": true,
+          "evidence": "expected fragment 'self.value += 1'"
+        },
+        "tests_pass": {
+          "passed": true,
+          "evidence": "path='/data/data/com.termux/files/home/.pideck/workspace/.pideck-bench/6b41a3d7-7677-48d8-918f-d7111922cfde/fixture/tests/test_counter.py'; expected suffix='tests/test_counter.py'; d repair is verified. Finish with a concise factual answer and no more tools.\"}], \"details\": {\"runner\": \"zero-fixture\", \"path\": \"/data/data/com.termux/files/home/.pideck/workspace/.pideck-bench/6b41a3d7-7677-48d8-918f-d7111922cfde/fixture/tests/test_counter.py\", \"expr\": \"\", \"status\": 0, \"timedOut\": false, \"bytes\": 42}}"
+        }
+      },
+      "changedPaths": [
+        "src/counter.py"
+      ],
+      "answer": "Исправление выполнено:\n- В `src/counter.py` изменено: `self.value += 2` → `self.value += 1`\n- Тест `tests/test_counter.py` пройден (1 тест из 1)",
+      "toolNames": [
+        "read",
+        "pideck_replace_lines",
+        "run_tests"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 359.856013,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 171.309243,
+        "totalTurnSeconds": 368.407411,
+        "provider": {
+          "outputTokens": 509,
+          "decodeSeconds": 80.581,
+          "decodeTokensPerSecond": 6.32,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 285.46654,
+            "tokens": 3437,
+            "tokensPerSecond": 12.04
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 4,
+            "prefill": {
+              "seconds": 285.46654,
+              "tokens": 3437,
+              "tokensPerSecond": 12.04
+            },
+            "decode": {
+              "seconds": 80.544,
+              "tokens": 509,
+              "tokensPerSecond": 6.32
+            }
+          }
+        },
+        "tools": {
+          "requested": 3,
+          "completed": 3,
+          "failed": 0,
+          "names": [
+            "read",
+            "pideck_replace_lines",
+            "run_tests"
+          ],
+          "executionSeconds": 0.946421,
+          "postToolToTerminalSeconds": 107.20131
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 49,
+        "start": {
+          "monotonicSeconds": 81436.506889,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 38.3,
+          "batteryVoltageV": 4.236,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2592000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.771,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 1
+        },
+        "end": {
+          "monotonicSeconds": 81810.010358,
+          "batteryLevelPercent": 97,
+          "batteryTemperatureC": 40.0,
+          "batteryVoltageV": 4.23,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 1478400,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.44,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 3
+        },
+        "minimumBigCoreHeadroom": 0.406,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "qwen3.5-4b",
+  "accessProfile": "autonomous",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "successRate": 1.0,
+    "medianTtftSeconds": 359.856013,
+    "medianTurnSeconds": 368.407411
+  }
+}

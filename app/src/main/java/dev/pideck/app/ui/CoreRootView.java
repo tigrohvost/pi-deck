@@ -114,6 +114,7 @@ public final class CoreRootView extends ScrollView {
         public UiLanguage language = UiLanguage.RUSSIAN;
         public boolean maximumSpeed = true;
         public boolean autostartCore = false;
+        public boolean smartCompaction = true;
         /** Mirror of the checkbox on the consent screen. */
         public boolean askBeforeOverwrite = true;
     }
@@ -130,6 +131,8 @@ public final class CoreRootView extends ScrollView {
         void onMaximumSpeedChanged(boolean enabled);
 
         void onAutostartCoreChanged(boolean enabled);
+
+        void onSmartCompactionChanged(boolean enabled);
 
         void onLanguageChosen(UiLanguage language);
     }
@@ -223,6 +226,27 @@ public final class CoreRootView extends ScrollView {
                 value -> listener.onAutostartCoreChanged((Boolean) value)
         ));
 
+        TextView compactionNote = style.bodySecondary(
+                t(
+                        "Умное сжатие в простое создаёт структурированный checkpoint около 55% окна, "
+                                + "чтобы следующий запуск не перечитывал всю историю.",
+                        "Smart idle compaction creates a continuation checkpoint near 55% of "
+                                + "the window so the next launch does not replay all history."
+                )
+        );
+        LinearLayout.LayoutParams compactionNoteLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        compactionNoteLp.topMargin = style.dp(14);
+        compactionNoteLp.bottomMargin = style.dp(8);
+        column.addView(compactionNote, compactionNoteLp);
+        column.addView(segments(
+                new String[]{t("Умное сжатие", "Smart compaction"), t("Вручную", "Manual")},
+                new Boolean[]{Boolean.TRUE, Boolean.FALSE},
+                state.smartCompaction,
+                value -> listener.onSmartCompactionChanged((Boolean) value)
+        ));
+
         if (state.systemPrompt != null) {
             section(t("Системный промпт", "System prompt"));
             column.addView(actionRow(state.systemPrompt));
@@ -311,6 +335,7 @@ public final class CoreRootView extends ScrollView {
                 .append(state.language).append('|')
                 .append(state.maximumSpeed).append('|')
                 .append(state.autostartCore).append('|')
+                .append(state.smartCompaction).append('|')
                 .append(state.askBeforeOverwrite).append('|')
                 .append(state.accessProfileLabel).append('|')
                 .append(state.accessProfileNote).append('|')

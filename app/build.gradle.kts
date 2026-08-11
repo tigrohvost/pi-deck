@@ -143,11 +143,11 @@ val verifyModelManifest by tasks.registering {
             )
             val extraArgs = runtime["serverArgs"] as? List<*>
                 ?: error("$id serverArgs must be an array")
-            require(extraArgs.all { raw ->
-                raw is String
-                        && '\u0000' !in raw
-                        && raw.length <= 512
-                        && raw.substringBefore('=') !in managedFlags
+            require(extraArgs.all { argument ->
+                argument is String
+                        && '\u0000' !in argument
+                        && argument.length <= 512
+                        && argument.substringBefore('=') !in managedFlags
             }) {
                 "$id serverArgs is unsafe or overrides an app-managed flag"
             }
@@ -183,12 +183,15 @@ val verifyPinnedRuntime by tasks.registering {
 
 val verifyBenchmarkSuite by tasks.registering {
     group = "verification"
-    description = "Validates the checked-in 28-task benchmark contract"
+    description = "Validates the protocol suite-v1 and executable quality suite-v2 contracts"
     val suiteFile = rootProject.layout.projectDirectory.file("benchmarks/suite-v1/tasks.json")
+    val qualitySuiteFile = rootProject.layout.projectDirectory.file(
+        "benchmarks/suite-v2/tasks.json"
+    )
     val reportSchema = rootProject.layout.projectDirectory.file(
         "schemas/benchmark-report.schema.json"
     )
-    inputs.files(suiteFile, reportSchema)
+    inputs.files(suiteFile, qualitySuiteFile, reportSchema)
     doLast {
         require(reportSchema.asFile.isFile) { "Benchmark report schema is missing" }
         val root = groovy.json.JsonSlurper().parse(suiteFile.asFile) as Map<*, *>
@@ -207,6 +210,30 @@ val verifyBenchmarkSuite by tasks.registering {
             id
         }
         require(ids.toSet().size == ids.size) { "Duplicate benchmark task ID" }
+
+        val quality = groovy.json.JsonSlurper().parse(qualitySuiteFile.asFile) as Map<*, *>
+        require(quality["schemaVersion"] == 1 && quality["suiteVersion"] == "suite-v2") {
+            "Unsupported executable quality suite"
+        }
+        val qualityTasks = quality["tasks"] as? List<*>
+            ?: error("Quality benchmark tasks must be an array")
+        require(qualityTasks.size >= 10) {
+            "At least 10 executable quality tasks are required"
+        }
+        val qualityIds = qualityTasks.map { task ->
+            val value = task as? Map<*, *> ?: error("Quality benchmark task must be an object")
+            val id = value["id"] as? String ?: error("Quality benchmark task ID is missing")
+            require(id.matches(Regex("Q[0-9]{2}"))) { "Invalid quality task ID: $id" }
+            require(
+                value["category"] is String
+                        && value["prompt"] is String
+                        && value["expected"] is Map<*, *>
+            ) { "Quality benchmark task $id is incomplete" }
+            id
+        }
+        require(qualityIds.toSet().size == qualityIds.size) {
+            "Duplicate quality benchmark task ID"
+        }
     }
 }
 

@@ -37,6 +37,7 @@ public final class DeckPreferences {
     private static final String KEY_MAXIMUM_SPEED = "maximum_speed_v1";
     private static final String KEY_UI_LANGUAGE = "ui_language_v1";
     private static final String KEY_AUTOSTART_CORE = "autostart_core_v1";
+    private static final String KEY_SMART_COMPACTION = "smart_compaction_v1";
     private static final String KEY_OOM_ACK = "oom_risk_ack_v1";
 
     private final SharedPreferences prefs;
@@ -151,6 +152,15 @@ public final class DeckPreferences {
 
     public void setAutostartCore(boolean enabled) {
         prefs.edit().putBoolean(KEY_AUTOSTART_CORE, enabled).apply();
+    }
+
+    /** Idle checkpointing is on by default because it trades idle compute for much faster replay. */
+    public boolean smartCompaction() {
+        return prefs.getBoolean(KEY_SMART_COMPACTION, true);
+    }
+
+    public void setSmartCompaction(boolean enabled) {
+        prefs.edit().putBoolean(KEY_SMART_COMPACTION, enabled).apply();
     }
 
     /** The OOM warning is a fact about this model on this phone, not an event to repeat. */

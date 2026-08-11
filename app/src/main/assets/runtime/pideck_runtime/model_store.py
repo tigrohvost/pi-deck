@@ -36,7 +36,7 @@ ARTIFACT_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.gguf$")
 # provider request. Local llama.cpp already enforces its real context window,
 # so the generated Pi model descriptor compensates for the fixed subtraction.
 PI_CONTEXT_SAFETY_TOKENS = 4096
-PI_CONTEXT_CONTRACT_VERSION = 2
+PI_CONTEXT_CONTRACT_VERSION = 3
 # LicenseRef-LFM-Open-1.0: LFM Open License v1.0, reviewed 2026-08-07 — Apache-2.0-derived,
 # full use below a $10M annual-revenue threshold; see docs/model-admission.md.
 ALLOWED_LICENSES = {"Apache-2.0", "MIT", "LicenseRef-LFM-Open-1.0"}

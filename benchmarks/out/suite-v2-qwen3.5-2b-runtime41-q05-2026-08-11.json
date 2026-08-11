@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-08-11T14:29:07.301567Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q05"
+  ],
+  "outcomes": [
+    {
+      "id": "Q05",
+      "category": "single_file_repair",
+      "outcome": "fail",
+      "signals": {
+        "turn_completed": {
+          "passed": false,
+          "evidence": "TURN_ABORTED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "required_tool:run_tests": {
+          "passed": false,
+          "evidence": "tools=['read', 'read', 'read', 'read', 'read', 'read', 'read', 'read', 'read', 'read', 'read']"
+        },
+        "bounded_tool_calls": {
+          "passed": false,
+          "evidence": "11 <= 6; tools=['read', 'read', 'read', 'read', 'read', 'read', 'read', 'read', 'read', 'read', 'read']"
+        },
+        "changed_paths_bounded": {
+          "passed": true,
+          "evidence": "changed=[]; unexpected=[]"
+        },
+        "file_contains:src/counter.py": {
+          "passed": false,
+          "evidence": "expected fragment 'self.value += 1'"
+        },
+        "tests_pass": {
+          "passed": false,
+          "evidence": "run_tests completion missing"
+        }
+      },
+      "changedPaths": [],
+      "answer": "",
+      "toolNames": [
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read"
+      ],
+      "timing": {
+        "terminalType": "TURN_ABORTED",
+        "succeeded": false,
+        "dispatchToFirstVisibleTokenSeconds": null,
+        "ttftSource": "unavailable",
+        "dispatchToFirstToolCallSeconds": 40.530457,
+        "totalTurnSeconds": 123.426204,
+        "provider": {
+          "outputTokens": 429,
+          "decodeSeconds": 25.693,
+          "decodeTokensPerSecond": 16.7,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 89.38188,
+            "tokens": 3460,
+            "tokensPerSecond": 38.71
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 11,
+            "prefill": {
+              "seconds": 89.38188,
+              "tokens": 3460,
+              "tokensPerSecond": 38.71
+            },
+            "decode": {
+              "seconds": 30.27848,
+              "tokens": 429,
+              "tokensPerSecond": 14.168
+            }
+          }
+        },
+        "tools": {
+          "requested": 11,
+          "completed": 11,
+          "failed": 0,
+          "names": [
+            "read"
+          ],
+          "executionSeconds": 0.193003,
+          "postToolToTerminalSeconds": 2.023354
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 19,
+        "start": {
+          "monotonicSeconds": 77551.208314,
+          "batteryLevelPercent": 100,
+          "batteryTemperatureC": 36.2,
+          "batteryVoltageV": 4.295,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2956800,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.88,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "end": {
+          "monotonicSeconds": 77675.769037,
+          "batteryLevelPercent": 100,
+          "batteryTemperatureC": 38.6,
+          "batteryVoltageV": 4.265,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 0.771,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "qwen3.5-2b",
+  "accessProfile": "autonomous",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 0,
+    "failed": 1,
+    "successRate": 0.0,
+    "medianTtftSeconds": null,
+    "medianTurnSeconds": 123.426204
+  }
+}

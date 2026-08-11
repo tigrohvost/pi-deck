@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-11T07:33:33Z",
+  "status": "device-rejected",
+  "purpose": "Candidate backend for the CPU versus Adreno promotion gate",
+  "build": {
+    "llamaCppCommit": "08659901c43b51de735740f1cf61bb82fbe0c4e4",
+    "llamaCppBuild": 10333,
+    "spirvHeadersCommit": "1c6bb2743599e6eb6f37b2969acc0aef812e32e3",
+    "vulkanHeadersCommit": "217e93c664ec6704ec2d8c36fa116c1a4a1e2d40",
+    "androidNdk": "28.2.13676358",
+    "androidAbi": "arm64-v8a",
+    "androidApi": 28,
+    "cpuArch": "armv8.2-a+dotprod+fp16",
+    "backend": "Vulkan",
+    "sharedLibraries": false,
+    "reproducer": "tools/build_llama_vulkan_android.sh"
+  },
+  "sourceAudit": {
+    "opencl": {
+      "async": false,
+      "events": false,
+      "asyncTensorCopy": false,
+      "consequence": "Current OpenCL cannot pipeline a CPU/Adreno split; scheduler boundaries synchronize and copy."
+    },
+    "vulkan": {
+      "async": true,
+      "events": true,
+      "asyncTensorCopy": true,
+      "qwen35KernelsBuilt": [
+        "gated_delta_net",
+        "ssm_conv",
+        "ssm_scan",
+        "mul_mat_vec_q4_k",
+        "mul_mmq"
+      ],
+      "consequence": "Vulkan is worth measuring, but these capabilities do not prove useful CPU/GPU overlap for one sequential token."
+    }
+  },
+  "artifacts": [
+    {
+      "name": "llama-bench",
+      "bytes": 28432320,
+      "sha256": "fcfbe7313a9a8801fc224850e39098777b81379f6030e15e00c529458d569189"
+    },
+    {
+      "name": "llama-server",
+      "bytes": 37197488,
+      "sha256": "5f6a339f7e9a74439bd226b4b13555e6de2936b66a48c9814018f291e0cb45aa"
+    },
+    {
+      "name": "libomp.so",
+      "bytes": 965024,
+      "sha256": "f30aa5c388ff0cc9d6c06962981d024dc52797fadb26e6ef4cd84f5e4bdc4643"
+    },
+    {
+      "name": "libc++_shared.so",
+      "bytes": 1253544,
+      "sha256": "cd61762848882a16c8244c964a6f396c0caa0b440588a210ce9cc4ab0e6d9f0c"
+    }
+  ],
+  "localOutput": "build/runtime-candidates/vulkan-b10333-adreno740",
+  "promotionGate": {
+    "minimumPromptRatio": 2.0,
+    "minimumDecodeRatio": 0.95,
+    "promptTokens": [128, 512],
+    "generatedTokens": 32,
+    "repetitions": 3,
+    "requireNoCrash": true,
+    "requireCorrectOutput": true,
+    "requireSuiteV2NoRegression": true
+  },
+  "deviceValidation": {
+    "status": "failed-promotion-gate",
+    "plan": "tools/adb_accelerator_probe.py",
+    "report": "benchmarks/out/adreno740-vulkan-2026-08-11.json",
+    "device": "Samsung SM-S918B / SM8550 / Adreno 740 / Android 16",
+    "failure": "Every Vulkan GPU variant aborted while the Qualcomm driver created a Q6_K matmul pipeline.",
+    "productionRuntimeChanged": false
+  }
+}

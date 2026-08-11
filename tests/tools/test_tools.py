@@ -9,6 +9,7 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -27,6 +28,7 @@ pin_model = load_tool("pin_model")
 validate_benchmark = load_tool("validate_benchmark")
 generate_sbom = load_tool("generate_sbom")
 speculative_probe = load_tool("speculative_probe")
+accelerator_probe = load_tool("adb_accelerator_probe")
 
 
 def gguf_string(value: str) -> bytes:
@@ -233,6 +235,158 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(1.5, summary["discardedWarmUp"])
         with self.assertRaises(ValueError):
             speculative_probe.summarise([1.5])
+
+    def test_accelerator_cpu_control_physically_disables_gpu_work(self) -> None:
+        self.assertEqual(
+            ["-dev", "none", "-ngl", "0", "-nopo", "1", "-nkvo", "1"],
+            accelerator_probe.variant_arguments("cpu"),
+        )
+        self.assertEqual(
+            ["-ngl", "16", "-sm", "layer", "-nopo", "0", "-nkvo", "0"],
+            accelerator_probe.variant_arguments("hybrid-16"),
+        )
+        self.assertEqual(
+            ["-ngl", "99", "-sm", "layer", "-nopo", "0", "-nkvo", "1"],
+            accelerator_probe.variant_arguments("accelerator-all-cpu-state"),
+        )
+        with self.assertRaises(ValueError):
+            accelerator_probe.variant_arguments("magic-parallel")
+
+    def test_accelerator_probe_parses_exact_prompt_and_decode_rows(self) -> None:
+        raw = "\n".join(
+            [
+                "backend startup noise",
+                json.dumps(
+                    {
+                        "n_prompt": 128,
+                        "n_gen": 0,
+                        "avg_ts": 42.5,
+                        "backend": "Vulkan",
+                        "build_number": 10333,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "n_prompt": 0,
+                        "n_gen": 32,
+                        "avg_ts": 11.25,
+                        "backend": "Vulkan",
+                    }
+                ),
+            ]
+        )
+        rows = accelerator_probe.parse_bench_jsonl(raw)
+        prompt, decode, metadata = accelerator_probe.workload_rates(rows, 128, 32)
+        self.assertEqual(42.5, prompt)
+        self.assertEqual(11.25, decode)
+        self.assertEqual("Vulkan", metadata["backend"])
+        with self.assertRaises(accelerator_probe.ProbeError):
+            accelerator_probe.workload_rates(rows, 512, 32)
+
+    def test_accelerator_gate_requires_every_prompt_size_and_decode(self) -> None:
+        samples = []
+        for prompt, cpu_pp, cpu_tg in ((128, 20.0, 10.0), (512, 25.0, 8.0)):
+            samples.extend(
+                [
+                    {
+                        "variant": "cpu",
+                        "promptTokens": prompt,
+                        "promptTokensPerSecond": cpu_pp,
+                        "decodeTokensPerSecond": cpu_tg,
+                    },
+                    {
+                        "variant": "vulkan-good",
+                        "promptTokens": prompt,
+                        "promptTokensPerSecond": cpu_pp * 2.1,
+                        "decodeTokensPerSecond": cpu_tg * 0.97,
+                    },
+                    {
+                        "variant": "vulkan-prefill-only",
+                        "promptTokens": prompt,
+                        "promptTokensPerSecond": cpu_pp * 2.5,
+                        "decodeTokensPerSecond": cpu_tg * 0.8,
+                    },
+                ]
+            )
+        verdict = accelerator_probe.score_samples(samples, [128, 512], 2.0, 0.95)
+        self.assertTrue(verdict["gatePassed"])
+        self.assertEqual("vulkan-good", verdict["winner"])
+        self.assertTrue(verdict["variants"]["vulkan-good"]["gatePassed"])
+        self.assertTrue(
+            verdict["variants"]["vulkan-prefill-only"]["prefillOnlyPotential"]
+        )
+        self.assertFalse(
+            verdict["variants"]["vulkan-prefill-only"]["gatePassed"]
+        )
+
+    def test_accelerator_gate_fails_closed_on_missing_workload(self) -> None:
+        samples = [
+            {
+                "variant": "cpu",
+                "promptTokens": prompt,
+                "promptTokensPerSecond": 10.0,
+                "decodeTokensPerSecond": 10.0,
+            }
+            for prompt in (128, 512)
+        ]
+        samples.append(
+            {
+                "variant": "partial",
+                "promptTokens": 128,
+                "promptTokensPerSecond": 30.0,
+                "decodeTokensPerSecond": 10.0,
+            }
+        )
+        verdict = accelerator_probe.score_samples(samples, [128, 512], 2.0, 0.95)
+        self.assertFalse(verdict["gatePassed"])
+        self.assertFalse(verdict["variants"]["partial"]["gatePassed"])
+
+    def test_accelerator_gate_rejects_duplicate_workloads(self) -> None:
+        duplicate = {
+            "variant": "cpu",
+            "promptTokens": 128,
+            "promptTokensPerSecond": 10.0,
+            "decodeTokensPerSecond": 10.0,
+        }
+        with self.assertRaises(accelerator_probe.ProbeError):
+            accelerator_probe.score_samples(
+                [duplicate, copy.deepcopy(duplicate)], [128], 2.0, 0.95
+            )
+
+    def test_accelerator_probe_verifies_staged_candidate_hashes(self) -> None:
+        manifest = {
+            "artifacts": [
+                {"name": "llama-bench", "sha256": "a" * 64},
+                {"name": "libomp.so", "sha256": "b" * 64},
+            ]
+        }
+        completed = mock.Mock(
+            stdout=f"{'a' * 64}  llama-bench\n{'b' * 64}  libomp.so\n"
+        )
+        with mock.patch.object(
+            accelerator_probe, "remote_exec", return_value=completed
+        ) as remote:
+            actual = accelerator_probe.verify_staged_candidate(None, manifest)
+        self.assertEqual(
+            {"llama-bench": "a" * 64, "libomp.so": "b" * 64}, actual
+        )
+        remote.assert_called_once_with(
+            None,
+            [
+                "/system/bin/toybox",
+                "sha256sum",
+                "llama-bench",
+                "libomp.so",
+            ],
+            timeout=300,
+        )
+
+        completed.stdout = f"{'c' * 64}  llama-bench\n"
+        with mock.patch.object(
+            accelerator_probe, "remote_exec", return_value=completed
+        ):
+            with self.assertRaises(accelerator_probe.ProbeError):
+                accelerator_probe.verify_staged_candidate(None, manifest)
 
     def test_sbom_converts_npm_integrity_to_cyclonedx_hex(self) -> None:
         digest = bytes(range(64))
