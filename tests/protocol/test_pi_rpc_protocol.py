@@ -129,6 +129,8 @@ class PiRpcProtocolTest(unittest.TestCase):
                             "supportsReasoningEffort": False,
                             "supportsStore": False,
                             "supportsUsageInStreaming": True,
+                            "supportsStrictMode": False,
+                            "supportsOpenAIGrammarTools": False,
                             "maxTokensField": "max_tokens",
                         },
                         "models": [
@@ -483,6 +485,14 @@ class PiRpcProtocolTest(unittest.TestCase):
                 self.assertIn("pideck_load_tools", tool_names)
                 self.assertIn("pideck_bash", tool_names)
                 self.assertIn("code_nav", tool_names)
+                self.assertFalse(
+                    any(
+                        tool.get("function", {}).get("strict") is not None
+                        for tool in provider_request.get("tools", [])
+                        if isinstance(tool, dict)
+                    ),
+                    "llama.cpp must not receive strict tool schemas as grammars",
+                )
                 self.assertNotIn("web_research", tool_names)
                 self.assertNotIn("weather", tool_names)
                 self.assertNotIn("pideck_edit", tool_names)

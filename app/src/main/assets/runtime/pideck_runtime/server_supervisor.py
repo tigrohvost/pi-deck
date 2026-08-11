@@ -277,6 +277,11 @@ def _write_pi_models(api_key: str, port: int) -> None:
                     # include_usage is requested. Pi needs this flag to send
                     # stream_options.include_usage and expose exact output tokens.
                     "supportsUsageInStreaming": True,
+                    # llama.cpp b10092 derives a sampler grammar for OpenAI
+                    # strict function schemas. Its grammar parser rejects some
+                    # of Pi's tool schemas before generation starts.
+                    "supportsStrictMode": False,
+                    "supportsOpenAIGrammarTools": False,
                     "maxTokensField": "max_tokens",
                 },
                 "models": models,

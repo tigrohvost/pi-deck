@@ -41,6 +41,9 @@ authenticated loopback RPC bridge, with no root required.
   read-only;
 - stock models use pinned `llama.cpp b10092`; Nanbeige uses a separately pinned
   Android sidecar and cannot replace the stock server for other models.
+- Pi function tools use ordinary OpenAI-compatible schemas, not strict sampler
+  grammars: this avoids the b10092 grammar-parser failure while preserving the
+  bridge's tool validation and permission gates.
 
 ## Requirements
 
@@ -119,7 +122,7 @@ silently replaced by a recommendation.
 |---|---|---|
 | Qwen3.5 0.8B / 2B / 4B / 9B | `EXPERIMENTAL` | Stock b10092; immutable artifacts. Qwen 2B has app-private SHA, server, and Pi smoke evidence |
 | LFM2.5 2.6B | `CANDIDATE` | Stock b10092; manual selection while admission remains incomplete |
-| Ministral 3 3B Instruct | `CANDIDATE` | Official GGUF on stock b10092. Download, SHA/private install, startup, and an exact `PIDECK_OK` turn passed on SM-S918B; full suite and Russian behavior remain unverified |
+| Ministral 3 3B Instruct | `CANDIDATE` | Official GGUF on stock b10092. Download, SHA/private install, startup, and tool-schema Pi turns passed on SM-S918B; full suite and Russian behavior remain unverified |
 | Nanbeige4.2 3B | `CANDIDATE` | Pinned Q4_K_M plus isolated `nanbeige42-c6640a1` sidecar. Download and SHA/private install passed on SM-S918B; inference suite is still pending |
 | Bonsai 27B | `CANDIDATE` | Manual-only 1-bit experiment: about 1.16 tok/s despite fitting in less memory than Qwen 4B |
 

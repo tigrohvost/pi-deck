@@ -827,6 +827,8 @@ class RuntimeTestCase(unittest.TestCase):
         provider = config["providers"]["pideck"]
         self.assertEqual("openai-completions", provider["api"])
         self.assertTrue(provider["compat"]["supportsUsageInStreaming"])
+        self.assertFalse(provider["compat"]["supportsStrictMode"])
+        self.assertFalse(provider["compat"]["supportsOpenAIGrammarTools"])
         self.assertEqual(14_336, provider["models"][0]["contextWindow"])
         self.assertEqual(1_536, provider["models"][0]["maxTokens"])
 

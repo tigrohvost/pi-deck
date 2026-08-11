@@ -41,6 +41,9 @@ root не нужен.
 - штатные модели используют закреплённый `llama.cpp b10092`, а Nanbeige —
   отдельный закреплённый Android-sidecar, который не может подменить сервер
   остальных моделей.
+- Function-инструменты Pi передают обычные OpenAI-совместимые схемы без strict
+  sampler-grammar: это обходит сбой grammar-parser в b10092, сохраняя проверку
+  инструментов и ограничения разрешений в bridge.
 
 ## Требования
 
@@ -117,7 +120,7 @@ provenance и полный device admission suite. Неизвестный model 
 |---|---|---|
 | Qwen3.5 0.8B / 2B / 4B / 9B | `EXPERIMENTAL` | Штатный b10092, неизменяемые артефакты. Для Qwen 2B пройдены приватный SHA, server и Pi smoke |
 | LFM2.5 2.6B | `CANDIDATE` | Штатный b10092; ручной выбор до завершения admission |
-| Ministral 3 3B Instruct | `CANDIDATE` | Официальный GGUF на штатном b10092. На SM-S918B пройдены скачивание, SHA/private install, запуск и точный ответ `PIDECK_OK`; полный suite и русский язык ещё не проверены |
+| Ministral 3 3B Instruct | `CANDIDATE` | Официальный GGUF на штатном b10092. На SM-S918B пройдены скачивание, SHA/private install, запуск и Pi-ходы со схемами инструментов; полный suite и русский язык ещё не проверены |
 | Nanbeige4.2 3B | `CANDIDATE` | Закреплённый Q4_K_M и изолированный sidecar `nanbeige42-c6640a1`. На SM-S918B пройдены скачивание и SHA/private install; inference suite ещё не запускался |
 | Bonsai 27B | `CANDIDATE` | Ручной 1-битный эксперимент: около 1,16 ток/с, хотя памяти требуется меньше, чем Qwen 4B |
 
