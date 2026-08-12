@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LLAMA_BUILD="b10092"
-LLAMA_ARCHIVE_SHA256="4f23b4a91b7043db43789fd248142a739d7a1f632d403f756e8be920c45c8076"
+LLAMA_BUILD="b10369"
+LLAMA_ARCHIVE_SHA256="9ed20985df5b243299a24636c5d086fc0fd8ea8d0c18da0662a6a113abe3272f"
 LLAMA_ARCHIVE_URL="https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_BUILD}/llama-${LLAMA_BUILD}-bin-android-arm64.tar.gz"
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
