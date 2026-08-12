@@ -153,6 +153,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private boolean thermalWarned;
     /** A dispatch delayed by the cooldown wait; new prompts queue instead of racing it. */
     private boolean pacingWait;
+    /** POST_NOTIFICATIONS is asked at most once per process; the system remembers denials. */
+    private boolean notificationPermissionRequested;
     /** Last listing of ~/.pideck/sessions, as the Termux runtime reported it. */
     private JSONArray sessions = new JSONArray();
     private int sessionCount;
@@ -479,6 +481,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         append(ConsoleEntry.Channel.USER, prompt);
         warnIfHot();
         paceThermalThenRun(() -> dispatchRpcTurn(prompt));
+    }
+
+    /**
+     * The core's whole honesty surface (READY, idle stop, «фон: медленно») lives in its
+     * foreground notification, which Android 13+ hides until the user grants
+     * POST_NOTIFICATIONS. Asked once per process, at the moment the user starts the core —
+     * the same moment the notification first matters.
+     */
+    private void requestNotificationPermissionIfNeeded() {
+        if (android.os.Build.VERSION.SDK_INT < 33 || notificationPermissionRequested) return;
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        notificationPermissionRequested = true;
+        requestPermissions(
+                new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 8202
+        );
     }
 
     /**
@@ -1928,6 +1946,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void launchNativeServer() {
         if (busy) return;
+        requestNotificationPermissionIfNeeded();
         bridgeFault = "";
         dispatchOperation(
                 OperationKind.START_SERVER,
