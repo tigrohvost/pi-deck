@@ -37,6 +37,7 @@ public final class DeckPreferences {
     private static final String KEY_MAXIMUM_SPEED = "maximum_speed_v1";
     private static final String KEY_UI_LANGUAGE = "ui_language_v1";
     private static final String KEY_AUTOSTART_CORE = "autostart_core_v1";
+    private static final String KEY_CORE_IDLE_TIMEOUT = "core_idle_timeout_v1";
     private static final String KEY_SMART_COMPACTION = "smart_compaction_v1";
     private static final String KEY_OOM_ACK = "oom_risk_ack_v1";
 
@@ -152,6 +153,23 @@ public final class DeckPreferences {
 
     public void setAutostartCore(boolean enabled) {
         prefs.edit().putBoolean(KEY_AUTOSTART_CORE, enabled).apply();
+    }
+
+    /**
+     * Minutes of idleness after which the resident core stops itself; 0 keeps the
+     * pre-Stage-4 "runs until stopped by hand" behavior. Stored values outside the
+     * offered set fall back to the default rather than arming a surprising timer.
+     */
+    public long coreIdleTimeoutMinutes() {
+        long stored = prefs.getLong(KEY_CORE_IDLE_TIMEOUT, IdleShutdown.DEFAULT_MINUTES);
+        return IdleShutdown.normalized(stored) ? stored : IdleShutdown.DEFAULT_MINUTES;
+    }
+
+    public void setCoreIdleTimeoutMinutes(long minutes) {
+        prefs.edit().putLong(
+                KEY_CORE_IDLE_TIMEOUT,
+                IdleShutdown.normalized(minutes) ? minutes : IdleShutdown.DEFAULT_MINUTES
+        ).apply();
     }
 
     /** Idle checkpointing is on by default because it trades idle compute for much faster replay. */
