@@ -65,7 +65,7 @@ def valid_benchmark_report() -> dict:
         "modelId": "qwen3.5-2b",
         "modelSha256": "a" * 64,
         "piVersion": "0.82.1",
-        "llamaCppVersion": "b10092",
+        "llamaCppVersion": "b10369",
         "contextSize": 10_240,
         "samplingProfile": {
             "temperature": 0.7,

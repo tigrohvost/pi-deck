@@ -58,7 +58,7 @@ def tiny_model(content: bytes, expected_sha: str | None = None) -> dict:
         },
         "runtime": {
             "serverFlavor": "stock",
-            "minimumLlamaCppVersion": "b10092",
+            "minimumLlamaCppVersion": "b10369",
             "recommendedContext": 1024,
             "maximumTestedContext": 2048,
             "parallelSlots": 1,
@@ -202,8 +202,8 @@ class RuntimeTestCase(unittest.TestCase):
             "node": {"minimumVersion": "22.19.0"},
             "llamaCpp": {
                 "owner": "android-native",
-                "minimumVersion": "b10092",
-                "maximumTestedVersion": "b10092",
+                "minimumVersion": "b10369",
+                "maximumTestedVersion": "b10369",
             },
         }
         common.atomic_write_json(
@@ -747,7 +747,7 @@ class RuntimeTestCase(unittest.TestCase):
             "modelId": model["id"],
             "modelSha256": model["artifact"]["sha256"],
             "owner": "android-native",
-            "runtimeBuild": "b10092",
+            "runtimeBuild": "b10369",
             "port": 8080,
             "apiKey": "A" * 43,
             "pid": 4242,
@@ -810,7 +810,7 @@ class RuntimeTestCase(unittest.TestCase):
         )
 
         request["operationId"] = operation_id()
-        request["runtimeBuild"] = "b10092"
+        request["runtimeBuild"] = "b10369"
         with self.assertRaises(common.PiDeckError) as raised:
             server_supervisor.adopt_external_server(request)
         self.assertEqual("WRONG_RUNTIME", raised.exception.code)
@@ -899,7 +899,7 @@ class RuntimeTestCase(unittest.TestCase):
             "modelId": model["id"],
             "modelSha256": model["artifact"]["sha256"],
             "owner": "android-native",
-            "runtimeBuild": "b10092",
+            "runtimeBuild": "b10369",
             "port": 8080,
             "apiKey": "A" * 43,
             "decodeThreads": 5,
@@ -1170,29 +1170,29 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertFalse(launcher._semver_at_least("v22.18.9", "22.19.0"))
         self.assertFalse(launcher._semver_at_least("unknown", "22.19.0"))
         self.assertTrue(
-            launcher._llama_in_range("version: 10092 (fixture)", "b10092", "b10092")
+            launcher._llama_in_range("version: 10369 (fixture)", "b10369", "b10369")
         )
         self.assertFalse(
-            launcher._llama_in_range("version: 10093", "b10092", "b10092")
+            launcher._llama_in_range("version: 10370", "b10369", "b10369")
         )
         self.assertIsNone(launcher._llama_build("version: 0 (unknown)"))
         self.assertEqual(
-            10092, launcher._llama_build("0.0.0-b10092-0")
+            10369, launcher._llama_build("0.0.0-b10369-0")
         )
         self.assertEqual(
-            "0.0.0-b10092-0",
+            "0.0.0-b10369-0",
             launcher._resolved_llama_version(
-                "version: 0 (unknown)", "0.0.0-b10092-0"
+                "version: 0 (unknown)", "0.0.0-b10369-0"
             ),
         )
         self.assertEqual(
-            "version: 10093",
+            "version: 10370",
             launcher._resolved_llama_version(
-                "version: 10093", "0.0.0-b10092-0"
+                "version: 10370", "0.0.0-b10369-0"
             ),
         )
         self.assertIsNone(
-            launcher._resolved_llama_version(None, "0.0.0-b10092-0")
+            launcher._resolved_llama_version(None, "0.0.0-b10369-0")
         )
 
     def test_bridge_bootstrap_rejects_unknown_model_before_process_start(self) -> None:

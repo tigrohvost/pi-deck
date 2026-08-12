@@ -41,7 +41,7 @@ PI_CONTEXT_CONTRACT_VERSION = 3
 # full use below a $10M annual-revenue threshold; see docs/model-admission.md.
 ALLOWED_LICENSES = {"Apache-2.0", "MIT", "LicenseRef-LFM-Open-1.0"}
 SERVER_FLAVOR_BUILDS = {
-    "stock": "b10092",
+    "stock": "b10369",
     "nanbeige42": "nanbeige42-c6640a1",
 }
 

@@ -56,7 +56,7 @@ BRIDGE_PORT = 8787
 DEFAULT_SERVER_PORT = 8080
 EXTERNAL_OWNER = "android-native"
 EXTERNAL_RUNTIME_BUILDS = {
-    "stock": "b10092",
+    "stock": "b10369",
     "nanbeige42": "nanbeige42-c6640a1",
 }
 API_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
@@ -273,13 +273,14 @@ def _write_pi_models(api_key: str, port: int) -> None:
                     "supportsDeveloperRole": False,
                     "supportsReasoningEffort": False,
                     "supportsStore": False,
-                    # llama.cpp b10092 emits a final streaming usage frame when
+                    # llama.cpp b10369 emits a final streaming usage frame when
                     # include_usage is requested. Pi needs this flag to send
                     # stream_options.include_usage and expose exact output tokens.
                     "supportsUsageInStreaming": True,
-                    # llama.cpp b10092 derives a sampler grammar for OpenAI
-                    # strict function schemas. Its grammar parser rejects some
-                    # of Pi's tool schemas before generation starts.
+                    # b10092's grammar parser rejected some of Pi's tool
+                    # schemas before generation started. Strict grammars stay
+                    # off on b10369 until the device probe in the Stage 1 plan
+                    # passes (docs/superpowers/plans/2026-08-12-llama-pin-b10369.md).
                     "supportsStrictMode": False,
                     "supportsOpenAIGrammarTools": False,
                     "maxTokensField": "max_tokens",

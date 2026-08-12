@@ -89,7 +89,7 @@ public class ModelCatalogTest {
                 ministral.nativeServerLibraryName(),
                 NativeLlamaService.serverLibraryForFlavor(ministral.serverFlavor)
         );
-        assertEquals("b10092", ministral.nativeRuntimeBuild());
+        assertEquals("b10369", ministral.nativeRuntimeBuild());
 
         ModelSpec nanbeige = catalog.byId("nanbeige4.2-3b").orElseThrow();
         assertEquals("owao/Nanbeige4.2-3B-GGUF", nanbeige.repo);

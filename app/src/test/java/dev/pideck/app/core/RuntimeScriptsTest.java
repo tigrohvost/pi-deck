@@ -75,7 +75,7 @@ public class RuntimeScriptsTest {
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
                  "runtimeContractVersion":49,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
-                 "pythonVersion":"3.13","llamaVersion":"b10092"}
+                 "pythonVersion":"3.13","llamaVersion":"b10369"}
                 """.replace("\n ", "");
         assertTrue(RuntimeScripts.isLinkProbeOutput(ready));
         assertTrue(RuntimeScripts.isReadyProbeOutput(ready));

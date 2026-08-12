@@ -52,7 +52,7 @@ public final class RuntimeScripts {
                 && "0.82.1".equals(result.optString("piVersion"))
                 && !result.isNull("nodeVersion")
                 && !result.isNull("pythonVersion")
-                && "b10092".equals(result.optString("llamaVersion"));
+                && "b10369".equals(result.optString("llamaVersion"));
     }
 
     public static JSONObject finalJsonObject(String stdout) {

@@ -38,7 +38,7 @@
       },
       "runtime": {
         "serverFlavor": "stock",
-        "minimumLlamaCppVersion": "b10092",
+        "minimumLlamaCppVersion": "b10369",
         "recommendedContext": 4096,
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
@@ -112,7 +112,7 @@
       },
       "runtime": {
         "serverFlavor": "stock",
-        "minimumLlamaCppVersion": "b10092",
+        "minimumLlamaCppVersion": "b10369",
         "recommendedContext": 10240,
         "maximumTestedContext": 10240,
         "parallelSlots": 1,
@@ -186,7 +186,7 @@
       },
       "runtime": {
         "serverFlavor": "stock",
-        "minimumLlamaCppVersion": "b10092",
+        "minimumLlamaCppVersion": "b10369",
         "recommendedContext": 10240,
         "maximumTestedContext": 10240,
         "parallelSlots": 1,
@@ -260,7 +260,7 @@
       },
       "runtime": {
         "serverFlavor": "stock",
-        "minimumLlamaCppVersion": "b10092",
+        "minimumLlamaCppVersion": "b10369",
         "recommendedContext": 8192,
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
@@ -408,7 +408,7 @@
       },
       "runtime": {
         "serverFlavor": "stock",
-        "minimumLlamaCppVersion": "b10092",
+        "minimumLlamaCppVersion": "b10369",
         "recommendedContext": 8192,
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
@@ -482,7 +482,7 @@
       },
       "runtime": {
         "serverFlavor": "stock",
-        "minimumLlamaCppVersion": "b10092",
+        "minimumLlamaCppVersion": "b10369",
         "recommendedContext": 4096,
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
@@ -556,7 +556,7 @@
       },
       "runtime": {
         "serverFlavor": "stock",
-        "minimumLlamaCppVersion": "b10092",
+        "minimumLlamaCppVersion": "b10369",
         "recommendedContext": 4096,
         "maximumTestedContext": 4096,
         "parallelSlots": 1,
