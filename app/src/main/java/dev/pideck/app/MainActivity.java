@@ -51,6 +51,7 @@ import dev.pideck.app.core.CommandEvents;
 import dev.pideck.app.core.CommandResult;
 import dev.pideck.app.core.DeckPreferences;
 import dev.pideck.app.core.GenerationSpeed;
+import dev.pideck.app.core.IdleShutdown;
 import dev.pideck.app.core.ModelCatalog;
 import dev.pideck.app.core.ModelDownloadManager;
 import dev.pideck.app.core.ModelSpec;
@@ -303,6 +304,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         termuxEnvironment = termux.inspectEnvironment();
         for (OperationRecord record : operations.unconsumedResults()) {
             if (record.result != null) handleCommandResult(record.result, true);
+        }
+        android.content.SharedPreferences nativeState =
+                getSharedPreferences("native_llama_service", MODE_PRIVATE);
+        if (nativeState.getBoolean("idle_stop", false)) {
+            nativeState.edit().remove("idle_stop").apply();
+            append(ConsoleEntry.Channel.SYSTEM, t(
+                    "Ядро остановилось по таймауту бездействия (настройка — в ЯДРО).",
+                    "The core stopped on the idle timeout (configured in CORE)."
+            ));
         }
         refreshUi();
     }
@@ -588,6 +598,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 ));
         // Turning it on while looking at a cold deck means it should be warm now, not next launch.
         if (enabled) warmCore();
+        refreshUi();
+    }
+
+    @Override
+    public void onCoreIdleTimeoutChanged(long minutes) {
+        prefs.setCoreIdleTimeoutMinutes(minutes);
+        append(ConsoleEntry.Channel.SYSTEM, minutes == IdleShutdown.NEVER
+                ? t(
+                        "Ядро будет жить до ручной остановки.",
+                        "The core will live until stopped by hand."
+                )
+                : t(
+                        "Ядро будет останавливаться после " + minutes + " мин без запросов.",
+                        "The core will stop after " + minutes + " min of idleness."
+                ));
+        NativeLlamaService.rearmIdleTimer(this);
         refreshUi();
     }
 
@@ -2524,6 +2550,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         state.agentMode = agentMode;
         state.maximumSpeed = prefs.maximumSpeed();
         state.autostartCore = prefs.autostartCore();
+        state.coreIdleTimeoutMinutes = prefs.coreIdleTimeoutMinutes();
         state.smartCompaction = prefs.smartCompaction();
         state.language = uiLanguage;
 

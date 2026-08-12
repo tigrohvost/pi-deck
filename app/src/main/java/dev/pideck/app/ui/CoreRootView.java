@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import dev.pideck.app.core.AgentMode;
+import dev.pideck.app.core.IdleShutdown;
 import dev.pideck.app.core.UiLanguage;
 
 /**
@@ -114,6 +115,7 @@ public final class CoreRootView extends ScrollView {
         public UiLanguage language = UiLanguage.RUSSIAN;
         public boolean maximumSpeed = true;
         public boolean autostartCore = false;
+        public long coreIdleTimeoutMinutes = IdleShutdown.DEFAULT_MINUTES;
         public boolean smartCompaction = true;
         /** Mirror of the checkbox on the consent screen. */
         public boolean askBeforeOverwrite = true;
@@ -131,6 +133,8 @@ public final class CoreRootView extends ScrollView {
         void onMaximumSpeedChanged(boolean enabled);
 
         void onAutostartCoreChanged(boolean enabled);
+
+        void onCoreIdleTimeoutChanged(long minutes);
 
         void onSmartCompactionChanged(boolean enabled);
 
@@ -224,6 +228,28 @@ public final class CoreRootView extends ScrollView {
                 new Boolean[]{Boolean.TRUE, Boolean.FALSE},
                 state.autostartCore,
                 value -> listener.onAutostartCoreChanged((Boolean) value)
+        ));
+
+        TextView idleNote = style.bodySecondary(
+                t(
+                        "Таймаут ядра: без запросов модель выгружается сама и освобождает память. "
+                                + "«Всегда» повторяет старое поведение — ядро живёт до ручной остановки.",
+                        "Core timeout: after this much idle time the model unloads itself and frees "
+                                + "memory. “Always” keeps the old behavior — the core lives "
+                                + "until stopped by hand."
+                )
+        );
+        LinearLayout.LayoutParams idleNoteLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        idleNoteLp.topMargin = style.dp(14);
+        idleNoteLp.bottomMargin = style.dp(8);
+        column.addView(idleNote, idleNoteLp);
+        column.addView(segments(
+                new String[]{t("5м", "5m"), t("10м", "10m"), t("30м", "30m"), t("Всегда", "Always")},
+                new Long[]{5L, 10L, 30L, IdleShutdown.NEVER},
+                state.coreIdleTimeoutMinutes,
+                value -> listener.onCoreIdleTimeoutChanged((Long) value)
         ));
 
         TextView compactionNote = style.bodySecondary(
@@ -335,6 +361,7 @@ public final class CoreRootView extends ScrollView {
                 .append(state.language).append('|')
                 .append(state.maximumSpeed).append('|')
                 .append(state.autostartCore).append('|')
+                .append(state.coreIdleTimeoutMinutes).append('|')
                 .append(state.smartCompaction).append('|')
                 .append(state.askBeforeOverwrite).append('|')
                 .append(state.accessProfileLabel).append('|')

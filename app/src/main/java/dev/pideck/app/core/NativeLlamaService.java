@@ -37,6 +37,7 @@ public final class NativeLlamaService extends Service {
             "dev.pideck.app.native_llama.INFERENCE_ACTIVE";
     public static final String ACTION_INFERENCE_IDLE =
             "dev.pideck.app.native_llama.INFERENCE_IDLE";
+    public static final String ACTION_IDLE_REARM = "dev.pideck.app.native_llama.IDLE_REARM";
     public static final String EXTRA_OPERATION_ID = "operation_id";
     public static final String EXTRA_MODEL_ID = "model_id";
     public static final String EXTRA_MODEL_PATH = "model_path";
@@ -55,6 +56,9 @@ public final class NativeLlamaService extends Service {
     private volatile String activeOperationId = "";
     private Thread monitor;
     private PowerManager.WakeLock inferenceWakeLock;
+    private final android.os.Handler idleHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable idleShutdown = this::onIdleTimeout;
 
     public static final class Snapshot {
         public final String state;
@@ -127,6 +131,13 @@ public final class NativeLlamaService extends Service {
         );
     }
 
+    /** Re-reads the CORE idle-timeout setting; a no-op unless the core is READY. */
+    public static void rearmIdleTimer(Context context) {
+        context.startService(
+                new Intent(context, NativeLlamaService.class).setAction(ACTION_IDLE_REARM)
+        );
+    }
+
     public static void beginInference(Context context, String phase) {
         context.startService(
                 new Intent(context, NativeLlamaService.class)
@@ -152,9 +163,11 @@ public final class NativeLlamaService extends Service {
         String action = intent == null ? "" : intent.getAction();
         if (ACTION_READY.equals(action)) {
             promote("Локальная модель готова");
+            armIdleTimer();
             return START_NOT_STICKY;
         }
         if (ACTION_INFERENCE_ACTIVE.equals(action)) {
+            idleHandler.removeCallbacks(idleShutdown);
             acquireInferenceWakeLock();
             String phase = intent.getStringExtra(EXTRA_PHASE);
             promote(phase == null || phase.isBlank() ? "Модель отвечает…" : safeLabel(phase));
@@ -163,9 +176,16 @@ public final class NativeLlamaService extends Service {
         if (ACTION_INFERENCE_IDLE.equals(action)) {
             releaseInferenceWakeLock();
             promote("Локальная модель готова");
+            armIdleTimer();
+            return START_NOT_STICKY;
+        }
+        if (ACTION_IDLE_REARM.equals(action)) {
+            if ("READY".equals(snapshot(this).state)) armIdleTimer();
+            else idleHandler.removeCallbacks(idleShutdown);
             return START_NOT_STICKY;
         }
         if (ACTION_STOP.equals(action)) {
+            idleHandler.removeCallbacks(idleShutdown);
             promote("Останавливаю локальное ядро…");
             new Thread(this::stopAndExit, "pideck-native-llama-stop").start();
             return START_NOT_STICKY;
@@ -175,6 +195,7 @@ public final class NativeLlamaService extends Service {
             return START_NOT_STICKY;
         }
 
+        idleHandler.removeCallbacks(idleShutdown);
         String operationId = intent.getStringExtra(EXTRA_OPERATION_ID);
         String modelId = intent.getStringExtra(EXTRA_MODEL_ID);
         String modelPath = intent.getStringExtra(EXTRA_MODEL_PATH);
@@ -194,6 +215,7 @@ public final class NativeLlamaService extends Service {
 
     @Override
     public void onDestroy() {
+        idleHandler.removeCallbacks(idleShutdown);
         releaseInferenceWakeLock();
         Process current = server;
         if (current != null && current.isAlive()) {
@@ -321,6 +343,26 @@ public final class NativeLlamaService extends Service {
                     "llama-server завершился с кодом " + code + ": " + logTail()
             );
         }
+    }
+
+    /** Armed only in READY/idle states; any activity cancels before it can fire. */
+    private void armIdleTimer() {
+        idleHandler.removeCallbacks(idleShutdown);
+        long minutes = new DeckPreferences(this).coreIdleTimeoutMinutes();
+        if (!IdleShutdown.enabled(minutes)) return;
+        idleHandler.postDelayed(idleShutdown, IdleShutdown.delayMs(minutes));
+    }
+
+    private void onIdleTimeout() {
+        Snapshot current = snapshot(this);
+        // Fail closed: a race with a starting or answering core means no stop.
+        if (!"READY".equals(current.state)) return;
+        long minutes = new DeckPreferences(this).coreIdleTimeoutMinutes();
+        if (!IdleShutdown.enabled(minutes)) return;
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+                .edit().putBoolean("idle_stop", true).apply();
+        promote("Останавливаю ядро: бездействие " + minutes + " мин");
+        new Thread(this::stopAndExit, "pideck-native-llama-idle-stop").start();
     }
 
     private void stopAndExit() {

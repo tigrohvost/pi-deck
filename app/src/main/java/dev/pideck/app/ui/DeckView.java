@@ -93,6 +93,8 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
         void onAutostartCoreChanged(boolean enabled);
 
+        void onCoreIdleTimeoutChanged(long minutes);
+
         void onSmartCompactionChanged(boolean enabled);
 
         /** Non-empty draft text lets the Activity hide core startup behind typing time. */
@@ -683,6 +685,11 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     @Override
     public void onAutostartCoreChanged(boolean enabled) {
         listener.onAutostartCoreChanged(enabled);
+    }
+
+    @Override
+    public void onCoreIdleTimeoutChanged(long minutes) {
+        listener.onCoreIdleTimeoutChanged(minutes);
     }
 
     @Override
