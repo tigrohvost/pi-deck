@@ -52,6 +52,7 @@ import dev.pideck.app.core.CommandResult;
 import dev.pideck.app.core.DeckPreferences;
 import dev.pideck.app.core.GenerationSpeed;
 import dev.pideck.app.core.IdleShutdown;
+import dev.pideck.app.core.ThermalHeadroom;
 import dev.pideck.app.core.ModelCatalog;
 import dev.pideck.app.core.ModelDownloadManager;
 import dev.pideck.app.core.ModelSpec;
@@ -666,21 +667,31 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
      * deck hanging. Said once per turn, and never made sticky.
      */
     private void warnIfHot() {
-        if (thermalWarned || android.os.Build.VERSION.SDK_INT < 29) return;
-        PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
-        if (power == null) return;
-        int status = power.getCurrentThermalStatus();
-        if (status < PowerManager.THERMAL_STATUS_MODERATE) return;
+        if (thermalWarned) return;
+        Float headroom = ThermalHeadroom.read();
+        int status = 0;
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+            if (power != null) status = power.getCurrentThermalStatus();
+        }
+        boolean throttled = (headroom != null && headroom < 0.85f)
+                || status >= PowerManager.THERMAL_STATUS_MODERATE;
+        if (!throttled) return;
         thermalWarned = true;
-        deck.addThermalNotice(status >= PowerManager.THERMAL_STATUS_SEVERE
+        String clock = headroom == null ? "" : t(
+                " Сейчас доступно " + Math.round(headroom * 100) + "% частоты.",
+                " " + Math.round(headroom * 100) + "% of the clock is available now."
+        );
+        deck.addThermalNotice((status >= PowerManager.THERMAL_STATUS_SEVERE
+                || (headroom != null && headroom < 0.6f))
                 ? t(
                         "Телефон сильно нагрелся — Android режет частоту, ответ будет заметно дольше.",
                         "The phone is very hot — Android is throttling it, so the answer will take noticeably longer."
-                )
+                ) + clock
                 : t(
-                        "Телефон нагрелся — скорость упала примерно вдвое.",
-                        "The phone is hot — generation speed has dropped by roughly half."
-                ));
+                        "Телефон нагрелся — скорость упала.",
+                        "The phone is hot — generation has slowed down."
+                ) + clock);
         prefs.saveTranscript(deck.entries());
     }
 
