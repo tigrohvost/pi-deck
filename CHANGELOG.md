@@ -5,17 +5,9 @@
 
 ## Не выпущено
 
-- штатный нативный runtime поднят с llama.cpp b10092 до официального
-  Android arm64 b10369 (commit `6e62ba53…`): тот же набор ELF, прежний
-  механизм SHA-256-проверки бандла и точных проверок билда на всех трёх
-  сторонах (Gradle, Java, Termux-runtime); Nanbeige-sidecar не менялся.
-  Смена пина не заявляет ускорения — гейт этапа 1: паритет pp/tg ±5 % на
-  Qwen3.5 2B с термоконтролем, 10 смоков, session/abort/tool-проверки;
-  откат — revert коммитов пина и повторный запуск
-  `tools/vendor_llama_android.sh`;
 - в ЯДРО добавлены вручную выбираемые и скачиваемые `CANDIDATE`-профили
   Ministral 3 3B Instruct и Nanbeige4.2 3B с неизменяемыми Hugging Face
-  revision, размером и SHA-256. Ministral остаётся на штатном пине, а
+  revision, размером и SHA-256. Ministral остаётся на штатном b10092, а
   Nanbeige получает отдельный статический Android-sidecar из официального
   fork на commit `c6640a1`; runtime flavor связан с моделью и проверяется при
   foreground-запуске и Termux-side adoption, поэтому специальный fork не

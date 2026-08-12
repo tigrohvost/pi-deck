@@ -1258,9 +1258,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "BOOT HALT // ABI",
                     t("НУЖЕН ARM64-ТЕЛЕФОН", "ARM64 PHONE REQUIRED"),
                     t(
-                            "Встроенный llama.cpp b10369 содержит проверенные Arm CPU-варианты. "
+                            "Встроенный llama.cpp b10092 содержит проверенные Arm CPU-варианты. "
                                     + "На устройстве без arm64-v8a локальная GGUF-модель не запускается.",
-                            "The bundled llama.cpp b10369 contains verified Arm CPU variants. "
+                            "The bundled llama.cpp b10092 contains verified Arm CPU variants. "
                                     + "A local GGUF model cannot run without arm64-v8a."
                     ),
                     null, null,

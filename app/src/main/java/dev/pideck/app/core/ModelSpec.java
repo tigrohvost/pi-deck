@@ -229,7 +229,7 @@ public final class ModelSpec {
         String minimumLlamaCppVersion = required(runtime, "minimumLlamaCppVersion");
         String expectedRuntimeBuild = "nanbeige42".equals(serverFlavor)
                 ? "nanbeige42-c6640a1"
-                : "b10369";
+                : "b10092";
         if (!expectedRuntimeBuild.equals(minimumLlamaCppVersion)) {
             throw new JSONException("Native server flavor and minimum runtime disagree");
         }
@@ -368,7 +368,7 @@ public final class ModelSpec {
     public String nativeRuntimeBuild() {
         switch (serverFlavor) {
             case "stock":
-                return "b10369";
+                return "b10092";
             case "nanbeige42":
                 return "nanbeige42-c6640a1";
             default:
