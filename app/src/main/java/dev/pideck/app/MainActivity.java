@@ -294,6 +294,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     protected void onStart() {
         super.onStart();
         activityStarted = true;
+        NativeLlamaService.backgroundHint(this, false);
         CommandEvents.addListener(this);
         main.post(heartbeat);
         main.post(this::probeRuntimeOnLaunch);
@@ -324,6 +325,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     protected void onStop() {
         super.onStop();
         activityStarted = false;
+        NativeLlamaService.backgroundHint(this, true);
         CommandEvents.removeListener(this);
         main.removeCallbacks(heartbeat);
         main.removeCallbacks(composerWarmup);

@@ -38,6 +38,9 @@ public final class NativeLlamaService extends Service {
     public static final String ACTION_INFERENCE_IDLE =
             "dev.pideck.app.native_llama.INFERENCE_IDLE";
     public static final String ACTION_IDLE_REARM = "dev.pideck.app.native_llama.IDLE_REARM";
+    public static final String ACTION_BACKGROUND_HINT =
+            "dev.pideck.app.native_llama.BACKGROUND_HINT";
+    public static final String EXTRA_BACKGROUND = "background";
     public static final String EXTRA_OPERATION_ID = "operation_id";
     public static final String EXTRA_MODEL_ID = "model_id";
     public static final String EXTRA_MODEL_PATH = "model_path";
@@ -59,6 +62,13 @@ public final class NativeLlamaService extends Service {
     private final android.os.Handler idleHandler =
             new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable idleShutdown = this::onIdleTimeout;
+    private volatile boolean backgroundHint;
+    private volatile String lastPromotedText = "Локальное ядро";
+
+    /** The measured fact behind the suffix: a backgrounded deck decodes at ~1.5 tok/s. */
+    static String notificationText(String base, boolean background) {
+        return background ? base + " · фон: медленно" : base;
+    }
 
     public static final class Snapshot {
         public final String state;
@@ -131,6 +141,21 @@ public final class NativeLlamaService extends Service {
         );
     }
 
+    /** The deck's visibility, so the notification can say honestly that background is slow. */
+    public static void backgroundHint(Context context, boolean background) {
+        // A stopped core has no notification to annotate; never start the service for a hint.
+        if (!snapshot(context).isStartingOrReady()) return;
+        try {
+            context.startService(
+                    new Intent(context, NativeLlamaService.class)
+                            .setAction(ACTION_BACKGROUND_HINT)
+                            .putExtra(EXTRA_BACKGROUND, background)
+            );
+        } catch (IllegalStateException error) {
+            // Background start restrictions can refuse the intent; the hint is cosmetic.
+        }
+    }
+
     /** Re-reads the CORE idle-timeout setting; a no-op unless the core is READY. */
     public static void rearmIdleTimer(Context context) {
         context.startService(
@@ -182,6 +207,11 @@ public final class NativeLlamaService extends Service {
         if (ACTION_IDLE_REARM.equals(action)) {
             if ("READY".equals(snapshot(this).state)) armIdleTimer();
             else idleHandler.removeCallbacks(idleShutdown);
+            return START_NOT_STICKY;
+        }
+        if (ACTION_BACKGROUND_HINT.equals(action)) {
+            backgroundHint = intent.getBooleanExtra(EXTRA_BACKGROUND, false);
+            promote(lastPromotedText);
             return START_NOT_STICKY;
         }
         if (ACTION_STOP.equals(action)) {
@@ -466,6 +496,8 @@ public final class NativeLlamaService extends Service {
     }
 
     private void promote(String text) {
+        lastPromotedText = text;
+        String shown = notificationText(text, backgroundHint);
         Intent open = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent content = PendingIntent.getActivity(
@@ -480,7 +512,7 @@ public final class NativeLlamaService extends Service {
         Notification notification = builder
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle("PI//DECK · локальное ядро")
-                .setContentText(text)
+                .setContentText(shown)
                 .setContentIntent(content)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
