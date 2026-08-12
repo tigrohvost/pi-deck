@@ -108,6 +108,8 @@ restart denies any pending approval.
 
 - **Mode** — Agent for tools and files, or Chat for a direct response;
 - **Autostart** — load the selected model when the deck opens; off by default;
+- **Core timeout** — the idle model unloads itself after 5/10/30 minutes, or never;
+- **Cooldown wait** — optionally wait up to 60 s for the clock to recover before dispatching;
 - **System prompt** — append to the built-in Pi prompt or replace it entirely;
 - **Language** — Russian or English UI without rewriting user/agent messages;
 - **Maximum speed** — keep the screen awake while inference is active.
