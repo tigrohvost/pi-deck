@@ -22,8 +22,8 @@
   },
   "llamaCpp": {
     "owner": "android-native",
-    "minimumVersion": "b10092",
-    "maximumTestedVersion": "b10092",
+    "minimumVersion": "b10369",
+    "maximumTestedVersion": "b10369",
     "requiredCapabilities": ["server", "jinja", "reasoning", "api-key"],
     "sidecars": [
       {

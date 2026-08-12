@@ -122,7 +122,7 @@ val verifyModelManifest by tasks.registering {
             val serverFlavor = runtime["serverFlavor"] as? String
                 ?: error("$id serverFlavor must be a string")
             val expectedRuntimeBuild = when (serverFlavor) {
-                "stock" -> "b10092"
+                "stock" -> "b10369"
                 "nanbeige42" -> "nanbeige42-c6640a1"
                 else -> error("$id serverFlavor is not allowlisted")
             }
@@ -265,7 +265,7 @@ tasks.register("verifyNativeRuntime") {
     inputs.dir(nativeDirectory)
     doLast {
         val root = groovy.json.JsonSlurper().parse(manifestFile.asFile) as Map<*, *>
-        require(root["schemaVersion"] == 1 && root["build"] == "b10092") {
+        require(root["schemaVersion"] == 1 && root["build"] == "b10369") {
             "Unsupported native runtime manifest"
         }
         val sidecars = root["sidecars"] as? List<*>
