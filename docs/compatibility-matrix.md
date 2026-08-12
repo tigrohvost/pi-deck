@@ -8,7 +8,7 @@
 | Node.js | >=22.19.0 | exact Pi package engine requirement; v26.4.0 device smoke |
 | Pi | `@earendil-works/pi-coding-agent` 0.82.1 | npm integrity, gitHead, shrinkwrap, exact device CLI |
 | Pi RPC | JSONL mode from Pi 0.82.1 | fixture/types plus real `PIDECK_OK` device turn |
-| llama.cpp | official Android arm64 b10092 plus isolated Nanbeige fork c6640a1 | archive/source pin + per-ELF SHA-256; flavor-bound foreground adoption and health/models/Jinja/API-key checks |
+| llama.cpp | official Android arm64 b10369 plus isolated Nanbeige fork c6640a1 | archive/source pin + per-ELF SHA-256; flavor-bound foreground adoption and health/models/Jinja/API-key checks |
 | Model catalog | schema 2, catalog 2026.08.11.1 | build and strict Java/Python parser validation |
 | Qwen3.5 0.8B/2B/4B/9B | experimental | 2B app-private SHA/server/Pi smoke passed; full admission incomplete |
 | Ministral 3 3B / Nanbeige4.2 3B | candidate, manual selection only | both downloads and private SHA installs passed; Ministral also passed startup and exact-response smoke, while full suites and Nanbeige inference remain pending |

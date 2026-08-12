@@ -10,7 +10,7 @@ flowchart LR
   OC --> RC[RpcBridgeClient]
   OC --> NC[NativeLlamaController]
   NC --> NS[Android foreground service]
-  NS --> LS[stock llama-server b10092]
+  NS --> LS[stock llama-server b10369]
   NS --> NB[Nanbeige sidecar c6640a1]
   NS --> MS[Android private GGUF store]
   TC --> RT[Versioned Python runtime]
