@@ -116,6 +116,7 @@ public final class CoreRootView extends ScrollView {
         public boolean maximumSpeed = true;
         public boolean autostartCore = false;
         public long coreIdleTimeoutMinutes = IdleShutdown.DEFAULT_MINUTES;
+        public boolean thermalPacing = false;
         public boolean smartCompaction = true;
         /** Mirror of the checkbox on the consent screen. */
         public boolean askBeforeOverwrite = true;
@@ -135,6 +136,8 @@ public final class CoreRootView extends ScrollView {
         void onAutostartCoreChanged(boolean enabled);
 
         void onCoreIdleTimeoutChanged(long minutes);
+
+        void onThermalPacingChanged(boolean enabled);
 
         void onSmartCompactionChanged(boolean enabled);
 
@@ -252,6 +255,28 @@ public final class CoreRootView extends ScrollView {
                 value -> listener.onCoreIdleTimeoutChanged((Long) value)
         ));
 
+        TextView pacingNote = style.bodySecondary(
+                t(
+                        "Передышка: на перегретом телефоне дека подождёт восстановления частоты "
+                                + "(до 60 секунд) перед отправкой, чтобы ответ шёл на полной скорости.",
+                        "Cooldown wait: on a hot phone the deck waits for the clock to recover "
+                                + "(up to 60 seconds) before dispatching, so the answer runs at "
+                                + "full speed."
+                )
+        );
+        LinearLayout.LayoutParams pacingNoteLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        pacingNoteLp.topMargin = style.dp(14);
+        pacingNoteLp.bottomMargin = style.dp(8);
+        column.addView(pacingNote, pacingNoteLp);
+        column.addView(segments(
+                new String[]{t("Передышка", "Cooldown wait"), t("Сразу", "Immediately")},
+                new Boolean[]{Boolean.TRUE, Boolean.FALSE},
+                state.thermalPacing,
+                value -> listener.onThermalPacingChanged((Boolean) value)
+        ));
+
         TextView compactionNote = style.bodySecondary(
                 t(
                         "Умное сжатие в простое создаёт структурированный checkpoint около 55% окна, "
@@ -362,6 +387,7 @@ public final class CoreRootView extends ScrollView {
                 .append(state.maximumSpeed).append('|')
                 .append(state.autostartCore).append('|')
                 .append(state.coreIdleTimeoutMinutes).append('|')
+                .append(state.thermalPacing).append('|')
                 .append(state.smartCompaction).append('|')
                 .append(state.askBeforeOverwrite).append('|')
                 .append(state.accessProfileLabel).append('|')

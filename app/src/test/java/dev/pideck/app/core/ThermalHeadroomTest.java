@@ -14,6 +14,14 @@ public class ThermalHeadroomTest {
     }
 
     @Test
+    public void pacingTriggersOnlyWhenEnabledAndThrottled() {
+        assertEquals(false, ThermalHeadroom.shouldPace(null, true));
+        assertEquals(false, ThermalHeadroom.shouldPace(0.5f, false));
+        assertEquals(false, ThermalHeadroom.shouldPace(0.9f, true));
+        assertEquals(true, ThermalHeadroom.shouldPace(0.84f, true));
+    }
+
+    @Test
     public void refusesGarbageFailClosed() {
         assertNull(ThermalHeadroom.parse("", "3360000"));
         assertNull(ThermalHeadroom.parse("abc", "3360000"));

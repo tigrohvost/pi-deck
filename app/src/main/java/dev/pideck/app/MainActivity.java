@@ -151,6 +151,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private int queuedWarmAttempts;
     /** The heat warning is worth one line per turn, not one per event. */
     private boolean thermalWarned;
+    /** A dispatch delayed by the cooldown wait; new prompts queue instead of racing it. */
+    private boolean pacingWait;
     /** Last listing of ~/.pideck/sessions, as the Termux runtime reported it. */
     private JSONArray sessions = new JSONArray();
     private int sessionCount;
@@ -443,7 +445,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     ));
             return;
         }
-        if (busy) {
+        if (busy || pacingWait) {
             // The field stays live during a turn, so a second prompt waits rather than bouncing.
             if (queuedPrompt != null) {
                 toast(t(
@@ -474,7 +476,39 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private void sendPromptNow(String prompt) {
         append(ConsoleEntry.Channel.USER, prompt);
         warnIfHot();
-        dispatchRpcTurn(prompt);
+        paceThermalThenRun(() -> dispatchRpcTurn(prompt));
+    }
+
+    /**
+     * When pacing is on and the clock is measurably cut, wait up to 60 s in 5 s
+     * steps for recovery to >=95% before running the dispatch. The wait is
+     * visible in the console and always bounded; any read failure dispatches now.
+     */
+    private void paceThermalThenRun(Runnable dispatch) {
+        Float now = ThermalHeadroom.read();
+        if (!ThermalHeadroom.shouldPace(now, prefs.thermalPacing())) {
+            dispatch.run();
+            return;
+        }
+        pacingWait = true;
+        append(ConsoleEntry.Channel.SYSTEM, t(
+                "Передышка: жду восстановления частоты (сейчас "
+                        + Math.round(now * 100) + "%), максимум 60 с…",
+                "Cooldown wait: letting the clock recover (now "
+                        + Math.round(now * 100) + "%), up to 60 s…"
+        ));
+        paceThermalPoll(dispatch, android.os.SystemClock.uptimeMillis() + 60_000L);
+    }
+
+    private void paceThermalPoll(Runnable dispatch, long deadlineUptimeMs) {
+        Float headroom = ThermalHeadroom.read();
+        boolean recovered = headroom == null || headroom >= 0.95f;
+        if (recovered || android.os.SystemClock.uptimeMillis() >= deadlineUptimeMs) {
+            pacingWait = false;
+            dispatch.run();
+            return;
+        }
+        main.postDelayed(() -> paceThermalPoll(dispatch, deadlineUptimeMs), 5_000L);
     }
 
     private void showLargeContextChoice(String prompt) {
@@ -599,6 +633,21 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 ));
         // Turning it on while looking at a cold deck means it should be warm now, not next launch.
         if (enabled) warmCore();
+        refreshUi();
+    }
+
+    @Override
+    public void onThermalPacingChanged(boolean enabled) {
+        prefs.setThermalPacing(enabled);
+        append(ConsoleEntry.Channel.SYSTEM, enabled
+                ? t(
+                        "Перед отправкой на перегретом телефоне дека подождёт восстановления частоты (до 60 с).",
+                        "On a hot phone the deck will wait for the clock to recover (up to 60 s) before dispatching."
+                )
+                : t(
+                        "Запросы уходят сразу, даже на троттлинге.",
+                        "Prompts dispatch immediately, even while throttled."
+                ));
         refreshUi();
     }
 
@@ -2562,6 +2611,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         state.maximumSpeed = prefs.maximumSpeed();
         state.autostartCore = prefs.autostartCore();
         state.coreIdleTimeoutMinutes = prefs.coreIdleTimeoutMinutes();
+        state.thermalPacing = prefs.thermalPacing();
         state.smartCompaction = prefs.smartCompaction();
         state.language = uiLanguage;
 
@@ -3197,7 +3247,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void dispatchQueuedPromptNow() {
-        if (busy || queuedPrompt == null) return;
+        if (busy || pacingWait || queuedPrompt == null) return;
         if (!canRunAgent()) {
             main.post(this::dispatchQueuedPrompt);
             return;
@@ -3207,7 +3257,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         queuedWarmAttempts = 0;
         deck.setQueueCount(0);
         warnIfHot();
-        dispatchRpcTurn(prompt);
+        paceThermalThenRun(() -> dispatchRpcTurn(prompt));
     }
 
     private void dispatchRpcTurn(String prompt) {

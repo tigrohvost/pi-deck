@@ -38,6 +38,7 @@ public final class DeckPreferences {
     private static final String KEY_UI_LANGUAGE = "ui_language_v1";
     private static final String KEY_AUTOSTART_CORE = "autostart_core_v1";
     private static final String KEY_CORE_IDLE_TIMEOUT = "core_idle_timeout_v1";
+    private static final String KEY_THERMAL_PACING = "thermal_pacing_v1";
     private static final String KEY_SMART_COMPACTION = "smart_compaction_v1";
     private static final String KEY_OOM_ACK = "oom_risk_ack_v1";
 
@@ -170,6 +171,15 @@ public final class DeckPreferences {
                 KEY_CORE_IDLE_TIMEOUT,
                 IdleShutdown.normalized(minutes) ? minutes : IdleShutdown.DEFAULT_MINUTES
         ).apply();
+    }
+
+    /** Waiting for clock recovery trades latency for speed, so it is an explicit opt-in. */
+    public boolean thermalPacing() {
+        return prefs.getBoolean(KEY_THERMAL_PACING, false);
+    }
+
+    public void setThermalPacing(boolean enabled) {
+        prefs.edit().putBoolean(KEY_THERMAL_PACING, enabled).apply();
     }
 
     /** Idle checkpointing is on by default because it trades idle compute for much faster replay. */

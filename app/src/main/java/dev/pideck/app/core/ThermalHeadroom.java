@@ -34,6 +34,11 @@ public final class ThermalHeadroom {
         }
     }
 
+    /** Pace only on an explicit user opt-in and a measured (not assumed) throttle. */
+    public static boolean shouldPace(Float headroom, boolean pacingEnabled) {
+        return pacingEnabled && headroom != null && headroom < 0.85f;
+    }
+
     public static Float parse(String scalingMaxRaw, String cpuinfoMaxRaw) {
         if (scalingMaxRaw == null || cpuinfoMaxRaw == null) return null;
         try {
