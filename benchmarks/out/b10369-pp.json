@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "model": "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
+  "context": 10240,
+  "promptLabel": "b10369-pp",
+  "distinctPrompts": 1,
+  "requestSpeculative": null,
+  "maxTokens": 16,
+  "device": "SM-S918B",
+  "variants": {
+    "baseline": {
+      "samples": 3,
+      "medianTokensPerSecond": 13.65,
+      "minTokensPerSecond": 12.51,
+      "maxTokensPerSecond": 14.48,
+      "discardedWarmUp": 13.37,
+      "medianPromptTokensPerSecond": 64.5,
+      "serverFlags": [],
+      "residentKiB": 1504880,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 41000
+      },
+      "headroomDuringSamples": [
+        0.737,
+        1.0
+      ],
+      "samplesDetail": [
+        {
+          "index": 0,
+          "warmUp": true,
+          "tokensPerSecond": 13.37,
+          "headroom": 1.0,
+          "cpuMilliCelsius": 72200
+        },
+        {
+          "index": 1,
+          "warmUp": false,
+          "tokensPerSecond": 13.65,
+          "headroom": 0.846,
+          "cpuMilliCelsius": 71400
+        },
+        {
+          "index": 2,
+          "warmUp": false,
+          "tokensPerSecond": 14.48,
+          "headroom": 0.737,
+          "cpuMilliCelsius": 71000
+        },
+        {
+          "index": 3,
+          "warmUp": false,
+          "tokensPerSecond": 12.51,
+          "headroom": 1.0,
+          "cpuMilliCelsius": 88000
+        }
+      ]
+    }
+  }
+}

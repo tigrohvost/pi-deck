@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "model": "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
+  "context": 10240,
+  "promptLabel": "b10092-decode",
+  "distinctPrompts": 1,
+  "requestSpeculative": null,
+  "maxTokens": 192,
+  "device": "SM-S918B",
+  "variants": {
+    "baseline": {
+      "samples": 6,
+      "medianTokensPerSecond": 15.48,
+      "minTokensPerSecond": 15.03,
+      "maxTokensPerSecond": 15.75,
+      "discardedWarmUp": 14.43,
+      "medianPromptTokensPerSecond": 67.4,
+      "serverFlags": [],
+      "residentKiB": 2955528,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 40600
+      },
+      "headroomDuringSamples": [
+        0.697,
+        0.88
+      ],
+      "samplesDetail": [
+        {
+          "index": 0,
+          "warmUp": true,
+          "tokensPerSecond": 14.43,
+          "headroom": 1.0,
+          "cpuMilliCelsius": 73400
+        },
+        {
+          "index": 1,
+          "warmUp": false,
+          "tokensPerSecond": 15.75,
+          "headroom": 0.88,
+          "cpuMilliCelsius": 81700
+        },
+        {
+          "index": 2,
+          "warmUp": false,
+          "tokensPerSecond": 15.72,
+          "headroom": 0.88,
+          "cpuMilliCelsius": 73800
+        },
+        {
+          "index": 3,
+          "warmUp": false,
+          "tokensPerSecond": 15.33,
+          "headroom": 0.811,
+          "cpuMilliCelsius": 73800
+        },
+        {
+          "index": 4,
+          "warmUp": false,
+          "tokensPerSecond": 15.03,
+          "headroom": 0.697,
+          "cpuMilliCelsius": 73800
+        },
+        {
+          "index": 5,
+          "warmUp": false,
+          "tokensPerSecond": 15.35,
+          "headroom": 0.737,
+          "cpuMilliCelsius": 73800
+        },
+        {
+          "index": 6,
+          "warmUp": false,
+          "tokensPerSecond": 15.62,
+          "headroom": 0.737,
+          "cpuMilliCelsius": 74200
+        }
+      ]
+    }
+  }
+}
