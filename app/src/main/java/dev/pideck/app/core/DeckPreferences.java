@@ -20,6 +20,7 @@ public final class DeckPreferences {
     private static final String NAME = "pi_deck";
     private static final String KEY_MODEL = "selected_model";
     private static final String KEY_CORE_READY = "core_ready";
+    private static final String KEY_TERMUX_LINK_CONFIRMED = "termux_link_confirmed_v1";
     private static final String KEY_HAS_SESSION = "has_session";
     private static final String KEY_TRANSCRIPT = "transcript";
     private static final String KEY_COLOR_SCHEME = "color_scheme";
@@ -28,6 +29,7 @@ public final class DeckPreferences {
     private static final String KEY_CONSENT = "shell_consent_v1";
     private static final String KEY_ASK_BEFORE_OVERWRITE = "ask_before_overwrite";
     private static final String KEY_ACCESS_PROFILE = "access_profile_v1";
+    private static final String KEY_AUTONOMOUS_UNTIL = "autonomous_until_v1";
     private static final String KEY_SESSION_ID = "session_id_v1";
     private static final String KEY_BRIDGE_INSTANCE = "bridge_instance";
     private static final String KEY_BRIDGE_SEQUENCE = "bridge_sequence";
@@ -41,6 +43,7 @@ public final class DeckPreferences {
     private static final String KEY_THERMAL_PACING = "thermal_pacing_v1";
     private static final String KEY_SMART_COMPACTION = "smart_compaction_v1";
     private static final String KEY_OOM_ACK = "oom_risk_ack_v1";
+    private static final String KEY_RUNTIME_PACKAGES = "runtime_packages_v1";
 
     private final SharedPreferences prefs;
 
@@ -105,20 +108,45 @@ public final class DeckPreferences {
     }
 
     /**
-     * The shipped default is {@link AccessProfile#AUTONOMOUS}: the agent runs shell commands and
-     * edits Termux-visible files without a per-action Android approval, which is what the consent
-     * screen already describes. The default lives here and not in
-     * {@link AccessProfile#fromWireName(String)}, so an unknown or corrupt stored value still
-     * resolves to {@code READ_ONLY} and cannot escalate privilege by being unreadable.
+     * The default lives here and not in {@link AccessProfile#fromWireName(String)}, so an unknown
+     * or corrupt stored value still resolves to {@code READ_ONLY} and cannot escalate privilege by
+     * being unreadable.
      */
     public AccessProfile accessProfile() {
-        return AccessProfile.fromWireName(prefs.getString(
-                KEY_ACCESS_PROFILE, AccessProfile.AUTONOMOUS.wireName()
+        AccessProfile stored = AccessProfile.fromWireName(prefs.getString(
+                KEY_ACCESS_PROFILE, AccessProfile.shippedDefault().wireName()
         ));
+        if (stored != AccessProfile.AUTONOMOUS) return stored;
+        if (AutonomousGrant.isActive(autonomousUntilMs(), System.currentTimeMillis())) {
+            return stored;
+        }
+        // A legacy indefinite AUTONOMOUS value has no expiry and is downgraded on first read.
+        prefs.edit()
+                .putString(KEY_ACCESS_PROFILE, AccessProfile.CONFIRM_CHANGES.wireName())
+                .remove(KEY_AUTONOMOUS_UNTIL)
+                .apply();
+        return AccessProfile.CONFIRM_CHANGES;
     }
 
     public void setAccessProfile(AccessProfile profile) {
-        prefs.edit().putString(KEY_ACCESS_PROFILE, profile.wireName()).apply();
+        if (profile == AccessProfile.AUTONOMOUS) {
+            throw new IllegalArgumentException("AUTONOMOUS requires a bounded grant");
+        }
+        prefs.edit()
+                .putString(KEY_ACCESS_PROFILE, profile.wireName())
+                .remove(KEY_AUTONOMOUS_UNTIL)
+                .apply();
+    }
+
+    public void grantAutonomous(long nowMs) {
+        prefs.edit()
+                .putString(KEY_ACCESS_PROFILE, AccessProfile.AUTONOMOUS.wireName())
+                .putLong(KEY_AUTONOMOUS_UNTIL, AutonomousGrant.newExpiry(nowMs))
+                .apply();
+    }
+
+    public long autonomousUntilMs() {
+        return prefs.getLong(KEY_AUTONOMOUS_UNTIL, 0L);
     }
 
     public AgentMode agentMode() {
@@ -244,6 +272,40 @@ public final class DeckPreferences {
 
     public void setCoreReady(boolean ready) {
         prefs.edit().putBoolean(KEY_CORE_READY, ready).apply();
+    }
+
+    /**
+     * A working RUN_COMMAND handshake and an installed Pi runtime are independent facts. Older
+     * releases stored only the latter, so the one-time fallback preserves an already linked deck
+     * until a real probe writes the dedicated value.
+     */
+    public boolean isTermuxLinkConfirmed() {
+        if (prefs.contains(KEY_TERMUX_LINK_CONFIRMED)) {
+            return prefs.getBoolean(KEY_TERMUX_LINK_CONFIRMED, false);
+        }
+        return prefs.getBoolean(KEY_CORE_READY, false);
+    }
+
+    public void setTermuxLinkConfirmed(boolean confirmed) {
+        prefs.edit().putBoolean(KEY_TERMUX_LINK_CONFIRMED, confirmed).apply();
+    }
+
+    public JSONObject runtimePackages() {
+        try {
+            return DiagnosticReport.sanitizePackages(new JSONObject(
+                    prefs.getString(KEY_RUNTIME_PACKAGES, "{}")
+            ));
+        } catch (JSONException ignored) {
+            prefs.edit().remove(KEY_RUNTIME_PACKAGES).apply();
+            return new JSONObject();
+        }
+    }
+
+    public void setRuntimePackages(JSONObject packages) {
+        prefs.edit().putString(
+                KEY_RUNTIME_PACKAGES,
+                DiagnosticReport.sanitizePackages(packages).toString()
+        ).apply();
     }
 
     public boolean hasSession() {

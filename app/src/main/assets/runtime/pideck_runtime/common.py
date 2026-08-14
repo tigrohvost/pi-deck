@@ -9,6 +9,7 @@ import os
 import secrets
 import signal
 import subprocess
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -156,6 +157,68 @@ def read_stdin_json(maximum: int = 256 * 1024) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise PiDeckError("MALFORMED_JSON", "Command input must be a JSON object")
     return value
+
+
+def pump_bounded_log(
+    source: Any,
+    path: Path,
+    *,
+    maximum_bytes: int,
+    retain_bytes: int,
+    overwrite: bool,
+) -> None:
+    """Drain a child pipe into a bounded on-disk tail without retaining a whole log in RAM."""
+    if maximum_bytes <= 0 or retain_bytes < 0 or retain_bytes >= maximum_bytes:
+        raise ValueError("Invalid bounded log limits")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = "wb" if overwrite else "ab"
+    with source, path.open(mode, buffering=0) as output:
+        os.chmod(path, 0o600)
+        size = output.tell()
+        while True:
+            chunk = source.read(64 * 1024)
+            if not chunk:
+                break
+            if size + len(chunk) > maximum_bytes:
+                output.flush()
+                keep = min(retain_bytes, path.stat().st_size)
+                with path.open("rb", buffering=0) as existing:
+                    existing.seek(-keep, os.SEEK_END)
+                    tail = existing.read(keep)
+                output.seek(0)
+                output.truncate(0)
+                output.write(tail)
+                size = len(tail)
+                if len(chunk) > maximum_bytes - size:
+                    chunk = chunk[-(maximum_bytes - size):]
+            output.write(chunk)
+            size += len(chunk)
+        output.flush()
+        os.fsync(output.fileno())
+
+
+def start_bounded_log_pump(
+    source: Any,
+    path: Path,
+    *,
+    maximum_bytes: int = 4 * 1024 * 1024,
+    retain_bytes: int = 2 * 1024 * 1024,
+    overwrite: bool = False,
+) -> threading.Thread:
+    thread = threading.Thread(
+        target=pump_bounded_log,
+        kwargs={
+            "source": source,
+            "path": path,
+            "maximum_bytes": maximum_bytes,
+            "retain_bytes": retain_bytes,
+            "overwrite": overwrite,
+        },
+        name="pideck-bounded-log",
+        daemon=True,
+    )
+    thread.start()
+    return thread
 
 
 def require_string(

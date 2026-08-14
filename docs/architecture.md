@@ -37,6 +37,17 @@ do not enter argv. A bounded event journal lets a recreated Activity resume by
 `bridgeInstanceId` and sequence; an event gap triggers full state reconcile and
 never a hidden prompt replay.
 
+Termux link health, runtime installation, native server health and authenticated
+bridge readiness are separate facts. Launch probes the link even when runtime is
+incomplete, preserves the last confirmed fact through one cold-receiver retry,
+and shows repair instructions only after a final failure.
+
+Pi's transcript remains the durable conversation authority. The bridge also
+writes an atomic non-sensitive checkpoint with session ID, context/message
+counters and the last terminal operation; after restart these counters are
+estimated until Pi reports fresh state. No disk KV/slot cache is claimed for
+hybrid-recurrent Qwen3.5.
+
 Pi's package/extension API remains the integration seam, but automatic package
 discovery is disabled. The APK explicitly installs and loads a small web-tools
 extension and a profile-safe tool router alongside the prompt/cache/context

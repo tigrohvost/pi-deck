@@ -26,6 +26,7 @@ from .bridge import (
     TOOL_ROUTER_EXTENSION,
     WEB_TOOLS_EXTENSION,
     agent_base_prompt,
+    autonomous_until_ms,
     bootstrap_bridge,
     parse_system_prompt_request,
     persist_system_prompt,
@@ -103,6 +104,7 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
     operation_id = require_uuid4(request)
     model_id = require_string(request, "modelId", 128)
     profile = require_string(request, "accessProfile", 32)
+    autonomous_until_ms(profile, request.get("autonomousUntilMs", 0))
     agent_mode = request.get("agentMode", "agent")
     if not isinstance(agent_mode, str) or agent_mode not in {"chat", "agent"}:
         raise PiDeckError("INVALID_AGENT_MODE", "Unknown agent mode")
@@ -313,6 +315,48 @@ def archive_sessions() -> dict[str, Any]:
 
 MAX_LISTED_SESSIONS = 64
 MAX_SESSION_SCAN_BYTES = 256 * 1024
+RUNTIME_PACKAGE_NAMES = (
+    "bash", "curl", "git", "jq", "nodejs", "procps", "python", "ripgrep",
+    "termux-api", "termux-exec",
+)
+
+
+def parse_resolved_packages(output: str) -> dict[str, str]:
+    """Parse only the runtime packages PI//DECK itself requests from Termux."""
+    allowed = set(RUNTIME_PACKAGE_NAMES)
+    result: dict[str, str] = {}
+    for raw_line in output.splitlines():
+        name, separator, version = raw_line.strip().partition("=")
+        if (
+            separator
+            and name in allowed
+            and 0 < len(version) <= 128
+            and re.fullmatch(r"[A-Za-z0-9.+:~_-]+", version) is not None
+        ):
+            result[name] = version
+    return dict(sorted(result.items()))
+
+
+def resolved_runtime_packages() -> dict[str, str]:
+    try:
+        result = subprocess.run(
+            [
+                str(PREFIX / "bin" / "dpkg-query"),
+                "-W",
+                "-f=${Package}=${Version}\\n",
+                *RUNTIME_PACKAGE_NAMES,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+            check=False,
+            env=managed_environment(str(uuid.uuid4())),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    return parse_resolved_packages(result.stdout)
 
 
 def _session_transcript(entry: Path) -> Path | None:
@@ -509,6 +553,7 @@ def probe() -> dict[str, Any]:
             "nodeSupported": node_supported,
             "llamaSupported": llama_supported,
         },
+        "termuxPackages": resolved_runtime_packages(),
         "server": read_server_status(),
     }
 

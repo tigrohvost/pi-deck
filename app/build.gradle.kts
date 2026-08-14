@@ -23,8 +23,8 @@ android {
         applicationId = "dev.pideck.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "0.3.0-alpha9"
+        versionCode = 18
+        versionName = "0.3.0-alpha10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters += "arm64-v8a"

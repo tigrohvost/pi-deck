@@ -120,6 +120,11 @@ same boundary, and `--swa-full` is unsupported by this model. PI//DECK therefore
 keeps the proven in-memory cache alive and fails closed on stale service state
 instead of presenting disk persistence as an optimization.
 
+Runtime contract 51 adds a separate atomic session checkpoint containing only
+safe counters and the last terminal operation. It restores UI continuity as
+estimated telemetry until Pi reports fresh stats; it does not serialize model
+state and is not described as a first-turn speedup.
+
 ## Compact Pi tool surface, measured 2026-08-07
 
 Pi 0.82.1 treats `--tools` as a hard registry allowlist. The bundled router now

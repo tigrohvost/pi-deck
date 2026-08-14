@@ -14,7 +14,6 @@ import android.os.IBinder;
 import android.os.PowerManager;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +51,8 @@ public final class NativeLlamaService extends Service {
     private static final String PREFS = "native_llama_service";
     private static final String CHANNEL_ID = "pideck-local-inference";
     private static final int NOTIFICATION_ID = 8201;
+    private static final int MAX_NATIVE_LOG_BYTES = 4 * 1024 * 1024;
+    private static final int RETAIN_NATIVE_LOG_BYTES = 2 * 1024 * 1024;
     private static final Object PROCESS_LOCK = new Object();
     private static volatile Process liveServerProcess;
 
@@ -63,6 +64,7 @@ public final class NativeLlamaService extends Service {
             new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable idleShutdown = this::onIdleTimeout;
     private volatile boolean backgroundHint;
+    private volatile boolean pressureStopRequested;
     private volatile String lastPromotedText = "Локальное ядро";
 
     /** The measured fact behind the suffix: a backgrounded deck decodes at ~1.5 tok/s. */
@@ -255,6 +257,27 @@ public final class NativeLlamaService extends Service {
     }
 
     @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        boolean active = inferenceWakeLock != null && inferenceWakeLock.isHeld();
+        MemoryPressurePolicy.Action action = MemoryPressurePolicy.decide(
+                level,
+                "READY".equals(snapshot(this).state),
+                active
+        );
+        if (action == MemoryPressurePolicy.Action.WARN_ACTIVE_TURN) {
+            promote("Мало памяти · текущая задача продолжается");
+            return;
+        }
+        if (action != MemoryPressurePolicy.Action.STOP_IDLE_CORE || pressureStopRequested) return;
+        pressureStopRequested = true;
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+                .edit().putBoolean("memory_stop", true).apply();
+        promote("Освобождаю память · ядро бездействует");
+        new Thread(this::stopAndExit, "pideck-native-llama-memory-stop").start();
+    }
+
+    @Override
     public IBinder onBind(Intent intent) {
         return null;
     }
@@ -332,14 +355,14 @@ public final class NativeLlamaService extends Service {
         if (!directory.isDirectory()) directory.mkdirs();
         File log = new File(directory, "native-llama-server.log");
         Thread pump = new Thread(() -> {
-            byte[] buffer = new byte[64 * 1024];
-            try (InputStream source = input;
-                 FileOutputStream output = new FileOutputStream(log, false)) {
-                int count;
-                while ((count = source.read(buffer)) >= 0) {
-                    if (count > 0) output.write(buffer, 0, count);
-                }
-                output.getFD().sync();
+            try {
+                BoundedLogFile.copy(
+                        input,
+                        log,
+                        MAX_NATIVE_LOG_BYTES,
+                        RETAIN_NATIVE_LOG_BYTES,
+                        true
+                );
             } catch (IOException ignored) {
             }
         }, "pideck-native-llama-log");

@@ -11,6 +11,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -36,6 +37,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,18 +47,21 @@ import java.util.regex.Pattern;
 
 import dev.pideck.app.core.AccessProfile;
 import dev.pideck.app.core.AgentMode;
+import dev.pideck.app.core.AutonomousGrant;
 import dev.pideck.app.core.BridgeEvent;
 import dev.pideck.app.core.BridgeFaultPolicy;
 import dev.pideck.app.core.BridgeTokenStore;
 import dev.pideck.app.core.CommandEvents;
 import dev.pideck.app.core.CommandResult;
 import dev.pideck.app.core.DeckPreferences;
+import dev.pideck.app.core.DiagnosticReport;
 import dev.pideck.app.core.GenerationSpeed;
 import dev.pideck.app.core.IdleShutdown;
 import dev.pideck.app.core.ThermalHeadroom;
 import dev.pideck.app.core.ModelCatalog;
 import dev.pideck.app.core.ModelDownloadManager;
 import dev.pideck.app.core.ModelSpec;
+import dev.pideck.app.core.MemoryPressurePolicy;
 import dev.pideck.app.core.NativeLlamaController;
 import dev.pideck.app.core.NativeLlamaService;
 import dev.pideck.app.core.NativeModelStore;
@@ -92,6 +98,7 @@ import dev.pideck.app.ui.TabBarView;
 public final class MainActivity extends Activity implements DeckView.Listener, CommandEvents.Listener {
     private static final int REQUEST_RUN_COMMAND = 41;
     private static final int REQUEST_MODEL_DOCUMENT = 42;
+    private static final int REQUEST_DIAGNOSTIC_DOCUMENT = 43;
     private static final String HANDSHAKE_COMMAND =
             "mkdir -p ~/.termux && " +
             "(grep -q '^allow-external-apps=true$' ~/.termux/termux.properties 2>/dev/null || " +
@@ -164,13 +171,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private Runnable watchdog;
     private StallWatchdog stallState;
     private int heartbeatTick;
-    private boolean startupProbeAttempted;
+    private int startupProbeAttempts;
+    private boolean startupProbeInFlight;
+    private final Runnable startupProbeRetry = this::probeRuntimeOnLaunch;
+    private boolean accessGrantRestartPending;
+    private boolean memoryPressureWarned;
     private AlertDialog approvalDialog;
     private AlertDialog recoveryDialog;
     private boolean recoveryProbeInFlight;
     private String currentApprovalId;
     private String observedBridgeInstance;
     private String pendingModelDocumentId;
+    private String pendingDiagnosticReport;
     private SessionContextUsage contextUsage;
     private boolean contextCompacting;
     private String smartCompactionAttemptSession;
@@ -192,6 +204,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             // Capacity probing hits StatFs and ActivityManager, so it does not need every tick.
             if (heartbeatTick % 4 == 0) updateCapacity();
             heartbeatTick++;
+            reconcileExpiredAccessGrant();
             refreshUi();
             main.postDelayed(this, heartbeatDelay());
         }
@@ -255,7 +268,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         contextUsage = SessionContextUsage.unknown(selectedModel.recommendedContext);
         modelSelectionRequired = savedModel == null || modelCatalog.byId(savedModel).isEmpty();
         if (savedModel != null && modelSelectionRequired) prefs.clearSelectedModelId();
-        linkConfirmed = prefs.isCoreReady();
+        linkConfirmed = prefs.isTermuxLinkConfirmed();
         // The foreground service outlives the Activity, and its state is app-private: reading it
         // here means a surviving core is known before Termux has been asked anything at all.
         NativeLlamaService.Snapshot bootSnapshot = NativeLlamaService.snapshot(this);
@@ -301,7 +314,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         NativeLlamaService.backgroundHint(this, false);
         CommandEvents.addListener(this);
         main.post(heartbeat);
-        main.post(this::probeRuntimeOnLaunch);
+        main.post(startupProbeRetry);
         scheduleComposerWarmup();
         startRpcPolling();
     }
@@ -322,6 +335,42 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "The core stopped on the idle timeout (configured in CORE)."
             ));
         }
+        if (nativeState.getBoolean("memory_stop", false)) {
+            nativeState.edit().remove("memory_stop").apply();
+            serverReady = false;
+            bridgeReady = false;
+            bridgeConnected = false;
+            append(ConsoleEntry.Channel.SYSTEM, t(
+                    "Android сообщил критическую нехватку памяти; бездействующее LLM-ядро остановлено. Сессия сохранена.",
+                    "Android reported critical memory pressure; the idle LLM core was stopped. The session is preserved."
+            ));
+        }
+        refreshUi();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        MemoryPressurePolicy.Action action = MemoryPressurePolicy.decide(
+                level, serverReady, inferenceActive
+        );
+        if (action == MemoryPressurePolicy.Action.NONE || memoryPressureWarned) return;
+        memoryPressureWarned = true;
+        lowMemory = true;
+        if (action == MemoryPressurePolicy.Action.STOP_IDLE_CORE) {
+            serverReady = false;
+            bridgeReady = false;
+            bridgeConnected = false;
+            append(ConsoleEntry.Channel.SYSTEM, t(
+                    "Критическая нехватка памяти: останавливаю бездействующее LLM-ядро; сессия остаётся на диске.",
+                    "Critical memory pressure: stopping the idle LLM core; the session remains on disk."
+            ));
+        } else {
+            append(ConsoleEntry.Channel.SYSTEM, t(
+                    "Android сообщил критическую нехватку памяти. Текущая задача не прерывается; следующий запуск будет повторно проверен.",
+                    "Android reported critical memory pressure. The current task is not interrupted; the next start will be checked again."
+            ));
+        }
         refreshUi();
     }
 
@@ -333,6 +382,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         CommandEvents.removeListener(this);
         main.removeCallbacks(heartbeat);
         main.removeCallbacks(composerWarmup);
+        main.removeCallbacks(startupProbeRetry);
         prefs.saveTranscript(deck.entries());
     }
 
@@ -378,6 +428,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_DIAGNOSTIC_DOCUMENT) {
+            writeDiagnosticReport(resultCode, data);
+            return;
+        }
         if (requestCode != REQUEST_MODEL_DOCUMENT) return;
 
         String modelId = pendingModelDocumentId;
@@ -1021,13 +1075,20 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case PROBE_RUNTIME -> {
                 OperationRecord record = operationStore.load(result.operationId);
                 boolean startup = record != null && record.request.optBoolean("startup", false);
+                int startupAttempt = record == null ? 0 : record.request.optInt("attempt", 0);
                 if (result.isSuccess() && RuntimeScripts.isLinkProbeOutput(result.stdout)) {
-                    linkConfirmed = true;
+                    setLinkConfirmed(true);
+                    startupProbeInFlight = false;
+                    if (startup) {
+                        startupProbeAttempts = StartupPolicy.MAX_STARTUP_LINK_PROBES;
+                    }
                     boolean wasCoreReady = prefs.isCoreReady();
                     boolean runtimeFound = RuntimeScripts.isReadyProbeOutput(result.stdout);
                     prefs.setCoreReady(runtimeFound);
                     JSONObject probe = RuntimeScripts.finalJsonObject(result.stdout);
                     if (probe != null) {
+                        JSONObject packages = probe.optJSONObject("termuxPackages");
+                        if (packages != null) prefs.setRuntimePackages(packages);
                         JSONObject server = probe.optJSONObject("server");
                         serverReady = server != null && "READY".equals(server.optString("state"));
                     }
@@ -1045,8 +1106,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     // The probe is the last thing that has to answer before the deck may start
                     // anything by itself, so the launch warm-up hangs off its success.
                     if (startup && runtimeFound) main.post(this::warmCoreOnLaunch);
+                } else if (startup
+                        && StartupPolicy.retriesStartupLinkProbe(startupAttempt)
+                        && activityStarted) {
+                    // A cold Termux receiver can miss the first IPC round trip. Keep the last
+                    // known link fact and the neutral CHECKING card until one bounded retry ends.
+                    startupProbeInFlight = true;
+                    main.postDelayed(startupProbeRetry, 750L);
                 } else {
-                    linkConfirmed = false;
+                    setLinkConfirmed(false);
+                    startupProbeInFlight = false;
+                    if (startup) {
+                        startupProbeAttempts = StartupPolicy.MAX_STARTUP_LINK_PROBES;
+                    }
                     if (!startup) {
                         append(ConsoleEntry.Channel.ERROR,
                                 t(
@@ -1067,7 +1139,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 setBusy(false, null);
                 if (result.isSuccess() && RuntimeScripts.isReadyProbeOutput(result.stdout)) {
                     prefs.setCoreReady(true);
-                    linkConfirmed = true;
+                    setLinkConfirmed(true);
                     append(ConsoleEntry.Channel.SYSTEM, t(
                             "Pi runtime развёрнут и проверен.",
                             "The Pi runtime was deployed and verified."
@@ -1201,7 +1273,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 setBusy(false, null);
                 boolean runtimeReady = runtimeState(result, "READY");
                 prefs.setCoreReady(runtimeReady);
-                if (runtimeReady) linkConfirmed = true;
+                if (runtimeReady) setLinkConfirmed(true);
                 append(runtimeReady ? ConsoleEntry.Channel.SYSTEM : ConsoleEntry.Channel.ERROR,
                         runtimeReady
                                 ? t(
@@ -1272,7 +1344,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (!result.isSuccess() && missingPiExecutable(result)) {
             setBusy(false, null);
             prefs.setCoreReady(false);
-            linkConfirmed = true;
+            setLinkConfirmed(true);
             serverReady = false;
             append(ConsoleEntry.Channel.ERROR,
                     "Pi CLI отсутствует в Termux. Нажмите INSTALL CORE; "
@@ -1438,6 +1510,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     ),
                     "GRANT LINK", () -> termux.requestRunPermission(this, REQUEST_RUN_COMMAND),
                     "APP SETTINGS", termux::openAppSettings
+            );
+            return;
+        }
+        if (!linkConfirmed && startupProbeInFlight) {
+            deck.setBootState(
+                    "BOOT SEQUENCE // 03",
+                    t("ПРОВЕРЯЮ СВЯЗЬ С TERMUX", "CHECKING TERMUX LINK"),
+                    t(
+                            "Проверяю RUN_COMMAND и состояние Pi runtime. Обычно это занимает несколько секунд; никаких данных или настроек сейчас не меняется.",
+                            "Checking RUN_COMMAND and the Pi runtime state. This normally takes a few seconds; no data or settings are changed."
+                    ),
+                    null, null,
+                    null, null
             );
             return;
         }
@@ -1758,24 +1843,34 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void probeRuntimeOnLaunch() {
-        if (startupProbeAttempted
-                || busy
-                || !prefs.isCoreReady()
-                || !termux.isInstalled()
-                || !termux.hasRunPermission()) {
+        if (busy) {
+            if (activityStarted && startupProbeAttempts < StartupPolicy.MAX_STARTUP_LINK_PROBES) {
+                main.postDelayed(startupProbeRetry, 750L);
+            }
             return;
         }
-        startupProbeAttempted = true;
-        // The last known link state holds until the probe actually fails. Clearing it here made
-        // BOOT SEQUENCE // 03 flash on every launch of an already linked deck.
+        if (!StartupPolicy.probesTermuxOnLaunch(
+                startupProbeAttempts,
+                false,
+                termux.isInstalled(),
+                termux.hasRunPermission()
+        )) return;
+        startupProbeAttempts++;
+        startupProbeInFlight = true;
+        refreshUi();
         dispatchOperation(
                 OperationKind.PROBE_RUNTIME,
-                json("startup", true),
+                json("startup", true, "attempt", startupProbeAttempts),
                 "CHECKING PI RUNTIME",
                 operationId -> termux.runBash(
                         operationId, OperationKind.PROBE_RUNTIME, RuntimeScripts.probe()
                 )
         );
+    }
+
+    private void setLinkConfirmed(boolean confirmed) {
+        linkConfirmed = confirmed;
+        prefs.setTermuxLinkConfirmed(confirmed);
     }
 
     /**
@@ -2835,8 +2930,27 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
         state.accessProfileLabel = accessProfile.label;
         state.accessProfileNote = accessProfile.description(uiLanguage);
+        if (accessProfile == AccessProfile.AUTONOMOUS) {
+            state.accessProfileNote += t(" · осталось ", " · ")
+                    + AutonomousGrant.remainingMinutes(
+                    prefs.autonomousUntilMs(), System.currentTimeMillis()
+            ) + t(" мин", " min remaining");
+        }
         for (AccessProfile profile : AccessProfile.values()) {
-            if (profile == accessProfile) continue;
+            if (profile == accessProfile) {
+                if (profile == AccessProfile.AUTONOMOUS) {
+                    state.accessProfiles.add(new CoreRootView.ActionRow(
+                            t("Продлить AUTONOMOUS", "Extend AUTONOMOUS"),
+                            t(
+                                    "новое явное окно на 30 минут",
+                                    "a new explicit 30-minute window"
+                            ),
+                            palette.warn,
+                            () -> changeAccessProfile(AccessProfile.AUTONOMOUS)
+                    ));
+                }
+                continue;
+            }
             state.accessProfiles.add(new CoreRootView.ActionRow(
                     t("Доступ → ", "Access → ") + profile.label,
                     profile == AccessProfile.AUTONOMOUS
@@ -2895,6 +3009,14 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 t("Скопировать команду связи", "Copy link command"),
                 t("починить handshake Termux", "repair the Termux handshake"),
                 palette.text, this::copyHandshakeAndOpen
+        ));
+        state.maintenance.add(new CoreRootView.ActionRow(
+                t("Диагностика операций", "Operation diagnostics"),
+                t(
+                        "без промптов, ответов, путей и токенов доступа",
+                        "excludes prompts, answers, paths, and access tokens"
+                ),
+                palette.text, this::showOperationDiagnostics
         ));
         state.maintenance.add(new CoreRootView.ActionRow(
                 t("Очистить консоль", "Clear console"),
@@ -2979,7 +3101,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         ));
         state.info.add(new CoreRootView.InfoRow(
                 t("изоляция ОС", "OS isolation"),
-                t("не реализована", "not implemented"),
+                t(
+                        "модель: отдельный UID · инструменты: Termux UID",
+                        "model: separate UID · tools: Termux UID"
+                ),
                 palette.warn
         ));
         state.info.add(new CoreRootView.InfoRow(
@@ -3511,6 +3636,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         String systemPromptSha256 = SystemPromptSettings.sha256Hex(systemPrompt);
         JSONObject request = requestMetadata(selectedModel.id, prefs.hasSession());
         put(request, "accessProfile", accessProfile.wireName());
+        put(request, "autonomousUntilMs", accessProfile == AccessProfile.AUTONOMOUS
+                ? prefs.autonomousUntilMs() : 0L);
         put(request, "agentMode", agentMode.wireName());
         put(request, "sessionId", sessionId);
         put(request, "systemPromptMode", effectivePromptMode);
@@ -3525,6 +3652,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     put(input, "token", bridgeTokenStore.getOrCreate());
                     put(input, "modelId", selectedModel.id);
                     put(input, "accessProfile", accessProfile.wireName());
+                    put(input, "autonomousUntilMs", accessProfile == AccessProfile.AUTONOMOUS
+                            ? prefs.autonomousUntilMs() : 0L);
                     put(input, "agentMode", agentMode.wireName());
                     put(input, "sessionId", sessionId);
                     put(input, "port", RpcBridgeClient.DEFAULT_PORT);
@@ -4306,19 +4435,23 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             ));
             return;
         }
-        if (target == accessProfile) {
+        if (target == accessProfile && target != AccessProfile.AUTONOMOUS) {
             toast(t("Профиль уже активен", "This profile is already active"));
             return;
         }
         if (target == AccessProfile.AUTONOMOUS) {
             new AlertDialog.Builder(this)
-                    .setTitle(t("Включить AUTONOMOUS?", "Enable AUTONOMOUS?"))
+                    .setTitle(target == accessProfile
+                            ? t("Продлить AUTONOMOUS?", "Extend AUTONOMOUS?")
+                            : t("Включить AUTONOMOUS?", "Enable AUTONOMOUS?"))
                     .setMessage(t(
                             "Агент может выполнять shell-команды и изменять любые файлы, "
                                     + "доступные пользователю Termux. Workspace-ограничение не является "
-                                    + "системной песочницей.",
+                                    + "системной песочницей. Доступ истечёт через 30 минут; "
+                                    + "уже начатая задача не будет оборвана.",
                             "The agent may run shell commands and modify any files available "
-                                    + "to the Termux user. The workspace boundary is not an OS sandbox."
+                                    + "to the Termux user. The workspace boundary is not an OS sandbox. "
+                                    + "Access expires after 30 minutes; a task already in progress is not interrupted."
                     ))
                     .setNegativeButton(t("Отмена", "Cancel"), null)
                     .setPositiveButton(t(
@@ -4362,8 +4495,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void applyAccessProfile(AccessProfile target) {
-        accessProfile = target;
-        prefs.setAccessProfile(target);
+        if (target == AccessProfile.AUTONOMOUS) {
+            prefs.grantAutonomous(System.currentTimeMillis());
+        } else {
+            prefs.setAccessProfile(target);
+        }
+        accessProfile = prefs.accessProfile();
         bridgeReady = false;
         bridgeConnected = false;
         bridgeFault = "";
@@ -4371,6 +4508,114 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 t("Профиль доступа → ", "Access profile → ") + target.label + ".");
         if (serverReady) main.post(this::startBridge);
         else refreshUi();
+    }
+
+    private void showOperationDiagnostics() {
+        new AlertDialog.Builder(this)
+                .setTitle(t("Последние операции", "Recent operations"))
+                .setMessage(DiagnosticReport.operationSummary(operationStore.list()))
+                .setNegativeButton(t("Закрыть", "Close"), null)
+                .setPositiveButton(t("Экспорт JSON", "Export JSON"), (dialog, which) ->
+                        exportDiagnosticReport())
+                .show();
+    }
+
+    private void exportDiagnosticReport() {
+        String versionName = "unknown";
+        long versionCode = -1L;
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(
+                    getPackageName(), 0
+            );
+            if (info.versionName != null) versionName = info.versionName;
+            versionCode = Build.VERSION.SDK_INT >= 28
+                    ? info.getLongVersionCode() : info.versionCode;
+        } catch (PackageManager.NameNotFoundException ignored) {
+        }
+        JSONObject facts = new JSONObject();
+        put(facts, "appVersion", versionName);
+        put(facts, "versionCode", versionCode);
+        put(facts, "device", Build.MANUFACTURER + " " + Build.MODEL);
+        put(facts, "sdk", Build.VERSION.SDK_INT);
+        put(facts, "modelId", selectedModel.id);
+        put(facts, "accessProfile", accessProfile.wireName());
+        put(facts, "autonomousUntilMs", accessProfile == AccessProfile.AUTONOMOUS
+                ? prefs.autonomousUntilMs() : 0L);
+        put(facts, "termuxVersion", termuxEnvironment.version);
+        put(facts, "termuxSource", termuxEnvironment.source.name());
+        put(facts, "termuxApiVersion", termuxEnvironment.apiVersion);
+        put(facts, "termuxLink", linkConfirmed);
+        put(facts, "runtimeInstalled", prefs.isCoreReady());
+        put(facts, "serverState", NativeLlamaService.snapshot(this).state);
+        put(facts, "bridgeReady", bridgeReady);
+        put(facts, "bridgeConnected", bridgeConnected);
+        put(facts, "busy", busy);
+        put(facts, "lowMemory", lowMemory);
+        put(facts, "availableRamBytes", availableRam);
+        put(facts, "freeStorageBytes", freeStorage);
+        put(facts, "thermalStatus", currentThermalStatus());
+        Float headroom = ThermalHeadroom.read();
+        if (headroom != null) put(facts, "thermalHeadroom", headroom);
+        pendingDiagnosticReport = DiagnosticReport.create(
+                facts,
+                prefs.runtimePackages(),
+                operationStore.list(),
+                System.currentTimeMillis()
+        ).toString() + "\n";
+        Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/json")
+                .putExtra(Intent.EXTRA_TITLE,
+                        "pideck-diagnostics-" + versionName + ".json");
+        startActivityForResult(create, REQUEST_DIAGNOSTIC_DOCUMENT);
+    }
+
+    private void writeDiagnosticReport(int resultCode, Intent data) {
+        String report = pendingDiagnosticReport;
+        pendingDiagnosticReport = null;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            toast(t("Экспорт отменён", "Export cancelled"));
+            return;
+        }
+        if (report == null) {
+            toast(t("Диагностический отчёт устарел", "Diagnostic report expired"));
+            return;
+        }
+        try (OutputStream output = getContentResolver().openOutputStream(data.getData(), "wt")) {
+            if (output == null) throw new IOException("Document provider returned no stream");
+            output.write(report.getBytes(StandardCharsets.UTF_8));
+            output.flush();
+            toast(t("Диагностика сохранена", "Diagnostics saved"));
+        } catch (IOException | RuntimeException error) {
+            toast(t("Не удалось сохранить диагностику", "Could not save diagnostics"));
+        }
+    }
+
+    private int currentThermalStatus() {
+        if (Build.VERSION.SDK_INT < 29) return PowerManager.THERMAL_STATUS_NONE;
+        PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+        return power == null ? PowerManager.THERMAL_STATUS_NONE
+                : power.getCurrentThermalStatus();
+    }
+
+    private void reconcileExpiredAccessGrant() {
+        AccessProfile effective = prefs.accessProfile();
+        if (accessProfile == AccessProfile.AUTONOMOUS
+                && effective != AccessProfile.AUTONOMOUS) {
+            accessProfile = effective;
+            accessGrantRestartPending = serverReady;
+            bridgeReady = false;
+            bridgeConnected = false;
+            bridgeFault = "";
+            append(ConsoleEntry.Channel.SYSTEM, t(
+                    "Окно AUTONOMOUS истекло; профиль → CONFIRM CHANGES.",
+                    "The AUTONOMOUS window expired; profile → CONFIRM CHANGES."
+            ));
+        }
+        if (accessGrantRestartPending && !busy && serverReady) {
+            accessGrantRestartPending = false;
+            main.post(this::restartBridge);
+        }
     }
 
     @FunctionalInterface
@@ -4432,6 +4677,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private JSONObject json(String key, Object value) {
         JSONObject result = new JSONObject();
         put(result, key, value);
+        return result;
+    }
+
+    private JSONObject json(String firstKey, Object firstValue, String secondKey, Object secondValue) {
+        JSONObject result = json(firstKey, firstValue);
+        put(result, secondKey, secondValue);
         return result;
     }
 

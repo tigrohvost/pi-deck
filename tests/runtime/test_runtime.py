@@ -155,6 +155,8 @@ def fake_bridge() -> bridge.PiDeckBridge:
     value.last_client_seen = time.monotonic()
     value.context_window = 1024
     value.session_stats = bridge.bounded_session_stats(None, value.context_window)
+    value.last_terminal_event = None
+    value.last_terminal_operation_id = None
     value.compacting = False
     value.compaction_reason = None
     value._stats_request_id = None
@@ -163,7 +165,87 @@ def fake_bridge() -> bridge.PiDeckBridge:
     return value
 
 
+class AutonomousGrantTest(unittest.TestCase):
+    def test_grant_is_required_and_bounded(self) -> None:
+        now = 1_000_000
+        expires = now + bridge.MAX_AUTONOMOUS_GRANT_MS
+        self.assertEqual(
+            expires,
+            bridge.autonomous_until_ms("autonomous", expires, now_ms=now),
+        )
+        with self.assertRaises(common.PiDeckError):
+            bridge.autonomous_until_ms("autonomous", 0, now_ms=now)
+        with self.assertRaises(common.PiDeckError):
+            bridge.autonomous_until_ms("autonomous", expires + 1, now_ms=now)
+
+    def test_expired_bridge_rejects_new_prompts(self) -> None:
+        config = {
+            "accessProfile": "autonomous",
+            "autonomousUntilMs": 2_000_000,
+        }
+        self.assertTrue(bridge.autonomous_prompt_allowed(config, now_ms=1_999_999))
+        self.assertFalse(bridge.autonomous_prompt_allowed(config, now_ms=2_000_000))
+        self.assertTrue(bridge.autonomous_prompt_allowed(
+            {"accessProfile": "confirm_changes"}, now_ms=9_999_999
+        ))
+
+
 class RuntimeTestCase(unittest.TestCase):
+    def test_session_checkpoint_restores_only_safe_counters_as_estimated(self) -> None:
+        session = operation_id()
+        common.ensure_private_layout()
+        common.atomic_write_json(
+            bridge.SESSION_CHECKPOINT,
+            {
+                "schemaVersion": 1,
+                "sessionId": session,
+                "lastTerminalEvent": "TURN_COMPLETED",
+                "lastOperationId": operation_id(),
+                "sessionStats": {
+                    "userMessages": 3,
+                    "contextUsage": {"tokens": 700},
+                    "prompt": "must not survive",
+                },
+            },
+        )
+        stats, event, last_operation = bridge.load_session_checkpoint(session, 1_000)
+        self.assertEqual(3, stats["userMessages"])
+        self.assertEqual(700, stats["contextUsage"]["tokens"])
+        self.assertTrue(stats["contextUsage"]["estimated"])
+        self.assertNotIn("prompt", stats)
+        self.assertEqual("TURN_COMPLETED", event)
+        self.assertIsNotNone(last_operation)
+
+    def test_runtime_log_pump_retains_only_a_bounded_tail(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-log-") as directory:
+            path = Path(directory) / "runtime.log"
+            path.write_bytes(b"old:" + b"a" * 96)
+            incoming = b"new:" + b"b" * 508
+            common.pump_bounded_log(
+                io.BytesIO(incoming),
+                path,
+                maximum_bytes=128,
+                retain_bytes=32,
+                overwrite=False,
+            )
+            content = path.read_bytes()
+            self.assertLessEqual(len(content), 128)
+            self.assertTrue(content.endswith(incoming[-96:]))
+
+    def test_resolved_package_manifest_is_allowlisted_and_bounded(self) -> None:
+        parsed = launcher.parse_resolved_packages(
+            "nodejs=24.4.1-1\npython=3.14.0\nsecret=leak\n"
+            "git=bad version with spaces\ntermux-exec=1:2.4.0-1\n"
+        )
+        self.assertEqual(
+            {
+                "nodejs": "24.4.1-1",
+                "python": "3.14.0",
+                "termux-exec": "1:2.4.0-1",
+            },
+            parsed,
+        )
+
     def test_compact_agent_prompt_is_passed_as_text_not_as_a_path(self) -> None:
         with tempfile.TemporaryDirectory(prefix="pideck-base-prompt-") as directory:
             prompt = Path(directory) / "base.md"
@@ -230,7 +312,10 @@ class RuntimeTestCase(unittest.TestCase):
             mock.Mock(returncode=0, stdout="v22.19.0\n"),
             mock.Mock(returncode=0, stdout="Python 3.14.0\n"),
         ]
-        with mock.patch.object(launcher.subprocess, "run", side_effect=versions):
+        with (
+            mock.patch.object(launcher.subprocess, "run", side_effect=versions),
+            mock.patch.object(launcher, "resolved_runtime_packages", return_value={}),
+        ):
             incomplete = launcher.probe()
         self.assertFalse(incomplete["layoutReady"])
         self.assertEqual("INCOMPLETE", incomplete["state"])
@@ -241,7 +326,10 @@ class RuntimeTestCase(unittest.TestCase):
             mock.Mock(returncode=0, stdout="v22.19.0\n"),
             mock.Mock(returncode=0, stdout="Python 3.14.0\n"),
         ]
-        with mock.patch.object(launcher.subprocess, "run", side_effect=versions):
+        with (
+            mock.patch.object(launcher.subprocess, "run", side_effect=versions),
+            mock.patch.object(launcher, "resolved_runtime_packages", return_value={}),
+        ):
             ready = launcher.probe()
         self.assertTrue(ready["layoutReady"])
         self.assertEqual("READY", ready["state"])
@@ -1041,6 +1129,7 @@ class RuntimeTestCase(unittest.TestCase):
         class ExitedChild:
             pid = 4242
             returncode = 17
+            stdout = io.BytesIO()
 
             def poll(self) -> int:
                 return 17
@@ -1239,6 +1328,7 @@ class RuntimeTestCase(unittest.TestCase):
                 candidate,
                 model_id="fixture-model",
                 profile="read_only",
+                autonomous_until=0,
                 agent_mode="agent",
                 session_id=None,
                 port=8787,

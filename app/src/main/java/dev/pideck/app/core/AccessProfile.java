@@ -35,6 +35,10 @@ public enum AccessProfile {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    public static AccessProfile shippedDefault() {
+        return CONFIRM_CHANGES;
+    }
+
     public static AccessProfile fromWireName(String value) {
         if (value == null || value.isBlank()) return READ_ONLY;
         try {

@@ -33,6 +33,7 @@ from .common import (
     read_json,
     require_string,
     require_uuid4,
+    start_bounded_log_pump,
     terminate_exact,
     utc_now,
 )
@@ -50,6 +51,7 @@ SERVER_STATUS = SERVER_DIRECTORY / "status.json"
 SERVER_CONFIG = SERVER_DIRECTORY / "launch.json"
 SERVER_API_KEY = SERVER_DIRECTORY / "api-key"
 SERVER_LOG = BASE / "logs" / "llama-server.log"
+SERVER_SUPERVISOR_LOG = BASE / "logs" / "llama-supervisor.log"
 LEGACY_SERVER_PID = BASE / "llama-server.pid"
 PI_MODELS = BASE / "pi" / "models.json"
 BRIDGE_PORT = 8787
@@ -558,20 +560,20 @@ def start_server(request: dict[str, Any]) -> dict[str, Any]:
     ]
     environment = managed_environment(operation_id)
     SERVER_LOG.parent.mkdir(parents=True, exist_ok=True)
-    log = SERVER_LOG.open("wb")
-    try:
-        process = subprocess.Popen(
-            arguments,
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            env=environment,
-            cwd=BASE / "workspace",
-            start_new_session=True,
-            close_fds=True,
-        )
-    finally:
-        log.close()
+    process = subprocess.Popen(
+        arguments,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=environment,
+        cwd=BASE / "workspace",
+        start_new_session=True,
+        close_fds=True,
+    )
+    if process.stdout is None:
+        process.kill()
+        raise PiDeckError("SERVER_LOG_PIPE_MISSING", "Server log pipe was not created")
+    start_bounded_log_pump(process.stdout, SERVER_SUPERVISOR_LOG, overwrite=True)
     metadata = metadata_for_process(
         process,
         arguments,
@@ -726,17 +728,20 @@ def server_daemon(config_path: Path) -> int:
     signal.signal(signal.SIGTERM, request_stop)
     _wake_lock(True)
     child: subprocess.Popen[Any] | None = None
-    child_log = SERVER_LOG.open("ab", buffering=0)
     try:
         child = subprocess.Popen(
             arguments,
             stdin=subprocess.DEVNULL,
-            stdout=child_log,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=managed_environment(operation_id),
             cwd=BASE / "workspace",
             close_fds=True,
         )
+        if child.stdout is None:
+            child.kill()
+            raise PiDeckError("SERVER_LOG_PIPE_MISSING", "Server child log pipe was not created")
+        start_bounded_log_pump(child.stdout, SERVER_LOG)
         child_metadata = metadata_for_process(
             child,
             arguments,
@@ -820,7 +825,6 @@ def server_daemon(config_path: Path) -> int:
     finally:
         if child is not None and child.poll() is None:
             child.kill()
-        child_log.close()
         _wake_lock(False)
 
 

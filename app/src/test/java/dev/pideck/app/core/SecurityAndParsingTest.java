@@ -15,6 +15,7 @@ import java.util.List;
 public class SecurityAndParsingTest {
     @Test
     public void accessProfilesAreDenyByDefaultAndDoNotDiscoverExtensions() {
+        assertEquals(AccessProfile.CONFIRM_CHANGES, AccessProfile.shippedDefault());
         assertEquals(AccessProfile.READ_ONLY, AccessProfile.fromWireName(null));
         assertEquals(AccessProfile.READ_ONLY, AccessProfile.fromWireName("future-profile"));
         assertEquals(

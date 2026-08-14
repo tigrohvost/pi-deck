@@ -39,6 +39,7 @@ from .common import (
     require_session_id,
     require_string,
     require_uuid4,
+    start_bounded_log_pump,
     terminate_exact,
     unlink_json_if_matches,
     utc_now,
@@ -60,6 +61,7 @@ SYSTEM_PROMPT_FILE = BRIDGE_DIRECTORY / "system-prompt.txt"
 EVENT_JOURNAL = BRIDGE_DIRECTORY / "events.jsonl"
 AUDIT_LOG = BRIDGE_DIRECTORY / "approval-audit.jsonl"
 PI_STDERR_LOG = BASE / "logs" / "pi-rpc.stderr.log"
+SESSION_CHECKPOINT = BRIDGE_DIRECTORY / "session-checkpoint.json"
 LOCAL_CACHE_EXTENSION = BASE / "runtime" / "pideck-local-cache.ts"
 ADAPTIVE_THINKING_EXTENSION = BASE / "runtime" / "pideck-adaptive-thinking.ts"
 SYSTEM_PROMPT_EXTENSION = BASE / "runtime" / "pideck-system-prompt.ts"
@@ -91,6 +93,7 @@ EMPTY_PROMPT_SHA256 = hashlib.sha256(b"").hexdigest()
 SYSTEM_PROMPT_MODES = frozenset({"append", "replace"})
 AGENT_MODES = frozenset({"chat", "agent"})
 APPROVAL_TTL_SECONDS = 30
+MAX_AUTONOMOUS_GRANT_MS = 30 * 60 * 1000
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
 # Pi's extension UI carries a title and a message and nothing else, so the permission gate puts
@@ -128,6 +131,38 @@ LIVE_DATA_TOOL_NAMES = frozenset({"web_research", "weather"})
 MAX_BENCHMARK_FILES = 128
 MAX_BENCHMARK_FILE_BYTES = 64 * 1024
 MAX_BENCHMARK_TOTAL_BYTES = 512 * 1024
+
+
+def autonomous_until_ms(
+    profile: str, raw_value: Any, *, now_ms: int | None = None
+) -> int:
+    """Validate the Android-issued wall-clock capability window, failing closed."""
+    if profile != "autonomous":
+        return 0
+    if isinstance(raw_value, bool) or not isinstance(raw_value, int):
+        raise PiDeckError(
+            "AUTONOMOUS_GRANT_REQUIRED",
+            "AUTONOMOUS requires a bounded Android grant",
+        )
+    current = int(time.time() * 1000) if now_ms is None else now_ms
+    if raw_value <= current or raw_value > current + MAX_AUTONOMOUS_GRANT_MS:
+        raise PiDeckError(
+            "AUTONOMOUS_GRANT_EXPIRED",
+            "AUTONOMOUS grant is expired or exceeds the 30-minute limit",
+        )
+    return raw_value
+
+
+def autonomous_prompt_allowed(config: dict[str, Any], *, now_ms: int | None = None) -> bool:
+    if config.get("accessProfile") != "autonomous":
+        return True
+    try:
+        autonomous_until_ms(
+            "autonomous", config.get("autonomousUntilMs"), now_ms=now_ms
+        )
+        return True
+    except PiDeckError:
+        return False
 MAX_BENCHMARK_DEPTH = 8
 MAX_AGENT_BASE_PROMPT_BYTES = 4 * 1024
 
@@ -382,6 +417,34 @@ def bounded_session_stats(
                 )
     result["contextUsage"] = usage
     return result
+
+
+def load_session_checkpoint(
+    session_id: str | None, context_window: int
+) -> tuple[dict[str, Any], str | None, str | None]:
+    fallback = bounded_session_stats(None, context_window)
+    if not session_id or not SESSION_CHECKPOINT.is_file():
+        return fallback, None, None
+    try:
+        value = read_json(SESSION_CHECKPOINT)
+    except PiDeckError:
+        return fallback, None, None
+    if value.get("schemaVersion") != 1 or value.get("sessionId") != session_id:
+        return fallback, None, None
+    stats = bounded_session_stats(value.get("sessionStats"), context_window)
+    usage = stats.get("contextUsage", {})
+    if usage.get("tokens") is not None:
+        usage["estimated"] = True
+    event = value.get("lastTerminalEvent")
+    operation = value.get("lastOperationId")
+    if not isinstance(event, str) or len(event) > 64:
+        event = None
+    if operation is not None:
+        try:
+            operation = require_uuid4({"operationId": operation})
+        except PiDeckError:
+            operation = None
+    return stats, event, operation
 
 
 def bounded_compaction_payload(value: Any) -> dict[str, Any]:
@@ -1137,20 +1200,20 @@ class PiRpcChild:
             "none" if profile == "autonomous" else "required"
         )
         PI_STDERR_LOG.parent.mkdir(parents=True, exist_ok=True)
-        stderr_log = PI_STDERR_LOG.open("ab", buffering=0)
-        try:
-            process = subprocess.Popen(
-                arguments,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=stderr_log,
-                env=environment,
-                cwd=BASE / "workspace",
-                start_new_session=True,
-                close_fds=True,
-            )
-        finally:
-            stderr_log.close()
+        process = subprocess.Popen(
+            arguments,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            cwd=BASE / "workspace",
+            start_new_session=True,
+            close_fds=True,
+        )
+        if process.stderr is None:
+            process.kill()
+            raise PiDeckError("PI_LOG_PIPE_MISSING", "Pi stderr pipe was not created")
+        start_bounded_log_pump(process.stderr, PI_STDERR_LOG)
         self.process = process
         self._stop_expected = False
         self.metadata = metadata_for_process(
@@ -1161,6 +1224,7 @@ class PiRpcChild:
             {
                 "modelId": model_id,
                 "accessProfile": profile,
+                "autonomousUntilMs": config.get("autonomousUntilMs", 0),
                 "agentMode": agent_mode,
                 "systemPromptMode": config.get("systemPromptMode", "default"),
                 "systemPromptSha256": config.get(
@@ -1178,6 +1242,7 @@ class PiRpcChild:
                 "pid": process.pid,
                 "modelId": model_id,
                 "accessProfile": profile,
+                "autonomousUntilMs": config.get("autonomousUntilMs", 0),
                 "agentMode": agent_mode,
             },
         )
@@ -1330,7 +1395,11 @@ class PiDeckBridge:
         self.last_client_seen = time.monotonic()
         model = model_by_id(require_string(config, "modelId", 128))
         self.context_window = int(model["runtime"]["recommendedContext"])
-        self.session_stats = bounded_session_stats(None, self.context_window)
+        (
+            self.session_stats,
+            self.last_terminal_event,
+            self.last_terminal_operation_id,
+        ) = load_session_checkpoint(self.session_id, self.context_window)
         self.compacting = False
         self.compaction_reason: str | None = None
         self._stats_request_id: str | None = None
@@ -1357,6 +1426,32 @@ class PiDeckBridge:
             target=self._approval_janitor, name="pideck-approval-ttl", daemon=True
         ).start()
 
+    def _checkpoint_session(
+        self,
+        terminal_event: str | None = None,
+        operation_id: str | None = None,
+    ) -> None:
+        if not self.session_id:
+            return
+        if terminal_event is not None:
+            self.last_terminal_event = bounded_text(terminal_event, 64)
+            self.last_terminal_operation_id = operation_id
+        payload = {
+            "schemaVersion": 1,
+            "sessionId": self.session_id,
+            "updatedAt": utc_now(),
+            "lastTerminalEvent": self.last_terminal_event,
+            "lastOperationId": self.last_terminal_operation_id,
+            "sessionStats": bounded_session_stats(
+                self.session_stats, self.context_window
+            ),
+        }
+        try:
+            atomic_write_json(SESSION_CHECKPOINT, payload, 0o600)
+        except (OSError, PiDeckError):
+            # A telemetry checkpoint may never turn a completed model turn into failure.
+            return
+
     def command(self, request: dict[str, Any]) -> dict[str, Any]:
         if request.get("schemaVersion") != 1:
             raise PiDeckError("UNSUPPORTED_SCHEMA", "Unsupported bridge command schema")
@@ -1381,6 +1476,11 @@ class PiDeckBridge:
                     self.seen_commands.popitem(last=False)
 
             if command_type == "PROMPT":
+                if not autonomous_prompt_allowed(self.config):
+                    raise PiDeckError(
+                        "AUTONOMOUS_GRANT_EXPIRED",
+                        "AUTONOMOUS expired; switch to CONFIRM CHANGES before another turn",
+                    )
                 return self._prompt(operation_id, payload)
             if command_type == "ABORT":
                 return self._abort(operation_id, payload)
@@ -1984,6 +2084,7 @@ class PiDeckBridge:
                     {"error": reason, "accepted": False},
                     terminal=True,
                 )
+                self._checkpoint_session("TURN_FAILED", command_id)
                 self.active_operation_id = None
                 self.active_operation_kind = None
                 self.answer_retry_message = None
@@ -2000,6 +2101,7 @@ class PiDeckBridge:
                     payload,
                     terminal=True,
                 )
+                self._checkpoint_session("SESSION_COMPACTED", command_id)
             else:
                 payload["error"] = bounded_text(
                     value.get("error", "Pi could not compact this session"), 2048
@@ -2011,6 +2113,7 @@ class PiDeckBridge:
                     payload,
                     terminal=True,
                 )
+                self._checkpoint_session("SESSION_COMPACTION_FAILED", command_id)
             self.active_operation_id = None
             self.active_operation_kind = None
             self.compacting = False
@@ -2031,6 +2134,7 @@ class PiDeckBridge:
             ):
                 fresh["contextUsage"] = current_usage
             self.session_stats = fresh
+            self._checkpoint_session()
             self.journal.append(
                 "SESSION_STATS_CHANGED",
                 None,
@@ -2121,6 +2225,9 @@ class PiDeckBridge:
                             "percent": 0,
                         },
                     }
+                    self.last_terminal_event = "SESSION_CREATED"
+                    self.last_terminal_operation_id = pending["operationId"]
+                    self._checkpoint_session()
                 self.pending_new_session = None
                 self._stats_request_id = None
                 self.request_session_stats()
@@ -2208,6 +2315,7 @@ class PiDeckBridge:
             payload,
             terminal=True,
         )
+        self._checkpoint_session(event_type, operation_id)
         self._clear_active_turn_state()
         if not self._shutdown.is_set():
             self.request_session_stats()
@@ -2688,6 +2796,8 @@ class PiDeckBridge:
                 "sessionId": self.session_id,
                 "modelId": self.config.get("modelId"),
                 "accessProfile": self.config.get("accessProfile"),
+                "autonomousUntilMs": self.config.get("autonomousUntilMs", 0),
+                "autonomousExpired": not autonomous_prompt_allowed(self.config),
                 "agentMode": self.config.get("agentMode", "agent"),
                 "sessionStats": self.session_stats,
                 "compacting": self.compacting,
@@ -3153,6 +3263,7 @@ def _bridge_launch_matches(
     *,
     model_id: str,
     profile: str,
+    autonomous_until: int,
     agent_mode: str,
     session_id: str | None,
     port: int,
@@ -3164,6 +3275,7 @@ def _bridge_launch_matches(
     return (
         existing.get("modelId") == model_id
         and existing.get("accessProfile") == profile
+        and int(existing.get("autonomousUntilMs", 0)) == autonomous_until
         and existing.get("agentMode", "agent") == agent_mode
         and existing.get("sessionId") == session_id
         and int(existing.get("port", -1)) == port
@@ -3197,6 +3309,9 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
     profile = require_string(request, "accessProfile", 32)
     if profile not in {"read_only", "confirm_changes", "autonomous"}:
         raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
+    autonomous_until = autonomous_until_ms(
+        profile, request.get("autonomousUntilMs", 0)
+    )
     agent_mode = request.get("agentMode", "agent")
     if not isinstance(agent_mode, str) or agent_mode not in AGENT_MODES:
         raise PiDeckError("INVALID_AGENT_MODE", "Unknown agent mode")
@@ -3248,6 +3363,7 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
                     existing,
                     model_id=model_id,
                     profile=profile,
+                    autonomous_until=autonomous_until,
                     agent_mode=agent_mode,
                     session_id=session_id,
                     port=port,
@@ -3299,6 +3415,7 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
         "bootstrapOperationId": operation_id,
         "modelId": model_id,
         "accessProfile": profile,
+        "autonomousUntilMs": autonomous_until,
         "agentMode": agent_mode,
         "sessionId": session_id,
         "host": "127.0.0.1",
@@ -3319,20 +3436,20 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
     ]
     log_path = BASE / "logs" / "bridge.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    log = log_path.open("wb")
-    try:
-        process = subprocess.Popen(
-            arguments,
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            env=managed_environment(operation_id),
-            cwd=BASE / "workspace",
-            start_new_session=True,
-            close_fds=True,
-        )
-    finally:
-        log.close()
+    process = subprocess.Popen(
+        arguments,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=managed_environment(operation_id),
+        cwd=BASE / "workspace",
+        start_new_session=True,
+        close_fds=True,
+    )
+    if process.stdout is None:
+        process.kill()
+        raise PiDeckError("BRIDGE_LOG_PIPE_MISSING", "Bridge log pipe was not created")
+    start_bounded_log_pump(process.stdout, log_path, overwrite=True)
     metadata = metadata_for_process(
         process,
         arguments,
@@ -3341,6 +3458,7 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
         {
             "modelId": model_id,
             "accessProfile": profile,
+            "autonomousUntilMs": autonomous_until,
             "agentMode": agent_mode,
             "sessionId": session_id,
             "port": port,

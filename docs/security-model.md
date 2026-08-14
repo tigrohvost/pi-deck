@@ -14,13 +14,11 @@ token in argv or logs. llama-server has a separate random API key.
 
 ## Access profiles
 
-- `AUTONOMOUS` is the first-run default from 0.3.0-alpha8, and it is also what a
-  deck upgraded from an earlier release gets if its profile was never chosen by
-  hand. The default lives in `DeckPreferences.accessProfile()`; an unknown or
-  unreadable stored value still resolves to `READ_ONLY` through
-  `AccessProfile.fromWireName`, so a corrupt preference cannot escalate
-  privilege — only the absence of one selects the default. The consent screen is
-  still shown before the first run and describes shell access explicitly.
+- `CONFIRM_CHANGES` is the first-run default. A legacy indefinite `AUTONOMOUS`
+  preference has no valid expiry and is downgraded on first read; an unknown or
+  unreadable stored value still resolves to `READ_ONLY`, so corruption cannot
+  escalate privilege. The consent screen is still shown before the first run
+  and describes shell access explicitly.
 - `READ_ONLY` enables `read,grep,find,ls` plus the bounded, APK-managed
   `web_search`, `web_fetch` and `weather`; shell and file mutation remain
   disabled. Reading a page is not a mutation, so it sits in this profile. The
@@ -36,10 +34,12 @@ token in argv or logs. llama-server has a separate random API key.
   Termux UID, and it includes the same network tools. `pideck_replace_lines` is
   available here too and applies without asking, because this profile's whole
   point is that it does not ask; `PIDECK_HASHLINE_APPROVAL` carries that decision
-  from the bridge, and any value other than the explicit `none` keeps the prompt. The workspace is not an OS
-  sandbox. Because it is now the default rather than an opt-in, the consent
-  screen and the profile row in `Core → Access` are the only places a user is
-  told what the agent may do; both name it in full.
+  from the bridge, and any value other than the explicit `none` keeps the prompt.
+  The workspace is not an OS sandbox. This profile is an explicit 30-minute
+  Android grant: the UI shows remaining time, extends it only after a fresh risk
+  acknowledgement, and returns to `CONFIRM_CHANGES` on expiry. An already active
+  turn may settle, but the bridge independently rejects each new prompt whose
+  grant is missing, expired or longer than 30 minutes.
 
 Pi's `--tools` option is a hard registry allowlist, not merely an initial tool
 selection. PI//DECK therefore passes every capability the chosen profile may
@@ -86,10 +86,11 @@ token. The Android service owns its child through a private `Process` handle.
 Unknown processes on occupied ports are never killed.
 
 Production logs omit prompts and bridge tokens. Event/tool payloads,
-transcripts and operation output are byte-bounded. Diagnostic export is not yet
-implemented. Component logs are private and reset on supervisor restart, but a
-strict live-size cap for every native `llama-server` log stream remains release
-follow-up rather than a claimed protection.
+transcripts and operation output are byte-bounded. The diagnostic UI/export is
+an explicit allowlist of device/runtime facts and operation metadata; it never
+serializes requests, prompt/answer text, paths, raw output or tokens. Component
+logs are private and every live subprocess stream is capped at 4 MiB, retaining
+only its newest 2 MiB tail.
 
 The editable agent system prompt is stored in Android-private preferences. It
 crosses into Termux only in `RUN_COMMAND` stdin JSON, is persisted there as a

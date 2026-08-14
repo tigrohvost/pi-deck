@@ -9,6 +9,7 @@ package dev.pideck.app.core;
  */
 public final class StartupPolicy {
     private static final long NATIVE_OPERATION_HANDOFF_MS = 10_000L;
+    public static final int MAX_STARTUP_LINK_PROBES = 2;
 
     private StartupPolicy() {
     }
@@ -134,5 +135,27 @@ public final class StartupPolicy {
         if (lowMemory) return true;
         if (acknowledged) return false;
         return availableRam < Math.max(minimumBytes, peakBytes);
+    }
+
+    /**
+     * Link discovery is allowed even when the Pi runtime is missing. Coupling the probe to the
+     * old core-ready bit made repair impossible after a partial Termux update and caused the link
+     * card to flash while a healthy deck was merely being verified.
+     */
+    public static boolean probesTermuxOnLaunch(
+            int attempts,
+            boolean busy,
+            boolean termuxInstalled,
+            boolean runCommandGranted
+    ) {
+        return attempts < MAX_STARTUP_LINK_PROBES
+                && !busy
+                && termuxInstalled
+                && runCommandGranted;
+    }
+
+    /** One bounded retry absorbs Termux's cold receiver startup without hiding a real failure. */
+    public static boolean retriesStartupLinkProbe(int completedAttempt) {
+        return completedAttempt > 0 && completedAttempt < MAX_STARTUP_LINK_PROBES;
     }
 }

@@ -159,4 +159,19 @@ public class StartupPolicyTest {
     public void aPhoneWithRoomIsNotWarned() {
         assertFalse(StartupPolicy.asksOomRisk(false, 8 * GIB, GIB, 3 * GIB, false));
     }
+
+    @Test
+    public void termuxLinkProbeDoesNotDependOnRuntimeInstallation() {
+        assertTrue(StartupPolicy.probesTermuxOnLaunch(0, false, true, true));
+        assertFalse(StartupPolicy.probesTermuxOnLaunch(0, true, true, true));
+        assertFalse(StartupPolicy.probesTermuxOnLaunch(0, false, false, true));
+        assertFalse(StartupPolicy.probesTermuxOnLaunch(0, false, true, false));
+    }
+
+    @Test
+    public void termuxColdStartGetsExactlyOneRetry() {
+        assertTrue(StartupPolicy.retriesStartupLinkProbe(1));
+        assertFalse(StartupPolicy.retriesStartupLinkProbe(2));
+        assertFalse(StartupPolicy.probesTermuxOnLaunch(2, false, true, true));
+    }
 }
