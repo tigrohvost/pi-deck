@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,13 @@ from typing import Callable, Iterable
 
 class AcceptanceError(RuntimeError):
     pass
+
+
+UUID_PATTERN = re.compile(
+    r"\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b",
+    re.IGNORECASE,
+)
+READY_LABELS = ("Готово отвечать", "Ready ·")
 
 
 def sha256_file(path: Path) -> str:
@@ -83,6 +91,19 @@ def text_present(xml: str, needles: Iterable[str]) -> bool:
     )
 
 
+def matching_text(xml: str, pattern: re.Pattern[str]) -> str | None:
+    for node in ui_nodes(xml):
+        for value in (node.get("text", ""), node.get("content-desc", "")):
+            match = pattern.search(value)
+            if match is not None:
+                return match.group(0)
+    return None
+
+
+def terminal_text_present(xml: str, needles: Iterable[str]) -> bool:
+    return text_present(xml, needles) and text_present(xml, READY_LABELS)
+
+
 def resolve_serial(devices_output: str, requested: str | None) -> str:
     ready = []
     for line in devices_output.splitlines()[1:]:
@@ -104,6 +125,11 @@ def remote_apk_path(pm_output: str) -> str:
     if len(paths) != 1 or not paths[0].startswith("/data/app/"):
         raise AcceptanceError("Installed package does not have one canonical base APK")
     return paths[0]
+
+
+def keyguard_showing(policy_output: str) -> bool:
+    match = re.search(r"^\s*showing=(true|false)\s*$", policy_output, re.MULTILINE)
+    return match is not None and match.group(1) == "true"
 
 
 class Adb:
@@ -224,9 +250,21 @@ def apk_metadata(apk: Path) -> dict[str, object]:
 
 
 def click_named(adb: Adb, xml: str, names: Iterable[str]) -> None:
-    node = find_node(xml, texts=names) or find_node(xml, descriptions=names)
+    expected = tuple(names)
+    node = find_node(xml, texts=expected) or find_node(xml, descriptions=expected)
     if node is None:
-        raise AcceptanceError(f"UI control is not visible: {', '.join(names)}")
+        folded = {name.casefold() for name in expected}
+        node = next(
+            (
+                candidate
+                for candidate in ui_nodes(xml)
+                if candidate.get("text", "").casefold() in folded
+                or candidate.get("content-desc", "").casefold() in folded
+            ),
+            None,
+        )
+    if node is None:
+        raise AcceptanceError(f"UI control is not visible: {', '.join(expected)}")
     adb.tap(node)
 
 
@@ -236,8 +274,14 @@ def submit_prompt(adb: Adb, prompt: str) -> None:
     if editor is None:
         raise AcceptanceError("Prompt editor is not visible")
     adb.tap(editor)
+    adb.shell(
+        "input", "keycombination", "KEYCODE_CTRL_LEFT", "KEYCODE_A", timeout=10
+    )
+    adb.shell("input", "keyevent", "KEYCODE_DEL", timeout=10)
     encoded = prompt.replace("%", "%25").replace(" ", "%s")
-    adb.shell("input", "text", encoded, timeout=30)
+    # `adb shell` joins its remaining argv into a remote shell command. Quote the
+    # encoded text so punctuation in an acceptance prompt cannot become syntax.
+    adb.shell("input", "text", shlex.quote(encoded), timeout=30)
     xml = adb.dump_ui()
     send = find_node(
         xml,
@@ -264,8 +308,14 @@ def wait_ready_with_safe_bootstrap(adb: Adb, timeout: float) -> str:
     clicked: set[str] = set()
     while time.monotonic() < deadline:
         xml = adb.dump_ui()
-        if text_present(xml, ("Готово отвечать", "Ready ·")):
+        if text_present(xml, READY_LABELS):
             return xml
+        if "CONSOLE" not in clicked and text_present(xml, ("CONSOLE", "КОНСОЛЬ")):
+            print("[acceptance] navigate to CONSOLE", file=sys.stderr, flush=True)
+            click_named(adb, xml, ("CONSOLE", "КОНСОЛЬ"))
+            clicked.add("CONSOLE")
+            time.sleep(0.5)
+            continue
         for label in ("INSTALL CORE", "IGNITE LLM", "START BRIDGE"):
             if label in clicked or not text_present(xml, (label,)):
                 continue
@@ -386,31 +436,41 @@ def run_acceptance(arguments: argparse.Namespace) -> dict[str, object]:
         adb,
         "Reply only with PIDECK underscore OK replacing the word underscore with the character",
     )
-    adb.wait_ui(lambda value: text_present(value, ("PIDECK_OK",)),
-                arguments.turn_timeout, "PIDECK_OK answer")
+    adb.wait_ui(
+        lambda value: terminal_text_present(value, ("PIDECK_OK",)),
+        arguments.turn_timeout,
+        "terminal PIDECK_OK answer",
+    )
     checks["promptAnswer"] = "PIDECK_OK"
 
     print("[acceptance] real shell-tool turn", file=sys.stderr, flush=True)
-    submit_prompt(adb, "Use the bash tool to run uname -s and answer with the exact output")
+    submit_prompt(
+        adb,
+        "You must call the pideck_bash tool exactly once with this command: "
+        "cat /proc/sys/kernel/random/uuid . Reply only with the UUID returned by the tool. "
+        "Never infer or invent it.",
+    )
     approval_xml = adb.wait_ui(
         lambda value: text_present(value, ("Разрешить один раз", "Allow once")),
         arguments.turn_timeout,
         "one-time Android approval",
     )
     click_named(adb, approval_xml, ("Разрешить один раз", "Allow once"))
-    adb.wait_ui(lambda value: text_present(value, ("Linux",)),
-                arguments.turn_timeout, "uname -s result")
-    checks["toolResult"] = "Linux"
+    tool_result_xml = adb.wait_ui(
+        lambda value: matching_text(value, UUID_PATTERN) is not None
+        and text_present(value, READY_LABELS),
+        arguments.turn_timeout,
+        "kernel random UUID result",
+    )
+    if matching_text(tool_result_xml, UUID_PATTERN) is None:
+        raise AcceptanceError("Tool result was not a UUID")
+    checks["toolResult"] = "kernel-random-uuid"
     checks["oneTimeApproval"] = True
 
     adb.shell("input", "keyevent", "KEYCODE_BACK")
     core_xml = adb.dump_ui()
     click_named(adb, core_xml, ("ЯДРО", "CORE"))
-    core_xml = adb.wait_ui(
-        lambda value: text_present(value, ("CONFIRM CHANGES",)),
-        20,
-        "CONFIRM CHANGES profile",
-    )
+    core_xml = scroll_until(adb, ("CONFIRM CHANGES",), attempts=16)
     checks["confirmChangesDefault"] = True
     diagnostics_xml = scroll_until(
         adb, ("Диагностика операций", "Operation diagnostics")
@@ -433,20 +493,38 @@ def run_acceptance(arguments: argparse.Namespace) -> dict[str, object]:
     time.sleep(arguments.background_seconds)
     pid_background = adb.shell("pidof", package).strip()
     adb.shell("am", "start", "-W", "-n", f"{package}/.MainActivity", timeout=60)
-    adb.wait_ui(lambda value: text_present(value, ("Готово отвечать", "Ready ·")),
-                arguments.ready_timeout, "READY after background")
+    wait_ready_with_safe_bootstrap(adb, arguments.ready_timeout)
     checks["backgroundProcessSurvived"] = bool(pid_before and pid_background)
     checks["readyAfterBackground"] = True
 
     if arguments.screen_cycle:
+        print("[acceptance] screen sleep/wake lifecycle", file=sys.stderr, flush=True)
         adb.shell("input", "keyevent", "KEYCODE_SLEEP")
         time.sleep(arguments.background_seconds)
         checks["pidWhileScreenOff"] = bool(adb.shell("pidof", package).strip())
         adb.shell("input", "keyevent", "KEYCODE_WAKEUP")
         adb.shell("wm", "dismiss-keyguard", timeout=20)
+        needs_manual_unlock = keyguard_showing(
+            adb.shell("dumpsys", "window", "policy", timeout=30)
+        )
+        checks["manualUnlockRequired"] = needs_manual_unlock
+        if needs_manual_unlock:
+            print(
+                "[acceptance] secure keyguard: unlock the phone to continue",
+                file=sys.stderr,
+                flush=True,
+            )
+            unlock_deadline = time.monotonic() + arguments.ready_timeout
+            while time.monotonic() < unlock_deadline:
+                if not keyguard_showing(
+                    adb.shell("dumpsys", "window", "policy", timeout=30)
+                ):
+                    break
+                time.sleep(1.0)
+            else:
+                raise AcceptanceError("Secure keyguard was not unlocked")
         adb.shell("am", "start", "-W", "-n", f"{package}/.MainActivity", timeout=60)
-        adb.wait_ui(lambda value: text_present(value, ("Готово отвечать", "Ready ·")),
-                    arguments.ready_timeout, "READY after screen cycle")
+        wait_ready_with_safe_bootstrap(adb, arguments.ready_timeout)
         checks["readyAfterScreenCycle"] = True
 
     window = adb.shell("dumpsys", "window", "windows")
