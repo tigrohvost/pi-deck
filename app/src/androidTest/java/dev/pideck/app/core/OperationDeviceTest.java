@@ -19,6 +19,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -118,6 +119,9 @@ public final class OperationDeviceTest {
         Assume.assumeTrue("true".equals(enabled));
 
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        // Keep the destructive-memory-risk Nanbeige path out of this acceptance run. This only
+        // changes the selected catalog entry; it does not download, remove, or overwrite a model.
+        new DeckPreferences(context).setSelectedModelId("qwen3.5-2b");
         OperationStore realStore = new OperationStore(context);
         OperationCoordinator realCoordinator = new OperationCoordinator(realStore);
         assertNull("Refusing to replace a real active operation", realCoordinator.active());
@@ -143,5 +147,34 @@ public final class OperationDeviceTest {
         assertEquals(seeded.operationId, recreated.activeOperationId());
         assertEquals(OperationState.UNKNOWN, recreated.active().state);
         Log.i(TAG, "SEEDED_EXPIRED_UNKNOWN=" + seeded.operationId);
+    }
+
+    /**
+     * Opt-in postcondition for the release recovery fixture. Run after the release UI has been
+     * confirmed, then reinstall the exact release APK: this proves the same prompt-free record was
+     * fenced to FAILED and never acquired a replay result.
+     */
+    @Test
+    public void verifyExpiredUnknownReleaseFixtureFailedWhenExplicitlyRequested() {
+        String enabled = InstrumentationRegistry.getArguments().getString(
+                "pideck.verifyExpiredUnknownRecovery"
+        );
+        Assume.assumeTrue("true".equals(enabled));
+
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        OperationRecord fixture = null;
+        for (OperationRecord candidate : new OperationStore(context).list()) {
+            if ("expired-unknown-release-recovery".equals(
+                    candidate.request.optString("deviceSmoke")
+            )) {
+                fixture = candidate;
+            }
+        }
+
+        assertNotNull("Release recovery fixture is missing", fixture);
+        assertEquals(OperationState.FAILED, fixture.state);
+        assertTrue(fixture.error.contains("User-confirmed core recovery"));
+        assertNull("Recovery must not attach a replay result", fixture.result);
+        Log.i(TAG, "VERIFIED_FAILED_EXPIRED_UNKNOWN=" + fixture.operationId);
     }
 }
