@@ -28,9 +28,10 @@ python3 tools/adb_release_acceptance.py \
 
 The runner fails closed unless the installed APK hash equals the input, linked
 boot never flashes a repair card, READY returns, an exact answer and a real
-approved `uname -s` tool turn complete, release-visible diagnostics show both
-terminal records, lifecycle survives, and no app crash/LMK is observed. A full
-secure reboot still needs the owner to unlock Android once.
+approved `pideck_bash` read of `/proc/sys/kernel/random/uuid` complete with a
+UUID-shaped result, release-visible diagnostics show both terminal records,
+lifecycle survives, and no app crash/LMK is observed. A full secure reboot
+still needs the owner to unlock Android once.
 
 ## Production signing
 
