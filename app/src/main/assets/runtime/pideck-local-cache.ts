@@ -13,9 +13,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 export default function pideckLocalCache(pi: ExtensionAPI) {
 	// llama-server owns one slot across Pi sessions. Reusing a prefix from the
 	// previous session is unsafe for hybrid recurrent models: their state cannot
-	// be rolled back like a pure attention KV cache. The same applies inside a
-	// session when dynamic tool routing rewrites the early prompt: a low-similarity
-	// LCP can leave llama.cpp at 100% prefill without producing a token. Reuse is
+	// be rolled back like a pure attention KV cache. The same applies when a new
+	// task, adaptive-thinking transition, or explicit tool load rewrites the early
+	// request contract: a low-similarity LCP can leave llama.cpp at 100% prefill
+	// without producing a token. Ordinary tool results keep their schema stable. Reuse is
 	// therefore allowed only when the complete previous message list is an exact
 	// prefix and every non-message request field is unchanged.
 	let previousMessages: string[] | undefined;

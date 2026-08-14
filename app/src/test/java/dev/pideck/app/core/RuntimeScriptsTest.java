@@ -73,7 +73,7 @@ public class RuntimeScriptsTest {
         String ready = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
-                 "runtimeContractVersion":49,
+                 "runtimeContractVersion":50,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
                  "pythonVersion":"3.13","llamaVersion":"b10092"}
                 """.replace("\n ", "");
@@ -83,10 +83,10 @@ public class RuntimeScriptsTest {
                 ready.replace("\"state\":\"READY\"", "\"state\":\"NOT_READY\"")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":49", "\"runtimeContractVersion\":48")
+                ready.replace("\"runtimeContractVersion\":50", "\"runtimeContractVersion\":49")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":49,", "")
+                ready.replace("\"runtimeContractVersion\":50,", "")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 "noise {\"schemaVersion\":1,\"ok\":true,\"state\":\"READY\"}"
@@ -153,6 +153,7 @@ public class RuntimeScriptsTest {
                 "pideck-agent-base-prompt.md",
                 "pideck-benchmark-fixture-v2.json",
                 "pideck-local-cache.ts",
+                "pideck-adaptive-thinking.ts",
                 "pideck-system-prompt.ts",
                 "pideck-hashline-edit.ts",
                 "pideck-syntax-check.ts",

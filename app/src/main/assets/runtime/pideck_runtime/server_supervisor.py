@@ -273,6 +273,10 @@ def _write_pi_models(api_key: str, port: int) -> None:
                     "supportsDeveloperRole": False,
                     "supportsReasoningEffort": False,
                     "supportsStore": False,
+                    # Qwen3.5 exposes thinking as a per-request chat-template
+                    # switch. Pi owns that switch so FAST turns can disable it
+                    # while DEEP tool rounds preserve their reasoning history.
+                    "thinkingFormat": "qwen-chat-template",
                     # llama.cpp b10092 emits a final streaming usage frame when
                     # include_usage is requested. Pi needs this flag to send
                     # stream_options.include_usage and expose exact output tokens.

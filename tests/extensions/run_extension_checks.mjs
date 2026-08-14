@@ -30,6 +30,7 @@ const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const RUNTIME = join(REPOSITORY, "app", "src", "main", "assets", "runtime");
 const EXTENSIONS = [
 	"pideck-local-cache.ts",
+	"pideck-adaptive-thinking.ts",
 	"pideck-system-prompt.ts",
 	"pideck-hashline-edit.ts",
 	"pideck-syntax-check.ts",
@@ -82,6 +83,7 @@ try {
 	process.env.PIDECK_HASHLINE_APPROVAL = "none";
 	process.env.PIDECK_ACCESS_PROFILE = "autonomous";
 	process.env.PIDECK_AGENT_MODE = "agent";
+	process.env.PIDECK_ADAPTIVE_THINKING = "1";
 	const loaded = await loadExtensions(
 		EXTENSIONS.map((name) => join(workspace, name)),
 		workspace,
@@ -92,6 +94,11 @@ try {
 	loaded.runtime.getActiveTools = () => [...activeTools];
 	loaded.runtime.setActiveTools = (names) => {
 		activeTools = [...names];
+	};
+	let thinkingLevel = "low";
+	loaded.runtime.getThinkingLevel = () => thinkingLevel;
+	loaded.runtime.setThinkingLevel = (level) => {
+		thinkingLevel = level;
 	};
 
 	const tools = new Map();
@@ -106,6 +113,27 @@ try {
 	}
 
 	assert.deepEqual([...tools.keys()], EXPECTED_TOOLS, "registered tool set changed");
+
+	const adaptiveExtension = loaded.extensions.find((extension) =>
+		extension.path.endsWith("pideck-adaptive-thinking.ts"));
+	const adaptiveSessionStart = adaptiveExtension?.handlers.get("session_start")?.[0];
+	const adaptiveInput = adaptiveExtension?.handlers.get("input")?.[0];
+	assert.equal(typeof adaptiveSessionStart, "function", "adaptive thinking has no session reset");
+	assert.equal(typeof adaptiveInput, "function", "adaptive thinking has no input hook");
+	thinkingLevel = "off";
+	await adaptiveSessionStart({ type: "session_start", reason: "new" });
+	assert.equal(thinkingLevel, "low", "a new agent session did not restore bounded reasoning");
+	await adaptiveInput({ type: "input", text: "Покажи краткий ответ", source: "rpc" });
+	assert.equal(thinkingLevel, "off", "a direct turn retained hidden reasoning");
+	await adaptiveInput({ type: "input", text: "Исправь код и запусти тесты", source: "rpc" });
+	assert.equal(thinkingLevel, "low", "a repair lost its bounded reasoning");
+	await adaptiveInput({
+		type: "input",
+		text: "уточнение без сложной работы",
+		source: "rpc",
+		streamingBehavior: "followUp",
+	});
+	assert.equal(thinkingLevel, "low", "an in-flight repair was demoted by a follow-up");
 
 	const cacheExtension = loaded.extensions[0];
 	const cacheSessionStart = cacheExtension.handlers.get("session_start")?.[0];
@@ -165,7 +193,27 @@ try {
 	const requireFromPackage = createRequire(join(packageDirectory, "package.json"));
 	const { createJiti } = requireFromPackage("jiti");
 	const jiti = createJiti(import.meta.url, { moduleCache: false });
+	const adaptive = await jiti.import(join(workspace, "pideck-adaptive-thinking.ts"));
+	assert.equal(adaptive.adaptiveThinkingLevel("Прочитай README и ответь кратко", "agent"), "off");
+	assert.equal(adaptive.adaptiveThinkingLevel("Исправь ошибку и запусти тест", "agent"), "low");
+	assert.equal(adaptive.adaptiveThinkingLevel("Добавь новую функцию", "agent"), "low");
+	assert.equal(adaptive.adaptiveThinkingLevel("Подумай глубоко над этим", "chat"), "off");
 	const router = await jiti.import(join(workspace, "pideck-tool-router.ts"));
+	writeFileSync(join(workspace, "prefetch-too-large.txt"), "x".repeat(4 * 1024 + 1));
+	writeFileSync(join(workspace, "prefetch-anchor-heavy.txt"), "x\n".repeat(1_900));
+	symlinkSync(join(packageDirectory, "package.json"), join(workspace, "prefetch-outside.txt"));
+	assert.deepEqual(
+		router.boundedRepairPrefetch(
+			workspace,
+			[
+				"prefetch-too-large.txt",
+				"prefetch-anchor-heavy.txt",
+				"prefetch-outside.txt",
+			],
+		),
+		[],
+		"bounded prefetch followed a symlink or admitted an oversized file",
+	);
 	assert.deepEqual(
 		router.coreTools("autonomous"),
 		["read", "bash", "write", "pideck_replace_lines", "run_tests", "pideck_load_tools"],
@@ -286,10 +334,43 @@ try {
 	const routerInput = routerExtension?.handlers.get("input")?.[0];
 	const routerToolResult = routerExtension?.handlers.get("tool_result")?.[0];
 	const routerToolCall = routerExtension?.handlers.get("tool_call")?.[0];
+	const routerBeforeAgentStart = routerExtension?.handlers.get("before_agent_start")?.[0];
 	assert.equal(typeof routerSessionStart, "function", "tool router has no session reset");
 	assert.equal(typeof routerInput, "function", "tool router has no input hook");
 	assert.equal(typeof routerToolResult, "function", "tool router has no result hook");
 	assert.equal(typeof routerToolCall, "function", "tool router has no call hook");
+	assert.equal(typeof routerBeforeAgentStart, "function", "tool router has no bounded prefetch hook");
+	await routerSessionStart({ type: "session_start", reason: "new" });
+	mkdirSync(join(workspace, "src"), { recursive: true });
+	mkdirSync(join(workspace, "tests"), { recursive: true });
+	writeFileSync(join(workspace, "src", "prefetch.py"), "value = 2\n");
+	writeFileSync(join(workspace, "tests", "test_prefetch.py"), "def test_value():\n    assert True\n");
+	const prefetchPrompt = `В каталоге ${workspace} исправь только src/prefetch.py и запусти `
+		+ "точный тест tests/test_prefetch.py. Не меняй другие файлы.";
+	await routerInput({ type: "input", text: prefetchPrompt, source: "rpc" });
+	const prefetch = await routerBeforeAgentStart(
+		{ type: "before_agent_start", prompt: prefetchPrompt, systemPrompt: "", systemPromptOptions: {} },
+		{ cwd: workspace },
+	);
+	assert.equal(prefetch.message.display, false, "bounded prefetch became UI noise");
+	assert.match(prefetch.message.content, /FILE src\/prefetch\.py/u);
+	assert.match(prefetch.message.content, /1:[0-9a-f]{2}\| value = 2/u);
+	assert.deepEqual(
+		activeTools,
+		["read", "pideck_replace_lines", "run_tests"],
+		"bounded prefetch rewrote the provider tool schema",
+	);
+	const prefetchedRead = {
+		type: "tool_call",
+		toolName: "read",
+		toolCallId: "prefetched-read",
+		input: { path: "src/prefetch.py" },
+	};
+	assert.equal(
+		(await routerToolCall(prefetchedRead, { cwd: workspace })).block,
+		true,
+		"a prefetched repair paid for a redundant read round",
+	);
 	await routerSessionStart({ type: "session_start", reason: "new" });
 	await routerInput({
 		type: "input",
@@ -305,7 +386,7 @@ try {
 		isError: false,
 		content: [{ type: "text", text: "TODO alpha" }],
 	});
-	assert.deepEqual(activeTools, [], "one-shot tool remained in the next provider schema");
+	assert.deepEqual(activeTools, ["code_nav"], "one-shot completion rewrote the provider schema");
 	assert.match(
 		oneShotResult.content.at(-1).text,
 		/ответь пользователю обычным текстом/iu,
@@ -315,6 +396,16 @@ try {
 		oneShotResult.content[0].text,
 		/TOOL SUCCEEDED/u,
 		"one-shot result did not lead with authoritative success",
+	);
+	assert.equal(
+		(await routerToolCall({
+			type: "tool_call",
+			toolName: "code_nav",
+			toolCallId: "one-shot-repeat",
+			input: { query: "TODO", path: "/workspace" },
+		}, { cwd: workspace })).block,
+		true,
+		"a stable one-shot schema allowed a repeated call",
 	);
 	await routerInput({
 		type: "input",
@@ -398,8 +489,8 @@ try {
 	});
 	assert.deepEqual(
 		activeTools,
-		["pideck_replace_lines", "run_tests"],
-		"read remained available after every user-scoped file was read once",
+		["read", "pideck_replace_lines", "run_tests"],
+		"completed reads rewrote the provider schema",
 	);
 	const repairEdit = {
 		type: "tool_call",
@@ -427,10 +518,19 @@ try {
 	};
 	const firstRepairFailure = await routerToolResult(failedRepairEdit);
 	assert.match(firstRepairFailure.content.at(-1).text, /One correction remains/u);
-	assert.deepEqual(activeTools, ["pideck_replace_lines", "run_tests"]);
+	assert.deepEqual(activeTools, ["read", "pideck_replace_lines", "run_tests"]);
 	const secondRepairFailure = await routerToolResult(failedRepairEdit);
 	assert.match(secondRepairFailure.content[0].text, /EDIT RETRY LIMIT REACHED/u);
-	assert.deepEqual(activeTools, [], "repeated scoped edit failure retained a looping tool schema");
+	assert.deepEqual(
+		activeTools,
+		["read", "pideck_replace_lines", "run_tests"],
+		"repeated scoped edit failure rewrote the provider schema",
+	);
+	assert.equal(
+		(await routerToolCall(repairEdit, { cwd: workspace })).block,
+		true,
+		"the stable schema bypassed the scoped edit retry limit",
+	);
 	await routerInput({ type: "input", text: repairPrompt, source: "rpc" });
 	const repairTest = {
 		type: "tool_call",
@@ -457,7 +557,12 @@ try {
 	assert.match(failedRepairTest.content.at(-1).text, /unavailable until a source edit/u);
 	assert.deepEqual(
 		activeTools,
-		["read", "pideck_replace_lines"],
+		["read", "pideck_replace_lines", "run_tests"],
+		"a failed scoped test rewrote the provider schema",
+	);
+	assert.equal(
+		(await routerToolCall(repairTest, { cwd: workspace })).block,
+		true,
 		"a failed scoped test could be repeated without a source edit",
 	);
 	await routerToolResult({
@@ -484,7 +589,16 @@ try {
 		details: { status: 0 },
 	});
 	assert.match(repairTestResult.content[0].text, /TEST PASSED/u);
-	assert.deepEqual(activeTools, [], "passing scoped test retained further tools");
+	assert.deepEqual(
+		activeTools,
+		["read", "pideck_replace_lines", "run_tests"],
+		"passing scoped test rewrote the provider schema",
+	);
+	assert.equal(
+		(await routerToolCall(repairTest, { cwd: workspace })).block,
+		true,
+		"a passing scoped test did not make the task terminal",
+	);
 	assert.deepEqual(router.detectCapabilities("Какая погода в Москве?"), ["weather"]);
 	assert.deepEqual(
 		router.detectCapabilities("Поищи в сети погоду в Москве"),
@@ -502,7 +616,9 @@ try {
 	);
 	const codeNav = tools.get("code_nav");
 	writeFileSync(join(workspace, "nav-target.ts"), "export function locateMe() { return 7; }\n");
-	const codeNavInput = loaded.extensions[7].handlers.get("input")?.[0];
+	const codeNavExtension = loaded.extensions.find((extension) =>
+		extension.path.endsWith("pideck-code-nav.ts"));
+	const codeNavInput = codeNavExtension?.handlers.get("input")?.[0];
 	assert.equal(typeof codeNavInput, "function", "code_nav has no explicit-scope input hook");
 	await codeNavInput({
 		type: "input",
@@ -529,7 +645,7 @@ try {
 		{ cwd: workspace, hasUI: false, mode: "rpc" },
 	);
 	assert.match(queryFallback.content[0].text, /code_nav query: locateMe/);
-	const codeNavSessionStart = loaded.extensions[7].handlers.get("session_start")?.[0];
+	const codeNavSessionStart = codeNavExtension?.handlers.get("session_start")?.[0];
 	assert.equal(typeof codeNavSessionStart, "function", "code_nav has no scope reset");
 	await codeNavSessionStart({ type: "session_start", reason: "new" });
 	await assert.rejects(

@@ -22,12 +22,12 @@ public class ModelCatalogTest {
     }
 
     @Test
-    public void recommendationPrefersBalancedAgentModelWhenItFits() {
+    public void recommendationPrefersFourBAndDownshiftsInOrder() {
         long storage = 100L * GIB;
         assertEquals("NANO", catalog.recommend(2500L * 1_048_576L, false, storage).tier);
         assertEquals("qwen3.5-2b", catalog.recommend(4L * GIB, false, storage).id);
-        assertEquals("qwen3.5-2b", catalog.recommend(6L * GIB, false, storage).id);
-        assertEquals("qwen3.5-2b", catalog.recommend(12L * GIB, false, storage).id);
+        assertEquals("qwen3.5-4b", catalog.recommend(6L * GIB, false, storage).id);
+        assertEquals("qwen3.5-4b", catalog.recommend(12L * GIB, false, storage).id);
     }
 
     @Test
@@ -35,6 +35,10 @@ public class ModelCatalogTest {
         assertEquals(
                 "NANO",
                 catalog.recommend(4L * GIB, true, 100L * GIB).tier
+        );
+        assertEquals(
+                "qwen3.5-2b",
+                catalog.recommend(6L * GIB, true, 100L * GIB).id
         );
         ModelSpec edge = catalog.byId("qwen3.5-2b").orElseThrow();
         long onlyEdgeFits = ModelCatalog.requiredStorageForFreshInstall(edge) + 1;
@@ -51,7 +55,7 @@ public class ModelCatalogTest {
         assertEquals("MAX", max.tier);
         assertEquals("qwen3.5-9b", catalog.byId(max.id).orElseThrow().id);
         assertEquals(
-                "qwen3.5-2b",
+                "qwen3.5-4b",
                 catalog.recommend(12L * GIB, false, 200L * GIB).id
         );
     }
@@ -71,7 +75,7 @@ public class ModelCatalogTest {
         assertFalse(ModelCatalog.isRecommendable(
                 catalog.byId("nanbeige4.2-3b").orElseThrow()
         ));
-        assertEquals("qwen3.5-2b", catalog.recommend(12L * GIB, false, 200L * GIB).id);
+        assertEquals("qwen3.5-4b", catalog.recommend(12L * GIB, false, 200L * GIB).id);
     }
 
     @Test
@@ -155,11 +159,11 @@ public class ModelCatalogTest {
         assertFalse(nanoArgs.contains("0.0.0.0"));
         assertEquals("off", catalog.byId("qwen3.5-2b").orElseThrow().reasoningMode);
         assertEquals("on", core.reasoningMode);
-        assertEquals("1024", coreArgs.get(coreArgs.indexOf("--reasoning-budget") + 1));
+        assertEquals("512", coreArgs.get(coreArgs.indexOf("--reasoning-budget") + 1));
         assertEquals(0.6, core.temperature, 0.0001);
         assertEquals(0.95, core.topP, 0.0001);
         assertEquals(0.0, core.presencePenalty, 0.0001);
-        assertEquals(3072, core.maxTokens);
+        assertEquals(2048, core.maxTokens);
     }
 
     @Test

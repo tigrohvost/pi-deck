@@ -423,12 +423,13 @@ only at 359.91 s; it was aborted before that tool completed or the cache
 transition under test occurred. Its diagnostic report is
 `benchmarks/out/suite-v2-qwen3.5-2b-runtime47-q06-2026-08-11.json`.
 
-### What is worth optimizing in 4B?
+### What was worth optimizing in 4B after the 2026-08-11 run?
 
-Yes, but as a bounded **DEEP escalation tier**, not the default agent and not by
-GPU offload. Q05 demonstrates a real capability gain over 2B, while its 359.86 s
-TTFT and sustained thermal drop from 0.771 to 0.440 big-core headroom make it
-unacceptable for routine turns. The next promotion experiment is:
+That run supported a bounded **DEEP escalation tier**, not an unconditional
+default and not GPU offload. Q05 demonstrates a real capability gain over 2B,
+while its 359.86 s TTFT and sustained thermal drop from 0.771 to 0.440 big-core
+headroom made an unrestricted promotion unacceptable. The experiment proposed
+at that point was:
 
 1. keep Qwen3.5 2B as the default and escalate only scoped repairs that need
    stronger anchor choice, multi-file reasoning, or a safe retry after 2B fails;
@@ -440,6 +441,27 @@ unacceptable for routine turns. The next promotion experiment is:
    quality is not useful if its memory pressure makes the interactive path swap;
 5. keep CPU-only inference until a materially newer backend and Qualcomm driver
    pass both the prompt and decode gates above.
+
+Policy update, 2026-08-14: the owner chose the stronger 4B profile as the
+capacity-gated default. The shipped ladder is now 4B → 2B → 0.8B; it retains
+2B whenever current free RAM, the Android low-memory state, or storage cannot
+support 4B. The 4B reasoning cap is 512 tokens and the output cap is 2048.
+Those limits bound worst-case work, but are not presented as a measured speedup:
+the 512-token profile still needs the cool, swap-clean device A/B described
+above.
+
+Runtime contract 50 adds three host-verified latency controls without claiming a
+new handset score. Pi's real 0.82.1 serializer now emits
+`chat_template_kwargs={enable_thinking:false,preserve_thinking:true}` for a
+direct 4B turn and `enable_thinking:true` for explicit DEEP work. A fake-provider
+tool round through the real Pi binary also proves that `read` leaves the provider
+tool array byte-identical and the next growing-prefix request carries
+`cache_prompt:true`; terminal/retry safety is enforced by `tool_call` guards
+instead of schema removal. Finally, an explicitly scoped repair may inject up to
+6 KiB of complete small user-named files with verified line-hash anchors before
+the first provider call. The Q05-Q07 device A/B remains required to quantify
+total-turn improvement and to confirm b10092's Qwen chat-template switch on the
+handset.
 
 ## Этап 1: A/B пина llama.cpp — отказ (2026-08-12)
 

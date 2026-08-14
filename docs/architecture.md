@@ -18,7 +18,8 @@ flowchart LR
   BR -->|JSONL stdin stdout| PI[Pi 0.82.1 RPC]
   PI -->|API key plus loopback HTTP| LS
   PI -->|same authenticated API| NB
-  PI --> TR[profile-safe tool router]
+  PI --> AT[adaptive FAST or DEEP]
+  PI --> TR[stable profile-safe tool router]
   TR -->|managed web and weather tools| WEB[fixed public endpoints]
   RT --> AD[Exact-health server adoption]
   AD --> LS
@@ -45,6 +46,13 @@ the matching managed tools before the first model call; other optional groups
 can be loaded without ever crossing the selected profile. This keeps the network
 surface reproducible while avoiding permanent schemas for capabilities an
 ordinary local task does not need.
+
+Reasoning-capable Qwen turns are classified once at input: direct/read-only/Chat
+work uses FAST, while repairs and diagnosis retain bounded DEEP. The task's tool
+schema then stays fixed across results so llama.cpp can reuse the growing exact
+prefix; one-shot, retry, and terminal restrictions live in execution guards.
+For an explicitly scoped repair, a small fail-closed prefetch can inject complete
+user-named files with the same line-hash anchors before the first model call.
 
 The Core screen persists an optional custom system prompt in Android-private
 preferences. Bridge bootstrap carries it in stdin JSON, turns it into a private

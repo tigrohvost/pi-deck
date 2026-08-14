@@ -212,6 +212,7 @@ class RuntimeTestCase(unittest.TestCase):
         required = (
             common.BASE / "runtime" / "models-v2.json",
             bridge.LOCAL_CACHE_EXTENSION,
+            bridge.ADAPTIVE_THINKING_EXTENSION,
             bridge.SYSTEM_PROMPT_EXTENSION,
             bridge.HASHLINE_EXTENSION,
             bridge.SYNTAX_CHECK_EXTENSION,
@@ -829,6 +830,7 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertTrue(provider["compat"]["supportsUsageInStreaming"])
         self.assertFalse(provider["compat"]["supportsStrictMode"])
         self.assertFalse(provider["compat"]["supportsOpenAIGrammarTools"])
+        self.assertEqual("qwen-chat-template", provider["compat"]["thinkingFormat"])
         self.assertEqual(14_336, provider["models"][0]["contextWindow"])
         self.assertEqual(1_536, provider["models"][0]["maxTokens"])
 

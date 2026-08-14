@@ -14,6 +14,7 @@ from typing import Any
 
 from . import RUNTIME_CONTRACT_VERSION, RUNTIME_VERSION
 from .bridge import (
+    ADAPTIVE_THINKING_EXTENSION,
     AGENT_BASE_PROMPT,
     CODE_NAV_EXTENSION,
     LOCAL_CACHE_EXTENSION,
@@ -152,6 +153,11 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
             "RUN_TESTS_EXTENSION_MISSING",
             "Managed run-tests extension is not installed",
         )
+    if not ADAPTIVE_THINKING_EXTENSION.is_file():
+        raise PiDeckError(
+            "ADAPTIVE_THINKING_EXTENSION_MISSING",
+            "Managed adaptive-thinking extension is not installed",
+        )
     if not WEB_TOOLS_EXTENSION.is_file():
         raise PiDeckError(
             "WEB_TOOLS_EXTENSION_MISSING",
@@ -189,6 +195,8 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         "--extension",
         str(LOCAL_CACHE_EXTENSION),
         "--extension",
+        str(ADAPTIVE_THINKING_EXTENSION),
+        "--extension",
         str(SYSTEM_PROMPT_EXTENSION),
         "--extension",
         str(HASHLINE_EXTENSION),
@@ -214,6 +222,9 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
     environment["PI_CODING_AGENT_SESSION_DIR"] = str(BASE / "sessions")
     environment["PIDECK_ACCESS_PROFILE"] = profile
     environment["PIDECK_AGENT_MODE"] = agent_mode
+    environment["PIDECK_ADAPTIVE_THINKING"] = (
+        "1" if model.get("runtime", {}).get("reasoningMode") == "on" else "0"
+    )
     environment["PIDECK_HASHLINE_APPROVAL"] = (
         "none" if profile == "autonomous" else "required"
     )
@@ -425,6 +436,7 @@ def probe() -> dict[str, Any]:
             BASE / "runtime" / "models-v2.json",
             BASE / "runtime" / "compatibility.json",
             LOCAL_CACHE_EXTENSION,
+            ADAPTIVE_THINKING_EXTENSION,
             SYSTEM_PROMPT_EXTENSION,
             HASHLINE_EXTENSION,
             SYNTAX_CHECK_EXTENSION,

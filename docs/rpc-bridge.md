@@ -20,12 +20,14 @@ The managed Pi child is launched as:
 ```text
 pi --mode rpc --provider pideck --model <exact-id> --offline
    --no-extensions --extension pideck-local-cache.ts
+   --extension pideck-adaptive-thinking.ts
    --extension pideck-system-prompt.ts
    --extension pideck-hashline-edit.ts
    --extension pideck-syntax-check.ts
    --extension pideck-run-tests.ts
    --extension pideck-context-guard.ts
    --extension pideck-web-tools.ts
+   --extension pideck-code-nav.ts
    --extension pideck-tool-router.ts
    [profile-specific tools and explicit permission extension]
 ```
@@ -33,9 +35,27 @@ pi --mode rpc --provider pideck --model <exact-id> --offline
 The exact 0.82.1 package documentation and declaration files were used. Pi's
 JSONL `prompt`, `abort`, `new_session`, `get_state`,
 `extension_ui_request/response` commands are normalized into bounded events.
-The always-loaded local extension adds llama.cpp's `cache_prompt` request flag,
-so repeated model/tool rounds reuse the common KV prefix without changing the
-conversation or tool contract.
+The always-loaded local extension adds llama.cpp's `cache_prompt` request flag.
+The router selects a compact task schema before the first request and keeps it
+byte-stable across read/edit/test results; terminal and retry limits are enforced
+at `tool_call` execution instead of deleting schemas. Repeated model/tool rounds
+therefore reuse an exact common KV/recurrent prefix. A new user task, explicit
+optional-tool load, or adaptive-thinking transition still invalidates reuse and
+fails closed.
+
+For reasoning-capable Qwen profiles, Pi's `qwen-chat-template` compatibility
+serializes `chat_template_kwargs.enable_thinking` with `preserve_thinking=true`.
+The pinned adaptive extension chooses `off` once for direct/read-only/Chat turns
+and `low` once for repairs, diagnosis, or explicit deep analysis; steer/follow-up
+may promote an in-flight turn but cannot demote DEEP. The server-side 512-token
+budget remains the hard upper bound.
+
+A scoped repair that explicitly names complete regular files gets a hidden,
+6 KiB-total bounded prefetch before the first provider request. Only up to three
+files of at most 4 KiB each are accepted; missing, oversized, non-UTF-8, symlinked,
+or outside-workspace files fall back to ordinary managed `read`. Prefetched text
+uses the same verified `line:hash` anchors as `read`, removing one model/tool
+round without weakening anchored-edit checks.
 
 The managed web extension registers `web_search`, `web_fetch` and `weather`.
 `web_search` returns at most five compact sourced results and falls back from
@@ -167,6 +187,14 @@ most 10,000 events or 20 MiB, each normalized event at most 256 KiB. Active
 operation events survive rotation. Android persists the last instance and
 sequence, long-polls with bounded backoff and reconciles exact active IDs on
 instance change or `EVENT_GAP`.
+
+An explicit core-start action cannot silently discard an expired RPC operation
+that remains `UNKNOWN`. The client first performs one authenticated `/v1/state`
+request. If the bridge answers, that state and its journal stay authoritative and
+the restart is cancelled while the operation is still active. If the bridge is
+unreachable, the client shows the exact operation kind and ID and requires a
+separate confirmation before marking that same local record `FAILED`; it never
+replays the prompt, and a late result cannot mutate a newer operation.
 
 Approval UI messages are treated as untrusted display data and bounded. Audit
 records contain decision metadata and a summary hash, not the full command.

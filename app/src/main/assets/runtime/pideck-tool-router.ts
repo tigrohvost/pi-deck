@@ -9,9 +9,11 @@
 
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { join, resolve, sep } from "node:path";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
+import { join, relative, resolve, sep } from "node:path";
 
 import { explicitNavigationScope } from "./pideck-code-nav.ts";
+import { annotateReadText } from "./pideck-hashline-edit.ts";
 
 export type AccessProfile = "read_only" | "confirm_changes" | "autonomous";
 export type AgentMode = "chat" | "agent";
@@ -19,6 +21,15 @@ export type ToolCapability = "files" | "web" | "weather" | "exact_edit";
 
 const LOADER_TOOL = "pideck_load_tools";
 export const INTERNAL_RETRY_PREFIX = "[[PI//DECK:ANSWER_RETRY]]\n";
+const PREFETCH_MAX_FILES = 3;
+const PREFETCH_MAX_FILE_BYTES = 4 * 1024;
+const PREFETCH_MAX_TOTAL_BYTES = 6 * 1024;
+
+type PrefetchedFile = {
+	path: string;
+	displayPath: string;
+	annotated: string;
+};
 
 const CORE_TOOLS: Record<AccessProfile, readonly string[]> = {
 	read_only: ["read", "code_nav"],
@@ -304,6 +315,55 @@ export function safeReadTarget(cwd: string, target: string): string | undefined 
 		: undefined;
 }
 
+/**
+ * Reads only complete, small, explicitly named regular files without following a symlink out of
+ * the workspace. A skipped file remains available through the ordinary read tool.
+ */
+export function boundedRepairPrefetch(
+	cwd: string,
+	targets: readonly string[],
+): PrefetchedFile[] {
+	let root: string;
+	try {
+		root = realpathSync(cwd);
+	} catch {
+		return [];
+	}
+	let used = 0;
+	const snapshots: PrefetchedFile[] = [];
+	for (const requested of targets.slice(0, PREFETCH_MAX_FILES)) {
+		const lexical = safeReadTarget(root, requested);
+		if (lexical === undefined) continue;
+		try {
+			const state = lstatSync(lexical);
+			if (!state.isFile() || state.isSymbolicLink() || state.size > PREFETCH_MAX_FILE_BYTES) {
+				continue;
+			}
+			const actual = realpathSync(lexical);
+			if (actual !== root && !actual.startsWith(`${root}${sep}`)) continue;
+			const raw = readFileSync(actual);
+			if (raw.includes(0) || raw.byteLength > PREFETCH_MAX_FILE_BYTES
+				|| used + raw.byteLength > PREFETCH_MAX_TOTAL_BYTES) {
+				continue;
+			}
+			const text = raw.toString("utf8");
+			if (!Buffer.from(text, "utf8").equals(raw)) continue;
+			const annotated = annotateReadText(text);
+			const annotatedBytes = Buffer.byteLength(annotated, "utf8");
+			if (used + annotatedBytes > PREFETCH_MAX_TOTAL_BYTES) continue;
+			used += annotatedBytes;
+			snapshots.push({
+				path: actual,
+				displayPath: relative(root, actual) || ".",
+				annotated,
+			});
+		} catch {
+			// Missing, unreadable, changing, or non-text files fall back to managed read.
+		}
+	}
+	return snapshots;
+}
+
 /** Extracts exact file paths named by the user, excluding the directory scope itself. */
 export function explicitFilePaths(text: string): string[] {
 	const matches = [...text.matchAll(
@@ -506,6 +566,8 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 	let scopedRepairEditFailures = new Map<string, number>();
 	let scopedRepairReadTargets = new Set<string>();
 	let scopedRepairTestFailed = false;
+	let prefetchPending = false;
+	let taskTerminal = false;
 	const capabilities = optionalCapabilities(profile);
 	const allowed = new Set([
 		...CORE_TOOLS[profile],
@@ -530,6 +592,29 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		const active = unique([...base, ...additions]).filter((name) => allowed.has(name));
 		pi.setActiveTools(active);
 		return active;
+	}
+
+	function rememberAuthoritativeRead(actualPath: string, textParts: readonly string[]): void {
+		const byDigest = new Map<string, string[]>();
+		for (const text of textParts) {
+			for (const match of text.matchAll(/(?:^|\n)(\d{1,6}:([0-9a-f]{2}))\|/gu)) {
+				const anchors = byDigest.get(match[2]) ?? [];
+				anchors.push(match[1]);
+				byDigest.set(match[2], anchors);
+			}
+		}
+		if (byDigest.size > 0) scopedRepairAnchors.set(actualPath, byDigest);
+		scopedRepairReadTargets.add(actualPath);
+	}
+
+	function markScopedRepairTerminal(): void {
+		taskTerminal = true;
+		prefetchPending = false;
+		scopedRepairTargets = [];
+		scopedRepairAnchors = new Map();
+		scopedRepairEditFailures = new Map();
+		scopedRepairReadTargets = new Set();
+		scopedRepairTestFailed = false;
 	}
 
 	const capabilitySchema = Type.Union(
@@ -572,6 +657,8 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		scopedRepairEditFailures = new Map();
 		scopedRepairReadTargets = new Set();
 		scopedRepairTestFailed = false;
+		prefetchPending = false;
+		taskTerminal = false;
 		activate([], false);
 	});
 
@@ -589,10 +676,12 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			scopedRepairEditFailures = new Map();
 			scopedRepairReadTargets = new Set();
 			scopedRepairTestFailed = false;
+			prefetchPending = false;
+			taskTerminal = true;
 			pi.setActiveTools([]);
 		} else {
 			// A normal input starts a new task. Remember an explicit one-tool contract so
-			// the completed result can remove the schema before the next model round.
+			// the execution guard can make it terminal without rewriting the provider schema.
 			// Additive steer/follow-up messages belong to the in-flight task and must not
 			// silently reset an already consumed contract.
 			if (!routed.additive) {
@@ -600,12 +689,15 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 				scopedRepairEditFailures = new Map();
 				scopedRepairReadTargets = new Set();
 				scopedRepairTestFailed = false;
+				prefetchPending = false;
+				taskTerminal = false;
 				oneShotTool = explicitlyRequestedSoleTool(routed.text);
 				oneShotStopsOnError = requiresExactlyOneToolCall(routed.text);
 				scopedReadTarget = explicitReadTarget(routed.text);
 				scopedRepairTargets = isScopedRepairRequest(routed.text)
 					? explicitFileTargets(routed.text)
 					: [];
+				prefetchPending = scopedRepairTargets.length > 0;
 			}
 			activate(routed.capabilities, routed.additive, routed.text);
 		}
@@ -614,18 +706,44 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			: { action: "continue" };
 	});
 
+	pi.on("before_agent_start", (_event, context) => {
+		if (!prefetchPending || scopedRepairTargets.length === 0) return undefined;
+		prefetchPending = false;
+		const snapshots = boundedRepairPrefetch(context.cwd, scopedRepairTargets);
+		if (snapshots.length === 0) return undefined;
+		for (const snapshot of snapshots) {
+			rememberAuthoritativeRead(snapshot.path, [snapshot.annotated]);
+		}
+		const content = [
+			"PI//DECK BOUNDED PREFETCH: authoritative snapshots of small files explicitly named by the user.",
+			"Do not call read for a file shown below. Use its line:hash anchors directly; skipped files remain readable with the read tool.",
+			...snapshots.flatMap((snapshot) => [
+				`--- FILE ${snapshot.displayPath} ---`,
+				snapshot.annotated,
+				`--- END FILE ${snapshot.displayPath} ---`,
+			]),
+		].join("\n");
+		return {
+			message: {
+				customType: "pideck-bounded-prefetch",
+				content,
+				display: false,
+				details: { paths: snapshots.map((snapshot) => snapshot.displayPath) },
+			},
+		};
+	});
+
 	pi.on("tool_result", (event) => {
 		if (
 			oneShotTool !== undefined
 			&& event.toolName === oneShotTool
 			&& (oneShotStopsOnError || !event.isError)
 		) {
-			// setActiveTools affects the provider schema of the following model round.
-			// Clearing it here makes "exactly once" structural: even a small model cannot
-			// repeat a successful or failed lookup while trying to second-guess the result.
+			// Keep the provider schema byte-stable for prompt-cache reuse. The tool_call
+			// guard below makes completion structural even though the schema stays visible.
 			oneShotTool = undefined;
 			oneShotStopsOnError = false;
-			pi.setActiveTools([]);
+			taskTerminal = true;
 			const authoritativeStatus = event.isError
 				? "TOOL RESULT: вызов завершился ошибкой; сообщи её как факт."
 				: event.toolName === "read" && scopedReadTarget !== undefined
@@ -649,20 +767,12 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		if (scopedRepairTargets.length > 0 && event.toolName === "read") {
 			const actualPath = String((event.input as { path?: unknown }).path ?? "");
 			if (!event.isError) {
-				const byDigest = new Map<string, string[]>();
-				for (const part of event.content) {
-					if (part.type !== "text") continue;
-					for (const match of part.text.matchAll(/(?:^|\n)(\d{1,6}:([0-9a-f]{2}))\|/gu)) {
-						const anchors = byDigest.get(match[2]) ?? [];
-						anchors.push(match[1]);
-						byDigest.set(match[2], anchors);
-					}
-				}
-				if (byDigest.size > 0) scopedRepairAnchors.set(actualPath, byDigest);
-				scopedRepairReadTargets.add(actualPath);
-				if (scopedRepairReadTargets.size >= scopedRepairTargets.length) {
-					pi.setActiveTools(pi.getActiveTools().filter((name) => name !== "read"));
-				}
+				rememberAuthoritativeRead(
+					actualPath,
+					event.content
+						.filter((part) => part.type === "text")
+						.map((part) => part.type === "text" ? part.text : ""),
+				);
 			}
 			return {
 				content: [
@@ -688,12 +798,7 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 				const failures = (scopedRepairEditFailures.get(actualPath) ?? 0) + 1;
 				scopedRepairEditFailures.set(actualPath, failures);
 				if (failures >= 2) {
-					pi.setActiveTools([]);
-					scopedRepairTargets = [];
-					scopedRepairAnchors = new Map();
-					scopedRepairEditFailures = new Map();
-					scopedRepairReadTargets = new Set();
-					scopedRepairTestFailed = false;
+					markScopedRepairTerminal();
 					return {
 						content: [
 							{
@@ -710,10 +815,7 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 				}
 			} else {
 				scopedRepairEditFailures.delete(actualPath);
-				if (scopedRepairTestFailed && allowed.has("run_tests")) {
-					pi.setActiveTools(unique([...pi.getActiveTools(), "run_tests"]));
-					scopedRepairTestFailed = false;
-				}
+				if (scopedRepairTestFailed) scopedRepairTestFailed = false;
 			}
 			return {
 				content: [
@@ -736,15 +838,9 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		if (scopedRepairTargets.length > 0 && event.toolName === "run_tests") {
 			const status = (event.details as { status?: unknown } | undefined)?.status;
 			if (status === 0) {
-				pi.setActiveTools([]);
-				scopedRepairTargets = [];
-				scopedRepairAnchors = new Map();
-				scopedRepairEditFailures = new Map();
-				scopedRepairReadTargets = new Set();
-				scopedRepairTestFailed = false;
+				markScopedRepairTerminal();
 			} else {
 				scopedRepairTestFailed = true;
-				pi.setActiveTools(pi.getActiveTools().filter((name) => name !== "run_tests"));
 			}
 			return {
 				content: [
@@ -774,6 +870,18 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 				reason: "Tool is outside the active PI//DECK access profile",
 			};
 		}
+		if (taskTerminal) {
+			return {
+				block: true,
+				reason: "The current PI//DECK task is complete or stopped; answer the user without another tool call",
+			};
+		}
+		if (scopedRepairTestFailed && event.toolName === "run_tests") {
+			return {
+				block: true,
+				reason: "The exact test already failed; edit a named source file before running it again",
+			};
+		}
 		if (event.toolName === "read" && (scopedReadTarget !== undefined || scopedRepairTargets.length > 0)) {
 			const input = event.input as { path?: unknown; offset?: unknown; limit?: unknown };
 			const requested = String(input.path ?? "");
@@ -793,7 +901,13 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 					.map((candidate) => safeReadTarget(context.cwd, candidate))
 					.find((candidate): candidate is string =>
 						candidate !== undefined && !scopedRepairReadTargets.has(candidate));
-				if (unread !== undefined) target = unread;
+				if (unread === undefined) {
+					return {
+						block: true,
+						reason: "Every user-scoped repair file is already available; use its authoritative anchors instead of reading again",
+					};
+				}
+				target = unread;
 			}
 			const requestedName = requested.replace(/\\/g, "/").split("/").at(-1) ?? "";
 			const targetName = target.replace(/\\/g, "/").split("/").at(-1) ?? "";

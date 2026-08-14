@@ -20,6 +20,8 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 FRAGMENT_PROMPT_MARKER = "PIDECK_PROTOCOL_FRAGMENT"
 RETRY_PROMPT_MARKER = "PIDECK_PROTOCOL_RETRY_FULL"
 RETRY_COMPLETE_TEXT = "Полный ответ после settled retry"
+CACHE_ROUND_MARKER = "PIDECK_PROTOCOL_CACHE_ROUND"
+CACHE_ROUND_COMPLETE_TEXT = "Кэшированный tool round завершён"
 
 
 class FakeLlamaHandler(BaseHTTPRequestHandler):
@@ -39,16 +41,88 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
         if request.get("model") != "fixture-model":
             self.send_error(400)
             return
-        serialized_messages = json.dumps(
-            request.get("messages", []), ensure_ascii=False
+        latest_user_text = next(
+            (
+                str(message.get("content", ""))
+                for message in reversed(request.get("messages", []))
+                if isinstance(message, dict) and message.get("role") == "user"
+            ),
+            "",
         )
-        if RETRY_PROMPT_MARKER in serialized_messages:
+        has_tool_result = any(
+            isinstance(message, dict) and message.get("role") == "tool"
+            for message in request.get("messages", [])
+        )
+        if CACHE_ROUND_MARKER in latest_user_text and not has_tool_result:
+            chunks = [
+                {
+                    "id": "fixture",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": "fixture-model",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "role": "assistant",
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "fixture-read",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "read",
+                                            "arguments": '{"path":"cache-round.txt"}',
+                                        },
+                                    }
+                                ],
+                            },
+                            "finish_reason": None,
+                        }
+                    ],
+                },
+                {
+                    "id": "fixture",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": "fixture-model",
+                    "choices": [
+                        {"index": 0, "delta": {}, "finish_reason": "tool_calls"}
+                    ],
+                    "usage": {
+                        "prompt_tokens": 8,
+                        "completion_tokens": 3,
+                        "total_tokens": 11,
+                    },
+                },
+            ]
+        elif CACHE_ROUND_MARKER in latest_user_text:
+            response_text = CACHE_ROUND_COMPLETE_TEXT
+            chunks = self._text_chunks(response_text)
+        elif RETRY_PROMPT_MARKER in latest_user_text:
             response_text = RETRY_COMPLETE_TEXT
-        elif FRAGMENT_PROMPT_MARKER in serialized_messages:
+            chunks = self._text_chunks(response_text)
+        elif FRAGMENT_PROMPT_MARKER in latest_user_text:
             response_text = "О"
+            chunks = self._text_chunks(response_text)
         else:
             response_text = "PIDECK_RPC_OK"
-        chunks = [
+            chunks = self._text_chunks(response_text)
+        body = b"".join(
+            b"data: " + json.dumps(chunk, separators=(",", ":")).encode() + b"\n\n"
+            for chunk in chunks
+        ) + b"data: [DONE]\n\n"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        self.wfile.flush()
+
+    @staticmethod
+    def _text_chunks(response_text: str) -> list[dict[str, object]]:
+        return [
             {
                 "id": "fixture",
                 "object": "chat.completion.chunk",
@@ -77,17 +151,6 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
                 },
             },
         ]
-        body = b"".join(
-            b"data: " + json.dumps(chunk, separators=(",", ":")).encode() + b"\n\n"
-            for chunk in chunks
-        ) + b"data: [DONE]\n\n"
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-        self.wfile.flush()
 
 
 class PiRpcProtocolTest(unittest.TestCase):
@@ -131,13 +194,14 @@ class PiRpcProtocolTest(unittest.TestCase):
                             "supportsUsageInStreaming": True,
                             "supportsStrictMode": False,
                             "supportsOpenAIGrammarTools": False,
+                            "thinkingFormat": "qwen-chat-template",
                             "maxTokensField": "max_tokens",
                         },
                         "models": [
                             {
                                 "id": "fixture-model",
                                 "name": "Fixture",
-                                "reasoning": False,
+                                "reasoning": True,
                                 "input": ["text"],
                                 # Real fixture window is 4096. Pi 0.82.1 subtracts
                                 # its own fixed 4096-token API safety margin, so
@@ -192,6 +256,15 @@ class PiRpcProtocolTest(unittest.TestCase):
                 / "assets"
                 / "runtime"
                 / "pideck-local-cache.ts"
+            )
+            adaptive_thinking_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-adaptive-thinking.ts"
             )
             system_prompt_marker = "PIDECK_CUSTOM_SYSTEM_PROMPT_MARKER"
             system_prompt = base / "system-prompt.txt"
@@ -287,7 +360,7 @@ class PiRpcProtocolTest(unittest.TestCase):
                 "--model",
                 "fixture-model",
                 "--thinking",
-                "off",
+                "low",
                 "--system-prompt",
                 str(agent_base_prompt),
                 "--session-dir",
@@ -299,6 +372,8 @@ class PiRpcProtocolTest(unittest.TestCase):
                 "--no-extensions",
                 "--extension",
                 str(cache_extension),
+                "--extension",
+                str(adaptive_thinking_extension),
                 "--extension",
                 str(system_prompt_extension),
                 "--extension",
@@ -330,6 +405,7 @@ class PiRpcProtocolTest(unittest.TestCase):
             environment["PI_OFFLINE"] = "1"
             environment["PIDECK_ACCESS_PROFILE"] = "confirm_changes"
             environment["PIDECK_AGENT_MODE"] = "agent"
+            environment["PIDECK_ADAPTIVE_THINKING"] = "1"
             environment["PIDECK_HASHLINE_APPROVAL"] = "required"
             environment["PIDECK_SYSTEM_PROMPT_MODE"] = "append"
             environment["PIDECK_SYSTEM_PROMPT_PATH"] = str(system_prompt)
@@ -477,6 +553,10 @@ class PiRpcProtocolTest(unittest.TestCase):
                 # llama-server's single slot: it can still contain recurrent
                 # state from an unrelated previous session.
                 self.assertIs(provider_request.get("cache_prompt"), False)
+                self.assertEqual(
+                    {"enable_thinking": False, "preserve_thinking": True},
+                    provider_request.get("chat_template_kwargs"),
+                )
                 tool_names = {
                     tool.get("function", {}).get("name")
                     for tool in provider_request.get("tools", [])
@@ -523,7 +603,9 @@ class PiRpcProtocolTest(unittest.TestCase):
                         {
                             "id": routed_prompt_id,
                             "type": "prompt",
-                            "message": "поищи в интернете PIDECK_ROUTE_MARKER",
+                            "message": (
+                                "поищи в интернете PIDECK_ROUTE_MARKER и тщательно проанализируй"
+                            ),
                         },
                         ensure_ascii=False,
                     )
@@ -555,9 +637,84 @@ class PiRpcProtocolTest(unittest.TestCase):
                 self.assertIn("pideck_load_tools", routed_tool_names)
                 self.assertIn("web_research", routed_tool_names, routed_events)
                 self.assertNotIn("weather", routed_tool_names)
+                self.assertEqual(
+                    {"enable_thinking": True, "preserve_thinking": True},
+                    routed_request.get("chat_template_kwargs"),
+                )
                 self.assertFalse(
                     any(value.get("type") == "extension_error" for value in routed_events),
                     routed_events,
+                )
+
+                # A tool round keeps the exact provider schema and therefore enables
+                # same-process recurrent/KV prefix reuse on the following request.
+                (workspace / "cache-round.txt").write_text(
+                    "authoritative cache fixture\n", encoding="utf-8"
+                )
+                cache_prompt_id = str(uuid.uuid4())
+                process.stdin.write(
+                    json.dumps(
+                        {
+                            "id": cache_prompt_id,
+                            "type": "prompt",
+                            "message": (
+                                "Вызови read ровно один раз для файла cache-round.txt. "
+                                "Не вызывай bash, code_nav или другие инструменты. "
+                                + CACHE_ROUND_MARKER
+                            ),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+                process.stdin.flush()
+                cache_events: list[dict[str, object]] = []
+                deadline = time.monotonic() + 25
+                while time.monotonic() < deadline:
+                    try:
+                        value = lines.get(timeout=0.5)
+                    except queue.Empty:
+                        if process.poll() is not None:
+                            break
+                        continue
+                    cache_events.append(value)
+                    if value.get("type") == "agent_settled":
+                        break
+                self.assertTrue(
+                    any(value.get("type") == "agent_settled" for value in cache_events),
+                    cache_events,
+                )
+                cache_first_request = FakeLlamaHandler.requests.get_nowait()
+                cache_second_request = FakeLlamaHandler.requests.get_nowait()
+                self.assertIs(cache_first_request.get("cache_prompt"), False)
+                self.assertIs(cache_second_request.get("cache_prompt"), True)
+                self.assertEqual(
+                    cache_first_request.get("tools"),
+                    cache_second_request.get("tools"),
+                    "the tool result rewrote the provider schema before cache reuse",
+                )
+                self.assertEqual(
+                    {"enable_thinking": False, "preserve_thinking": True},
+                    cache_second_request.get("chat_template_kwargs"),
+                )
+                cache_terminal = [
+                    value["message"]
+                    for value in cache_events
+                    if value.get("type") == "message_end"
+                    and isinstance(value.get("message"), dict)
+                    and value["message"].get("role") == "assistant"
+                ]
+                self.assertEqual(
+                    [CACHE_ROUND_COMPLETE_TEXT],
+                    [
+                        part.get("text")
+                        for part in cache_terminal[-1].get("content", [])
+                        if isinstance(part, dict) and part.get("type") == "text"
+                    ],
+                )
+                self.assertFalse(
+                    any(value.get("type") == "extension_error" for value in cache_events),
+                    cache_events,
                 )
 
                 # A command written from message_end is processed too late to become a

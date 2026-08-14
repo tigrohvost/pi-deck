@@ -166,6 +166,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private int heartbeatTick;
     private boolean startupProbeAttempted;
     private AlertDialog approvalDialog;
+    private AlertDialog recoveryDialog;
+    private boolean recoveryProbeInFlight;
     private String currentApprovalId;
     private String observedBridgeInstance;
     private String pendingModelDocumentId;
@@ -337,6 +339,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     @Override
     protected void onDestroy() {
         if (approvalDialog != null) approvalDialog.dismiss();
+        if (recoveryDialog != null) recoveryDialog.dismiss();
         if (contextWarningDialog != null) contextWarningDialog.dismiss();
         cancelWatchdog(null);
         if (rpc != null) rpc.close();
@@ -1865,8 +1868,176 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
     }
 
+    private boolean mayRecoverExpiredUnknownRpc() {
+        return !bridgeConnected
+                && operations.expiredUnknownRpc(System.currentTimeMillis()) != null;
+    }
+
+    /**
+     * Reconciliation remains authoritative even after the local deadline. An explicit boot action
+     * first makes one authenticated state request. Only when that request cannot reach the bridge
+     * may the user confirm a local non-replay recovery for the exact operation that was inspected.
+     */
+    private boolean requestExpiredUnknownRpcRecovery(Runnable continuation) {
+        if (recoveryProbeInFlight || recoveryDialog != null) return true;
+        if (!mayRecoverExpiredUnknownRpc()) return false;
+        OperationRecord candidate = operations.expiredUnknownRpc(System.currentTimeMillis());
+        if (candidate == null) return false;
+
+        recoveryProbeInFlight = true;
+        setBusy(true, t(
+                "Сверяю старую операцию с bridge",
+                "Checking the old operation with the bridge"
+        ));
+        io.execute(() -> {
+            JSONObject state = null;
+            String fault = "";
+            try {
+                state = rpc.state();
+            } catch (Exception error) {
+                String message = error.getMessage();
+                fault = message == null || message.isBlank()
+                        ? error.getClass().getSimpleName()
+                        : message;
+                if (fault.length() > 256) fault = fault.substring(0, 256);
+            }
+            JSONObject authoritativeState = state;
+            String probeFault = fault;
+            runOnUiThread(() -> finishExpiredUnknownRpcProbe(
+                    candidate.operationId,
+                    continuation,
+                    authoritativeState,
+                    probeFault
+            ));
+        });
+        return true;
+    }
+
+    private void finishExpiredUnknownRpcProbe(
+            OperationId expectedOperationId,
+            Runnable continuation,
+            JSONObject authoritativeState,
+            String probeFault
+    ) {
+        recoveryProbeInFlight = false;
+        if (isFinishing() || isDestroyed()) return;
+        OperationRecord current = operations.active();
+        if (current == null || !expectedOperationId.equals(current.operationId)) {
+            refreshUi();
+            return;
+        }
+        if (authoritativeState != null) {
+            handleBridgeState(authoritativeState);
+            OperationRecord afterReconcile = operations.active();
+            if (afterReconcile == null || afterReconcile.state.isTerminal()) {
+                main.post(continuation);
+            } else {
+                append(ConsoleEntry.Channel.SYSTEM, t(
+                        "Bridge ответил: старая операция сохранена и будет сверена по журналу; "
+                                + "принудительный restart отменён.",
+                        "The bridge answered: the old operation remains owned and will reconcile "
+                                + "through its journal; forced restart was cancelled."
+                ));
+            }
+            return;
+        }
+        showExpiredUnknownRpcRecoveryConfirmation(current, continuation, probeFault);
+    }
+
+    private void showExpiredUnknownRpcRecoveryConfirmation(
+            OperationRecord candidate,
+            Runnable continuation,
+            String probeFault
+    ) {
+        if (!activityStarted) return;
+        long ageSeconds = Math.max(
+                0L,
+                (System.currentTimeMillis() - candidate.createdAtMs) / 1_000L
+        );
+        String detail = probeFault == null || probeFault.isBlank()
+                ? t("bridge не ответил", "the bridge did not answer")
+                : probeFault;
+        recoveryDialog = new AlertDialog.Builder(this)
+                .setTitle(t(
+                        "Bridge недоступен · требуется решение",
+                        "Bridge unavailable · decision required"
+                ))
+                .setMessage(t(
+                        "Авторизованная сверка /v1/state не удалась. Удалённая операция всё ещё "
+                                + "может выполняться. Принудительное восстановление пометит только "
+                                + "эту локальную запись FAILED, не повторит запрос и сохранит "
+                                + "сессию/диалог; поздний результат не будет показан.\n\n",
+                        "The authenticated /v1/state check failed. The remote operation may still "
+                                + "be running. Forced recovery marks only this local record FAILED, "
+                                + "does not replay the prompt, and preserves the session/transcript; "
+                                + "a late result will not be shown.\n\n"
+                ) + "Kind: " + candidate.kind.wireName()
+                        + "\nOperation: " + candidate.operationId
+                        + t("\nВозраст: ", "\nAge: ") + ageSeconds + " s"
+                        + t("\nОшибка сверки: ", "\nProbe error: ") + detail)
+                .setNegativeButton(t("Оставить ждать", "Keep waiting"), (dialog, which) ->
+                        append(ConsoleEntry.Channel.SYSTEM, t(
+                                "Старая операция оставлена в UNKNOWN; запрос не повторялся.",
+                                "The old operation remains UNKNOWN; the prompt was not replayed."
+                        )))
+                .setPositiveButton(t(
+                        "FAILED и запустить", "Mark FAILED and start"
+                ), (dialog, which) -> {
+                    OperationRecord failed = resolveExpiredUnknownRpcForCoreRecovery(
+                            candidate.operationId
+                    );
+                    if (failed != null) main.post(continuation);
+                })
+                .create();
+        recoveryDialog.setOnDismissListener(dialog -> recoveryDialog = null);
+        recoveryDialog.show();
+    }
+
+    private OperationRecord resolveExpiredUnknownRpcForCoreRecovery(
+            OperationId expectedOperationId
+    ) {
+        OperationRecord failed = operations.failExpiredUnknownRpc(
+                expectedOperationId,
+                System.currentTimeMillis(),
+                "User-confirmed core recovery after authenticated bridge state probe failed"
+        );
+        if (failed == null) return null;
+
+        cancelWatchdog(failed.operationId);
+        deck.discardStreaming();
+        releaseRpcPrompt(failed.operationId);
+        deck.setComposerDispatchPending(false);
+        deck.dismissDecision();
+        currentApprovalId = null;
+        if (failed.kind == OperationKind.AGENT_TURN
+                || failed.kind == OperationKind.COMPACT_SESSION) {
+            setInferenceActive(false, "");
+        }
+        if (failed.kind == OperationKind.COMPACT_SESSION) {
+            contextCompacting = false;
+            pendingPromptAfterCompaction = null;
+        } else if (failed.kind == OperationKind.NEW_SESSION) {
+            pendingPromptAfterNewSession = null;
+        }
+        busy = false;
+        busyPhase = "";
+        deck.setBusy(false, null);
+        append(ConsoleEntry.Channel.ERROR, t(
+                "Истёкшая операция осталась в состоянии UNKNOWN после остановки локального "
+                        + "ядра и bridge. Для явного восстановления она помечена FAILED; запрос "
+                        + "не повторялся, сессия и диалог сохранены.",
+                "The expired operation remained UNKNOWN after the local core and bridge stopped. "
+                        + "Explicit recovery marked it FAILED; the prompt was not replayed, and "
+                        + "the session and transcript were preserved."
+        ));
+        return failed;
+    }
+
     private void startServer() {
-        if (busy) return;
+        if (busy) {
+            requestExpiredUnknownRpcRecovery(this::startServer);
+            return;
+        }
         if (!nativeModels.isInstalled(selectedModel)) {
             toast(t(
                     "Сначала установите приватную GGUF",
@@ -1908,6 +2079,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void startServerConfirmed() {
+        if (busy) return;
         append(ConsoleEntry.Channel.SYSTEM,
                 t(
                         "Переношу inference под UID PiDeck и загружаю ",
@@ -2938,8 +3110,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "FAST · direct · ≈19 tok/s"
             );
             case "qwen3.5-4b" -> t(
-                    "DEEP · рассуждение ≤1024 токенов · ≈7 ток/с",
-                    "DEEP · reasoning up to 1024 tokens · ≈7 tok/s"
+                    "CORE · AUTO FAST/DEEP ≤512 · ≈7 ток/с",
+                    "CORE · AUTO FAST/DEEP up to 512 · ≈7 tok/s"
             );
             case "qwen3.5-9b" -> t("Эксперимент · медленно", "Experimental · slow");
             case "ministral-3-3b-instruct-2512" -> t(
@@ -2966,7 +3138,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case "qwen3.5-2b" ->
                     "FAST: direct answers without hidden reasoning for everyday edits.";
             case "qwen3.5-4b" ->
-                    "DEEP: bounded reasoning for harder coding tasks; slower than FAST.";
+                    "Default on phones with enough free RAM: direct turns use FAST, while repairs "
+                            + "use DEEP capped at 512 tokens; 2B remains the automatic fallback.";
             case "qwen3.5-9b" ->
                     "A multi-step profile with high OOM risk; it needs a separate device benchmark.";
             case "ministral-3-3b-instruct-2512" ->
@@ -3323,7 +3496,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void startBridge() {
-        if (busy || !serverReady || !nativeModels.isInstalled(selectedModel)) return;
+        if (!serverReady || !nativeModels.isInstalled(selectedModel)) return;
+        if (busy) {
+            requestExpiredUnknownRpcRecovery(this::startBridge);
+            return;
+        }
         bridgeFault = "";
         String sessionId = prefs.ensureSessionId();
         String systemPrompt = prefs.systemPrompt();

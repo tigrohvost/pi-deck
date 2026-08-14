@@ -43,7 +43,13 @@ authenticated loopback RPC bridge, with no root required.
   Android sidecar and cannot replace the stock server for other models.
 - Pi function tools use ordinary OpenAI-compatible schemas, not strict sampler
   grammars: this avoids the b10092 grammar-parser failure while preserving the
-  bridge's tool validation and permission gates.
+  bridge's tool validation and permission gates;
+- Qwen 4B runs direct and Chat turns without hidden reasoning, then automatically
+  enables bounded DEEP up to 512 tokens for repairs, diagnosis, and explicitly
+  deep analysis. A tool turn keeps a stable schema for prompt-cache reuse;
+- scoped repairs prefetch complete small files explicitly named by the user
+  before the first model request, so verified `line:hash` edits need no initial
+  `read` round trip.
 
 ## Requirements
 
@@ -119,6 +125,12 @@ restart denies any pending approval.
 Models remain `EXPERIMENTAL` or manual-only `CANDIDATE` until their provenance
 and full real-device admission suite are complete. Unknown model IDs are never
 silently replaced by a recommendation.
+
+The automatic model ladder now prefers Qwen3.5 4B when current free RAM and
+storage pass the guard, then falls back to Qwen3.5 2B and 0.8B. A saved manual
+selection is never migrated. The default 4B profile caps hidden reasoning at
+512 tokens and output at 2048 tokens. Direct, read-only, and Chat turns use FAST
+without hidden reasoning; complex changes and diagnosis retain bounded DEEP.
 
 | Model | Status | Runtime and current evidence |
 |---|---|---|

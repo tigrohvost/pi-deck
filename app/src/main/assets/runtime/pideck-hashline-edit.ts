@@ -59,7 +59,7 @@ function anchorFor(line: number, text: string): string {
  * content, so it is split off first and passed through untouched — annotating it would hand
  * the model an anchor for a line that does not exist.
  */
-function annotate(text: string, firstLine: number): string {
+export function annotateReadText(text: string, firstLine = 1): string {
 	const lines = text.split("\n");
 	if (lines.length > MAX_ANNOTATED_LINES) return text;
 
@@ -265,7 +265,7 @@ export default function pideckHashlineEdit(pi: ExtensionAPI) {
 		if (!text) return undefined;
 		return {
 			content: [
-				{ type: "text", text: annotate(text, firstLine) },
+				{ type: "text", text: annotateReadText(text, firstLine) },
 				...images,
 			],
 		};
@@ -279,7 +279,7 @@ export default function pideckHashlineEdit(pi: ExtensionAPI) {
 			+ "Android user grants one-time approval. Preferred over quoting text back exactly.",
 		promptSnippet: "Replace lines by their read anchor instead of quoting text",
 		promptGuidelines: [
-			"Order matters: call read on the file, copy an anchor out of its output, then call this tool. An anchor you did not read is always rejected.",
+			"Order matters: use an anchor from read or from PI//DECK BOUNDED PREFETCH, then call this tool. An anchor absent from authoritative context is rejected.",
 			"Every line read returns looks like `12:a3| text`, and `12:a3` is that line's anchor.",
 			"If this tool rejects an anchor it lists the current ones. Retry with one of those; do not switch tools.",
 			"Give the replacement as whole lines without the anchor prefix; an empty text deletes the line.",

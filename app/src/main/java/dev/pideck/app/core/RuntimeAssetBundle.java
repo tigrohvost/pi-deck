@@ -30,6 +30,7 @@ public final class RuntimeAssetBundle {
             "runtime/pideck-agent-base-prompt.md",
             "runtime/pideck-benchmark-fixture-v2.json",
             "runtime/pideck-local-cache.ts",
+            "runtime/pideck-adaptive-thinking.ts",
             "runtime/pideck-system-prompt.ts",
             "runtime/pideck-hashline-edit.ts",
             "runtime/pideck-syntax-check.ts",

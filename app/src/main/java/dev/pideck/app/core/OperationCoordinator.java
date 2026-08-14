@@ -157,6 +157,43 @@ public final class OperationCoordinator {
         activeOperationId = null;
     }
 
+    /**
+     * An expired RPC operation in UNKNOWN may otherwise deadlock core recovery: the missing
+     * server/bridge cannot be restarted while the operation owns the single mutating slot, and
+     * the operation cannot be reconciled while that infrastructure is down. The Activity calls
+     * this only after an explicit recovery action and only while the bridge is disconnected.
+     */
+    public synchronized OperationRecord expiredUnknownRpc(long nowMs) {
+        OperationRecord active = activeOperationId == null ? null : store.load(activeOperationId);
+        return isExpiredUnknownRpc(active, nowMs) ? active : null;
+    }
+
+    public synchronized OperationRecord failExpiredUnknownRpc(
+            OperationId expectedOperationId,
+            long nowMs,
+            String reason
+    ) {
+        if (expectedOperationId == null || !expectedOperationId.equals(activeOperationId)) {
+            return null;
+        }
+        OperationRecord active = activeOperationId == null ? null : store.load(activeOperationId);
+        if (!isExpiredUnknownRpc(active, nowMs)) return null;
+        OperationRecord failed = store.fail(active.operationId, reason);
+        activeOperationId = null;
+        return failed;
+    }
+
+    private static boolean isExpiredUnknownRpc(OperationRecord record, long nowMs) {
+        if (record == null || record.state != OperationState.UNKNOWN) return false;
+        if (record.kind != OperationKind.AGENT_TURN
+                && record.kind != OperationKind.NEW_SESSION
+                && record.kind != OperationKind.COMPACT_SESSION) {
+            return false;
+        }
+        return nowMs >= record.createdAtMs
+                && nowMs - record.createdAtMs >= record.kind.timeoutMs();
+    }
+
     public synchronized OperationRecord active() {
         return activeOperationId == null ? null : store.load(activeOperationId);
     }

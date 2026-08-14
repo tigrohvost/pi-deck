@@ -23,7 +23,11 @@ public final class ModelCatalog {
     public static final int SCHEMA_VERSION = 2;
     private static final long MIB = 1_048_576L;
     private static final long LOW_MEMORY_SAFETY_MIB = 1536L;
-    private static final String BALANCED_AGENT_MODEL_ID = "qwen3.5-2b";
+    /** Ordered defaults: prefer the stronger local agent, then downshift without user action. */
+    private static final List<String> DEFAULT_AGENT_MODEL_IDS = List.of(
+            "qwen3.5-4b",
+            "qwen3.5-2b"
+    );
     private static volatile ModelCatalog current;
 
     private final String catalogVersion;
@@ -98,10 +102,11 @@ public final class ModelCatalog {
     }
 
     /**
-     * Recommendation prefers the measured balanced agent model when current memory and storage
-     * can support it. If it cannot fit, the capacity-based scan still downshifts to a smaller
-     * eligible model. Explicit selections do not pass through this method and remain available
-     * through {@link #byId(String)}.
+     * Recommendation walks the explicit agent-default ladder while current memory and storage
+     * can support it. A flagship therefore gets the stronger 4B profile, while constrained or
+     * low-memory states downshift to the proven 2B profile before the general capacity scan.
+     * Explicit selections do not pass through this method and remain available through
+     * {@link #byId(String)}.
      *
      * <p>Memory is the only axis this can weigh, so a model that fits and is still a bad default
      * — Bonsai 27B fits a flagship and decodes at roughly one token per second — has to be kept
@@ -113,13 +118,15 @@ public final class ModelCatalog {
             boolean lowMemory,
             long freeStorageBytes
     ) {
-        Optional<ModelSpec> balanced = byId(BALANCED_AGENT_MODEL_ID);
-        if (balanced.isPresent()
-                && isRecommendable(balanced.get())
-                && fitsRecommendationCapacity(
-                        balanced.get(), availableMemoryBytes, lowMemory, freeStorageBytes
-                )) {
-            return balanced.get();
+        for (String preferredId : DEFAULT_AGENT_MODEL_IDS) {
+            Optional<ModelSpec> preferred = byId(preferredId);
+            if (preferred.isPresent()
+                    && isRecommendable(preferred.get())
+                    && fitsRecommendationCapacity(
+                            preferred.get(), availableMemoryBytes, lowMemory, freeStorageBytes
+                    )) {
+                return preferred.get();
+            }
         }
 
         ModelSpec best = models.get(0);

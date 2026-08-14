@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "2026.08.11.1",
+  "catalogVersion": "2026.08.14.1",
   "models": [
     {
       "id": "qwen3.5-0.8b",
@@ -377,7 +377,7 @@
       "title": "Qwen3.5 4B",
       "tier": "CORE",
       "status": "EXPERIMENTAL",
-      "note": "DEEP: Qwen 4B с ограниченным внутренним рассуждением для сложных правок; медленнее FAST.",
+      "note": "Основной профиль при запасе RAM: прямые ходы используют FAST без reasoning, repair и диагностика — DEEP до 512 токенов; 2B остаётся fallback.",
       "license": {
         "spdx": "Apache-2.0",
         "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF",
@@ -413,7 +413,7 @@
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": ["--reasoning-budget", "1024"],
+        "serverArgs": ["--reasoning-budget", "512"],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
         "speculative": {
@@ -431,7 +431,7 @@
       "agent": {
         "toolProtocol": "openai",
         "piProfile": "qwen3.5-local",
-        "maxTokens": 3072,
+        "maxTokens": 2048,
         "supportsToolCalls": true,
         "supportsMultiTurnTools": true
       },

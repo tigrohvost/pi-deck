@@ -108,6 +108,53 @@ public class OperationCoreTest {
     }
 
     @Test
+    public void expiredUnknownRpcCanBeFailedForExplicitCoreRecovery() {
+        OperationRecord turn = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
+        coordinator.dispatched(turn.operationId);
+        coordinator.timeout(turn.operationId);
+
+        long beforeDeadline = turn.createdAtMs + turn.kind.timeoutMs() - 1L;
+        assertNull(coordinator.expiredUnknownRpc(beforeDeadline));
+        assertNull(coordinator.failExpiredUnknownRpc(
+                turn.operationId, beforeDeadline, "core recovery"
+        ));
+        assertEquals(turn.operationId, coordinator.activeOperationId());
+
+        long deadline = turn.createdAtMs + turn.kind.timeoutMs();
+        assertEquals(turn.operationId, coordinator.expiredUnknownRpc(deadline).operationId);
+        assertNull(coordinator.failExpiredUnknownRpc(
+                OperationId.create(), deadline, "wrong operation"
+        ));
+        assertEquals(turn.operationId, coordinator.activeOperationId());
+
+        OperationRecord failed = coordinator.failExpiredUnknownRpc(
+                turn.operationId, deadline, "core recovery"
+        );
+        assertEquals(turn.operationId, failed.operationId);
+        assertEquals(OperationState.FAILED, failed.state);
+        assertEquals("core recovery", failed.error);
+        assertNull(coordinator.activeOperationId());
+
+        assertFalse(coordinator.onResult(success(turn)));
+        assertEquals(OperationState.FAILED, store.load(turn.operationId).state);
+    }
+
+    @Test
+    public void infrastructureUnknownIsNotDiscardedByRpcRecovery() {
+        OperationRecord server = coordinator.begin(OperationKind.START_SERVER, new JSONObject());
+        coordinator.dispatched(server.operationId);
+        coordinator.timeout(server.operationId);
+
+        long afterDeadline = server.createdAtMs + server.kind.timeoutMs();
+        assertNull(coordinator.expiredUnknownRpc(afterDeadline));
+        assertNull(coordinator.failExpiredUnknownRpc(
+                server.operationId, afterDeadline, "core recovery"
+        ));
+        assertEquals(server.operationId, coordinator.activeOperationId());
+        assertEquals(OperationState.UNKNOWN, store.load(server.operationId).state);
+    }
+
+    @Test
     public void ambiguousDispatchRetainsOwnershipUntilAuthoritativeTerminal() {
         OperationRecord turn = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
         coordinator.dispatched(turn.operationId);

@@ -61,6 +61,7 @@ EVENT_JOURNAL = BRIDGE_DIRECTORY / "events.jsonl"
 AUDIT_LOG = BRIDGE_DIRECTORY / "approval-audit.jsonl"
 PI_STDERR_LOG = BASE / "logs" / "pi-rpc.stderr.log"
 LOCAL_CACHE_EXTENSION = BASE / "runtime" / "pideck-local-cache.ts"
+ADAPTIVE_THINKING_EXTENSION = BASE / "runtime" / "pideck-adaptive-thinking.ts"
 SYSTEM_PROMPT_EXTENSION = BASE / "runtime" / "pideck-system-prompt.ts"
 HASHLINE_EXTENSION = BASE / "runtime" / "pideck-hashline-edit.ts"
 SYNTAX_CHECK_EXTENSION = BASE / "runtime" / "pideck-syntax-check.ts"
@@ -1053,6 +1054,11 @@ class PiRpcChild:
                 "RUN_TESTS_EXTENSION_MISSING",
                 "Managed run-tests extension is not installed",
             )
+        if not ADAPTIVE_THINKING_EXTENSION.is_file():
+            raise PiDeckError(
+                "ADAPTIVE_THINKING_EXTENSION_MISSING",
+                "Managed adaptive-thinking extension is not installed",
+            )
         if not CONTEXT_GUARD_EXTENSION.is_file():
             raise PiDeckError(
                 "CONTEXT_GUARD_EXTENSION_MISSING",
@@ -1094,6 +1100,8 @@ class PiRpcChild:
             "--extension",
             str(LOCAL_CACHE_EXTENSION),
             "--extension",
+            str(ADAPTIVE_THINKING_EXTENSION),
+            "--extension",
             str(SYSTEM_PROMPT_EXTENSION),
             "--extension",
             str(HASHLINE_EXTENSION),
@@ -1118,6 +1126,9 @@ class PiRpcChild:
         environment["PI_CODING_AGENT_SESSION_DIR"] = str(BASE / "sessions")
         environment["PIDECK_ACCESS_PROFILE"] = profile
         environment["PIDECK_AGENT_MODE"] = agent_mode
+        environment["PIDECK_ADAPTIVE_THINKING"] = (
+            "1" if model.get("runtime", {}).get("reasoningMode") == "on" else "0"
+        )
         environment.update(system_prompt_environment(config, SYSTEM_PROMPT_FILE))
         # The anchored-edit tool is one tool across two profiles that disagree about
         # approval, so the profile decides here rather than the extension guessing. Any

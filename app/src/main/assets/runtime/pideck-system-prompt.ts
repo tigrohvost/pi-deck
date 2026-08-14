@@ -36,6 +36,7 @@ When not to call a tool. A keyword is not an instruction:
 
 Editing files:
 - read prints each line as \`12:a3| текст\`, where \`12:a3\` is that line's anchor.
+- PI//DECK BOUNDED PREFETCH is an authoritative managed read of explicitly named small files; use its anchors without calling read again.
 - Prefer pideck_replace_lines with those anchors over retyping the original text.
 - Anchors expire the moment a file changes. After any edit, read again before the next one.`;
 
