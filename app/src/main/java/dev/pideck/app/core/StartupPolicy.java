@@ -15,6 +15,16 @@ public final class StartupPolicy {
     }
 
     /**
+     * An unfinished operation, draft or durable queued prompt is more important than the last
+     * settings tab. Route that launch to the console without overwriting the user's normal tab
+     * preference.
+     */
+    public static int initialTab(int savedTab, boolean workNeedsAttention) {
+        if (workNeedsAttention) return 0;
+        return savedTab >= 0 && savedTab <= 2 ? savedTab : 0;
+    }
+
+    /**
      * A foreground-service preference survives a process kill; its {@code Process} object does
      * not. Treating the persisted READY/STARTING label as live after that boundary makes the next
      * launch try to attach a bridge to a server that no longer exists.

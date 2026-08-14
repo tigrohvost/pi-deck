@@ -6,6 +6,18 @@ import org.junit.Test;
 
 public class BridgeFaultPolicyTest {
     @Test
+    public void oneMissedLocalhostPollIsNotAUserVisibleDisconnect() {
+        assertEquals(false, BridgeFaultPolicy.shouldSurfaceDisconnect(1, 0L));
+        assertEquals(false, BridgeFaultPolicy.shouldSurfaceDisconnect(2, 2_999L));
+    }
+
+    @Test
+    public void repeatedOrSustainedFailuresTriggerReconciliation() {
+        assertEquals(true, BridgeFaultPolicy.shouldSurfaceDisconnect(3, 800L));
+        assertEquals(true, BridgeFaultPolicy.shouldSurfaceDisconnect(1, 3_000L));
+    }
+
+    @Test
     public void coldStartPollingFailureDoesNotInventACrash() {
         assertEquals(
                 "",

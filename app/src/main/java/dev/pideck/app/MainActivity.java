@@ -112,6 +112,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private static final int MAX_QUEUED_WARM_ATTEMPTS = 3;
     /** Ignore accidental one-frame edits while still hiding the 19-30 second model load. */
     private static final long COMPOSER_WARM_DELAY_MS = 900L;
+    /** Avoid a SharedPreferences write per keystroke while keeping a foreground draft durable. */
+    private static final long COMPOSER_DRAFT_SAVE_DELAY_MS = 350L;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
@@ -141,12 +143,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private boolean activityStarted;
     private boolean composerHasText;
     private boolean composerWarmAttempted;
+    private String pendingComposerDraft = "";
 
     private boolean linkConfirmed;
     private boolean serverReady;
     private boolean bridgeReady;
     private boolean bridgeConnected;
     private String bridgeFault = "";
+    private int bridgeDisconnectFailures;
+    private long bridgeDisconnectedSinceMs;
+    private boolean bridgeDisconnectSurfaced;
     private boolean busy;
     private String busyPhase = "";
     private boolean verifying;
@@ -225,6 +231,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     };
 
     private final Runnable composerWarmup = this::maybeWarmCoreForComposerIntent;
+    private final Runnable persistComposerDraft = () ->
+            prefs.setComposerDraft(pendingComposerDraft);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -246,7 +254,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         rpc = new RpcBridgeClient(bridgeTokenStore.getOrCreate());
         observedBridgeInstance = prefs.bridgeInstanceId();
 
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        getWindow().setSoftInputMode(
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                        | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+        );
         getWindow().setStatusBarColor(palette.background);
         getWindow().setNavigationBarColor(palette.background);
         if (android.os.Build.VERSION.SDK_INT >= 29) {
@@ -276,13 +287,21 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 && selectedModel.id.equals(bootSnapshot.modelId);
         OperationRecord restored = operations.active();
         busy = restored != null && !restored.state.isTerminal();
+        String durableQueue = prefs.queuedPrompt();
+        queuedPrompt = durableQueue.isBlank() ? null : durableQueue;
 
         textScale = DeckStyle.normalizeScale(prefs.textScale());
         deck = new DeckView(this, this, palette, textScale, uiLanguage);
         setContentView(deck);
         deck.setEntries(prefs.loadTranscript());
         deck.setWorkspacePath(workspaceLabel());
-        deck.setActiveTab(prefs.activeTab());
+        pendingComposerDraft = queuedPrompt == null ? prefs.composerDraft() : "";
+        deck.restorePrompt(pendingComposerDraft);
+        deck.setActiveTab(StartupPolicy.initialTab(
+                prefs.activeTab(),
+                busy || queuedPrompt != null || !pendingComposerDraft.isBlank()
+        ));
+        main.post(deck::clearInitialComposerFocus);
         refreshUi();
         if (restored != null && !restored.state.isTerminal()) {
             OperationRecord active = operations.active();
@@ -382,7 +401,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         CommandEvents.removeListener(this);
         main.removeCallbacks(heartbeat);
         main.removeCallbacks(composerWarmup);
+        main.removeCallbacks(persistComposerDraft);
         main.removeCallbacks(startupProbeRetry);
+        // A tapped Send is already owned by the transcript and operation journal. Persisting the
+        // same text as a draft during the brief acknowledgement window could offer a duplicate
+        // after process restoration. A definitive rejection releases ownership and saves it.
+        pendingComposerDraft = pendingRpcPrompt.isPending() ? "" : deck.prompt();
+        prefs.setComposerDraft(pendingComposerDraft);
         prefs.saveTranscript(deck.entries());
     }
 
@@ -392,6 +417,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (recoveryDialog != null) recoveryDialog.dismiss();
         if (contextWarningDialog != null) contextWarningDialog.dismiss();
         cancelWatchdog(null);
+        main.removeCallbacks(persistComposerDraft);
         if (rpc != null) rpc.close();
         io.shutdownNow();
         super.onDestroy();
@@ -484,9 +510,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (!canRunAgent()) {
             // A prompt typed at a cold core is the clearest possible request to start it.
             if (StartupPolicy.queuesUntilReady(false, canWarmCore(), queuedPrompt != null)) {
+                if (!prefs.setQueuedPrompt(prompt)) {
+                    toast(t(
+                            "Не удалось надёжно сохранить запрос",
+                            "Could not safely save the prompt"
+                    ));
+                    return;
+                }
                 queuedPrompt = prompt;
                 queuedWarmAttempts = 0;
                 deck.acknowledgePrompt(prompt);
+                pendingComposerDraft = "";
+                prefs.setComposerDraft("");
                 deck.setQueueCount(1);
                 append(ConsoleEntry.Channel.USER, prompt);
                 append(ConsoleEntry.Channel.SYSTEM, t(
@@ -515,9 +550,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 ));
                 return;
             }
+            if (!prefs.setQueuedPrompt(prompt)) {
+                toast(t(
+                        "Не удалось надёжно сохранить запрос",
+                        "Could not safely save the prompt"
+                ));
+                return;
+            }
             queuedPrompt = prompt;
             queuedWarmAttempts = 0;
             deck.acknowledgePrompt(prompt);
+            pendingComposerDraft = "";
+            prefs.setComposerDraft("");
             deck.setQueueCount(1);
             append(ConsoleEntry.Channel.USER, prompt);
             append(ConsoleEntry.Channel.SYSTEM, t(
@@ -769,6 +813,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
         scheduleComposerWarmup();
+    }
+
+    @Override
+    public void onComposerDraftChanged(String draft) {
+        pendingComposerDraft = draft == null ? "" : draft;
+        main.removeCallbacks(persistComposerDraft);
+        main.postDelayed(persistComposerDraft, COMPOSER_DRAFT_SAVE_DELAY_MS);
     }
 
     @Override
@@ -1417,6 +1468,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         : status == DeckView.CoreStatus.BUSY ? busyPhase : null
         );
         deck.setQueueCount(queuedPrompt == null ? 0 : 1);
+        boolean canRunNow = canRunAgent();
+        boolean canWarmNow = canWarmCore();
+        deck.setComposerAvailability(
+                canRunNow || canWarmNow,
+                !canRunNow && canWarmNow
+        );
         deck.setContextUsage(
                 contextUsage,
                 bridgeReady && !busy && prefs.hasSession(),
@@ -1458,7 +1515,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "Install the F-Droid build. It provides the runtime environment "
                                     + "for real Pi, Python, and shell commands."
                     ),
-                    "OPEN F-DROID", termux::openTermuxPage,
+                    t("ОТКРЫТЬ F-DROID", "OPEN F-DROID"), termux::openTermuxPage,
                     null, null
             );
             return;
@@ -1473,7 +1530,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                     "; требуется 0.118.0 или новее из F-Droid.",
                                     "; version 0.118.0 or newer from F-Droid is required."
                             ),
-                    "OPEN F-DROID", termux::openTermuxPage,
+                    t("ОТКРЫТЬ F-DROID", "OPEN F-DROID"), termux::openTermuxPage,
                     null, null
             );
             return;
@@ -1494,7 +1551,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                     ". Установите совместимую F-Droid-сборку.",
                                     ". Install a compatible F-Droid build."
                             ),
-                    "OPEN F-DROID", termux::openTermuxPage,
+                    t("ОТКРЫТЬ F-DROID", "OPEN F-DROID"), termux::openTermuxPage,
                     null, null
             );
             return;
@@ -1508,8 +1565,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "PI//DECK requests only Termux's dedicated RUN_COMMAND permission. "
                                     + "It can run commands inside Termux without granting root to the APK."
                     ),
-                    "GRANT LINK", () -> termux.requestRunPermission(this, REQUEST_RUN_COMMAND),
-                    "APP SETTINGS", termux::openAppSettings
+                    t("РАЗРЕШИТЬ", "GRANT LINK"),
+                    () -> termux.requestRunPermission(this, REQUEST_RUN_COMMAND),
+                    t("НАСТРОЙКИ", "APP SETTINGS"), termux::openAppSettings
             );
             return;
         }
@@ -1535,8 +1593,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "Tap COPY + OPEN, paste the command into Termux, and run it. "
                                     + "Accept the system storage request, return here, and tap TEST LINK."
                     ),
-                    "COPY + OPEN", this::copyHandshakeAndOpen,
-                    "TEST LINK", this::probeTermux
+                    t("КОПИРОВАТЬ И ОТКРЫТЬ", "COPY + OPEN"), this::copyHandshakeAndOpen,
+                    t("ПРОВЕРИТЬ", "TEST LINK"), this::probeTermux
             );
             return;
         }
@@ -1551,8 +1609,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "This one-time step installs Node.js, Python, git, and the official "
                                     + "Pi coding agent. The bundled llama.cpp is already inside the APK."
                     ),
-                    "INSTALL CORE", this::installCore,
-                    "TEST LINK", this::probeTermux
+                    t("УСТАНОВИТЬ", "INSTALL CORE"), this::installCore,
+                    t("ПРОВЕРИТЬ СВЯЗЬ", "TEST LINK"), this::probeTermux
             );
             return;
         }
@@ -1568,7 +1626,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                     ". Выбор не применяется скрыто.",
                                     ". The selection will not be applied silently."
                             ),
-                    "CHOOSE MODEL", this::openCoreRoot,
+                    t("ВЫБРАТЬ МОДЕЛЬ", "CHOOSE MODEL"), this::openCoreRoot,
                     null, null
             );
             return;
@@ -1582,7 +1640,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         + "\nHugging Face download: " + modelState.percent() + "%"
                         + " (" + humanBytes(modelState.downloadedBytes) + " / "
                         + humanBytes(modelState.totalBytes) + ")";
-                primaryLabel = "MODELS";
+                primaryLabel = t("МОДЕЛИ", "MODELS");
                 primary = this::openCoreRoot;
             } else if (modelState.phase == ModelDownloadManager.Phase.FAILED) {
                 body = t("Загрузка остановилась: ", "Download stopped: ")
@@ -1591,7 +1649,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                 ". Неполный файл можно безопасно заменить.",
                                 ". The incomplete file can be replaced safely."
                         );
-                primaryLabel = "RETRY";
+                primaryLabel = t("ПОВТОРИТЬ", "RETRY");
                 primary = () -> confirmDownload(selectedModel);
             } else {
                 body = t("Для этого телефона выбран ", "Selected for this phone: ")
@@ -1601,7 +1659,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                 "\nWi‑Fi рекомендован; модель загружается напрямую с Hugging Face.",
                                 "\nWi-Fi is recommended; the model downloads directly from Hugging Face."
                         );
-                primaryLabel = "DOWNLOAD " + selectedModel.tier;
+                primaryLabel = t("СКАЧАТЬ ", "DOWNLOAD ") + selectedModel.tier;
                 primary = () -> confirmDownload(selectedModel);
             }
             deck.setBootState(
@@ -1609,7 +1667,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     t("ЗАГРУЗИТЬ ЛОКАЛЬНЫЙ МОЗГ", "DOWNLOAD LOCAL MODEL"),
                     body,
                     primaryLabel, primary,
-                    "CHOOSE", this::openCoreRoot
+                    t("ВЫБРАТЬ", "CHOOSE"), this::openCoreRoot
             );
             return;
         }
@@ -1634,11 +1692,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "BOOT SEQUENCE // 06",
                     t("ПРОВЕРКА ЦЕЛОСТНОСТИ", "INTEGRITY CHECK"),
                     body,
-                    verificationFault.isBlank() ? "VERIFYING…" : "RE-DOWNLOAD",
+                    verificationFault.isBlank()
+                            ? t("ПРОВЕРЯЮ…", "VERIFYING…")
+                            : t("СКАЧАТЬ ЗАНОВО", "RE-DOWNLOAD"),
                     verificationFault.isBlank()
                             ? this::openCoreRoot
                             : () -> confirmDownload(selectedModel),
-                    verificationFault.isBlank() ? null : "MODELS",
+                    verificationFault.isBlank() ? null : t("МОДЕЛИ", "MODELS"),
                     verificationFault.isBlank() ? null : this::openCoreRoot
             );
             return;
@@ -1653,45 +1713,54 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "Android SHA-256 passed. PiDeck will verify the hash again while copying, "
                                     + "then fsync and atomically rename it into the private model store."
                     ),
-                    busy ? "INSTALLING…" : "INSTALL PRIVATE",
+                    busy
+                            ? t("УСТАНАВЛИВАЮ…", "INSTALLING…")
+                            : t("УСТАНОВИТЬ", "INSTALL PRIVATE"),
                     busy ? this::openCoreRoot : () -> installPrivateModel(selectedModel),
-                    "MODELS", this::openCoreRoot
+                    t("МОДЕЛИ", "MODELS"), this::openCoreRoot
             );
             return;
         }
         if (!serverReady) {
             deck.setBootState(
-                    "BOOT SEQUENCE // 08",
-                    t("ЗАЖЕЧЬ ЛОКАЛЬНОЕ ЯДРО", "IGNITE LOCAL CORE"),
+                    t("ГОТОВНОСТЬ // 1 ИЗ 2", "READY // 1 OF 2"),
+                    t("ЗАПУСТИТЬ ЛОКАЛЬНЫЙ ИИ", "START LOCAL AI"),
                     selectedModel.title + t(
-                            " находится в приватном read-only store. Запуск использует ",
-                            " is in the private read-only store. Startup uses "
+                            " уже находится на телефоне. Нажмите один раз — PiDeck сам "
+                                    + "запустит модель и безопасное локальное подключение. "
+                                    + "Первый запуск обычно занимает до минуты.",
+                            " is already installed on this phone. Tap once and PiDeck will "
+                                    + "start both the model and its secure local connection. "
+                                    + "The first start usually takes under a minute."
                     )
-                            + dev.pideck.app.core.CpuProfile.detect()
-                            + t(" и контекст ", " and a ")
-                            + selectedModel.recommendedContext
-                            + t(" токенов. Ожидаемый peak: ", "-token context. Expected peak: ")
-                            + humanBytes(selectedModel.estimatedPeakBytes())
-                            + t("; доступно ", "; available ")
-                            + humanBytes(availableRam) + ".",
-                    "IGNITE LLM", this::startServer,
-                    "MODELS", this::openCoreRoot
+                            + t(
+                            " Технические параметры доступны в разделе ЯДРО.",
+                            " Technical details remain available under CORE."
+                    ),
+                    busy
+                            ? t("ЗАПУСКАЮ…", "STARTING…")
+                            : t("ЗАПУСТИТЬ И ПРОДОЛЖИТЬ", "START AND CONTINUE"),
+                    busy ? null : this::warmCore,
+                    t("НАСТРОЙКИ", "SETTINGS"), this::openCoreRoot
             );
             return;
         }
         if (!bridgeReady) {
             deck.setBootState(
-                    "BOOT SEQUENCE // 09",
-                    t("ПОДКЛЮЧИТЬ PI RPC", "CONNECT PI RPC"),
+                    t("ГОТОВНОСТЬ // 2 ИЗ 2", "READY // 2 OF 2"),
+                    t("ЗАВЕРШИТЬ ПОДКЛЮЧЕНИЕ", "FINISH CONNECTING"),
                     t(
-                            "Локальный bridge использует 256-bit token и слушает только 127.0.0.1. ",
-                            "The local bridge uses a 256-bit token and listens only on 127.0.0.1. "
+                            "Модель уже запущена. Осталось восстановить защищённый локальный канал; "
+                                    + "запросы не уходят с телефона. ",
+                            "The model is already running. Only the secure local channel remains; "
+                                    + "prompts never leave the phone. "
                     )
                             + (bridgeFault.isBlank()
                             ? accessProfile.description(uiLanguage)
                             : bridgeFault),
-                    "START BRIDGE", this::startBridge,
-                    "ACCESS", this::openCoreRoot
+                    busy ? t("ПОДКЛЮЧАЮ…", "CONNECTING…") : t("ПРОДОЛЖИТЬ", "CONTINUE"),
+                    busy ? null : this::warmCore,
+                    t("НАСТРОЙКИ", "SETTINGS"), this::openCoreRoot
             );
             return;
         }
@@ -3549,6 +3618,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
             queuedPrompt = null;
             queuedWarmAttempts = 0;
+            prefs.clearQueuedPrompt();
             deck.setQueueCount(0);
             append(ConsoleEntry.Channel.ERROR,
                     t(
@@ -3569,6 +3639,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (busy || pacingWait || queuedPrompt == null) return;
         if (!canRunAgent()) {
             main.post(this::dispatchQueuedPrompt);
+            return;
+        }
+        if (!prefs.clearQueuedPrompt()) {
+            append(ConsoleEntry.Channel.ERROR, t(
+                    "Не удалось обновить надёжную очередь; запрос сохранён и не отправлен.",
+                    "Could not update the durable queue; the prompt remains saved and unsent."
+            ));
             return;
         }
         String prompt = queuedPrompt;
@@ -3592,6 +3669,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             );
             operations.dispatched(operation.operationId);
             pendingRpcPrompt.begin(operation.operationId, prompt);
+            // Once Send was tapped this text is no longer a draft. The transcript and operation
+            // record own it; keeping a second durable composer copy across process death could
+            // invite the user to queue the same prompt while its acceptance is being reconciled.
+            pendingComposerDraft = "";
+            main.removeCallbacks(persistComposerDraft);
+            prefs.setComposerDraft("");
             deck.setComposerDispatchPending(true);
             turnStartedAtUptimeMs = SystemClock.uptimeMillis();
             firstOutputAtUptimeMs = 0L;
@@ -3707,6 +3790,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     @Override
                     public void onDisconnected(String reason) {
                         runOnUiThread(() -> {
+                            long now = SystemClock.elapsedRealtime();
+                            if (bridgeDisconnectFailures == 0) {
+                                bridgeDisconnectedSinceMs = now;
+                            }
+                            bridgeDisconnectFailures++;
+                            if (bridgeDisconnectSurfaced
+                                    || !BridgeFaultPolicy.shouldSurfaceDisconnect(
+                                    bridgeDisconnectFailures,
+                                    now - bridgeDisconnectedSinceMs
+                            )) {
+                                return;
+                            }
+                            bridgeDisconnectSurfaced = true;
                             bridgeFault = BridgeFaultPolicy.afterDisconnect(
                                     bridgeConnected,
                                     bridgeReady,
@@ -3739,6 +3835,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private void handleBridgeState(JSONObject state) {
         String instanceId = state.optString("bridgeInstanceId", "");
         if (instanceId.isBlank()) return;
+        bridgeDisconnectFailures = 0;
+        bridgeDisconnectedSinceMs = 0L;
+        bridgeDisconnectSurfaced = false;
         if (!instanceId.equals(observedBridgeInstance)) {
             observedBridgeInstance = instanceId;
             prefs.setBridgeCursor(instanceId, 0L);
@@ -3868,6 +3967,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             setInferenceActive(false, "");
         }
         refreshUi();
+        if (bridgeReady && bridgeConnected && queuedPrompt != null) {
+            main.post(this::dispatchQueuedPrompt);
+        }
         main.postDelayed(this::maybeSmartCompactSession, 750L);
     }
 
@@ -4418,7 +4520,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void acknowledgeRpcPrompt(OperationId operationId) {
         String prompt = pendingRpcPrompt.acknowledge(operationId);
-        if (prompt != null) deck.acknowledgePrompt(prompt);
+        if (prompt != null) {
+            deck.acknowledgePrompt(prompt);
+            pendingComposerDraft = "";
+            main.removeCallbacks(persistComposerDraft);
+            prefs.setComposerDraft("");
+        }
     }
 
     private void releaseRpcPrompt(OperationId operationId) {

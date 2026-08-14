@@ -44,6 +44,9 @@ public final class DeckPreferences {
     private static final String KEY_SMART_COMPACTION = "smart_compaction_v1";
     private static final String KEY_OOM_ACK = "oom_risk_ack_v1";
     private static final String KEY_RUNTIME_PACKAGES = "runtime_packages_v1";
+    private static final String KEY_COMPOSER_DRAFT = "composer_draft_v1";
+    private static final String KEY_QUEUED_PROMPT = "queued_prompt_v1";
+    private static final int MAX_PROMPT_BYTES = 64 * 1024;
 
     private final SharedPreferences prefs;
 
@@ -237,6 +240,53 @@ public final class DeckPreferences {
                 KEY_UI_LANGUAGE,
                 (language == null ? UiLanguage.RUSSIAN : language).wireName
         ).apply();
+    }
+
+    /**
+     * The composer is working state, not decoration. Persisting it prevents a theme change,
+     * low-memory process death or accidental navigation from erasing text the user has not sent.
+     */
+    public String composerDraft() {
+        return boundedPrompt(KEY_COMPOSER_DRAFT);
+    }
+
+    public void setComposerDraft(String draft) {
+        String value = draft == null ? "" : draft;
+        if (value.isEmpty()) {
+            prefs.edit().remove(KEY_COMPOSER_DRAFT).apply();
+            return;
+        }
+        if (value.getBytes(StandardCharsets.UTF_8).length > MAX_PROMPT_BYTES) return;
+        prefs.edit().putString(KEY_COMPOSER_DRAFT, value).apply();
+    }
+
+    /**
+     * A prompt waiting for a running turn or a cold core must outlive the Activity. This write is
+     * synchronous because the next event may be Android killing the process to make room for the
+     * model; losing a one-item queue after the UI already said «saved» would be dishonest.
+     */
+    public String queuedPrompt() {
+        return boundedPrompt(KEY_QUEUED_PROMPT);
+    }
+
+    public boolean setQueuedPrompt(String prompt) {
+        if (prompt == null || prompt.isBlank()
+                || prompt.getBytes(StandardCharsets.UTF_8).length > MAX_PROMPT_BYTES) {
+            return false;
+        }
+        return prefs.edit().putString(KEY_QUEUED_PROMPT, prompt).commit();
+    }
+
+    public boolean clearQueuedPrompt() {
+        return prefs.edit().remove(KEY_QUEUED_PROMPT).commit();
+    }
+
+    private String boundedPrompt(String key) {
+        String value = prefs.getString(key, "");
+        if (value == null || value.isEmpty()) return "";
+        if (value.getBytes(StandardCharsets.UTF_8).length <= MAX_PROMPT_BYTES) return value;
+        prefs.edit().remove(key).apply();
+        return "";
     }
 
     public String systemPrompt() {

@@ -9,8 +9,21 @@ package dev.pideck.app.core;
  */
 public final class BridgeFaultPolicy {
     private static final String DISCONNECTED = "RPC bridge отключён";
+    static final int DISCONNECT_FAILURE_THRESHOLD = 3;
+    static final long DISCONNECT_GRACE_MS = 3_000L;
 
     private BridgeFaultPolicy() {
+    }
+
+    /**
+     * Localhost can miss one read while Android reschedules Termux. A single miss is not a bridge
+     * failure: surfacing it would flash a repair card and mark a live turn UNKNOWN. Three
+     * consecutive failures (or a full grace interval) are enough evidence to reconcile.
+     */
+    public static boolean shouldSurfaceDisconnect(int consecutiveFailures, long elapsedMs) {
+        if (consecutiveFailures <= 0) return false;
+        return consecutiveFailures >= DISCONNECT_FAILURE_THRESHOLD
+                || elapsedMs >= DISCONNECT_GRACE_MS;
     }
 
     public static String afterDisconnect(

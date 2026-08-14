@@ -12,6 +12,10 @@ public final class PendingPromptDispatch {
         this.prompt = Objects.requireNonNull(prompt, "prompt");
     }
 
+    public synchronized boolean isPending() {
+        return operationId != null;
+    }
+
     /** Returns the accepted prompt only when this exact operation still owns the pending state. */
     public synchronized String acknowledge(OperationId operationId) {
         if (!owns(operationId)) return null;

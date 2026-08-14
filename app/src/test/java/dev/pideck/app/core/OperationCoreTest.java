@@ -189,7 +189,9 @@ public class OperationCoreTest {
         OperationId operationId = OperationId.create();
         pending.begin(operationId, "original prompt");
 
+        assertTrue(pending.isPending());
         assertEquals("original prompt", pending.acknowledge(operationId));
+        assertFalse(pending.isPending());
         assertNull(pending.acknowledge(operationId));
     }
 

@@ -102,6 +102,9 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         /** Non-empty draft text lets the Activity hide core startup behind typing time. */
         void onComposerIntentChanged(boolean hasText);
 
+        /** Debounced by the Activity into durable storage; never used to dispatch a prompt. */
+        void onComposerDraftChanged(String draft);
+
         void onLanguageChosen(UiLanguage language);
     }
 
@@ -161,6 +164,8 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private boolean contextAvailable;
     private boolean composerDispatchPending;
     private boolean composerHasText;
+    private boolean composerAvailable = true;
+    private boolean composerWillWarm;
     private int queuedPromptCount;
 
     private final List<ConsoleEntry> entries = new ArrayList<>();
@@ -206,6 +211,8 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         this.language = language == null ? UiLanguage.RUSSIAN : language;
         this.style = new DeckStyle(context, palette, textScale);
         setBackgroundColor(p.background);
+        setFocusable(true);
+        setFocusableInTouchMode(true);
 
         addView(new GridBackdropView(context, p), match());
 
@@ -547,6 +554,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
             @Override
             public void afterTextChanged(Editable editable) {
+                listener.onComposerDraftChanged(editable.toString());
                 boolean hasText = !editable.toString().trim().isEmpty();
                 if (hasText != composerHasText) {
                     composerHasText = hasText;
@@ -561,28 +569,35 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private void updateSendAffordance() {
         boolean hasText = !promptInput.getText().toString().trim().isEmpty();
         boolean running = executionRow.isRunning();
-        boolean queueFull = running && queuedPromptCount > 0;
-        boolean armed = hasText && !composerDispatchPending && !queueFull;
+        boolean queueFull = queuedPromptCount > 0;
+        boolean armed = composerAvailable
+                && hasText
+                && !composerDispatchPending
+                && !queueFull;
         if (composerDispatchPending) {
             sendButton.setText("…");
             sendButton.setContentDescription(t("Сообщение отправляется", "Sending message"));
-        } else if (running) {
-            sendButton.setText(queueFull ? t("Очередь · 1", "Queued · 1")
-                    : t("В очередь", "Queue"));
+        } else if (queueFull) {
+            sendButton.setText(t("В очереди · 1", "Queued · 1"));
+            sendButton.setContentDescription(t(
+                    "Сообщение надёжно сохранено в очереди",
+                    "The message is safely saved in the queue"
+            ));
+        } else if (running && hasText) {
+            sendButton.setText(t("В очередь", "Queue"));
             sendButton.setContentDescription(
-                    queueFull
-                            ? t("В очереди уже есть сообщение", "A message is already queued")
-                            : t("Добавить сообщение в очередь", "Add message to queue")
+                    t("Добавить сообщение в очередь", "Add message to queue")
             );
         } else {
             sendButton.setText("↑");
             sendButton.setContentDescription(t("Отправить сообщение", "Send message"));
         }
-        sendButton.setTextSize((running ? 11.5f : 17f) * style.textScale());
-        int horizontalPadding = running ? style.dp(12) : 0;
+        boolean wordLabel = (running && hasText) || queueFull;
+        sendButton.setTextSize((wordLabel ? 11.5f : 17f) * style.textScale());
+        int horizontalPadding = wordLabel ? style.dp(12) : 0;
         sendButton.setPadding(horizontalPadding, 0, horizontalPadding, 0);
-        sendButton.setMinWidth(running ? style.dp(92) : style.dp(44));
-        int desiredWidth = running
+        sendButton.setMinWidth(wordLabel ? style.dp(92) : style.dp(44));
+        int desiredWidth = wordLabel
                 ? ViewGroup.LayoutParams.WRAP_CONTENT
                 : style.dp(44);
         if (sendButtonLayout.width != desiredWidth) {
@@ -591,6 +606,21 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         }
         sendButton.setBackground(style.round(armed ? p.accent : p.panel, 22));
         sendButton.setTextColor(armed ? p.background : p.muted);
+        sendButton.setEnabled(armed);
+        sendButton.setAlpha(armed ? 1f : 0.78f);
+
+        boolean inputEnabled = composerAvailable && !composerDispatchPending && !queueFull;
+        promptInput.setEnabled(inputEnabled);
+        promptInput.setHint(queueFull
+                ? t("Запрос сохранён в очереди", "Prompt saved in queue")
+                : !composerAvailable
+                ? t("Сначала завершите настройку выше", "Finish setup above first")
+                : composerWillWarm
+                ? t(
+                        "Опишите задачу — запустимся сами",
+                        "Describe a task — starts automatically"
+                )
+                : t("Что сделать?", "What should I do?"));
     }
 
     public void setActiveTab(int tab) {
@@ -602,6 +632,10 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         contextRow.setVisibility(
                 tab == TabBarView.TAB_CONSOLE && contextAvailable ? VISIBLE : GONE
         );
+        if (tab != TabBarView.TAB_CONSOLE && promptInput.hasFocus()) {
+            promptInput.clearFocus();
+            requestFocus();
+        }
     }
 
     public int activeTab() {
@@ -746,8 +780,14 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         bootTitle.setText(title);
         bootBody.setText(body);
         bootActions.removeAllViews();
-        if (primaryLabel != null && primary != null) {
-            bootActions.addView(style.primaryButton(primaryLabel, primary));
+        if (primaryLabel != null) {
+            TextView first = style.primaryButton(
+                    primaryLabel,
+                    primary == null ? () -> { } : primary
+            );
+            first.setEnabled(primary != null);
+            first.setAlpha(primary == null ? 0.68f : 1f);
+            bootActions.addView(first);
         }
         if (secondaryLabel != null && secondary != null) {
             TextView second = style.outlinedButton(secondaryLabel, p.accent, secondary);
@@ -775,6 +815,13 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
     public void setQueueCount(int count) {
         queuedPromptCount = Math.max(0, Math.min(1, count));
+        updateSendAffordance();
+    }
+
+    /** Enables only interactions the current boot state can actually honour. */
+    public void setComposerAvailability(boolean available, boolean willWarm) {
+        composerAvailable = available;
+        composerWillWarm = available && willWarm;
         updateSendAffordance();
     }
 
@@ -1365,6 +1412,23 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         promptInput.setText(value);
         promptInput.setSelection(promptInput.getText().length());
         promptInput.requestFocus();
+    }
+
+    /** Restores working text without opening the keyboard on launch. */
+    public void restorePrompt(String value) {
+        promptInput.setText(value == null ? "" : value);
+        promptInput.setSelection(promptInput.getText().length());
+        clearInitialComposerFocus();
+    }
+
+    public String prompt() {
+        return promptInput.getText().toString();
+    }
+
+    /** The deck opens as a status surface; the keyboard appears only after an explicit tap. */
+    public void clearInitialComposerFocus() {
+        promptInput.clearFocus();
+        requestFocus();
     }
 
     private void emitPrompt() {

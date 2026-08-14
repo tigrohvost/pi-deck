@@ -316,12 +316,24 @@ def wait_ready_with_safe_bootstrap(adb: Adb, timeout: float) -> str:
             clicked.add("CONSOLE")
             time.sleep(0.5)
             continue
-        for label in ("INSTALL CORE", "IGNITE LLM", "START BRIDGE"):
-            if label in clicked or not text_present(xml, (label,)):
+        safe_actions = (
+            ("INSTALL_CORE", ("INSTALL CORE", "УСТАНОВИТЬ")),
+            (
+                "START_LOCAL_AI",
+                ("IGNITE LLM", "START AND CONTINUE", "ЗАПУСТИТЬ И ПРОДОЛЖИТЬ"),
+            ),
+            ("CONNECT_BRIDGE", ("START BRIDGE", "CONTINUE", "ПРОДОЛЖИТЬ")),
+        )
+        for action, labels in safe_actions:
+            if action in clicked or not text_present(xml, labels):
                 continue
-            print(f"[acceptance] safe boot action: {label}", file=sys.stderr, flush=True)
-            click_named(adb, xml, (label,))
-            clicked.add(label)
+            print(
+                f"[acceptance] safe boot action: {action}",
+                file=sys.stderr,
+                flush=True,
+            )
+            click_named(adb, xml, labels)
+            clicked.add(action)
             break
         time.sleep(1.0)
     raise AcceptanceError("Timed out waiting for READY UI after safe bootstrap")
@@ -467,7 +479,8 @@ def run_acceptance(arguments: argparse.Namespace) -> dict[str, object]:
     checks["toolResult"] = "kernel-random-uuid"
     checks["oneTimeApproval"] = True
 
-    adb.shell("input", "keyevent", "KEYCODE_BACK")
+    # The deck keeps its tab bar above the IME. Pressing BACK unconditionally after a completed
+    # turn can therefore leave the application when the keyboard has already closed itself.
     core_xml = adb.dump_ui()
     click_named(adb, core_xml, ("ЯДРО", "CORE"))
     core_xml = scroll_until(adb, ("CONFIRM CHANGES",), attempts=16)

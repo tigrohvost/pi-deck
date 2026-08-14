@@ -14,6 +14,19 @@ public class StartupPolicyTest {
     private static final long GIB = 1_073_741_824L;
 
     @Test
+    public void unfinishedWorkOpensOnTheConsoleWithoutChangingAStablePreference() {
+        assertEquals(0, StartupPolicy.initialTab(1, true));
+        assertEquals(0, StartupPolicy.initialTab(2, true));
+        assertEquals(2, StartupPolicy.initialTab(2, false));
+    }
+
+    @Test
+    public void corruptTabPreferenceFallsBackToConsole() {
+        assertEquals(0, StartupPolicy.initialTab(-1, false));
+        assertEquals(0, StartupPolicy.initialTab(7, false));
+    }
+
+    @Test
     public void staleNativeReadinessDoesNotSurviveTheOwningProcess() {
         assertEquals("STOPPED", StartupPolicy.effectiveNativeState("READY", false));
         assertEquals("STOPPED", StartupPolicy.effectiveNativeState("STARTING", false));

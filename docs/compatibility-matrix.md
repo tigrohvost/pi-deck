@@ -2,7 +2,7 @@
 
 | Component | Activated contract | Current evidence |
 |---|---|---|
-| PI//DECK | 0.3.0-alpha10, Android API 26+, arm64-v8a | JVM/build plus exact-release API 36 device acceptance |
+| PI//DECK | 0.3.0-alpha11, Android API 26+, arm64-v8a | JVM/build plus exact-release API 36 device acceptance |
 | Termux | package `com.termux`, version >=0.118.0 | signer allowlist; F-Droid 0.118.3 device smoke |
 | Termux:API | `com.termux.api` >=0.50.1, same signer | 0.53.0 device smoke; optional wake-lock |
 | Node.js | >=22.19.0 | exact Pi package engine requirement; v26.4.0 device smoke |
