@@ -29,6 +29,10 @@ and handset-tested state. On the reference Samsung SM-S918B, the selected
 LFM2.5 2.6B QAD Q4_0 profile is `READY · AGENT`, uses a 10,240-token context
 and a native 256-token reasoning cap, and is shown as both `recommended` and
 `active`. Its exact installed APK and model hashes match the local artifacts.
+During an active task the metrics row stays on one line: context condenses to
+`CTX ≈10% · 986/10240`, while accessibility keeps the full localized value.
+This layout is device-tested at 360 dp with the largest in-app text scale in
+both interface languages.
 
 The alpha13 gate passed Gradle unit/lint/debug/androidTest/unsigned-release
 builds, 117 runtime tests, 43 tooling tests, the 11-extension/9-tool contract,

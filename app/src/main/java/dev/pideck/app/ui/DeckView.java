@@ -14,9 +14,11 @@ import android.text.InputType;
 import android.text.SpannableString;
 import android.text.Spannable;
 import android.text.Spanned;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.TypefaceSpan;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -167,6 +169,9 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private boolean composerAvailable = true;
     private boolean composerWillWarm;
     private int queuedPromptCount;
+    private String contextLabelFull = "";
+    private String contextLabelBusy = "";
+    private boolean generationProgressVisible;
 
     private final List<ConsoleEntry> entries = new ArrayList<>();
     /** The block each entry was drawn into; several trace entries share one feed. */
@@ -321,10 +326,13 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         row.setPadding(style.dp(22), style.dp(7), style.dp(18), 0);
 
         contextLabel = style.monoTrace("", p.muted);
+        configureAdaptiveMetric(contextLabel);
         row.addView(contextLabel, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ));
         generationRateLabel = style.monoTrace("", p.accent);
+        configureAdaptiveMetric(generationRateLabel);
+        generationRateLabel.setGravity(Gravity.END);
         generationRateLabel.setVisibility(GONE);
         LinearLayout.LayoutParams rateLp = wrap();
         rateLp.leftMargin = style.dp(8);
@@ -344,6 +352,34 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         row.addView(newSessionAction, newLp);
         row.setVisibility(GONE);
         return row;
+    }
+
+    private void configureAdaptiveMetric(TextView view) {
+        view.setMinLines(1);
+        view.setMaxLines(1);
+        view.setEllipsize(TextUtils.TruncateAt.END);
+        int minimumSp = Math.max(8, Math.round(8f * style.textScale()));
+        int maximumSp = Math.max(minimumSp, Math.round(11.5f * style.textScale()));
+        view.setAutoSizeTextTypeUniformWithConfiguration(
+                minimumSp,
+                maximumSp,
+                1,
+                TypedValue.COMPLEX_UNIT_SP
+        );
+    }
+
+    private void setGenerationMetricFlexible(boolean flexible) {
+        LinearLayout.LayoutParams layout =
+                (LinearLayout.LayoutParams) generationRateLabel.getLayoutParams();
+        layout.width = flexible ? 0 : ViewGroup.LayoutParams.WRAP_CONTENT;
+        layout.weight = flexible ? 1f : 0f;
+        generationRateLabel.setLayoutParams(layout);
+    }
+
+    private void refreshContextLabel() {
+        contextLabel.setText(generationProgressVisible ? contextLabelBusy : contextLabelFull);
+        // TalkBack keeps the descriptive, fully grouped value even while the visual row is tight.
+        contextLabel.setContentDescription(contextLabelFull);
     }
 
     private LinearLayout buildConsoleRoot(Context context) {
@@ -851,12 +887,13 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         String prefix = usage.estimated
                 ? t("Контекст ≈", "Context ≈")
                 : t("Контекст ", "Context ");
-        contextLabel.setText(
-                prefix + usage.percent + "% · "
-                        + String.format(Locale.getDefault(), "%,d", usage.tokens)
-                        + " / "
-                        + String.format(Locale.getDefault(), "%,d", usage.contextWindow)
-        );
+        contextLabelFull = prefix + usage.percent + "% · "
+                + String.format(Locale.getDefault(), "%,d", usage.tokens)
+                + " / "
+                + String.format(Locale.getDefault(), "%,d", usage.contextWindow);
+        contextLabelBusy = "CTX " + (usage.estimated ? "≈" : "") + usage.percent + "% · "
+                + usage.tokens + "/" + usage.contextWindow;
+        refreshContextLabel();
         contextLabel.setTextColor(
                 usage.percent >= 85 ? p.errorText : usage.percent >= 70 ? p.warn : p.muted
         );
@@ -873,6 +910,9 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     }
 
     public void setGenerationSpeed(GenerationSpeed speed) {
+        generationProgressVisible = false;
+        setGenerationMetricFlexible(false);
+        refreshContextLabel();
         if (speed == null) {
             generationRateLabel.setText("");
             generationRateLabel.setContentDescription(null);
@@ -890,11 +930,17 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     /** Displays an elapsed inference phase before the provider can report generated tokens. */
     public void setGenerationProgress(String label) {
         if (label == null || label.isBlank()) {
+            generationProgressVisible = false;
+            setGenerationMetricFlexible(false);
+            refreshContextLabel();
             generationRateLabel.setText("");
             generationRateLabel.setContentDescription(null);
             generationRateLabel.setVisibility(GONE);
             return;
         }
+        generationProgressVisible = true;
+        setGenerationMetricFlexible(true);
+        refreshContextLabel();
         generationRateLabel.setText(label);
         generationRateLabel.setContentDescription(label);
         generationRateLabel.setTextColor(p.muted);
