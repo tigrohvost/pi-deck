@@ -22,6 +22,20 @@ authenticated loopback RPC bridge, with no root required.
 > network. Explicit web tools send their own requests even though model
 > inference stays on-device.
 
+## Current validated build
+
+`0.3.0-alpha13` (`versionCode 21`, runtime contract 53) is the current source
+and handset-tested state. On the reference Samsung SM-S918B, the selected
+LFM2.5 2.6B QAD Q4_0 profile is `READY · AGENT`, uses a 10,240-token context
+and a native 256-token reasoning cap, and is shown as both `recommended` and
+`active`. Its exact installed APK and model hashes match the local artifacts.
+
+The alpha13 gate passed Gradle unit/lint/debug/androidTest/unsigned-release
+builds, 117 runtime tests, 43 tooling tests, the 11-extension/9-tool contract,
+the pinned Pi RPC smoke, and the 28-task benchmark-contract validator. Debug
+APKs are Android-debug-signed and intended only for sideloading; an unsigned
+release artifact is never presented as a production release.
+
 ## What it looks like
 
 | A cold prompt warms and dispatches itself | The agent runs a command |
@@ -44,9 +58,15 @@ authenticated loopback RPC bridge, with no root required.
 - Pi function tools use ordinary OpenAI-compatible schemas, not strict sampler
   grammars: this avoids the b10092 grammar-parser failure while preserving the
   bridge's tool validation and permission gates;
-- Qwen 4B runs direct and Chat turns without hidden reasoning, then automatically
-  enables bounded DEEP up to 512 tokens for repairs, diagnosis, and explicitly
-  deep analysis. A tool turn keeps a stable schema for prompt-cache reuse;
+- the capacity-gated automatic ladder is LFM2.5 2.6B QAD Q4_0 → Qwen3.5 2B →
+  0.8B. QAD uses native reasoning capped at 256 tokens, while Pi receives only
+  the currently active model contract;
+- manually selected Qwen3.5 4B keeps adaptive FAST/DEEP behavior with a
+  512-token reasoning cap. A tool turn keeps a stable schema for prompt-cache
+  reuse;
+- a short direct live-data question exposes exactly one bounded web or weather
+  tool and caps both provider rounds at 256 tokens; multi-step research stays
+  on the ordinary agent route;
 - scoped repairs prefetch complete small files explicitly named by the user
   before the first model request, so verified `line:hash` edits need no initial
   `read` round trip.
@@ -126,16 +146,19 @@ Models remain `EXPERIMENTAL` or manual-only `CANDIDATE` until their provenance
 and full real-device admission suite are complete. Unknown model IDs are never
 silently replaced by a recommendation.
 
-The automatic model ladder now prefers Qwen3.5 4B when current free RAM and
-storage pass the guard, then falls back to Qwen3.5 2B and 0.8B. A saved manual
-selection is never migrated. The default 4B profile caps hidden reasoning at
-512 tokens and output at 2048 tokens. Direct, read-only, and Chat turns use FAST
-without hidden reasoning; complex changes and diagnosis retain bounded DEEP.
+The automatic model ladder now prefers the official
+[LFM2.5 2.6B QAD Q4_0](https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF)
+when current free RAM and storage pass the guard, then falls back to Qwen3.5 2B
+and 0.8B. On SM-S918B with the shipped b10092 runtime, QAD measured 16.47 tok/s
+at 128 tokens and 15.71 tok/s at 192 tokens, versus 12.32 tok/s for Q4_K_M. A
+saved manual selection is never migrated; Qwen3.5 4B and larger profiles remain
+explicit choices. The full 28-task admission suite is still pending.
 
 | Model | Status | Runtime and current evidence |
 |---|---|---|
 | Qwen3.5 0.8B / 2B / 4B / 9B | `EXPERIMENTAL` | Stock b10092; immutable artifacts. Qwen 2B has app-private SHA, server, and Pi smoke evidence |
-| LFM2.5 2.6B | `CANDIDATE` | Stock b10092; manual selection while admission remains incomplete |
+| LFM2.5 2.6B Q4_K_M | `CANDIDATE` | Stock b10092; manual selection after the exact 192-token run measured 12.32 tok/s |
+| LFM2.5 2.6B QAD Q4_0 | `EXPERIMENTAL` | Official immutable QAD artifact on stock b10092; 16.47/15.71 tok/s at 128/192 tokens plus a valid `read` → correct `edit` → final-answer loop with a 256-token reasoning cap; full suite pending |
 | Ministral 3 3B Instruct | `CANDIDATE` | Official GGUF on stock b10092. Download, SHA/private install, startup, and tool-schema Pi turns passed on SM-S918B; full suite and Russian behavior remain unverified |
 | Nanbeige4.2 3B | `CANDIDATE` | Pinned Q4_K_M plus isolated `nanbeige42-c6640a1` sidecar. Download and SHA/private install passed on SM-S918B; inference suite is still pending |
 | Bonsai 27B | `CANDIDATE` | Manual-only 1-bit experiment: about 1.16 tok/s despite fitting in less memory than Qwen 4B |

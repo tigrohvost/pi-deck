@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "model": "LFM2.5-2.6B-QAD-Q4_0.gguf",
+  "deviceModel": "/data/local/tmp/pideck-speculative/LFM2.5-2.6B-QAD-Q4_0.gguf",
+  "deviceDraftModel": null,
+  "libraryDirectory": "/data/local/tmp/pideck-dspark-b10545",
+  "context": 10240,
+  "promptLabel": "lfm25-b10545-runtime-probe",
+  "distinctPrompts": 1,
+  "requestSpeculative": null,
+  "maxTokens": 32,
+  "device": "SM-S918B",
+  "variants": {
+    "baseline": {
+      "samples": 1,
+      "medianTokensPerSecond": 23.01,
+      "minTokensPerSecond": 23.01,
+      "maxTokensPerSecond": 23.01,
+      "discardedWarmUp": 23.13,
+      "medianPromptTokensPerSecond": 70.5,
+      "serverFlags": [
+        "--repeat-penalty",
+        "1.1"
+      ],
+      "residentKiB": 3326744,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 42200
+      },
+      "headroomDuringSamples": [
+        1.0,
+        1.0
+      ],
+      "samplesDetail": [
+        {
+          "index": 0,
+          "warmUp": true,
+          "tokensPerSecond": 23.13,
+          "headroom": 1.0,
+          "cpuMilliCelsius": 67800
+        },
+        {
+          "index": 1,
+          "warmUp": false,
+          "tokensPerSecond": 23.01,
+          "headroom": 1.0,
+          "cpuMilliCelsius": 68200
+        }
+      ]
+    }
+  }
+}

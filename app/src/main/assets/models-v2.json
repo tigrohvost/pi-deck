@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "2026.08.14.1",
+  "catalogVersion": "2026.08.23.1",
   "models": [
     {
       "id": "qwen3.5-0.8b",
@@ -193,7 +193,81 @@
         "requiresJinja": true,
         "serverArgs": ["--repeat-penalty", "1.1"],
         "chatTemplateMode": "embedded",
-        "reasoningMode": "off",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.1,
+        "topP": 1.0,
+        "topK": 50,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "lfm2.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "lfm2.5-2.6b-qad",
+      "title": "LFM2.5 2.6B QAD Q4_0",
+      "tier": "EDGE",
+      "status": "EXPERIMENTAL",
+      "note": "Основной agent/coding-профиль при цели >15 ток/с: на SM-S918B и штатном b10092 медиана 16,47 ток/с @128 и 15,71 @192; с reasoning-budget 256 пройден точный read→edit→final tool-loop. Полный 28-task admission suite ещё не завершён.",
+      "license": {
+        "spdx": "LicenseRef-LFM-Open-1.0",
+        "weightsUrl": "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF",
+        "verifiedAt": "2026-08-23T00:00:00Z"
+      },
+      "source": {
+        "repository": "LiquidAI/LFM2.5-2.6B-GGUF",
+        "revision": "f4a289c8a200a5ca71005ba7abc2dad33058a450",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "lfm2",
+        "upstreamModel": "LiquidAI/LFM2.5-2.6B",
+        "conversion": {
+          "performedBy": "LiquidAI",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "LFM2.5-2.6B-QAD-Q4_0.gguf",
+        "bytes": 1593894944,
+        "sha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 10240,
+        "maximumTestedContext": 10240,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": ["--repeat-penalty", "1.1", "--reasoning-budget", "256"],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
         "speculative": {
           "mode": "off",
           "draftMax": 0
@@ -377,7 +451,7 @@
       "title": "Qwen3.5 4B",
       "tier": "CORE",
       "status": "EXPERIMENTAL",
-      "note": "Основной профиль при запасе RAM: прямые ходы используют FAST без reasoning, repair и диагностика — DEEP до 512 токенов; 2B остаётся fallback.",
+      "note": "Ручной DEEP-профиль: сильнее на отдельных сложных repair-задачах, но работает примерно на 7 ток/с и не входит в автоматическую лестницу; reasoning ограничен 512 токенами.",
       "license": {
         "spdx": "Apache-2.0",
         "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF",

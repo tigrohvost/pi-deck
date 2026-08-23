@@ -22,12 +22,12 @@ public class ModelCatalogTest {
     }
 
     @Test
-    public void recommendationPrefersFourBAndDownshiftsInOrder() {
+    public void recommendationStaysInsideMeasuredMobileLatencyEnvelope() {
         long storage = 100L * GIB;
         assertEquals("NANO", catalog.recommend(2500L * 1_048_576L, false, storage).tier);
         assertEquals("qwen3.5-2b", catalog.recommend(4L * GIB, false, storage).id);
-        assertEquals("qwen3.5-4b", catalog.recommend(6L * GIB, false, storage).id);
-        assertEquals("qwen3.5-4b", catalog.recommend(12L * GIB, false, storage).id);
+        assertEquals("lfm2.5-2.6b-qad", catalog.recommend(6L * GIB, false, storage).id);
+        assertEquals("lfm2.5-2.6b-qad", catalog.recommend(12L * GIB, false, storage).id);
     }
 
     @Test
@@ -38,11 +38,19 @@ public class ModelCatalogTest {
         );
         assertEquals(
                 "qwen3.5-2b",
+                catalog.recommend(5L * GIB, true, 100L * GIB).id
+        );
+        assertEquals(
+                "lfm2.5-2.6b-qad",
                 catalog.recommend(6L * GIB, true, 100L * GIB).id
+        );
+        assertEquals(
+                "lfm2.5-2.6b-qad",
+                catalog.recommend(12L * GIB, true, 100L * GIB).id
         );
         ModelSpec edge = catalog.byId("qwen3.5-2b").orElseThrow();
         long onlyEdgeFits = ModelCatalog.requiredStorageForFreshInstall(edge) + 1;
-        assertEquals("EDGE", catalog.recommend(12L * GIB, false, onlyEdgeFits).tier);
+        assertEquals("qwen3.5-2b", catalog.recommend(12L * GIB, false, onlyEdgeFits).id);
 
         ModelSpec nano = catalog.byId("qwen3.5-0.8b").orElseThrow();
         long onlyNanoFits = ModelCatalog.requiredStorageForFreshInstall(nano) + 1;
@@ -55,7 +63,7 @@ public class ModelCatalogTest {
         assertEquals("MAX", max.tier);
         assertEquals("qwen3.5-9b", catalog.byId(max.id).orElseThrow().id);
         assertEquals(
-                "qwen3.5-4b",
+                "lfm2.5-2.6b-qad",
                 catalog.recommend(12L * GIB, false, 200L * GIB).id
         );
     }
@@ -75,7 +83,10 @@ public class ModelCatalogTest {
         assertFalse(ModelCatalog.isRecommendable(
                 catalog.byId("nanbeige4.2-3b").orElseThrow()
         ));
-        assertEquals("qwen3.5-4b", catalog.recommend(12L * GIB, false, 200L * GIB).id);
+        ModelSpec qad = catalog.byId("lfm2.5-2.6b-qad").orElseThrow();
+        assertEquals("EXPERIMENTAL", qad.status);
+        assertTrue(ModelCatalog.isRecommendable(qad));
+        assertEquals("lfm2.5-2.6b-qad", catalog.recommend(12L * GIB, false, 200L * GIB).id);
     }
 
     @Test
@@ -94,6 +105,23 @@ public class ModelCatalogTest {
                 NativeLlamaService.serverLibraryForFlavor(ministral.serverFlavor)
         );
         assertEquals("b10092", ministral.nativeRuntimeBuild());
+
+        ModelSpec qad = catalog.byId("lfm2.5-2.6b-qad").orElseThrow();
+        assertEquals("LiquidAI/LFM2.5-2.6B-GGUF", qad.repo);
+        assertEquals("f4a289c8a200a5ca71005ba7abc2dad33058a450", qad.revision);
+        assertEquals("LFM2.5-2.6B-QAD-Q4_0.gguf", qad.fileName);
+        assertEquals(1_593_894_944L, qad.bytes);
+        assertEquals(
+                "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+                qad.sha256
+        );
+        assertEquals("on", qad.reasoningMode);
+        assertEquals(
+                List.of("--repeat-penalty", "1.1", "--reasoning-budget", "256"),
+                qad.serverArgs
+        );
+        assertEquals("stock", qad.serverFlavor);
+        assertEquals("b10092", qad.nativeRuntimeBuild());
 
         ModelSpec nanbeige = catalog.byId("nanbeige4.2-3b").orElseThrow();
         assertEquals("owao/Nanbeige4.2-3B-GGUF", nanbeige.repo);

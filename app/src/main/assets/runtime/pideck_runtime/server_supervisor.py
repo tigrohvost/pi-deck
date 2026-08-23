@@ -38,6 +38,7 @@ from .common import (
     utc_now,
 )
 from .model_store import (
+    adaptive_thinking_enabled,
     load_catalog,
     model_by_id,
     pi_advertised_context_window,
@@ -240,56 +241,44 @@ def _llama_version() -> str:
         return "unknown"
 
 
-def _write_pi_models(api_key: str, port: int) -> None:
-    catalog = load_catalog()
-    models = []
-    for model in catalog["models"]:
-        if not isinstance(model, dict) or model.get("status") in {"BLOCKED", "DEPRECATED"}:
-            continue
-        models.append(
-            {
-                "id": model["id"],
-                "name": f"{model['title']} · PI//DECK {model['tier']}",
-                "reasoning": model["runtime"]["reasoningMode"] == "on",
-                "input": ["text"],
-                # Pi 0.82.1 subtracts a fixed 4096-token safety margin before
-                # setting max_tokens. The virtual value cancels only that Pi
-                # margin; llama-server still uses recommendedContext below.
-                "contextWindow": pi_advertised_context_window(model),
-                "maxTokens": model["agent"]["maxTokens"],
-                "cost": {
-                    "input": 0,
-                    "output": 0,
-                    "cacheRead": 0,
-                    "cacheWrite": 0,
-                },
-            }
-        )
+def _write_pi_models(api_key: str, port: int, model: dict[str, Any]) -> None:
+    models = [
+        {
+            "id": model["id"],
+            "name": f"{model['title']} · PI//DECK {model['tier']}",
+            "reasoning": model["runtime"]["reasoningMode"] == "on",
+            "input": ["text"],
+            # Pi 0.82.1 subtracts a fixed 4096-token safety margin before
+            # setting max_tokens. The virtual value cancels only that Pi
+            # margin; llama-server still uses recommendedContext below.
+            "contextWindow": pi_advertised_context_window(model),
+            "maxTokens": model["agent"]["maxTokens"],
+            "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+            },
+        }
+    ]
+    compat = {
+        "supportsDeveloperRole": False,
+        "supportsReasoningEffort": False,
+        "supportsStore": False,
+        "supportsUsageInStreaming": True,
+        "supportsStrictMode": False,
+        "supportsOpenAIGrammarTools": False,
+        "maxTokensField": "max_tokens",
+    }
+    if adaptive_thinking_enabled(model):
+        compat["thinkingFormat"] = "qwen-chat-template"
     config = {
         "providers": {
             "pideck": {
                 "baseUrl": f"http://127.0.0.1:{port}/v1",
                 "api": "openai-completions",
                 "apiKey": api_key,
-                "compat": {
-                    "supportsDeveloperRole": False,
-                    "supportsReasoningEffort": False,
-                    "supportsStore": False,
-                    # Qwen3.5 exposes thinking as a per-request chat-template
-                    # switch. Pi owns that switch so FAST turns can disable it
-                    # while DEEP tool rounds preserve their reasoning history.
-                    "thinkingFormat": "qwen-chat-template",
-                    # llama.cpp b10092 emits a final streaming usage frame when
-                    # include_usage is requested. Pi needs this flag to send
-                    # stream_options.include_usage and expose exact output tokens.
-                    "supportsUsageInStreaming": True,
-                    # llama.cpp b10092 derives a sampler grammar for OpenAI
-                    # strict function schemas. Its grammar parser rejects some
-                    # of Pi's tool schemas before generation starts.
-                    "supportsStrictMode": False,
-                    "supportsOpenAIGrammarTools": False,
-                    "maxTokensField": "max_tokens",
-                },
+                "compat": compat,
                 "models": models,
             }
         }
@@ -500,7 +489,7 @@ def start_server(request: dict[str, Any]) -> dict[str, Any]:
                     # Runtime upgrades can change Pi's provider contract without
                     # changing the already-running llama-server launch. Refresh
                     # it atomically before claiming the idempotent start is ready.
-                    _write_pi_models(key, port)
+                    _write_pi_models(key, port, model)
                     return {
                         "state": "READY",
                         "modelId": model_id,
@@ -530,7 +519,7 @@ def start_server(request: dict[str, Any]) -> dict[str, Any]:
 
     api_key = secrets.token_urlsafe(32)
     atomic_write_bytes(SERVER_API_KEY, api_key.encode("ascii"), 0o600)
-    _write_pi_models(api_key, port)
+    _write_pi_models(api_key, port, model)
     config = {
         "schemaVersion": 1,
         "operationId": operation_id,
@@ -657,7 +646,7 @@ def adopt_external_server(request: dict[str, Any]) -> dict[str, Any]:
     # Health is the authority. A caller cannot create READY state from a PID or self-report.
     strict_health(port, model_id, api_key)
     atomic_write_bytes(SERVER_API_KEY, api_key.encode("ascii"), 0o600)
-    _write_pi_models(api_key, port)
+    _write_pi_models(api_key, port, model)
     SERVER_METADATA.unlink(missing_ok=True)
     (SERVER_DIRECTORY / "child.json").unlink(missing_ok=True)
     status = {

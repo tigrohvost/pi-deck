@@ -21,6 +21,7 @@ export type ToolCapability = "files" | "web" | "weather" | "exact_edit";
 
 const LOADER_TOOL = "pideck_load_tools";
 export const INTERNAL_RETRY_PREFIX = "[[PI//DECK:ANSWER_RETRY]]\n";
+export const DIRECT_LIVE_LOOKUP_MAX_TOKENS = 256;
 const PREFETCH_MAX_FILES = 3;
 const PREFETCH_MAX_FILE_BYTES = 4 * 1024;
 const PREFETCH_MAX_TOTAL_BYTES = 6 * 1024;
@@ -175,6 +176,26 @@ const MUTATION_CUES = [
 	"repair ",
 	"rename ",
 	"update ",
+] as const;
+
+const COMPLEX_LIVE_LOOKUP_CUES = [
+	"затем",
+	"после этого",
+	"сравни",
+	"проанализ",
+	"подробно",
+	"исследуй",
+	"несколько источников",
+	"составь отчёт",
+	"составь отчет",
+	"then ",
+	"after that",
+	"compare",
+	"analyz",
+	"in detail",
+	"research",
+	"multiple sources",
+	"write a report",
 ] as const;
 
 const WEATHER_CUES = [
@@ -367,7 +388,7 @@ export function boundedRepairPrefetch(
 /** Extracts exact file paths named by the user, excluding the directory scope itself. */
 export function explicitFilePaths(text: string): string[] {
 	const matches = [...text.matchAll(
-		/(?:^|[\s`"'«(])((?:\.{0,2}\/|\/)?(?:[\p{L}\p{N}_@.+-]+\/)+[\p{L}\p{N}_@.+-]+\.[A-Za-z0-9]{1,8})(?=$|[\s`"'»).,;:!?])/gu,
+		/(?:^|[\s`"'«(])((?:\.{0,2}\/|\/)?(?:[\p{L}\p{N}_@.+-]+\/)*[\p{L}\p{N}_@+-][\p{L}\p{N}_@.+-]*\.[A-Za-z][A-Za-z0-9]{0,7})(?=$|[\s`"'»).,;:!?])/gu,
 	)];
 	return [...new Set(matches.map((match) => match[1]).filter(Boolean))];
 }
@@ -478,6 +499,8 @@ export function taskCoreTools(profile: AccessProfile, text: string): string[] {
 		return ["read", "pideck_replace_lines", "run_tests"];
 	}
 	if (isLocationOnlyNavigationRequest(text)) return ["code_nav"];
+	const directLookup = directLiveLookupTool(text);
+	if (directLookup) return [directLookup];
 	return isReadOnlyNavigationRequest(text)
 		? ["read", "code_nav"]
 		: coreTools(profile);
@@ -505,6 +528,48 @@ export function detectCapabilities(text: string): ToolCapability[] {
 	if (webRequested || urlProvided) result.push("web");
 	if (weatherRequested) result.push("weather");
 	return result;
+}
+
+/**
+ * A short current-data question is a bounded lookup, not a general agent task. Keep mixed,
+ * multi-step, URL, code and mutation requests on the normal router path.
+ */
+export function directLiveLookupTool(text: string): "web_research" | "weather" | undefined {
+	const candidate = text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+	if (!candidate || candidate.length > 320 || /(?:^|\s)https?:\/\/\S+/iu.test(text)) {
+		return undefined;
+	}
+	const detected = detectCapabilities(candidate);
+	if (detected.length !== 1) return undefined;
+	if (
+		COMPLEX_LIVE_LOOKUP_CUES.some((cue) => candidate.includes(cue))
+		|| MUTATION_CUES.some((cue) => candidate.includes(cue))
+		|| CODE_CUES.some((cue) => candidate.includes(cue))
+	) {
+		return undefined;
+	}
+	if (detected[0] === "web") return "web_research";
+	if (detected[0] === "weather") return "weather";
+	return undefined;
+}
+
+/** Caps both the tool-selection round and its final-answer round without touching other tasks. */
+export function capDirectLookupProviderRequest(
+	payload: unknown,
+	active: boolean,
+): unknown {
+	if (!active || typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+		return undefined;
+	}
+	const request = payload as Record<string, unknown>;
+	const configured = request.max_tokens;
+	if (typeof configured !== "number" || !Number.isFinite(configured) || configured <= 0) {
+		return undefined;
+	}
+	return {
+		...request,
+		max_tokens: Math.min(configured, DIRECT_LIVE_LOOKUP_MAX_TOKENS),
+	};
 }
 
 /** Hard-removes every tool when the user explicitly wants a direct, provided answer. */
@@ -568,6 +633,8 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 	let scopedRepairTestFailed = false;
 	let prefetchPending = false;
 	let taskTerminal = false;
+	let directLookupTool: "web_research" | "weather" | undefined;
+	let directLookupCalls = 0;
 	const capabilities = optionalCapabilities(profile);
 	const allowed = new Set([
 		...CORE_TOOLS[profile],
@@ -659,6 +726,8 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		scopedRepairTestFailed = false;
 		prefetchPending = false;
 		taskTerminal = false;
+		directLookupTool = undefined;
+		directLookupCalls = 0;
 		activate([], false);
 	});
 
@@ -678,6 +747,8 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			scopedRepairTestFailed = false;
 			prefetchPending = false;
 			taskTerminal = true;
+			directLookupTool = undefined;
+			directLookupCalls = 0;
 			pi.setActiveTools([]);
 		} else {
 			// A normal input starts a new task. Remember an explicit one-tool contract so
@@ -691,8 +762,12 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 				scopedRepairTestFailed = false;
 				prefetchPending = false;
 				taskTerminal = false;
-				oneShotTool = explicitlyRequestedSoleTool(routed.text);
-				oneShotStopsOnError = requiresExactlyOneToolCall(routed.text);
+				const explicitlyRequested = explicitlyRequestedSoleTool(routed.text);
+				directLookupTool = directLiveLookupTool(routed.text);
+				directLookupCalls = 0;
+				oneShotTool = explicitlyRequested ?? directLookupTool;
+				oneShotStopsOnError = explicitlyRequested !== undefined
+					&& requiresExactlyOneToolCall(routed.text);
 				scopedReadTarget = explicitReadTarget(routed.text);
 				scopedRepairTargets = isScopedRepairRequest(routed.text)
 					? explicitFileTargets(routed.text)
@@ -705,6 +780,9 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			? { action: "transform", text: routed.text, images: event.images }
 			: { action: "continue" };
 	});
+
+	pi.on("before_provider_request", (event) =>
+		capDirectLookupProviderRequest(event.payload, directLookupTool !== undefined));
 
 	pi.on("before_agent_start", (_event, context) => {
 		if (!prefetchPending || scopedRepairTargets.length === 0) return undefined;
@@ -869,6 +947,22 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 				block: true,
 				reason: "Tool is outside the active PI//DECK access profile",
 			};
+		}
+		if (directLookupTool !== undefined) {
+			if (event.toolName !== directLookupTool) {
+				return {
+					block: true,
+					reason: `Direct live lookup is restricted to ${directLookupTool}`,
+				};
+			}
+			directLookupCalls += 1;
+			if (directLookupCalls > 2) {
+				taskTerminal = true;
+				return {
+					block: true,
+					reason: "Direct live lookup retry limit reached; report the last result without another tool call",
+				};
+			}
 		}
 		if (taskTerminal) {
 			return {

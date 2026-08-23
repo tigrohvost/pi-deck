@@ -859,7 +859,7 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual("3-7", status["decodeCpuSet"])
         self.assertEqual("0-7", status["batchCpuSet"])
         health.assert_called()
-        write_models.assert_called_once_with("A" * 43, 8080)
+        write_models.assert_called_once_with("A" * 43, 8080, model)
         wake_lock.assert_called_once_with(False)
         self.assertEqual(
             ("A" * 43).encode("ascii"),
@@ -910,7 +910,7 @@ class RuntimeTestCase(unittest.TestCase):
         model["agent"]["maxTokens"] = 1_536
         install_catalog(model)
 
-        server_supervisor._write_pi_models("A" * 43, 8080)
+        server_supervisor._write_pi_models("A" * 43, 8080, model)
 
         config = json.loads(server_supervisor.PI_MODELS.read_text("utf-8"))
         provider = config["providers"]["pideck"]
@@ -918,7 +918,8 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertTrue(provider["compat"]["supportsUsageInStreaming"])
         self.assertFalse(provider["compat"]["supportsStrictMode"])
         self.assertFalse(provider["compat"]["supportsOpenAIGrammarTools"])
-        self.assertEqual("qwen-chat-template", provider["compat"]["thinkingFormat"])
+        self.assertNotIn("thinkingFormat", provider["compat"])
+        self.assertEqual([model["id"]], [entry["id"] for entry in provider["models"]])
         self.assertEqual(14_336, provider["models"][0]["contextWindow"])
         self.assertEqual(1_536, provider["models"][0]["maxTokens"])
 
@@ -926,6 +927,23 @@ class RuntimeTestCase(unittest.TestCase):
             model, Path("/private/model.gguf"), 8, 8080, "A" * 43
         )
         self.assertEqual("10240", arguments[arguments.index("-c") + 1])
+
+    def test_qwen_thinking_switch_is_not_applied_to_other_reasoning_models(self) -> None:
+        model = tiny_model(b"GGUF")
+        model["runtime"]["reasoningMode"] = "on"
+        model["source"]["architecture"] = "qwen3.5"
+        server_supervisor._write_pi_models("A" * 43, 8080, model)
+        provider = json.loads(server_supervisor.PI_MODELS.read_text("utf-8"))["providers"]["pideck"]
+        self.assertTrue(provider["models"][0]["reasoning"])
+        self.assertEqual("qwen-chat-template", provider["compat"]["thinkingFormat"])
+        self.assertTrue(model_store.adaptive_thinking_enabled(model))
+
+        model["source"]["architecture"] = "lfm2"
+        server_supervisor._write_pi_models("A" * 43, 8080, model)
+        provider = json.loads(server_supervisor.PI_MODELS.read_text("utf-8"))["providers"]["pideck"]
+        self.assertTrue(provider["models"][0]["reasoning"])
+        self.assertNotIn("thinkingFormat", provider["compat"])
+        self.assertFalse(model_store.adaptive_thinking_enabled(model))
 
     def test_idempotent_server_start_refreshes_stale_pi_model_contract(self) -> None:
         model = tiny_model(b"GGUF")

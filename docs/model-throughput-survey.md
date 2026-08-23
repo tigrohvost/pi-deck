@@ -264,3 +264,52 @@ self-quantized Q3_K_M from the 15.54 GiB F16, with a full provenance
 chain — deliberately not pursued now). Stage 3 (OpenCL prefill) proceeds:
 it attacks the measured pain that affects every model — 64 s cold TTFT on
 the shipped 2B profile.
+
+## LFM2.5 2.6B QAD and DSpark, measured 2026-08-23
+
+The owner's new selection bar is capability first, provided sustained decode on
+the reference phone remains above 15 tok/s. LiquidAI's official QAD Q4_0 is the
+only tested 2.6B-class artifact that clears that bar without changing the
+shipped b10092 runtime.
+
+All comparable rows use `tools/speculative_probe.py`, SM-S918B, one slot,
+context 10,240, decode `5@3-7`, batch `8@0-7`, distinct prompts, and a thermal
+gate before the run. The first sample is warm-up; the reported value is the
+warm median recorded in the raw JSON.
+
+| Model/runtime | Output | Warm median | Decision |
+|---|---:|---:|---|
+| LFM2.5 Q4_K_M / b10092 | 192 | 12.32 tok/s | manual control, below target |
+| LFM2.5 QAD Q4_0 / b10092 | 128 | **16.47 tok/s** | clears target |
+| LFM2.5 QAD Q4_0 / b10092 | 192 | **15.71 tok/s** | clears target on the decisive long series |
+| LFM2.5 QAD Q4_0 / b10545 | 32 | 23.01 tok/s | short non-comparable probe; longer runs unstable |
+| LFM2.5 Q4_K_M + DSpark / b10545 | 64 | 8.49 tok/s | rejected; 36.923% draft acceptance |
+| LFM2.5 QAD Q4_0 / b10603 | bounded probe | timeout/regression | rejected runtime candidate |
+
+Evidence:
+
+- [`Q4_K_M b10092 control`](../benchmarks/out/lfm25-q4km-b10092-sm-s918b-2026-08-23.json)
+- [`QAD b10092, 128 tokens`](../benchmarks/out/lfm25-qad-b10092-128-sm-s918b-2026-08-23.json)
+- [`QAD b10092, 192 tokens`](../benchmarks/out/lfm25-qad-b10092-192-sm-s918b-2026-08-23.json)
+- [`QAD b10545 short probe`](../benchmarks/out/lfm25-qad-b10545-32-sm-s918b-2026-08-23.json)
+- [`Q4_K_M + DSpark b10545`](../benchmarks/out/lfm25-q4km-dspark-b10545-sm-s918b-2026-08-23.json)
+- [`QAD b10603 regression`](../benchmarks/out/lfm25-qad-b10603-regression-sm-s918b-2026-08-23.json)
+- [`QAD live coding/tool smoke`](../benchmarks/out/lfm25-qad-agent-smoke-sm-s918b-2026-08-23.json)
+
+The separate live agent smoke matters because decode alone does not select a
+coding model. QAD returned one valid OpenAI `read_file` tool call with the exact
+requested path (15.57 tok/s in the isolated control), then correctly diagnosed a swapped clamp
+expression after receiving file contents and failing examples. The unrestricted
+control exhausted 768 tokens and truncated the `edit` arguments; the final
+catalog profile therefore pins b10092's reasoning budget to 256. With that cap,
+QAD emitted a valid correct `edit`, accepted its successful result and stopped
+with a normal final answer (308 tokens at 16.04 tok/s). The back-to-back read and
+edit rounds were 14.44 and 14.31 tok/s, so the >15 target is the controlled
+192-token model envelope, not a promise that every thermally loaded round stays
+above it. The promotion remains `EXPERIMENTAL`, not a claim of complete 28-task
+admission.
+
+DSpark is a clear rejection on this handset. The draft predicted only 48 of 130
+accepted tokens (mean accepted draft 4.2), while orchestration overhead cut
+decode below even the Q4_K_M baseline. Neither tested newer llama.cpp build is
+shipped; b10092 remains the single stock runtime.

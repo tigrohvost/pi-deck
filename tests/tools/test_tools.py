@@ -200,10 +200,29 @@ class ToolTests(unittest.TestCase):
             ["--spec-type", "ngram-mod", "--spec-ngram-mod-n-max", "16"],
             speculative_probe.variant_arguments("ngram-mod:16"),
         )
+        self.assertEqual(
+            [
+                "-md", "/data/local/tmp/dspark.gguf",
+                "--spec-type", "draft-dspark",
+                "--spec-draft-n-max", "9",
+                "--spec-draft-n-min", "0",
+            ],
+            speculative_probe.variant_arguments(
+                "draft-dspark:9", "/data/local/tmp/dspark.gguf"
+            ),
+        )
+        with self.assertRaises(ValueError):
+            speculative_probe.variant_arguments("draft-dspark:9")
         with self.assertRaises(ValueError):
             speculative_probe.variant_arguments("draft-eagle3:4")
         with self.assertRaises(ValueError):
             speculative_probe.variant_arguments("draft-mtp:0")
+        self.assertEqual(
+            "/sdcard/Download/PiDeck/model.gguf",
+            speculative_probe.validated_device_path("/sdcard/Download/PiDeck/model.gguf"),
+        )
+        with self.assertRaises(ValueError):
+            speculative_probe.validated_device_path("/sdcard/../data/model.gguf")
 
     def test_each_sample_gets_a_distinct_prompt(self) -> None:
         # ngram-mod keeps an n-gram pool that outlives a single request, so repeating one
@@ -225,6 +244,19 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(0.0, speculative_probe.thermal_headroom(0, 3_360_000))
         with self.assertRaises(ValueError):
             speculative_probe.thermal_headroom(1_000, 0)
+
+        self.assertTrue(speculative_probe.thermal_ready({
+            "headroom": 1.0,
+            "hottestCpuMilliCelsius": 46_900,
+        }))
+        self.assertFalse(speculative_probe.thermal_ready({
+            "headroom": 1.0,
+            "hottestCpuMilliCelsius": 47_100,
+        }))
+        self.assertFalse(speculative_probe.thermal_ready({
+            "headroom": 0.9,
+            "hottestCpuMilliCelsius": 40_000,
+        }))
 
     def test_warm_up_sample_is_discarded_before_summarising(self) -> None:
         # The first call after a load faults mmapped weights in from flash and measures

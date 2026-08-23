@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "model": "lfm2.5-2.6b-79fdf00351b4.gguf",
+  "deviceModel": "/sdcard/Download/PiDeck/incoming/lfm2.5-2.6b-79fdf00351b4.gguf",
+  "deviceDraftModel": null,
+  "libraryDirectory": "/data/app/~~Q_HXtkixwOXBs_6D6mhN4g==/dev.pideck.app-nk5sKE2DHuYbzKyHy6PRRA==/lib/arm64",
+  "context": 10240,
+  "promptLabel": "lfm25-q4km-baseline",
+  "distinctPrompts": 1,
+  "requestSpeculative": null,
+  "maxTokens": 192,
+  "device": "SM-S918B",
+  "variants": {
+    "baseline": {
+      "samples": 3,
+      "medianTokensPerSecond": 12.32,
+      "minTokensPerSecond": 10.44,
+      "maxTokensPerSecond": 13.41,
+      "discardedWarmUp": 13.31,
+      "medianPromptTokensPerSecond": 37.9,
+      "serverFlags": [
+        "--repeat-penalty",
+        "1.1"
+      ],
+      "residentKiB": 2834656,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 45700
+      },
+      "headroomDuringSamples": [
+        0.589,
+        0.737
+      ],
+      "samplesDetail": [
+        {
+          "index": 0,
+          "warmUp": true,
+          "tokensPerSecond": 13.31,
+          "headroom": 0.663,
+          "cpuMilliCelsius": 77300
+        },
+        {
+          "index": 1,
+          "warmUp": false,
+          "tokensPerSecond": 13.41,
+          "headroom": 0.737,
+          "cpuMilliCelsius": 78100
+        },
+        {
+          "index": 2,
+          "warmUp": false,
+          "tokensPerSecond": 12.32,
+          "headroom": 0.623,
+          "cpuMilliCelsius": 82400
+        },
+        {
+          "index": 3,
+          "warmUp": false,
+          "tokensPerSecond": 10.44,
+          "headroom": 0.589,
+          "cpuMilliCelsius": 75700
+        }
+      ]
+    }
+  }
+}

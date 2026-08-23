@@ -3204,7 +3204,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
         String meta = speedProfile(model) + " · " + model.humanSize()
                 + t(" · контекст ", " · context ") + model.recommendedContext;
-        if (model.equals(modelCatalog.recommend(availableRam, lowMemory, freeStorage))) {
+        if (model.equals(modelCatalog.recommend(
+                recommendationAvailableRam(), lowMemory, freeStorage
+        ))) {
             meta += t(" · рекомендуем", " · recommended");
         }
 
@@ -3296,16 +3298,28 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
     }
 
+    /** Keep the recommendation stable while its selected model already occupies native RAM. */
+    private long recommendationAvailableRam() {
+        if (!serverReady || selectedModel == null) return availableRam;
+        long activeReservation = selectedModel.estimatedPeakBytes();
+        if (availableRam > Long.MAX_VALUE - activeReservation) return Long.MAX_VALUE;
+        return availableRam + activeReservation;
+    }
+
     private String speedProfile(ModelSpec model) {
         return switch (model.id) {
+            case "lfm2.5-2.6b-qad" -> t(
+                    "AGENT · reasoning ≤256 · ≈15,7–16,5 ток/с",
+                    "AGENT · reasoning up to 256 · ≈15.7–16.5 tok/s"
+            );
             case "qwen3.5-0.8b" -> t("Быстро · ≈52 ток/с", "Fast · ≈52 tok/s");
             case "qwen3.5-2b" -> t(
                     "FAST · без скрытого рассуждения · ≈19 ток/с",
                     "FAST · direct · ≈19 tok/s"
             );
             case "qwen3.5-4b" -> t(
-                    "CORE · AUTO FAST/DEEP ≤512 · ≈7 ток/с",
-                    "CORE · AUTO FAST/DEEP up to 512 · ≈7 tok/s"
+                    "DEEP вручную · reasoning ≤512 · ≈7 ток/с",
+                    "Manual DEEP · reasoning up to 512 · ≈7 tok/s"
             );
             case "qwen3.5-9b" -> t("Эксперимент · медленно", "Experimental · slow");
             case "ministral-3-3b-instruct-2512" -> t(
@@ -3327,13 +3341,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private String modelNote(ModelSpec model) {
         if (uiLanguage != UiLanguage.ENGLISH) return model.note;
         return switch (model.id) {
+            case "lfm2.5-2.6b-qad" ->
+                    "The primary agent/coding profile for a >15 tok/s target: the SM-S918B "
+                            + "median is 16.47 tok/s at 128 tokens and 15.71 at 192, with a "
+                            + "reasoning budget of 256. The full 28-task admission suite is "
+                            + "not complete yet.";
             case "qwen3.5-0.8b" ->
                     "The fastest profile for phones with limited available memory.";
             case "qwen3.5-2b" ->
                     "FAST: direct answers without hidden reasoning for everyday edits.";
             case "qwen3.5-4b" ->
-                    "Default on phones with enough free RAM: direct turns use FAST, while repairs "
-                            + "use DEEP capped at 512 tokens; 2B remains the automatic fallback.";
+                    "A manual DEEP profile that is stronger on some difficult repairs, but runs "
+                            + "at about 7 tok/s and is outside the automatic ladder. Reasoning is "
+                            + "capped at 512 tokens.";
             case "qwen3.5-9b" ->
                     "A multi-step profile with high OOM risk; it needs a separate device benchmark.";
             case "ministral-3-3b-instruct-2512" ->

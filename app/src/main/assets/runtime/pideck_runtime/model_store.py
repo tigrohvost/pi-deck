@@ -129,6 +129,18 @@ def pi_advertised_context_window(model: dict[str, Any]) -> int:
     return int(model["runtime"]["recommendedContext"]) + PI_CONTEXT_SAFETY_TOKENS
 
 
+def adaptive_thinking_enabled(model: dict[str, Any]) -> bool:
+    """Only Qwen's chat template accepts Pi's request-local thinking switches."""
+    runtime = model.get("runtime") if isinstance(model, dict) else None
+    source = model.get("source") if isinstance(model, dict) else None
+    return (
+        isinstance(runtime, dict)
+        and runtime.get("reasoningMode") == "on"
+        and isinstance(source, dict)
+        and source.get("architecture") == "qwen3.5"
+    )
+
+
 def _project_settings_state(value: os.stat_result) -> tuple[int, int, int, int, int]:
     return (
         value.st_dev,

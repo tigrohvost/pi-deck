@@ -23,12 +23,13 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 VARIANT = re.compile(r"^(?P<mode>[a-z-]+)(?::(?P<budget>\d{1,2}))?$")
 SPECULATIVE_FLAG = {
     "draft-mtp": "--spec-draft-n-max",
+    "draft-dspark": "--spec-draft-n-max",
     "ngram-mod": "--spec-ngram-mod-n-max",
     "ngram-simple": "--spec-draft-n-max",
 }
@@ -40,7 +41,19 @@ class ProbeError(RuntimeError):
     pass
 
 
-def variant_arguments(variant: str) -> list[str]:
+def validated_device_path(value: str) -> str:
+    """Accepts only absolute shell-safe device paths without traversal."""
+    path = PurePosixPath(value)
+    if (
+        not path.is_absolute()
+        or any(part in {"", ".", ".."} for part in path.parts[1:])
+        or re.fullmatch(r"/[A-Za-z0-9._/-]+", value) is None
+    ):
+        raise ValueError(f"Unsafe device path: {value}")
+    return value
+
+
+def variant_arguments(variant: str, draft_model: str | None = None) -> list[str]:
     """Turn a ``mode:budget`` label into the exact server flags it stands for."""
     match = VARIANT.fullmatch(variant)
     if match is None:
@@ -57,6 +70,15 @@ def variant_arguments(variant: str) -> list[str]:
     budget = int(match.group("budget"))
     if not 1 <= budget <= MAX_BUDGET:
         raise ValueError(f"Draft budget out of range: {budget}")
+    if mode == "draft-dspark":
+        if draft_model is None:
+            raise ValueError("draft-dspark needs --device-draft-model")
+        return [
+            "-md", validated_device_path(draft_model),
+            "--spec-type", mode,
+            "--spec-draft-n-max", str(budget),
+            "--spec-draft-n-min", "0",
+        ]
     return ["--spec-type", mode, SPECULATIVE_FLAG[mode], str(budget)]
 
 
@@ -88,6 +110,7 @@ def summarise(samples: list[float]) -> dict[str, Any]:
 
 BIG_CORE = "/sys/devices/system/cpu/cpu7/cpufreq"
 COOLDOWN_HEADROOM = 0.98
+COOLDOWN_MAX_CPU_MILLICELSIUS = 47_000
 COOLDOWN_DEADLINE_SECONDS = 600
 
 
@@ -196,6 +219,7 @@ def measure(
     api_key: str,
     prompt: str,
     max_tokens: int,
+    timeout_seconds: int,
     request_speculative: dict[str, Any] | None = None,
 ) -> "tuple[float, float | None]":
     payload: dict[str, Any] = {
@@ -217,7 +241,7 @@ def measure(
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=600) as response:
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
         body = json.loads(response.read(1024 * 1024))
     timings = body.get("timings") or {}
     rate = timings.get("predicted_per_second")
@@ -265,6 +289,19 @@ def thermal_state() -> dict[str, Any]:
     }
 
 
+def thermal_ready(state: dict[str, Any]) -> bool:
+    """Frequency recovery alone is too early; require the CPU sensor to cool as well."""
+    headroom = state.get("headroom")
+    temperature = state.get("hottestCpuMilliCelsius")
+    return (
+        (headroom is None or headroom >= COOLDOWN_HEADROOM)
+        and (
+            temperature is None
+            or temperature <= COOLDOWN_MAX_CPU_MILLICELSIUS
+        )
+    )
+
+
 def wait_for_thermal_headroom() -> dict[str, Any]:
     """Block until the governor gives the big cores their full clock back.
 
@@ -276,8 +313,7 @@ def wait_for_thermal_headroom() -> dict[str, Any]:
     state = thermal_state()
     while time.monotonic() - started < COOLDOWN_DEADLINE_SECONDS:
         state = thermal_state()
-        headroom = state["headroom"]
-        if headroom is None or headroom >= COOLDOWN_HEADROOM:
+        if thermal_ready(state):
             return state
         time.sleep(10)
     return state
@@ -295,7 +331,20 @@ def peak_rss_kib() -> int | None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", required=True, help="Host path to the GGUF to push")
+    model_source = parser.add_mutually_exclusive_group(required=True)
+    model_source.add_argument("--model", type=Path, help="Host path to the GGUF to push")
+    model_source.add_argument(
+        "--device-model",
+        help="Existing absolute GGUF path on the device; it is never removed",
+    )
+    parser.add_argument(
+        "--device-draft-model",
+        help="Existing absolute DSpark draft GGUF path on the device",
+    )
+    parser.add_argument(
+        "--library-directory",
+        help="Alternate absolute device directory containing a matched llama.cpp runtime",
+    )
     parser.add_argument(
         "--variant",
         action="append",
@@ -309,6 +358,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=18080)
     parser.add_argument("--runs", type=int, default=4, help="Includes the discarded warm-up")
     parser.add_argument("--max-tokens", type=int, default=128)
+    parser.add_argument(
+        "--request-timeout",
+        type=int,
+        default=600,
+        help="Per-request timeout in seconds; a timeout is recorded as a failed variant",
+    )
     parser.add_argument(
         "--prompt",
         default=(
@@ -352,7 +407,17 @@ def main() -> int:
     args = parse_args()
     if not 2 <= args.runs <= 12:
         raise ProbeError("--runs must be between 2 and 12")
-    variants = {variant: variant_arguments(variant) for variant in args.variant}
+    if not 10 <= args.request_timeout <= 900:
+        raise ProbeError("--request-timeout must be between 10 and 900 seconds")
+    device_draft_model = (
+        validated_device_path(args.device_draft_model)
+        if args.device_draft_model
+        else None
+    )
+    variants = {
+        variant: variant_arguments(variant, device_draft_model)
+        for variant in args.variant
+    }
     request_speculative = (
         json.loads(args.request_speculative) if args.request_speculative else None
     )
@@ -364,14 +429,29 @@ def main() -> int:
         else [args.prompt]
     )
 
-    library_directory = device_library_directory()
-    model_name = Path(args.model).name
-    device_model = f"{DEVICE_ROOT}/{model_name}"
+    library_directory = (
+        validated_device_path(args.library_directory)
+        if args.library_directory
+        else device_library_directory()
+    )
+    if args.device_model:
+        device_model = validated_device_path(args.device_model)
+        model_name = PurePosixPath(device_model).name
+        pushed_model = False
+    else:
+        assert args.model is not None
+        model_name = args.model.name
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*\.gguf", model_name) is None:
+            raise ProbeError(f"Unsafe model file name: {model_name}")
+        device_model = f"{DEVICE_ROOT}/{model_name}"
+        pushed_model = True
     api_key = secrets.token_hex(24)
     api_key_path = f"{DEVICE_ROOT}/api-key"
 
     adb("shell", f"mkdir -p {DEVICE_ROOT}")
     present = adb("shell", f"ls {device_model} 2>/dev/null", check=False).strip()
+    if not present and args.device_model:
+        raise ProbeError(f"Device model does not exist: {device_model}")
     if not present:
         print(f"Pushing {model_name} to the device, this takes a while")
         adb("push", str(args.model), device_model, timeout=1800)
@@ -382,11 +462,15 @@ def main() -> int:
     report: dict[str, Any] = {
         "schemaVersion": 1,
         "model": model_name,
+        "deviceModel": device_model,
+        "deviceDraftModel": device_draft_model,
+        "libraryDirectory": library_directory,
         "context": args.context,
         "promptLabel": args.label,
         "distinctPrompts": len(prompts),
         "requestSpeculative": request_speculative,
         "maxTokens": args.max_tokens,
+        "requestTimeoutSeconds": args.request_timeout,
         "device": adb("shell", "getprop ro.product.model").strip(),
         "variants": {},
     }
@@ -424,6 +508,7 @@ def main() -> int:
                         api_key,
                         prompt_for_sample(prompts, index),
                         args.max_tokens,
+                        args.request_timeout,
                         request_speculative,
                     )
                     samples.append(decode_rate)
@@ -470,7 +555,7 @@ def main() -> int:
         stop_server(handle)
         adb("forward", "--remove", f"tcp:{args.port}", check=False)
         adb("shell", f"rm -f {api_key_path}", check=False)
-        if not args.keep_model:
+        if pushed_model and not args.keep_model:
             adb("shell", f"rm -f {device_model}", check=False)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

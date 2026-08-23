@@ -455,6 +455,19 @@ Those limits bound worst-case work, but are not presented as a measured speedup:
 the 512-token profile still needs the cool, swap-clean device A/B described
 above.
 
+Policy update, 2026-08-23: the measured target is now the strongest coding and
+tool profile that remains above 15 decode tok/s on the reference SM-S918B.
+Official LFM2.5 2.6B QAD Q4_0 on the unchanged b10092 runtime measured 16.47
+tok/s over 128 tokens and 15.71 tok/s over 192, while the exact Q4_K_M control
+measured 12.32 tok/s. The automatic ladder is therefore QAD → Qwen3.5 2B →
+0.8B; 4B remains a manual escalation. This is a latency-policy promotion, not
+full admission: a valid exact `read_file` call and the coding root-cause smoke
+passed. The shipped QAD row caps its mandatory reasoning at 256 tokens: the
+unrestricted control truncated the second tool-call at 768 tokens, while the
+bounded profile completed a valid read → edit → final-answer loop. The 28-task
+suite remains open, and long back-to-back generation can still drop below 15
+tok/s once the phone thermally throttles.
+
 Runtime contract 50 adds three host-verified latency controls without claiming a
 new handset score. Pi's real 0.82.1 serializer now emits
 `chat_template_kwargs={enable_thinking:false,preserve_thinking:true}` for a

@@ -23,10 +23,11 @@ public final class ModelCatalog {
     public static final int SCHEMA_VERSION = 2;
     private static final long MIB = 1_048_576L;
     private static final long LOW_MEMORY_SAFETY_MIB = 1536L;
-    /** Ordered defaults: prefer the stronger local agent, then downshift without user action. */
+    /** Ordered defaults: strongest measured agent profile that stays above 15 tok/s first. */
     private static final List<String> DEFAULT_AGENT_MODEL_IDS = List.of(
-            "qwen3.5-4b",
-            "qwen3.5-2b"
+            "lfm2.5-2.6b-qad",
+            "qwen3.5-2b",
+            "qwen3.5-0.8b"
     );
     private static volatile ModelCatalog current;
 
@@ -103,8 +104,9 @@ public final class ModelCatalog {
 
     /**
      * Recommendation walks the explicit agent-default ladder while current memory and storage
-     * can support it. A flagship therefore gets the stronger 4B profile, while constrained or
-     * low-memory states downshift to the proven 2B profile before the general capacity scan.
+     * can support it. LFM2.5 2.6B QAD is the strongest tested option that sustains the owner's
+     * 15 tok/s mobile target; constrained states downshift to Qwen3.5 2B and then 0.8B. Slower
+     * 4B+ models remain explicit user choices instead of being selected from RAM capacity alone.
      * Explicit selections do not pass through this method and remain available through
      * {@link #byId(String)}.
      *

@@ -8,7 +8,7 @@ import java.util.List;
 
 /** Small bootstrap scripts and argument arrays; operational logic lives in versioned Python. */
 public final class RuntimeScripts {
-    private static final int RUNTIME_CONTRACT_VERSION = 51;
+    private static final int RUNTIME_CONTRACT_VERSION = 53;
 
     private RuntimeScripts() {
     }

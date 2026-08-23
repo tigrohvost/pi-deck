@@ -25,6 +25,7 @@ Chat mode has no tools: do not claim to inspect files, run commands, or fetch cu
 const MOBILE_AGENT_GUIDANCE = `PI//DECK mobile runtime guidance:
 - Answer direct questions and explicit-format requests immediately. Do not inspect the workspace unless the request requires it.
 - Use tools only when they materially help complete the request. Stop after a missing path instead of retrying equivalent lookups.
+- When a direct live-data question exposes one tool, call it immediately once. After a successful result, answer in at most two short sentences; never verify it with shell, date, or a second tool.
 - Tool paths are relative to the current workspace unless an absolute path starts with "/"; never prepend the workspace to an already absolute path.
 - Prefer concise answers and the fewest necessary tool round-trips.
 

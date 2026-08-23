@@ -111,6 +111,53 @@ auto-offered. Gates 4–7 — pinned-runtime load/health, the 28-task suite, the
 mutation checks and ten clean smokes — have not been run; the row must not
 leave `CANDIDATE` until they are.
 
+### LFM2.5 2.6B QAD Q4_0 (`lfm2.5-2.6b-qad`)
+
+Promoted separately to `EXPERIMENTAL` on 2026-08-23; the original Q4_K_M row
+remains a manual `CANDIDATE`, so saved selections and provenance never silently
+change quantization. The QAD artifact is from the same official LiquidAI
+repository, pinned at revision `f4a289c8`, 1,593,894,944 bytes and SHA-256
+`a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03`.
+
+The promotion is deliberately narrower than full admission. On the reference
+SM-S918B, using the unchanged stock b10092 runtime and the same thermal-gated
+harness, QAD measured **16.47 tok/s over 128 tokens** and **15.71 tok/s over
+192**, while the exact Q4_K_M control measured **12.32 tok/s over 192**. The
+checked-in raw reports are
+[`lfm25-qad-b10092-128-sm-s918b-2026-08-23.json`](../benchmarks/out/lfm25-qad-b10092-128-sm-s918b-2026-08-23.json),
+[`lfm25-qad-b10092-192-sm-s918b-2026-08-23.json`](../benchmarks/out/lfm25-qad-b10092-192-sm-s918b-2026-08-23.json), and
+[`lfm25-q4km-b10092-sm-s918b-2026-08-23.json`](../benchmarks/out/lfm25-q4km-b10092-sm-s918b-2026-08-23.json).
+
+A live OpenAI-schema smoke first emitted exactly one `read_file` call for
+`src/math_utils.py`, with valid JSON arguments and `finish_reason=tool_calls`;
+the isolated one-tool control decoded at 15.57 tok/s. Given the returned buggy
+source and failing examples, the model identified the correct root cause. The
+unrestricted control spent all
+768 tokens reasoning and truncated the following `edit` JSON, matching the
+official description of LFM2.5 as a pure reasoning model. b10092's
+`--reasoning-budget 256` is therefore part of the QAD catalog row. Under that
+exact profile the model completed a valid three-round sequence: `read`, a
+correct `edit` replacing the broken clamp implementation, then a terminal
+answer with no extra tool. In that back-to-back run the 69-token read and
+375-token edit rounds decoded at 14.44 and 14.31 tok/s as the phone heated; the
+308-token final round recovered to 16.04 tok/s. The compact evidence record is
+[`lfm25-qad-agent-smoke-sm-s918b-2026-08-23.json`](../benchmarks/out/lfm25-qad-agent-smoke-sm-s918b-2026-08-23.json).
+The catalog still says `EXPERIMENTAL`, not fully admitted, because the 28-task
+Pi suite and repeated clean multi-turn smokes remain open.
+
+`EXPERIMENTAL` is sufficient for `ModelCatalog.recommend`, so capacity-gated
+automatic choice now follows QAD → Qwen3.5 2B → 0.8B. This implements the
+owner's explicit preference for the strongest coding/tool profile whose
+controlled 192-token rate clears 15 tok/s; it does not erase the thermal caveat
+or LiquidAI's general warning that this small model is not intended to replace
+larger agentic coding models.
+
+DSpark was evaluated only as an isolated harness experiment and is not a model
+or runtime dependency of the APK. The b10545 Q4_K_M + DSpark run produced 8.49
+tok/s with 36.923% acceptance (48/130); b10603 and longer candidate runs
+regressed or timed out. Shipping that path would lower speed while replacing a
+validated runtime, so it was rejected.
+
 ## Bonsai 27B (`bonsai-27b`)
 
 Admitted at `CANDIDATE` on 2026-07-30. Its artifact provenance is stronger than

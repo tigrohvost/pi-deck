@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-23T22:33:00+03:00",
+  "device": "Samsung SM-S918B / Android 16 / 12 GiB",
+  "runtime": {
+    "build": "b10092",
+    "context": 10240,
+    "reasoningBudgetTokens": 256,
+    "decodeThreads": 5,
+    "decodeCpus": "3-7",
+    "batchThreads": 8,
+    "batchCpus": "0-7"
+  },
+  "model": {
+    "id": "lfm2.5-2.6b-qad",
+    "file": "LFM2.5-2.6B-QAD-Q4_0.gguf",
+    "bytes": 1593894944,
+    "sha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03"
+  },
+  "toolCall": {
+    "passed": true,
+    "finishReason": "tool_calls",
+    "name": "read_file",
+    "arguments": {
+      "path": "src/math_utils.py"
+    },
+    "completionTokens": 69,
+    "decodeTokensPerSecond": 14.436,
+    "singleToolControlDecodeTokensPerSecond": 15.569
+  },
+  "codingDiagnosis": {
+    "rootCausePassed": true,
+    "editToolCallPassed": true,
+    "finishReason": "tool_calls",
+    "editedPath": "src/math_utils.py",
+    "replacementBehavior": "return minimum below range, maximum above range, otherwise value",
+    "completionTokens": 375,
+    "decodeTokensPerSecond": 14.31
+  },
+  "terminalAnswer": {
+    "passed": true,
+    "finishReason": "stop",
+    "extraToolCall": false,
+    "completionTokens": 308,
+    "decodeTokensPerSecond": 16.038
+  },
+  "unboundedControl": {
+    "passed": false,
+    "completionTokens": 768,
+    "failure": "edit arguments truncated after unrestricted reasoning exhausted the request budget"
+  },
+  "verdict": {
+    "catalogStatus": "EXPERIMENTAL",
+    "automaticLadderEligible": true,
+    "fullAdmissionPassed": false,
+    "openGate": "Run the complete 28-task Pi suite and repeated clean multi-turn tool smokes"
+  }
+}

@@ -63,7 +63,7 @@ secret, tag verification, test, lint, integrity or signature check fails.
 
 Pi and its npm graph are content-pinned. Gradle wrapper/plugins and model assets
 are pinned by the repository. Termux `pkg` still resolves native package
-versions from the user's configured repository; runtime contract 51 records the
+versions from the user's configured repository; runtime contract 53 records the
 exact installed versions of the requested packages in the safe diagnostic
 manifest, and the SBOM labels them as device-resolved. Reproducible Termux apt
 snapshots and byte-for-byte APK reproducibility remain unresolved and must not

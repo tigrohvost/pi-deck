@@ -221,6 +221,17 @@ try {
 	assert.deepEqual(router.detectCapabilities("Объясни слово «погода»"), []);
 	assert.deepEqual(router.detectCapabilities("поищи в интернете документацию Pi"), ["web"]);
 	assert.deepEqual(router.detectCapabilities("Какая текущая версия Pi?"), ["web"]);
+	assert.equal(router.directLiveLookupTool("Какая текущая версия Pi?"), "web_research");
+	assert.equal(router.directLiveLookupTool("Какая погода в Москве?"), "weather");
+	assert.equal(
+		router.directLiveLookupTool("Найди текущую версию Pi, затем сравни её с прошлой"),
+		undefined,
+	);
+	assert.deepEqual(
+		router.capDirectLookupProviderRequest({ model: "pideck", max_tokens: 1024 }, true),
+		{ model: "pideck", max_tokens: 256 },
+	);
+	assert.equal(router.capDirectLookupProviderRequest({ max_tokens: 1024 }, false), undefined);
 	assert.deepEqual(router.detectCapabilities("Найди функцию divide"), ["files"]);
 	assert.deepEqual(
 		router.detectCapabilities(
@@ -303,6 +314,10 @@ try {
 		router.explicitFilePaths(repairPrompt),
 		["src/counter.py", "tests/test_counter.py"],
 	);
+	const rootRepairPrompt = "Исправь только README.md и запусти точный тест test_readme.py. Не меняй другие файлы.";
+	assert.deepEqual(router.explicitFilePaths(rootRepairPrompt), ["README.md", "test_readme.py"]);
+	assert.equal(router.isScopedRepairRequest(rootRepairPrompt), true);
+	assert.deepEqual(router.explicitFilePaths("Python 3.12 остаётся версией, а не путём."), []);
 	const repairTargets = router.explicitFileTargets(repairPrompt);
 	assert.equal(
 		router.selectScopedTarget(repairTargets[1], repairTargets, false),
@@ -334,12 +349,25 @@ try {
 	const routerInput = routerExtension?.handlers.get("input")?.[0];
 	const routerToolResult = routerExtension?.handlers.get("tool_result")?.[0];
 	const routerToolCall = routerExtension?.handlers.get("tool_call")?.[0];
+	const routerBeforeProviderRequest = routerExtension?.handlers.get("before_provider_request")?.[0];
 	const routerBeforeAgentStart = routerExtension?.handlers.get("before_agent_start")?.[0];
 	assert.equal(typeof routerSessionStart, "function", "tool router has no session reset");
 	assert.equal(typeof routerInput, "function", "tool router has no input hook");
 	assert.equal(typeof routerToolResult, "function", "tool router has no result hook");
 	assert.equal(typeof routerToolCall, "function", "tool router has no call hook");
+	assert.equal(typeof routerBeforeProviderRequest, "function", "tool router has no provider cap hook");
 	assert.equal(typeof routerBeforeAgentStart, "function", "tool router has no bounded prefetch hook");
+	await routerSessionStart({ type: "session_start", reason: "new" });
+	await routerInput({ type: "input", text: "Какая текущая версия Pi?", source: "rpc" });
+	assert.deepEqual(activeTools, ["web_research"], "direct lookup retained unrelated tools");
+	assert.equal(
+		(await routerBeforeProviderRequest({
+			type: "before_provider_request",
+			payload: { model: "pideck", max_tokens: 1536 },
+		})).max_tokens,
+		256,
+		"direct lookup did not cap provider output",
+	);
 	await routerSessionStart({ type: "session_start", reason: "new" });
 	mkdirSync(join(workspace, "src"), { recursive: true });
 	mkdirSync(join(workspace, "tests"), { recursive: true });

@@ -1,4 +1,4 @@
 """PI//DECK Termux runtime, bundled with the Android application."""
 
-RUNTIME_VERSION = "0.3.0-alpha10"
-RUNTIME_CONTRACT_VERSION = 51
+RUNTIME_VERSION = "0.3.0-alpha13"
+RUNTIME_CONTRACT_VERSION = 53

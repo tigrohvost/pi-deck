@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "model": "lfm2.5-2.6b-79fdf00351b4.gguf",
+  "deviceModel": "/sdcard/Download/PiDeck/incoming/lfm2.5-2.6b-79fdf00351b4.gguf",
+  "deviceDraftModel": "/data/local/tmp/pideck-speculative/LFM2.5-2.6B-DSpark-Q4_K_M.gguf",
+  "libraryDirectory": "/data/local/tmp/pideck-dspark-b10545",
+  "context": 10240,
+  "promptLabel": "lfm25-q4km-dspark-b10545",
+  "distinctPrompts": 1,
+  "requestSpeculative": null,
+  "maxTokens": 64,
+  "requestTimeoutSeconds": 90,
+  "device": "SM-S918B",
+  "variants": {
+    "baseline": {
+      "error": "timed out",
+      "serverFlags": [
+        "--repeat-penalty",
+        "1.1"
+      ],
+      "serverLogTail": [
+        "warn: failed to set affinity mask 0xb4000078fc29a48d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb4000078fc385aed : Invalid argument (22)",
+        "0.02.023.356 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 10240, kv_unified = 'false'",
+        "0.02.027.236 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve",
+        "0.02.027.276 I srv  llama_server: model loaded",
+        "0.02.027.279 I srv  llama_server: listening on http://127.0.0.1:18080",
+        "0.04.005.042 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1",
+        "0.04.005.300 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0"
+      ]
+    },
+    "draft-dspark:9": {
+      "samples": 3,
+      "medianTokensPerSecond": 8.49,
+      "minTokensPerSecond": 7.5,
+      "maxTokensPerSecond": 8.52,
+      "discardedWarmUp": 9.96,
+      "medianPromptTokensPerSecond": 46.4,
+      "serverFlags": [
+        "-md",
+        "/data/local/tmp/pideck-speculative/LFM2.5-2.6B-DSpark-Q4_K_M.gguf",
+        "--spec-type",
+        "draft-dspark",
+        "--spec-draft-n-max",
+        "9",
+        "--spec-draft-n-min",
+        "0",
+        "--repeat-penalty",
+        "1.1"
+      ],
+      "residentKiB": 4132064,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 46500
+      },
+      "headroomDuringSamples": [
+        0.697,
+        0.811
+      ],
+      "samplesDetail": [
+        {
+          "index": 0,
+          "warmUp": true,
+          "tokensPerSecond": 9.96,
+          "headroom": 0.949,
+          "cpuMilliCelsius": 72200
+        },
+        {
+          "index": 1,
+          "warmUp": false,
+          "tokensPerSecond": 7.5,
+          "headroom": 0.811,
+          "cpuMilliCelsius": 73800
+        },
+        {
+          "index": 2,
+          "warmUp": false,
+          "tokensPerSecond": 8.49,
+          "headroom": 0.737,
+          "cpuMilliCelsius": 72600
+        },
+        {
+          "index": 3,
+          "warmUp": false,
+          "tokensPerSecond": 8.52,
+          "headroom": 0.697,
+          "cpuMilliCelsius": 71800
+        }
+      ]
+    }
+  }
+}

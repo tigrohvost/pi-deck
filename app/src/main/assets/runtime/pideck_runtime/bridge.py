@@ -47,6 +47,7 @@ from .common import (
 from .server_supervisor import SERVER_API_KEY, read_server_status, strict_health
 from .model_store import (
     PI_CONTEXT_CONTRACT_VERSION,
+    adaptive_thinking_enabled,
     ensure_pi_compaction_settings,
     model_by_id,
 )
@@ -1190,7 +1191,7 @@ class PiRpcChild:
         environment["PIDECK_ACCESS_PROFILE"] = profile
         environment["PIDECK_AGENT_MODE"] = agent_mode
         environment["PIDECK_ADAPTIVE_THINKING"] = (
-            "1" if model.get("runtime", {}).get("reasoningMode") == "on" else "0"
+            "1" if adaptive_thinking_enabled(model) else "0"
         )
         environment.update(system_prompt_environment(config, SYSTEM_PROMPT_FILE))
         # The anchored-edit tool is one tool across two profiles that disagree about

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "appVersion": "0.3.0-alpha11",
+  "appVersion": "0.3.0-alpha13",
   "baselineCommit": "34daad9173318545e0bebaf52b6a1fc87cfa2a6c",
   "pi": {
     "package": "@earendil-works/pi-coding-agent",

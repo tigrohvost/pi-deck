@@ -53,6 +53,7 @@ from .common import (
     terminate_exact,
 )
 from .model_store import (
+    adaptive_thinking_enabled,
     ensure_pi_compaction_settings,
     install_private,
     model_by_id,
@@ -225,7 +226,7 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
     environment["PIDECK_ACCESS_PROFILE"] = profile
     environment["PIDECK_AGENT_MODE"] = agent_mode
     environment["PIDECK_ADAPTIVE_THINKING"] = (
-        "1" if model.get("runtime", {}).get("reasoningMode") == "on" else "0"
+        "1" if adaptive_thinking_enabled(model) else "0"
     )
     environment["PIDECK_HASHLINE_APPROVAL"] = (
         "none" if profile == "autonomous" else "required"

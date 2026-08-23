@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "model": "LFM2.5-2.6B-QAD-Q4_0.gguf",
+  "deviceModel": "/data/local/tmp/pideck-speculative/LFM2.5-2.6B-QAD-Q4_0.gguf",
+  "deviceDraftModel": null,
+  "libraryDirectory": "/data/local/tmp/pideck-dspark-b10603",
+  "context": 10240,
+  "promptLabel": "lfm25-qad-b10603-regression",
+  "distinctPrompts": 1,
+  "requestSpeculative": null,
+  "maxTokens": 64,
+  "requestTimeoutSeconds": 45,
+  "device": "SM-S918B",
+  "variants": {
+    "baseline": {
+      "error": "timed out",
+      "serverFlags": [
+        "--repeat-penalty",
+        "1.1"
+      ],
+      "serverLogTail": [
+        "warn: failed to set affinity mask 0xb400007a1369c48d : Invalid argument (22)",
+        "0.13.772.827 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 10240, kv_unified = 'false'",
+        "0.13.782.053 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve",
+        "0.13.782.073 I srv  llama_server: model loaded",
+        "0.13.782.078 I srv  llama_server: listening on http://127.0.0.1:18080",
+        "0.13.988.110 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1",
+        "0.13.988.472 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0",
+        "0.59.000.260 W srv          stop: cancel task, id_task = 0"
+      ]
+    }
+  }
+}
