@@ -17,7 +17,7 @@ public class StartupPolicyTest {
     public void unfinishedWorkOpensOnTheConsoleWithoutChangingAStablePreference() {
         assertEquals(0, StartupPolicy.initialTab(1, true));
         assertEquals(0, StartupPolicy.initialTab(2, true));
-        assertEquals(2, StartupPolicy.initialTab(2, false));
+        assertEquals(0, StartupPolicy.initialTab(2, false));
     }
 
     @Test

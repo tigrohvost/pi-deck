@@ -1,0 +1,100 @@
+{
+  "modelId": "k2-horizon-3.7b",
+  "mode": "reasoning",
+  "owner": "installed APK UID",
+  "apkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+  "modelSha256": "f8dce940ec3e45be3e884a203b0eb3dee4ba57eb23fc63d0e210cdade2ca48ec",
+  "thermalGate": {
+    "minimumHeadroom": 0.95,
+    "maximumCpuMilliCelsius": 65000
+  },
+  "samples": [
+    {
+      "effort": "low",
+      "stream": true,
+      "elapsedSeconds": 3.3346161369991023,
+      "response": {
+        "content": "\nПотому что тесты проверяют, что изменения не сломали программу и она работает корректно.",
+        "reasoningChars": 0,
+        "chunks": 26,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 32,
+          "prompt_ms": 726.883,
+          "prompt_per_token_ms": 22.71509375,
+          "prompt_per_second": 44.02359114190317,
+          "predicted_n": 27,
+          "predicted_ms": 2484.481,
+          "predicted_per_token_ms": 95.55696153846155,
+          "predicted_per_second": 10.464962299973314
+        },
+        "finishReason": "stop"
+      },
+      "cleanFinal": true,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 57200
+      }
+    },
+    {
+      "effort": "medium",
+      "stream": true,
+      "elapsedSeconds": 13.66296790100023,
+      "response": {
+        "content": "Потому что запуск тестов после правки программы позволяет убедиться, что изменения не сломали существующее поведение и что новая функциональность работает корректно.",
+        "reasoningChars": 356,
+        "chunks": 113,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 32,
+          "prompt_ms": 815.756,
+          "prompt_per_token_ms": 25.492375,
+          "prompt_per_second": 39.22741604107111,
+          "predicted_n": 114,
+          "predicted_ms": 12731.826,
+          "predicted_per_token_ms": 112.67102654867256,
+          "predicted_per_second": 8.875396192187987
+        },
+        "finishReason": "stop"
+      },
+      "cleanFinal": true,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 54400
+      }
+    },
+    {
+      "effort": "high",
+      "stream": true,
+      "elapsedSeconds": 13.110576092003612,
+      "response": {
+        "content": "Проверка тестов после правки программы позволяет убедиться, что исправление не сломало существующее поведение и что новые функции работают корректно.",
+        "reasoningChars": 327,
+        "chunks": 109,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 32,
+          "prompt_ms": 743.126,
+          "prompt_per_token_ms": 23.2226875,
+          "prompt_per_second": 43.06133818491077,
+          "predicted_n": 110,
+          "predicted_ms": 12236.17,
+          "predicted_per_token_ms": 112.25844036697248,
+          "predicted_per_second": 8.908016152112957
+        },
+        "finishReason": "stop"
+      },
+      "cleanFinal": true,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 54100
+      }
+    }
+  ]
+}

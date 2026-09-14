@@ -1,0 +1,8 @@
+{
+  "debugApkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+  "releaseApkSha256": "e73d4413f587b348a24cd5ef5397d5de7ed7f38796776aeef713c1ab39dc87e0",
+  "matchingAssetsAndLibraries": 41,
+  "matchingNativeLibraries": 17,
+  "modelCatalogAndRuntimeByteIdentical": true,
+  "scope": "Code shrinking and packaging differ; debug throughput measurements were not repeated on Release."
+}

@@ -46,6 +46,8 @@ public final class DeckPreferences {
     private static final String KEY_RUNTIME_PACKAGES = "runtime_packages_v1";
     private static final String KEY_COMPOSER_DRAFT = "composer_draft_v1";
     private static final String KEY_QUEUED_PROMPT = "queued_prompt_v1";
+    private static final String KEY_QUEUED_PROMPT_PLAN = "queued_prompt_plan_v1";
+    private static final String KEY_PLAN_LEDGER = "plan_ledger_v1";
     private static final int MAX_PROMPT_BYTES = 64 * 1024;
 
     private final SharedPreferences prefs;
@@ -188,19 +190,19 @@ public final class DeckPreferences {
     }
 
     /**
-     * Minutes of idleness after which the resident core stops itself; 0 keeps the
-     * pre-Stage-4 "runs until stopped by hand" behavior. Stored values outside the
-     * offered set fall back to the default rather than arming a surprising timer.
+     * Idle policy for the resident core: positive values are explicit minutes, 0 keeps the
+     * pre-Stage-4 "runs until stopped by hand" behavior, and -1 adapts to reusable context.
+     * Stored values outside the offered set fall back to the default.
      */
     public long coreIdleTimeoutMinutes() {
-        long stored = prefs.getLong(KEY_CORE_IDLE_TIMEOUT, IdleShutdown.DEFAULT_MINUTES);
-        return IdleShutdown.normalized(stored) ? stored : IdleShutdown.DEFAULT_MINUTES;
+        long stored = prefs.getLong(KEY_CORE_IDLE_TIMEOUT, IdleShutdown.DEFAULT_TIMEOUT);
+        return IdleShutdown.normalized(stored) ? stored : IdleShutdown.DEFAULT_TIMEOUT;
     }
 
     public void setCoreIdleTimeoutMinutes(long minutes) {
         prefs.edit().putLong(
                 KEY_CORE_IDLE_TIMEOUT,
-                IdleShutdown.normalized(minutes) ? minutes : IdleShutdown.DEFAULT_MINUTES
+                IdleShutdown.normalized(minutes) ? minutes : IdleShutdown.DEFAULT_TIMEOUT
         ).apply();
     }
 
@@ -270,23 +272,55 @@ public final class DeckPreferences {
     }
 
     public boolean setQueuedPrompt(String prompt) {
+        return setQueuedPrompt(prompt, false);
+    }
+
+    public boolean setQueuedPrompt(String prompt, boolean planRequested) {
         if (prompt == null || prompt.isBlank()
                 || prompt.getBytes(StandardCharsets.UTF_8).length > MAX_PROMPT_BYTES) {
             return false;
         }
-        return prefs.edit().putString(KEY_QUEUED_PROMPT, prompt).commit();
+        return prefs.edit()
+                .putString(KEY_QUEUED_PROMPT, prompt)
+                .putBoolean(KEY_QUEUED_PROMPT_PLAN, planRequested)
+                .commit();
+    }
+
+    public boolean queuedPromptPlanRequested() {
+        return !queuedPrompt().isBlank() && prefs.getBoolean(KEY_QUEUED_PROMPT_PLAN, false);
     }
 
     public boolean clearQueuedPrompt() {
-        return prefs.edit().remove(KEY_QUEUED_PROMPT).commit();
+        return prefs.edit()
+                .remove(KEY_QUEUED_PROMPT)
+                .remove(KEY_QUEUED_PROMPT_PLAN)
+                .commit();
     }
 
     private String boundedPrompt(String key) {
         String value = prefs.getString(key, "");
         if (value == null || value.isEmpty()) return "";
         if (value.getBytes(StandardCharsets.UTF_8).length <= MAX_PROMPT_BYTES) return value;
-        prefs.edit().remove(key).apply();
+        SharedPreferences.Editor editor = prefs.edit().remove(key);
+        if (KEY_QUEUED_PROMPT.equals(key)) editor.remove(KEY_QUEUED_PROMPT_PLAN);
+        editor.apply();
         return "";
+    }
+
+    public PlanLedger planLedger() {
+        String raw = prefs.getString(KEY_PLAN_LEDGER, "");
+        PlanLedger ledger = PlanLedger.parse(raw);
+        if (!raw.isEmpty() && !ledger.visible()) prefs.edit().remove(KEY_PLAN_LEDGER).apply();
+        return ledger;
+    }
+
+    public void setPlanLedger(PlanLedger ledger) {
+        PlanLedger safe = ledger == null ? PlanLedger.empty() : ledger;
+        if (!safe.visible()) {
+            prefs.edit().remove(KEY_PLAN_LEDGER).apply();
+            return;
+        }
+        prefs.edit().putString(KEY_PLAN_LEDGER, safe.toJson().toString()).apply();
     }
 
     public String systemPrompt() {
@@ -314,6 +348,17 @@ public final class DeckPreferences {
                         (mode == null ? SystemPromptSettings.Mode.APPEND : mode).wireName()
                 )
                 .apply();
+    }
+
+    public String installedRuntimeFingerprint() {
+        return prefs.getString("runtime_bundle_sha256", "");
+    }
+
+    public void setInstalledRuntimeFingerprint(String fingerprint) {
+        if (fingerprint == null || !fingerprint.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("Invalid runtime bundle fingerprint");
+        }
+        prefs.edit().putString("runtime_bundle_sha256", fingerprint).apply();
     }
 
     public boolean isCoreReady() {
@@ -383,6 +428,7 @@ public final class DeckPreferences {
         prefs.edit()
                 .putString(KEY_SESSION_ID, id)
                 .putBoolean(KEY_HAS_SESSION, hasMessages)
+                .remove(KEY_PLAN_LEDGER)
                 .apply();
     }
 
@@ -391,6 +437,7 @@ public final class DeckPreferences {
         prefs.edit()
                 .putString(KEY_SESSION_ID, id)
                 .putBoolean(KEY_HAS_SESSION, false)
+                .remove(KEY_PLAN_LEDGER)
                 .apply();
         return id;
     }

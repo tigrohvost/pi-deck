@@ -27,14 +27,20 @@ token in argv or logs. llama-server has a separate random API key.
 - `CONFIRM_CHANGES` disables mutating built-ins and exposes differently named
   gated tools, including `pideck_replace_lines`, which edits by line anchor and
   asks through the same single approval path as `pideck_edit`. The managed
-  read-only `web_search`, `web_fetch` and `weather` tools are also available. Each mutation uses Pi's documented RPC `confirm` UI request, a
+  read-only `web_search`, `web_fetch` and `weather` tools are also available.
+  Each mutation uses Pi's documented RPC `confirm` UI request, a
   one-time approval ID and 30-second TTL. Disconnect, restart, malformed or
-  duplicate responses deny.
-- `AUTONOMOUS` can execute shell commands and modify anything writable by the
-  Termux UID, and it includes the same network tools. `pideck_replace_lines` is
-  available here too and applies without asking, because this profile's whole
-  point is that it does not ask; `PIDECK_HASHLINE_APPROVAL` carries that decision
-  from the bridge, and any value other than the explicit `none` keeps the prompt.
+  duplicate responses deny. Shell approvals identify commands classified as
+  critical and state the concrete risk in the Android decision card.
+- `AUTONOMOUS` can execute ordinary shell commands and modify anything writable
+  by the Termux UID, and it includes the same network tools. A bounded classifier
+  refuses broad destructive operations such as device/filesystem writes,
+  package removal, service shutdown, hard Git cleanup and remote scripts piped
+  into a shell; running one requires switching to `CONFIRM_CHANGES` for an
+  explicit one-time Android approval. `pideck_replace_lines` is available here
+  too and applies without asking; `PIDECK_HASHLINE_APPROVAL` carries that
+  decision from the bridge, and any value other than the explicit `none` keeps
+  the prompt.
   The workspace is not an OS sandbox. This profile is an explicit 30-minute
   Android grant: the UI shows remaining time, extends it only after a fresh risk
   acknowledgement, and returns to `CONFIRM_CHANGES` on expiry. An already active
@@ -48,6 +54,31 @@ The router rejects calls outside that same profile and can only activate names
 already present in the hard allowlist. `CONFIRM_CHANGES` still omits the mutating
 built-ins entirely and keeps the existing permission extension as a second,
 independent guard.
+
+`PLAN` does not grant a new capability. The bridge refuses it in Chat and
+`READ_ONLY`; in writable Agent profiles its first model pass exposes only
+managed read-only tools and a second guard blocks every other tool name. The
+result must be a bounded 3–7-step plan, and Android—not the model—owns the
+two-minute transition to execution. Confirming restores only the tools already
+permitted by the selected profile: `CONFIRM_CHANGES` still asks separately for
+each mutation, while `AUTONOMOUS` remains limited by its original expiring
+grant and critical-command classifier. Denial, timeout, disconnect, abort, and
+restart fail closed. The approval audit stores only the same summary hash as
+other decisions, not the plan or prompt text.
+
+Simple shell-shaped reads and searches are redirected to managed `read` and
+`code_nav` when those tools are active; direct `sed -i` is redirected to the
+snapshot-backed line editor. This narrows common accidental bypasses, but is not
+a shell parser or an OS sandbox. Commands outside the explicit critical patterns
+still inherit the full Termux UID authority described below.
+
+Hashline anchors are addresses, not write capabilities. The runtime keeps a
+bounded exact byte snapshot and records only anchors actually shown to the model;
+unseen, stale and symlink targets fail closed. A successful edit rechecks file
+identity and bytes after any approval delay, preserves the original text layout
+and permissions, fsyncs the replacement, atomically renames it, and invalidates
+the snapshot. Path-scoped repository instruction files are likewise bounded,
+UTF-8-only, workspace-confined and never followed through symlinks.
 
 Local inference means token generation runs on the phone. It does not mean
 network isolation: shell tools can access the network. PI//DECK does not claim

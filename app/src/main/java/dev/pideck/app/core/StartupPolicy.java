@@ -15,13 +15,11 @@ public final class StartupPolicy {
     }
 
     /**
-     * An unfinished operation, draft or durable queued prompt is more important than the last
-     * settings tab. Route that launch to the console without overwriting the user's normal tab
-     * preference.
+     * A fresh launch opens the conversation. Activity recreation restores its tab separately,
+     * so a previous visit to settings never adds a navigation step to the next request.
      */
     public static int initialTab(int savedTab, boolean workNeedsAttention) {
-        if (workNeedsAttention) return 0;
-        return savedTab >= 0 && savedTab <= 2 ? savedTab : 0;
+        return 0;
     }
 
     /**

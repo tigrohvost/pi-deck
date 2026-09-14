@@ -8,7 +8,7 @@ import java.util.List;
 
 /** Small bootstrap scripts and argument arrays; operational logic lives in versioned Python. */
 public final class RuntimeScripts {
-    private static final int RUNTIME_CONTRACT_VERSION = 53;
+    private static final int RUNTIME_CONTRACT_VERSION = 57;
 
     private RuntimeScripts() {
     }
@@ -53,6 +53,20 @@ public final class RuntimeScripts {
                 && !result.isNull("nodeVersion")
                 && !result.isNull("pythonVersion")
                 && "b10092".equals(result.optString("llamaVersion"));
+    }
+
+    /** An installed predecessor can receive new assets before it speaks the new contract. */
+    public static boolean canUpdateRuntimeFromProbe(String stdout) {
+        JSONObject result = finalJsonObject(stdout);
+        return isLinkProbeOutput(stdout)
+                && result != null
+                && result.optInt("schemaVersion", -1) == 1
+                && result.optBoolean("ok", false)
+                && "READY".equals(result.optString("state"))
+                && result.optBoolean("layoutReady", false)
+                && result.optBoolean("versionsCompatible", false)
+                && !result.optString("nodeVersion", "").isBlank()
+                && !result.optString("pythonVersion", "").isBlank();
     }
 
     public static JSONObject finalJsonObject(String stdout) {

@@ -1,6 +1,8 @@
 package dev.pideck.app.core;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -16,6 +18,14 @@ public class CpuProfileTest {
         assertEquals(8, profile.batchThreads);
         assertEquals("3-7", profile.decodeCpuSet);
         assertEquals("0-7", profile.batchCpuSet);
+    }
+
+    @Test
+    public void optimizedRuntimeRequiresEveryReportedCpuToSupportTheInstructions() {
+        assertTrue(CpuProfile.supportsI8mm("Features : fp asimd asimddp asimdhp i8mm\n"));
+        assertFalse(CpuProfile.supportsI8mm("Features : fp asimd asimddp asimdhp\n"));
+        assertFalse(CpuProfile.supportsI8mm("Features : asimddp asimdhp i8mm\nFeatures : asimd\n"));
+        assertFalse(CpuProfile.supportsI8mm("Hardware : unknown\n"));
     }
 
     @Test

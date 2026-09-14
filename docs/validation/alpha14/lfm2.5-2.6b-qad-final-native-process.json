@@ -1,0 +1,19 @@
+{
+  "at": "2026-09-07T16:21:48.202434+00:00",
+  "modelId": "lfm2.5-2.6b-qad",
+  "processes": [
+    {
+      "pid": 11990,
+      "executable": "libpideck_llama_server.so",
+      "status": {
+        "Name": "libpideck_llama",
+        "Uid": "10511\t10511\t10511\t10511",
+        "VmHWM": "3538372 kB",
+        "VmRSS": "3399828 kB",
+        "VmSwap": "112196 kB",
+        "Threads": "22",
+        "Cpus_allowed_list": "0-7"
+      }
+    }
+  ]
+}

@@ -27,6 +27,7 @@ BIG_CORE = "/sys/devices/system/cpu/cpu7/cpufreq"
 SAFE_FILENAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,190}$")
 COOLDOWN_HEADROOM = 0.98
 COOLDOWN_DEADLINE_SECONDS = 600
+COOLDOWN_MAX_COMPUTE_MILLICELSIUS = 47_000
 
 # ``-ngl 0`` alone is not a pure CPU control: llama.cpp may still offload
 # individual ops. The control disables the accelerator device and op offload.
@@ -46,6 +47,12 @@ VARIANTS: dict[str, tuple[str, ...]] = {
 }
 DEFAULT_VARIANTS = tuple(VARIANTS)
 REQUIRED_CANDIDATE_FILES = ("llama-bench", "libomp.so", "libc++_shared.so")
+OPTIONAL_CANDIDATE_FILES = ("llama-server", "test-backend-ops")
+CORRECTNESS_TESTS: dict[str, tuple[str, ...]] = {
+    "q6-k-mul-mat": ("test", "-o", "MUL_MAT", "-p", "type_a=q6_K"),
+    "flash-attention": ("test", "-o", "FLASH_ATTN_EXT"),
+}
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 class ProbeError(RuntimeError):
@@ -57,6 +64,66 @@ def variant_arguments(label: str) -> list[str]:
         return list(VARIANTS[label])
     except KeyError as error:
         raise ValueError(f"Unknown accelerator variant: {label}") from error
+
+
+def correctness_arguments(label: str) -> list[str]:
+    try:
+        arguments = CORRECTNESS_TESTS[label]
+    except KeyError as error:
+        raise ValueError(f"Unknown backend correctness test: {label}") from error
+    return [f"{DEVICE_ROOT}/test-backend-ops", *arguments]
+
+
+def correctness_result(
+    label: str,
+    arguments: list[str],
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    expected_backend: str,
+) -> dict[str, Any]:
+    raw = stdout + "\n" + stderr
+    clean = ANSI_ESCAPE.sub("", raw)
+    test_summaries = [
+        (int(passed), int(total))
+        for passed, total in re.findall(r"\b(\d+)/(\d+) tests passed\b", clean)
+    ]
+    backend_seen = expected_backend.casefold() in clean.casefold()
+    passed = bool(
+        returncode == 0
+        and backend_seen
+        and test_summaries
+        and all(total > 0 and successful == total for successful, total in test_summaries)
+    )
+    interesting = [
+        line.strip()
+        for line in clean.splitlines()
+        if line.strip()
+        and any(
+            marker in line.casefold()
+            for marker in (
+                "backend ",
+                "device description",
+                "tests passed",
+                "backends passed",
+                " fail",
+                "error",
+            )
+        )
+    ]
+    return {
+        "label": label,
+        "arguments": arguments,
+        "returnCode": returncode,
+        "expectedBackendObserved": backend_seen,
+        "testSummaries": [
+            {"passed": successful, "total": total}
+            for successful, total in test_summaries
+        ],
+        "outputSha256": hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest(),
+        "summaryTail": interesting[-64:],
+        "passed": passed,
+    }
 
 
 def sha256_file(path: Path) -> str:
@@ -73,20 +140,21 @@ def candidate_manifest(directory: Path) -> dict[str, Any]:
     artifacts: list[dict[str, Any]] = []
     for name in REQUIRED_CANDIDATE_FILES:
         path = directory / name
-        if not path.is_file():
+        if not path.is_file() or path.is_symlink():
             raise ProbeError(f"Candidate is missing {name}")
         artifacts.append(
             {"name": name, "bytes": path.stat().st_size, "sha256": sha256_file(path)}
         )
-    server = directory / "llama-server"
-    if server.is_file():
-        artifacts.append(
-            {
-                "name": server.name,
-                "bytes": server.stat().st_size,
-                "sha256": sha256_file(server),
-            }
-        )
+    for name in OPTIONAL_CANDIDATE_FILES:
+        optional = directory / name
+        if optional.is_file() and not optional.is_symlink():
+            artifacts.append(
+                {
+                    "name": optional.name,
+                    "bytes": optional.stat().st_size,
+                    "sha256": sha256_file(optional),
+                }
+            )
     return {"directory": str(directory.resolve()), "artifacts": artifacts}
 
 
@@ -259,13 +327,16 @@ def adb_run(
     timeout: int = 120,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        [*adb_prefix(serial), *arguments],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [*adb_prefix(serial), *arguments],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ProbeError("adb invocation failed") from error
     if check and result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()[-1:]
         raise ProbeError(f"adb command failed ({result.returncode}): {' '.join(detail)}")
@@ -281,6 +352,37 @@ def remote_path(value: str) -> str:
     if not all(SAFE_FILENAME.fullmatch(part) for part in path.parts[4:]):
         raise ValueError("Device model path contains an unsafe component")
     return str(path)
+
+
+def parse_device_model_manifest(
+    raw: str, path: str, expected_sha256: str | None = None
+) -> dict[str, Any]:
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    if len(lines) != 2 or not lines[0].isdigit():
+        raise ProbeError("Could not read device model size and SHA-256")
+    fields = lines[1].split()
+    if len(fields) < 2 or not re.fullmatch(r"[0-9a-fA-F]{64}", fields[0]):
+        raise ProbeError("Could not parse device model SHA-256")
+    digest = fields[0].lower()
+    if expected_sha256 is not None and digest != expected_sha256.lower():
+        raise ProbeError(
+            f"Device model SHA-256 mismatch: expected {expected_sha256.lower()}, got {digest}"
+        )
+    return {"path": path, "bytes": int(lines[0]), "sha256": digest}
+
+
+def device_model_manifest(
+    serial: str | None, path: str, expected_sha256: str | None
+) -> dict[str, Any]:
+    quoted = shlex.quote(path)
+    result = adb_run(
+        serial,
+        "shell",
+        f"/system/bin/toybox stat -c %s {quoted} && "
+        f"/system/bin/toybox sha256sum {quoted}",
+        timeout=1200,
+    )
+    return parse_device_model_manifest(result.stdout, path, expected_sha256)
 
 
 def remote_exec(
@@ -331,17 +433,21 @@ def thermal_state(serial: str | None) -> dict[str, Any]:
         serial,
         "shell",
         f"cat {BIG_CORE}/scaling_max_freq {BIG_CORE}/cpuinfo_max_freq",
-        check=False,
+        check=True,
     ).stdout.split()
-    scaling = int(clocks[0]) if len(clocks) >= 2 and clocks[0].isdigit() else 0
-    nominal = int(clocks[1]) if len(clocks) >= 2 and clocks[1].isdigit() else 0
+    if len(clocks) < 2 or not all(value.isdigit() for value in clocks[:2]):
+        raise ProbeError("Device CPU clock telemetry is unavailable")
+    scaling = int(clocks[0])
+    nominal = int(clocks[1])
+    if scaling <= 0 or nominal <= 0:
+        raise ProbeError("Device CPU clock telemetry is invalid")
     listing = adb_run(
         serial,
         "shell",
         "for z in /sys/class/thermal/thermal_zone*/; do "
         "printf '%s %s\\n' \"$(cat $z/type 2>/dev/null)\" "
         "\"$(cat $z/temp 2>/dev/null)\"; done",
-        check=False,
+        check=True,
     ).stdout
     readings = []
     for line in listing.splitlines():
@@ -352,12 +458,28 @@ def thermal_state(serial: str | None) -> dict[str, Any]:
             and parts[1].lstrip("-").isdigit()
         ):
             readings.append({"zone": parts[0], "milliCelsius": int(parts[1])})
+    if not readings:
+        raise ProbeError("Device compute-temperature telemetry is unavailable")
     return {
         "bigCoreScalingMaxHz": scaling,
         "bigCoreNominalMaxHz": nominal,
         "headroom": round(thermal_headroom(scaling, nominal), 3) if nominal else None,
         "hottestComputeZone": max(readings, key=lambda row: row["milliCelsius"], default=None),
     }
+
+
+def thermal_ready(state: dict[str, Any]) -> bool:
+    headroom = state.get("headroom")
+    hottest = state.get("hottestComputeZone")
+    temperature = hottest.get("milliCelsius") if isinstance(hottest, dict) else None
+    return bool(
+        isinstance(headroom, (int, float))
+        and not isinstance(headroom, bool)
+        and headroom >= COOLDOWN_HEADROOM
+        and isinstance(temperature, (int, float))
+        and not isinstance(temperature, bool)
+        and temperature <= COOLDOWN_MAX_COMPUTE_MILLICELSIUS
+    )
 
 
 def wait_for_thermal_headroom(serial: str | None, enabled: bool) -> dict[str, Any]:
@@ -367,11 +489,10 @@ def wait_for_thermal_headroom(serial: str | None, enabled: bool) -> dict[str, An
     state = thermal_state(serial)
     while time.monotonic() - started < COOLDOWN_DEADLINE_SECONDS:
         state = thermal_state(serial)
-        headroom = state["headroom"]
-        if headroom is None or headroom >= COOLDOWN_HEADROOM:
+        if thermal_ready(state):
             return state
         time.sleep(10)
-    return state
+    raise ProbeError(f"Phone did not cool inside the deadline: {state}")
 
 
 def bench_arguments(
@@ -382,8 +503,9 @@ def bench_arguments(
     repetitions: int,
     threads: int,
     cpu_mask: str,
+    flash_attention: str = "auto",
 ) -> list[str]:
-    return [
+    arguments = [
         f"{DEVICE_ROOT}/llama-bench",
         "-m", model,
         "-p", str(prompt_tokens),
@@ -396,8 +518,11 @@ def bench_arguments(
         "-t", str(threads),
         "-C", cpu_mask,
         "--cpu-strict", "1",
-        *variant_arguments(variant),
     ]
+    if flash_attention != "auto":
+        arguments.extend(("-fa", flash_attention))
+    arguments.extend(variant_arguments(variant))
+    return arguments
 
 
 def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
@@ -411,24 +536,91 @@ def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def load_resume_report(
+    path: Path, planned: dict[str, Any]
+) -> tuple[list[dict[str, Any]], str]:
+    try:
+        raw = path.read_bytes()
+        previous = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ProbeError("Resume report is unavailable or invalid") from error
+    if not isinstance(previous, dict) or previous.get("status") != "incomplete":
+        raise ProbeError("--resume requires an incomplete accelerator report")
+    for key in ("schemaVersion", "candidate", "method", "correctnessPlan", "plan"):
+        if previous.get(key) != planned.get(key):
+            raise ProbeError(f"Resume report {key} differs from the current exact plan")
+    expected_model = planned.get("model")
+    previous_model = previous.get("model")
+    if not isinstance(expected_model, dict) or not isinstance(previous_model, dict):
+        raise ProbeError("Resume report model identity is missing")
+    expected_sha = expected_model.get("expectedSha256")
+    if (
+        previous_model.get("path") != expected_model.get("path")
+        or not isinstance(previous_model.get("bytes"), int)
+        or previous_model.get("bytes", 0) <= 0
+        or previous_model.get("sha256") != expected_sha
+    ):
+        raise ProbeError("Resume report model path or SHA-256 differs")
+    samples = previous.get("samples")
+    if not isinstance(samples, list) or not all(isinstance(item, dict) for item in samples):
+        raise ProbeError("Resume report samples are invalid")
+    expected_workloads = [
+        (item.get("variant"), item.get("promptTokens"))
+        for item in planned.get("plan", [])
+        if isinstance(item, dict)
+    ]
+    actual_workloads = [
+        (item.get("variant"), item.get("promptTokens")) for item in samples
+    ]
+    if actual_workloads != expected_workloads[: len(actual_workloads)]:
+        raise ProbeError("Resume samples are not an exact prefix of the current plan")
+    if len(actual_workloads) >= len(expected_workloads):
+        raise ProbeError("Resume report has no unfinished performance workload")
+    if samples and planned.get("correctnessPlan"):
+        correctness = previous.get("correctness")
+        labels = [
+            item.get("label") for item in correctness
+            if isinstance(item, dict) and item.get("passed") is True
+        ] if isinstance(correctness, list) else []
+        expected_labels = [
+            item.get("label") for item in planned["correctnessPlan"]
+        ]
+        if labels != expected_labels:
+            raise ProbeError("Resume report does not contain the exact passed correctness gates")
+    return [dict(item) for item in samples], hashlib.sha256(raw).hexdigest()
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate", type=Path, required=True)
     model = parser.add_mutually_exclusive_group(required=True)
     model.add_argument("--model", type=Path, help="Host GGUF path to stage")
     model.add_argument("--device-model", help="Existing GGUF below /data/local/tmp")
+    parser.add_argument("--model-sha256")
     parser.add_argument("--variant", action="append", choices=tuple(VARIANTS))
     parser.add_argument("--prompt-tokens", default="128,512")
     parser.add_argument("--generated-tokens", type=int, default=32)
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--threads", type=int, default=8)
     parser.add_argument("--cpu-mask", default="0xff")
+    parser.add_argument("--flash-attention", choices=("auto", "on", "off"), default="auto")
     parser.add_argument("--minimum-prompt-ratio", type=float, default=2.0)
     parser.add_argument("--minimum-decode-ratio", type=float, default=0.95)
     parser.add_argument("--expect-backend", default="Vulkan")
+    parser.add_argument(
+        "--correctness-test",
+        action="append",
+        choices=tuple(CORRECTNESS_TESTS),
+        help="Run a filtered test-backend-ops gate before any performance sample.",
+    )
     parser.add_argument("--serial")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--plan-only", action="store_true")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Continue an exact incomplete output report without repeating completed samples.",
+    )
     parser.add_argument("--no-cooldown", action="store_true")
     parser.add_argument("--cleanup", action="store_true")
     parser.add_argument("--require-promotion", action="store_true")
@@ -458,8 +650,17 @@ def main() -> int:
         raise ProbeError("--cpu-mask must be hexadecimal, for example 0xff")
     if args.minimum_prompt_ratio <= 0 or args.minimum_decode_ratio <= 0:
         raise ProbeError("Promotion ratios must be positive")
+    if args.model_sha256 is not None \
+            and not re.fullmatch(r"[0-9a-fA-F]{64}", args.model_sha256):
+        raise ProbeError("--model-sha256 must be 64 hexadecimal characters")
 
     manifest = candidate_manifest(args.candidate)
+    correctness_tests = args.correctness_test or []
+    if len(set(correctness_tests)) != len(correctness_tests):
+        raise ProbeError("Each --correctness-test may be specified only once")
+    artifact_names = {artifact["name"] for artifact in manifest["artifacts"]}
+    if correctness_tests and "test-backend-ops" not in artifact_names:
+        raise ProbeError("Correctness tests require candidate test-backend-ops")
     if args.device_model:
         device_model = remote_path(args.device_model)
         staged_model = False
@@ -484,6 +685,7 @@ def main() -> int:
                 args.repetitions,
                 args.threads,
                 args.cpu_mask,
+                args.flash_attention,
             ),
         }
         for variant in variants
@@ -493,7 +695,10 @@ def main() -> int:
         "schemaVersion": 1,
         "status": "plan-only" if args.plan_only else "measured",
         "candidate": manifest,
-        "model": device_model,
+        "model": {
+            "path": device_model,
+            "expectedSha256": args.model_sha256.lower() if args.model_sha256 else None,
+        },
         "method": {
             "variants": variants,
             "promptTokens": prompts,
@@ -501,11 +706,27 @@ def main() -> int:
             "repetitions": args.repetitions,
             "threads": args.threads,
             "cpuMask": args.cpu_mask,
+            "flashAttention": args.flash_attention,
             "expectedBackend": args.expect_backend,
+            "correctnessTests": correctness_tests,
             "cooldown": not args.no_cooldown,
         },
+        "correctnessPlan": [
+            {"label": label, "arguments": correctness_arguments(label)}
+            for label in correctness_tests
+        ],
         "plan": plan,
     }
+    resume_samples: list[dict[str, Any]] = []
+    if args.resume:
+        if args.plan_only:
+            raise ProbeError("--resume and --plan-only are mutually exclusive")
+        resume_samples, resume_sha256 = load_resume_report(args.output, report)
+        report["resume"] = {
+            "sourceReportSha256": resume_sha256,
+            "completedSamples": len(resume_samples),
+            "correctnessRerun": True,
+        }
     if args.plan_only:
         write_json_atomic(args.output, report)
         print(f"Wrote executable device plan to {args.output}")
@@ -520,7 +741,11 @@ def main() -> int:
             "push", str(source), f"{DEVICE_ROOT}/{artifact['name']}",
             timeout=600,
         )
-    adb_run(args.serial, "shell", f"chmod 755 {DEVICE_ROOT}/llama-* {DEVICE_ROOT}/*.so")
+    remote_exec(
+        args.serial,
+        ["/system/bin/chmod", "755", *sorted(artifact_names)],
+        timeout=120,
+    )
     report["stagedCandidateSha256"] = verify_staged_candidate(args.serial, manifest)
 
     if staged_model:
@@ -532,6 +757,9 @@ def main() -> int:
         ).stdout.strip()
         if existing != str(args.model.stat().st_size):
             adb_run(args.serial, "push", str(args.model), device_model, timeout=3600)
+    report["model"] = device_model_manifest(
+        args.serial, device_model, args.model_sha256
+    )
 
     devices = remote_exec(
         args.serial,
@@ -551,10 +779,92 @@ def main() -> int:
         "backendListing": device_listing.splitlines(),
     }
 
-    samples: list[dict[str, Any]] = []
+    report["correctness"] = []
+    correctness_failure: str | None = None
     try:
+        for label in correctness_tests:
+            before = wait_for_thermal_headroom(args.serial, not args.no_cooldown)
+            arguments = correctness_arguments(label)
+            print(f"Checking backend correctness: {label}", flush=True)
+            result = remote_exec(
+                args.serial,
+                arguments,
+                timeout=1800,
+                check=False,
+            )
+            checked = correctness_result(
+                label,
+                arguments,
+                result.returncode,
+                result.stdout,
+                result.stderr,
+                args.expect_backend,
+            )
+            checked["thermalBefore"] = before
+            checked["thermalAfter"] = thermal_state(args.serial)
+            report["correctness"].append(checked)
+            if not checked["passed"]:
+                break
+    except ProbeError as error:
+        correctness_failure = str(error)
+
+    if correctness_failure is not None:
+        report["status"] = "incomplete"
+        report["failure"] = correctness_failure
+        report["samples"] = []
+        report["verdict"] = {
+            "gatePassed": False,
+            "winner": None,
+            "action": "Discard this incomplete report and rerun the complete matched sweep.",
+        }
+        if args.cleanup:
+            adb_run(
+                args.serial,
+                "shell", f"rm -rf {shlex.quote(DEVICE_ROOT)}",
+                check=False,
+            )
+        write_json_atomic(args.output, report)
+        print(f"Wrote incomplete {args.output}: {correctness_failure}")
+        return 2
+
+    if report["correctness"] and not all(
+        item["passed"] for item in report["correctness"]
+    ):
+        report["samples"] = []
+        report["verdict"] = {
+            "gatePassed": False,
+            "winner": None,
+            "action": "Keep the production runtime CPU-only; backend correctness failed.",
+        }
+        if args.cleanup:
+            adb_run(
+                args.serial,
+                "shell", f"rm -rf {shlex.quote(DEVICE_ROOT)}",
+                check=False,
+            )
+        write_json_atomic(args.output, report)
+        print(f"Wrote {args.output}; correctness gate passed: False")
+        return 3
+
+    samples: list[dict[str, Any]] = list(resume_samples)
+    resumed_sample_count = len(samples)
+    report["status"] = "incomplete"
+    report["failure"] = "Measurement is in progress; a complete matched sweep is required."
+    report["samples"] = samples
+    report["verdict"] = {
+        "gatePassed": False,
+        "winner": None,
+        "action": "Discard this incomplete report and rerun the complete matched sweep.",
+    }
+    write_json_atomic(args.output, report)
+    measurement_failure: str | None = None
+    try:
+        plan_index = 0
         for variant in variants:
             for prompt in prompts:
+                if plan_index < resumed_sample_count:
+                    plan_index += 1
+                    continue
                 before = wait_for_thermal_headroom(
                     args.serial, not args.no_cooldown
                 )
@@ -566,6 +876,7 @@ def main() -> int:
                     args.repetitions,
                     args.threads,
                     args.cpu_mask,
+                    args.flash_attention,
                 )
                 print(f"Measuring {variant} p{prompt}/n{args.generated_tokens}", flush=True)
                 result = remote_exec(
@@ -601,13 +912,11 @@ def main() -> int:
                         sample["error"] = str(error)
                         sample["logTail"] = (result.stderr or result.stdout).splitlines()[-12:]
                 samples.append(sample)
-        report["samples"] = samples
-        report["verdict"] = score_samples(
-            samples,
-            prompts,
-            args.minimum_prompt_ratio,
-            args.minimum_decode_ratio,
-        )
+                report["samples"] = samples
+                write_json_atomic(args.output, report)
+                plan_index += 1
+    except ProbeError as error:
+        measurement_failure = str(error)
     finally:
         if args.cleanup:
             adb_run(
@@ -616,6 +925,26 @@ def main() -> int:
                 check=False,
             )
 
+    report["samples"] = samples
+    if measurement_failure is not None:
+        report["status"] = "incomplete"
+        report["failure"] = measurement_failure
+        report["verdict"] = {
+            "gatePassed": False,
+            "winner": None,
+            "action": "Discard this incomplete report and rerun the complete matched sweep.",
+        }
+        write_json_atomic(args.output, report)
+        print(f"Wrote incomplete {args.output}: {measurement_failure}")
+        return 2
+    report["status"] = "measured"
+    report.pop("failure", None)
+    report["verdict"] = score_samples(
+        samples,
+        prompts,
+        args.minimum_prompt_ratio,
+        args.minimum_decode_ratio,
+    )
     write_json_atomic(args.output, report)
     print(f"Wrote {args.output}; gate passed: {report['verdict']['gatePassed']}")
     if args.require_promotion and not report["verdict"]["gatePassed"]:

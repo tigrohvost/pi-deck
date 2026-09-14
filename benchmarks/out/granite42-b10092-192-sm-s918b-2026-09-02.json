@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "model": "granite-4.2-3b-Q4_K_M.gguf",
+  "deviceModel": "/data/local/tmp/pideck-speculative/granite-4.2-3b-Q4_K_M.gguf",
+  "deviceDraftModel": null,
+  "libraryDirectory": "/data/app/~~--IaE2GIYcYYTZiz6UfONA==/dev.pideck.app-Hs3NJNOS9iC1qCsAFr1dZA==/lib/arm64",
+  "context": 8192,
+  "promptLabel": "granite42-b10092-192",
+  "distinctPrompts": 1,
+  "requestSpeculative": null,
+  "maxTokens": 192,
+  "requestTimeoutSeconds": 600,
+  "device": "SM-S918B",
+  "variants": {
+    "baseline": {
+      "samples": 3,
+      "medianTokensPerSecond": 11.04,
+      "minTokensPerSecond": 10.26,
+      "maxTokensPerSecond": 11.2,
+      "discardedWarmUp": 11.52,
+      "medianPromptTokensPerSecond": 31.7,
+      "serverFlags": [
+        "--reasoning",
+        "on",
+        "--reasoning-budget",
+        "256",
+        "--temp",
+        "1.0",
+        "--top-p",
+        "0.95",
+        "--top-k",
+        "20",
+        "--min-p",
+        "0",
+        "--presence-penalty",
+        "0"
+      ],
+      "residentKiB": 4722308,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 46500
+      },
+      "headroomDuringSamples": [
+        0.474,
+        0.589
+      ],
+      "samplesDetail": [
+        {
+          "index": 0,
+          "warmUp": true,
+          "tokensPerSecond": 11.52,
+          "headroom": 0.88,
+          "cpuMilliCelsius": 76500
+        },
+        {
+          "index": 1,
+          "warmUp": false,
+          "tokensPerSecond": 11.2,
+          "headroom": 0.589,
+          "cpuMilliCelsius": 76500
+        },
+        {
+          "index": 2,
+          "warmUp": false,
+          "tokensPerSecond": 11.04,
+          "headroom": 0.589,
+          "cpuMilliCelsius": 78500
+        },
+        {
+          "index": 3,
+          "warmUp": false,
+          "tokensPerSecond": 10.26,
+          "headroom": 0.474,
+          "cpuMilliCelsius": 73800
+        }
+      ]
+    }
+  }
+}

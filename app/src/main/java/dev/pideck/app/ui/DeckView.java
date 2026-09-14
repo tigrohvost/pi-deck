@@ -40,6 +40,7 @@ import java.util.regex.Pattern;
 
 import dev.pideck.app.core.AgentMode;
 import dev.pideck.app.core.GenerationSpeed;
+import dev.pideck.app.core.PlanLedger;
 import dev.pideck.app.core.SessionContextUsage;
 import dev.pideck.app.core.TurnOutputContract;
 import dev.pideck.app.core.UiLanguage;
@@ -65,7 +66,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     }
 
     public interface Listener {
-        void onSend(String prompt);
+        void onSend(String prompt, boolean planRequested);
 
         void onTabSelected(int tab);
 
@@ -142,6 +143,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private final LinearLayout consoleRoot;
     private final CoreRootView coreRoot;
     private final SessionsRootView sessionsRoot;
+    private final LinearLayout planRow;
     private final LinearLayout contextRow;
     private final LinearLayout inputRow;
     private final TabBarView tabBar;
@@ -157,17 +159,23 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private LinearLayout stream;
     private ExecutionRowView executionRow;
     private EditText promptInput;
+    private TextView planButton;
     private TextView sendButton;
     private LinearLayout.LayoutParams sendButtonLayout;
     private TextView contextLabel;
     private TextView generationRateLabel;
     private TextView compactContextAction;
     private TextView newSessionAction;
+    private TextView planStatusLabel;
+    private TextView planCurrentLabel;
     private boolean contextAvailable;
     private boolean composerDispatchPending;
     private boolean composerHasText;
     private boolean composerAvailable = true;
     private boolean composerWillWarm;
+    private boolean planAvailable;
+    private boolean planArmed;
+    private boolean planLedgerVisible;
     private int queuedPromptCount;
     private String contextLabelFull = "";
     private String contextLabelBusy = "";
@@ -177,7 +185,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     /** The block each entry was drawn into; several trace entries share one feed. */
     private final List<View> blocks = new ArrayList<>();
     private TraceFeedView openTrace;
-    private DecisionCardView decisionCard;
+    private View decisionCard;
     private ConsentView consentView;
     private int safeInsetLeft;
     private int safeInsetTop;
@@ -272,6 +280,8 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         sessionsRoot.setVisibility(GONE);
         contentHost.addView(sessionsRoot, match());
 
+        planRow = buildPlanRow(context);
+        root.addView(planRow, matchWidth());
         contextRow = buildContextRow(context);
         root.addView(contextRow, matchWidth());
         inputRow = buildInput(context);
@@ -317,6 +327,22 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         }
         setCoreStatus(CoreStatus.SLEEPING, null);
         updateEmptyState();
+    }
+
+    private LinearLayout buildPlanRow(Context context) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(style.dp(22), style.dp(8), style.dp(22), style.dp(2));
+        planStatusLabel = style.monoLabel("", p.accentAlt);
+        row.addView(planStatusLabel, matchWidth());
+        planCurrentLabel = style.monoTrace("", p.textSecondary);
+        planCurrentLabel.setSingleLine(true);
+        planCurrentLabel.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams currentLp = matchWidth();
+        currentLp.topMargin = style.dp(3);
+        row.addView(planCurrentLabel, currentLp);
+        row.setVisibility(GONE);
+        return row;
     }
 
     private LinearLayout buildContextRow(Context context) {
@@ -531,6 +557,22 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         row.setGravity(Gravity.BOTTOM);
         row.setPadding(style.dp(18), style.dp(14), style.dp(18), style.dp(14));
 
+        planButton = style.monoAt("PLAN", 10.5f, p.muted, true);
+        planButton.setGravity(Gravity.CENTER);
+        planButton.setContentDescription(t(
+                "Сначала составить безопасный план", "Create a safe plan first"
+        ));
+        style.clickable(planButton, () -> {
+            if (!planAvailable || !planButton.isEnabled()) return;
+            planArmed = !planArmed;
+            updateSendAffordance();
+        });
+        LinearLayout.LayoutParams planLp = new LinearLayout.LayoutParams(
+                style.dp(54), style.dp(44)
+        );
+        planLp.rightMargin = style.dp(9);
+        row.addView(planButton, planLp);
+
         promptInput = new EditText(context);
         promptInput.setTextColor(p.text);
         promptInput.setHintTextColor(p.muted);
@@ -645,7 +687,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         sendButton.setEnabled(armed);
         sendButton.setAlpha(armed ? 1f : 0.78f);
 
-        boolean inputEnabled = composerAvailable && !composerDispatchPending && !queueFull;
+        boolean inputEnabled = !composerDispatchPending && !queueFull;
         promptInput.setEnabled(inputEnabled);
         promptInput.setHint(queueFull
                 ? t("Запрос сохранён в очереди", "Prompt saved in queue")
@@ -657,6 +699,17 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                         "Describe a task — starts automatically"
                 )
                 : t("Что сделать?", "What should I do?"));
+
+        boolean planEnabled = planAvailable && inputEnabled;
+        planButton.setEnabled(planEnabled);
+        planButton.setAlpha(planEnabled ? 1f : 0.55f);
+        planButton.setTextColor(planArmed && planEnabled ? p.background : p.muted);
+        planButton.setBackground(planArmed && planEnabled
+                ? style.round(p.accentAlt, 22)
+                : style.outlined(p.panel, p.stroke, 22));
+        planButton.setContentDescription(planArmed
+                ? t("План включён для следующего запроса", "Plan enabled for the next prompt")
+                : t("Сначала составить безопасный план", "Create a safe plan first"));
     }
 
     public void setActiveTab(int tab) {
@@ -665,6 +718,9 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         coreRoot.setVisibility(tab == TabBarView.TAB_CORE ? VISIBLE : GONE);
         sessionsRoot.setVisibility(tab == TabBarView.TAB_SESSIONS ? VISIBLE : GONE);
         inputRow.setVisibility(tab == TabBarView.TAB_CONSOLE ? VISIBLE : GONE);
+        planRow.setVisibility(
+                tab == TabBarView.TAB_CONSOLE && planLedgerVisible ? VISIBLE : GONE
+        );
         contextRow.setVisibility(
                 tab == TabBarView.TAB_CONSOLE && contextAvailable ? VISIBLE : GONE
         );
@@ -861,15 +917,58 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         updateSendAffordance();
     }
 
+    public void setPlanAvailable(boolean available) {
+        planAvailable = available;
+        if (!available) planArmed = false;
+        updateSendAffordance();
+    }
+
+    public void setPlanLedger(PlanLedger ledger) {
+        PlanLedger safe = ledger == null ? PlanLedger.empty() : ledger;
+        planLedgerVisible = safe.visible();
+        if (!planLedgerVisible) {
+            planRow.setVisibility(GONE);
+            return;
+        }
+        int color = switch (safe.phase) {
+            case COMPLETE -> p.ok;
+            case BLOCKED -> p.errorText;
+            case CANCELLED -> p.muted;
+            case PLANNED -> p.warn;
+            default -> p.accentAlt;
+        };
+        String phase = switch (safe.phase) {
+            case PLANNING -> t("ПЛАНИРУЮ", "PLANNING");
+            case PLANNED -> t("ЖДЁТ РЕШЕНИЯ", "AWAITING DECISION");
+            case EXECUTING -> t("ВЫПОЛНЯЮ", "EXECUTING");
+            case BLOCKED -> t("ЗАБЛОКИРОВАН", "BLOCKED");
+            case COMPLETE -> t("ГОТОВО", "COMPLETE");
+            case CANCELLED -> t("ОТМЕНЁН", "CANCELLED");
+            case IDLE -> "";
+        };
+        String progress = safe.items.isEmpty()
+                ? ""
+                : " · " + safe.verifiedCount() + "/" + safe.items.size();
+        planStatusLabel.setText("PLAN // " + phase + progress);
+        planStatusLabel.setTextColor(color);
+        String current = safe.currentItem();
+        planCurrentLabel.setText(current.isBlank() ? safe.goal : current);
+        planCurrentLabel.setTextColor(color);
+        planRow.setVisibility(activeTab() == TabBarView.TAB_CONSOLE ? VISIBLE : GONE);
+    }
+
     public void setComposerDispatchPending(boolean pending) {
         composerDispatchPending = pending;
         updateSendAffordance();
     }
 
     public void acknowledgePrompt(String prompt) {
-        if (prompt != null && promptInput.getText().toString().trim().equals(prompt.trim())) {
+        String current = promptInput.getText().toString().trim();
+        if (prompt != null && (current.equals(prompt.trim())
+                || current.equalsIgnoreCase("/plan " + prompt.trim()))) {
             promptInput.setText("");
         }
+        planArmed = false;
         composerDispatchPending = false;
         updateSendAffordance();
     }
@@ -1013,6 +1112,27 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         scrollToEnd();
     }
 
+    public void addPlanDecision(
+            PlanDecisionCardView.Decision decision,
+            PlanDecisionCardView.Listener owner
+    ) {
+        dismissDecision();
+        openTrace = null;
+        decisionCard = new PlanDecisionCardView(
+                getContext(), style, decision, language, (approvalId, confirmed) -> {
+            dismissDecision();
+            owner.onDecision(approvalId, confirmed);
+        });
+        attachBlock(decisionCard, true);
+        entries.add(new ConsoleEntry(
+                ConsoleEntry.Channel.SYSTEM, decision.transcriptText(language)
+        ));
+        blocks.add(decisionCard);
+        trimToCap();
+        updateEmptyState();
+        scrollToEnd();
+    }
+
     /** Removes the pending card when the approval is resolved elsewhere, or expires. */
     public void dismissDecision() {
         if (decisionCard == null) return;
@@ -1095,7 +1215,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 }
                 case AGENT -> answerBlock(entry, true);
                 case ERROR -> noticeBlock(entry.text, p.error, p.errorText);
-                default -> noticeBlock(entry.text, p.ok, p.textSecondary);
+                default -> noticeBlock(entry.text, p.stroke, p.muted);
             };
             attachBlock(block, animate);
         }
@@ -1471,7 +1591,21 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         return promptInput.getText().toString();
     }
 
-    /** The deck opens as a status surface; the keyboard appears only after an explicit tap. */
+    /** Make a configured fresh launch immediately ready for typing, even while the core warms. */
+    public void focusComposer() {
+        if (activeTab() != TabBarView.TAB_CONSOLE || !promptInput.isEnabled()) return;
+        promptInput.requestFocus();
+        promptInput.postDelayed(() -> {
+            if (!promptInput.hasFocus() || !hasWindowFocus() || !isAttachedToWindow()) return;
+            android.view.inputmethod.InputMethodManager keyboard =
+                    (android.view.inputmethod.InputMethodManager) getContext().getSystemService(
+                            Context.INPUT_METHOD_SERVICE);
+            if (keyboard != null) keyboard.showSoftInput(
+                    promptInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+        }, 200L);
+    }
+
+    /** Setup and restored screens keep their current focus. */
     public void clearInitialComposerFocus() {
         promptInput.clearFocus();
         requestFocus();
@@ -1482,7 +1616,13 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 || (executionRow.isRunning() && queuedPromptCount > 0)) return;
         String value = promptInput.getText().toString().trim();
         if (value.isEmpty()) return;
-        listener.onSend(value);
+        boolean requested = planArmed;
+        if (value.regionMatches(true, 0, "/plan ", 0, 6)) {
+            value = value.substring(6).trim();
+            requested = true;
+        }
+        if (value.isEmpty()) return;
+        listener.onSend(value, requested);
     }
 
     private boolean isNearStreamEnd() {

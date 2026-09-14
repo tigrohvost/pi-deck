@@ -1,0 +1,710 @@
+{
+  "schemaVersion": 1,
+  "status": "measured",
+  "candidate": {
+    "directory": "/tmp/pideck-htp-repro4",
+    "identitySha256": "b0553713a552a50fc30344d8bfa5fddeee36e8f088c67b9d8247985565653f23",
+    "artifacts": [
+      {
+        "path": "bin/llama-bench",
+        "bytes": 4664,
+        "sha256": "87a28983f6c59df21d4a8dc26bafd1c3017f15480a3bba9d989edc87d0be9928"
+      },
+      {
+        "path": "bin/llama-server",
+        "bytes": 4680,
+        "sha256": "af3720affa63f4c0b4d0b6e5a2caa1160fd423015a3ff3e0578afc7ec8026778"
+      },
+      {
+        "path": "lib/libc++_shared.so",
+        "bytes": 9236352,
+        "sha256": "ab4e6c71b96b851de45a8a9bd86369e7dbc2130a44b3b4520564be94847910f2"
+      },
+      {
+        "path": "lib/libggml-base.so",
+        "bytes": 707864,
+        "sha256": "b12a087dd8c8da6cc1eb3ea86919a5bcfeed24d2a4f20059bee8fe19bda8969e"
+      },
+      {
+        "path": "lib/libggml-cpu.so",
+        "bytes": 822816,
+        "sha256": "321c6b08269f4c48d9f0962c1cc9dfa9848b82aa1f34f28c0248d3e4fa6ec735"
+      },
+      {
+        "path": "lib/libggml-hexagon.so",
+        "bytes": 205944,
+        "sha256": "8f96c7b0e9584bb23cd8eac77610addadf918c3e3e0d36519d068404d2122280"
+      },
+      {
+        "path": "lib/libggml-htp-v73.so",
+        "bytes": 586984,
+        "sha256": "3de1572764e79bdb33972263da0381e289b6c9e721a379baea945b3db5c08d9b"
+      },
+      {
+        "path": "lib/libggml.so",
+        "bytes": 30800,
+        "sha256": "05209250c4b4b09f76260ae2cb61001f8d8d3cf9f583e0be41a32441952fdb3f"
+      },
+      {
+        "path": "lib/libllama-bench-impl.so",
+        "bytes": 241016,
+        "sha256": "b814005ce67132591b570cf64ea5ccaf791c21cd8d3a19cc0946ec6a769e9930"
+      },
+      {
+        "path": "lib/libllama-common.so",
+        "bytes": 4026232,
+        "sha256": "05460aaf982187711c4e0c68309338b2011842b94d1ac0a7aedb6ee86081c901"
+      },
+      {
+        "path": "lib/libllama-server-impl.so",
+        "bytes": 3355592,
+        "sha256": "28b70afa1f6a0e4876d560581454f2db4975766129e6928e5097a7b593e4754a"
+      },
+      {
+        "path": "lib/libllama.so",
+        "bytes": 2960304,
+        "sha256": "af996c7deb669ebc6854a8a9cfeb3899fd0a48d00c67d3eb9f981d1b103373ee"
+      },
+      {
+        "path": "lib/libmtmd.so",
+        "bytes": 963848,
+        "sha256": "862719cb7335c1a9d49d4576fd9867383db0af3a222cdf572ea5015569686497"
+      }
+    ]
+  },
+  "deviceRoot": "/data/local/tmp/pideck-hexagon-b0553713a552",
+  "model": {
+    "path": "/data/local/tmp/pideck-perf-models/LFM2.5-2.6B-QAD-Q4_0.gguf",
+    "bytes": 1593894944,
+    "sha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03"
+  },
+  "method": {
+    "variants": [
+      "cpu",
+      "htp-ops",
+      "htp-8",
+      "htp-16",
+      "htp-all",
+      "htp-all-cpu-kv"
+    ],
+    "promptTokens": [
+      128
+    ],
+    "generatedTokens": 64,
+    "repetitions": 3,
+    "threads": 5,
+    "cpuMask": "0xf8",
+    "batchSize": 256,
+    "ubatchSize": 256,
+    "cooldown": true
+  },
+  "plan": [
+    {
+      "variant": "cpu",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-hexagon-b0553713a552/bin/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/LFM2.5-2.6B-QAD-Q4_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "256",
+        "-r",
+        "3",
+        "--delay",
+        "3",
+        "-o",
+        "jsonl",
+        "-t",
+        "5",
+        "-C",
+        "0xf8",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-mmp",
+        "0",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1"
+      ]
+    },
+    {
+      "variant": "htp-ops",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-hexagon-b0553713a552/bin/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/LFM2.5-2.6B-QAD-Q4_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "256",
+        "-r",
+        "3",
+        "--delay",
+        "3",
+        "-o",
+        "jsonl",
+        "-t",
+        "5",
+        "-C",
+        "0xf8",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-mmp",
+        "0",
+        "-dev",
+        "HTP0",
+        "-ngl",
+        "0",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "htp-8",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-hexagon-b0553713a552/bin/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/LFM2.5-2.6B-QAD-Q4_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "256",
+        "-r",
+        "3",
+        "--delay",
+        "3",
+        "-o",
+        "jsonl",
+        "-t",
+        "5",
+        "-C",
+        "0xf8",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-mmp",
+        "0",
+        "-dev",
+        "HTP0",
+        "-ngl",
+        "8",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "htp-16",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-hexagon-b0553713a552/bin/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/LFM2.5-2.6B-QAD-Q4_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "256",
+        "-r",
+        "3",
+        "--delay",
+        "3",
+        "-o",
+        "jsonl",
+        "-t",
+        "5",
+        "-C",
+        "0xf8",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-mmp",
+        "0",
+        "-dev",
+        "HTP0",
+        "-ngl",
+        "16",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "htp-all",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-hexagon-b0553713a552/bin/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/LFM2.5-2.6B-QAD-Q4_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "256",
+        "-r",
+        "3",
+        "--delay",
+        "3",
+        "-o",
+        "jsonl",
+        "-t",
+        "5",
+        "-C",
+        "0xf8",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-mmp",
+        "0",
+        "-dev",
+        "HTP0",
+        "-ngl",
+        "99",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "htp-all-cpu-kv",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-hexagon-b0553713a552/bin/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/LFM2.5-2.6B-QAD-Q4_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "256",
+        "-r",
+        "3",
+        "--delay",
+        "3",
+        "-o",
+        "jsonl",
+        "-t",
+        "5",
+        "-C",
+        "0xf8",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-mmp",
+        "0",
+        "-dev",
+        "HTP0",
+        "-ngl",
+        "99",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "1"
+      ]
+    }
+  ],
+  "stagedCandidateSha256": {
+    "bin/llama-bench": "87a28983f6c59df21d4a8dc26bafd1c3017f15480a3bba9d989edc87d0be9928",
+    "bin/llama-server": "af3720affa63f4c0b4d0b6e5a2caa1160fd423015a3ff3e0578afc7ec8026778",
+    "lib/libc++_shared.so": "ab4e6c71b96b851de45a8a9bd86369e7dbc2130a44b3b4520564be94847910f2",
+    "lib/libggml-base.so": "b12a087dd8c8da6cc1eb3ea86919a5bcfeed24d2a4f20059bee8fe19bda8969e",
+    "lib/libggml-cpu.so": "321c6b08269f4c48d9f0962c1cc9dfa9848b82aa1f34f28c0248d3e4fa6ec735",
+    "lib/libggml-hexagon.so": "8f96c7b0e9584bb23cd8eac77610addadf918c3e3e0d36519d068404d2122280",
+    "lib/libggml-htp-v73.so": "3de1572764e79bdb33972263da0381e289b6c9e721a379baea945b3db5c08d9b",
+    "lib/libggml.so": "05209250c4b4b09f76260ae2cb61001f8d8d3cf9f583e0be41a32441952fdb3f",
+    "lib/libllama-bench-impl.so": "b814005ce67132591b570cf64ea5ccaf791c21cd8d3a19cc0946ec6a769e9930",
+    "lib/libllama-common.so": "05460aaf982187711c4e0c68309338b2011842b94d1ac0a7aedb6ee86081c901",
+    "lib/libllama-server-impl.so": "28b70afa1f6a0e4876d560581454f2db4975766129e6928e5097a7b593e4754a",
+    "lib/libllama.so": "af996c7deb669ebc6854a8a9cfeb3899fd0a48d00c67d3eb9f981d1b103373ee",
+    "lib/libmtmd.so": "862719cb7335c1a9d49d4576fd9867383db0af3a222cdf572ea5015569686497"
+  },
+  "device": {
+    "serial": "R5CW11HGLVV",
+    "model": "SM-S918B",
+    "soc": "SM8550",
+    "android": "16",
+    "backendListing": [
+      "Available devices:",
+      "  HTP0: Hexagon (0 MiB, 0 MiB free)",
+      "",
+      "ggml-hex: Loading driver libcdsprpc.so",
+      "ggml-hex: forcing ndev to 1 for SoCs archs lower than v75.",
+      "ggml-hex: Hexagon backend (experimental) : allocating new registry : ndev 1",
+      "ggml-hex: Hexagon Arch version v73",
+      "ggml-hex: HTP0 allocating new session",
+      "ggml-hex: failed to get URI for session 0 : error 0x14. Falling back to single session URI: file:///libggml-htp-v73.so?htp_iface_skel_handle_invoke&_modver=1.0&_dom=cdsp",
+      "ggml-hex: HTP0 hwinfo: threads 4, hvx 4, hmx 1, vtcm 8 MB",
+      "ggml-hex: HTP0 new session : session-id 0 domain-id 3 uri file:///libggml-htp-v73.so?htp_iface_skel_handle_invoke&_modver=1.0&_dom=cdsp handle 0xb400007784a12200",
+      "ggml-hex: rpcmem_alloc2 not found, falling back to rpcmem_alloc",
+      "ggml-hex: HTP0 op batching: n-bufs 16 n-tensors 7168 n-ops 1024 vmem 3145728000"
+    ]
+  },
+  "samples": [
+    {
+      "variant": "cpu",
+      "promptTokens": 128,
+      "generatedTokens": 64,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 42200
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2841600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.846,
+        "hottestCpuMilliCelsius": 73400
+      },
+      "promptTokensPerSecond": 97.258063,
+      "decodeTokensPerSecond": 20.365563,
+      "benchmark": {
+        "build_commit": "3ce7da2-pideck-affinity1-htpv73",
+        "build_number": 10092,
+        "cpu_info": "CPU",
+        "gpu_info": "Hexagon",
+        "backends": "HTP",
+        "model_type": "lfm2 2.6B Q4_0",
+        "model_size": 1585655808,
+        "model_n_params": 2697198592,
+        "n_gpu_layers": 0,
+        "devices": "none",
+        "no_kv_offload": true,
+        "no_op_offload": 1,
+        "n_batch": 256,
+        "n_ubatch": 256
+      },
+      "warnings": [
+        "warn: failed to set affinity mask 0xb400007686a41c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb400007686a4248d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb400007686a41c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb400007686a4248d : Invalid argument (22)"
+      ]
+    },
+    {
+      "variant": "htp-ops",
+      "promptTokens": 128,
+      "generatedTokens": 64,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 43800
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 73800
+      },
+      "promptTokensPerSecond": 94.476112,
+      "decodeTokensPerSecond": 19.664255,
+      "benchmark": {
+        "build_commit": "3ce7da2-pideck-affinity1-htpv73",
+        "build_number": 10092,
+        "cpu_info": "CPU",
+        "gpu_info": "Hexagon",
+        "backends": "HTP",
+        "model_type": "lfm2 2.6B Q4_0",
+        "model_size": 1585655808,
+        "model_n_params": 2697198592,
+        "n_gpu_layers": 0,
+        "devices": "HTP0",
+        "no_kv_offload": false,
+        "no_op_offload": 0,
+        "n_batch": 256,
+        "n_ubatch": 256
+      },
+      "warnings": [
+        "warn: failed to set affinity mask 0xb4000079ee041c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb4000079ee04248d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb4000079ee041c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb4000079ee04226d : Invalid argument (22)"
+      ]
+    },
+    {
+      "variant": "htp-8",
+      "promptTokens": 128,
+      "generatedTokens": 64,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 45700
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2956800,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.88,
+        "hottestCpuMilliCelsius": 74200
+      },
+      "promptTokensPerSecond": 115.894034,
+      "decodeTokensPerSecond": 18.903209,
+      "benchmark": {
+        "build_commit": "3ce7da2-pideck-affinity1-htpv73",
+        "build_number": 10092,
+        "cpu_info": "CPU",
+        "gpu_info": "Hexagon",
+        "backends": "HTP",
+        "model_type": "lfm2 2.6B Q4_0",
+        "model_size": 1585655808,
+        "model_n_params": 2697198592,
+        "n_gpu_layers": 8,
+        "devices": "HTP0",
+        "no_kv_offload": false,
+        "no_op_offload": 0,
+        "n_batch": 256,
+        "n_ubatch": 256
+      },
+      "warnings": [
+        "warn: failed to set affinity mask 0xb4000078ed641c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb4000078ed64226d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb4000078ed641c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb4000078ed64248d : Invalid argument (22)"
+      ]
+    },
+    {
+      "variant": "htp-16",
+      "promptTokens": 128,
+      "generatedTokens": 64,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 44600
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2726400,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.811,
+        "hottestCpuMilliCelsius": 74600
+      },
+      "promptTokensPerSecond": 169.515591,
+      "decodeTokensPerSecond": 16.065319,
+      "benchmark": {
+        "build_commit": "3ce7da2-pideck-affinity1-htpv73",
+        "build_number": 10092,
+        "cpu_info": "CPU",
+        "gpu_info": "Hexagon",
+        "backends": "HTP",
+        "model_type": "lfm2 2.6B Q4_0",
+        "model_size": 1585655808,
+        "model_n_params": 2697198592,
+        "n_gpu_layers": 16,
+        "devices": "HTP0",
+        "no_kv_offload": false,
+        "no_op_offload": 0,
+        "n_batch": 256,
+        "n_ubatch": 256
+      },
+      "warnings": [
+        "warn: failed to set affinity mask 0xb400007a13441c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb400007a1344248d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb400007a13441c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb400007a1344226d : Invalid argument (22)"
+      ]
+    },
+    {
+      "variant": "htp-all",
+      "promptTokens": 128,
+      "generatedTokens": 64,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 46100
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2956800,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.88,
+        "hottestCpuMilliCelsius": 63900
+      },
+      "promptTokensPerSecond": 674.22397,
+      "decodeTokensPerSecond": 13.207864,
+      "benchmark": {
+        "build_commit": "3ce7da2-pideck-affinity1-htpv73",
+        "build_number": 10092,
+        "cpu_info": "CPU",
+        "gpu_info": "Hexagon",
+        "backends": "HTP",
+        "model_type": "lfm2 2.6B Q4_0",
+        "model_size": 1585655808,
+        "model_n_params": 2697198592,
+        "n_gpu_layers": 99,
+        "devices": "HTP0",
+        "no_kv_offload": false,
+        "no_op_offload": 0,
+        "n_batch": 256,
+        "n_ubatch": 256
+      },
+      "warnings": [
+        "warn: failed to set affinity mask 0xb4000076d1e41c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb4000076d1e4226d : Invalid argument (22)"
+      ]
+    },
+    {
+      "variant": "htp-all-cpu-kv",
+      "promptTokens": 128,
+      "generatedTokens": 64,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 43400
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2841600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.846,
+        "hottestCpuMilliCelsius": 73400
+      },
+      "promptTokensPerSecond": 604.702476,
+      "decodeTokensPerSecond": 14.310098,
+      "benchmark": {
+        "build_commit": "3ce7da2-pideck-affinity1-htpv73",
+        "build_number": 10092,
+        "cpu_info": "CPU",
+        "gpu_info": "Hexagon",
+        "backends": "HTP",
+        "model_type": "lfm2 2.6B Q4_0",
+        "model_size": 1585655808,
+        "model_n_params": 2697198592,
+        "n_gpu_layers": 99,
+        "devices": "HTP0",
+        "no_kv_offload": true,
+        "no_op_offload": 0,
+        "n_batch": 256,
+        "n_ubatch": 256
+      },
+      "warnings": [
+        "warn: failed to set affinity mask 0xb40000793dc41c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb40000793dc4248d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb40000793dc41c0d : Invalid argument (22)",
+        "warn: failed to set affinity mask 0xb40000793dc4226d : Invalid argument (22)"
+      ]
+    }
+  ],
+  "verdict": {
+    "gate": {
+      "minimumPromptRatio": 2.0,
+      "minimumDecodeRatio": 0.95,
+      "requireEveryPromptSize": true,
+      "requireRealHtpV73Session": true,
+      "requireNoCrash": true
+    },
+    "variants": {
+      "htp-ops": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 0.971396,
+            "decodeRatio": 0.965564
+          }
+        ],
+        "minimumPromptRatio": 0.971396,
+        "minimumDecodeRatio": 0.965564,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "htp-8": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 1.191614,
+            "decodeRatio": 0.928195
+          }
+        ],
+        "minimumPromptRatio": 1.191614,
+        "minimumDecodeRatio": 0.928195,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "htp-16": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 1.742946,
+            "decodeRatio": 0.788847
+          }
+        ],
+        "minimumPromptRatio": 1.742946,
+        "minimumDecodeRatio": 0.788847,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "htp-all": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 6.93232,
+            "decodeRatio": 0.648539
+          }
+        ],
+        "minimumPromptRatio": 6.93232,
+        "minimumDecodeRatio": 0.648539,
+        "gatePassed": false,
+        "prefillOnlyPotential": true
+      },
+      "htp-all-cpu-kv": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 6.217505,
+            "decodeRatio": 0.702662
+          }
+        ],
+        "minimumPromptRatio": 6.217505,
+        "minimumDecodeRatio": 0.702662,
+        "gatePassed": false,
+        "prefillOnlyPotential": true
+      }
+    },
+    "gatePassed": false,
+    "winner": null,
+    "action": "Keep the production runtime CPU-only; retain HTP as an isolated probe."
+  }
+}

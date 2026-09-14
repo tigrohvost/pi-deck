@@ -1,0 +1,87 @@
+[
+  {
+    "name": "libggml-base.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libggml-cpu-android_armv8.0_1.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libggml-cpu-android_armv8.2_1.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libggml-cpu-android_armv8.2_2.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libggml-cpu-android_armv8.6_1.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libggml-cpu-android_armv9.0_1.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libggml-cpu-android_armv9.2_1.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libggml-cpu-android_armv9.2_2.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libggml.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libllama-common.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libllama-server-impl.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libllama.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libmtmd.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libpideck_llama_server.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libpideck_nanbeige_server.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libpideck_k2horizon_server.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  },
+  {
+    "name": "libpideck_k2horizon_i8mm_server.so",
+    "bytesMatch": true,
+    "sha256Match": true
+  }
+]

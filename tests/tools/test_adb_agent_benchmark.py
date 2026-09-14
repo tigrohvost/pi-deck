@@ -223,6 +223,48 @@ class AdbAgentBenchmarkTests(unittest.TestCase):
         self.assertEqual("instantaneous_sysfs_average_watts", summary["power"]["kind"])
         self.assertEqual(6.0, summary["power"]["value"])
 
+    def test_cache_summary_requires_one_session_and_compares_continuations(self) -> None:
+        cases = [
+            {
+                "sessionIdHash": "same-session",
+                "sessionReset": True,
+                "turn": {
+                    "succeeded": True,
+                    "dispatchToFirstVisibleTokenSeconds": 6.0,
+                    "totalTurnSeconds": 8.0,
+                    "provider": {},
+                },
+            },
+            {
+                "sessionIdHash": "same-session",
+                "sessionReset": False,
+                "turn": {
+                    "succeeded": True,
+                    "dispatchToFirstVisibleTokenSeconds": 2.0,
+                    "totalTurnSeconds": 4.0,
+                    "provider": {},
+                },
+            },
+            {
+                "sessionIdHash": "same-session",
+                "sessionReset": False,
+                "turn": {
+                    "succeeded": True,
+                    "dispatchToFirstVisibleTokenSeconds": 3.0,
+                    "totalTurnSeconds": 5.0,
+                    "provider": {},
+                },
+            },
+        ]
+        summary = benchmark.summarize_cache_sequence(cases)
+        self.assertTrue(summary["sameSession"])
+        self.assertEqual(6.0, summary["firstTtftSeconds"])
+        self.assertEqual(2.5, summary["medianContinuationTtftSeconds"])
+        self.assertEqual(2.4, summary["firstToContinuationTtftRatio"])
+
+        cases[-1]["sessionIdHash"] = "different-session"
+        self.assertFalse(benchmark.summarize_cache_sequence(cases)["sameSession"])
+
 
 def event(
     sequence: int,

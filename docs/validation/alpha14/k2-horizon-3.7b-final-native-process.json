@@ -1,0 +1,19 @@
+{
+  "at": "2026-09-07T15:56:52.504232+00:00",
+  "modelId": "k2-horizon-3.7b",
+  "processes": [
+    {
+      "pid": 18353,
+      "executable": "libpideck_k2horizon_i8mm_server.so",
+      "status": {
+        "Name": "libpideck_k2hor",
+        "Uid": "10511\t10511\t10511\t10511",
+        "VmHWM": "6204040 kB",
+        "VmRSS": "3928048 kB",
+        "VmSwap": "913824 kB",
+        "Threads": "16",
+        "Cpus_allowed_list": "3-7"
+      }
+    }
+  ]
+}

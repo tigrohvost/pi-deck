@@ -58,6 +58,25 @@ public class ModelCatalogTest {
     }
 
     @Test
+    public void newModelsSelectTheirRuntimeWithoutAutomaticPromotion() {
+        ModelSpec k2 = catalog.byId("k2-horizon-3.7b").orElseThrow();
+        ModelSpec qwen = catalog.byId("qwen3.8-4b-distill").orElseThrow();
+        assertEquals("k2horizon-35999d1-p2", k2.nativeRuntimeBuild());
+        assertEquals("b10092", qwen.nativeRuntimeBuild());
+        assertFalse(ModelCatalog.isRecommendable(k2));
+        assertFalse(ModelCatalog.isRecommendable(qwen));
+        CpuProfile cpu = CpuProfile.fromMaxFrequencies(new long[8]).forModel(k2);
+        assertEquals(5, cpu.decodeThreads);
+        assertEquals(5, cpu.batchThreads);
+        assertFalse(cpu.strictAffinity);
+        java.util.List<String> args = k2.nativeLlamaServerArguments("/private/model.gguf", cpu, 8080, "test-key");
+        assertEquals("0", args.get(args.indexOf("--cpu-strict") + 1));
+        assertEquals("low", args.get(args.indexOf("--reasoning-effort") + 1));
+        assertEquals("0", args.get(args.indexOf("--poll") + 1));
+        assertEquals("5", args.get(args.indexOf("-tb") + 1));
+    }
+
+    @Test
     public void explicitLargerSelectionRemainsAvailable() {
         ModelSpec max = catalog.byId("qwen3.5-9b").orElseThrow();
         assertEquals("MAX", max.tier);
@@ -83,6 +102,12 @@ public class ModelCatalogTest {
         assertFalse(ModelCatalog.isRecommendable(
                 catalog.byId("nanbeige4.2-3b").orElseThrow()
         ));
+        assertFalse(ModelCatalog.isRecommendable(
+                catalog.byId("qwen3.8-2b-distill").orElseThrow()
+        ));
+        assertFalse(ModelCatalog.isRecommendable(
+                catalog.byId("granite-4.2-3b").orElseThrow()
+        ));
         ModelSpec qad = catalog.byId("lfm2.5-2.6b-qad").orElseThrow();
         assertEquals("EXPERIMENTAL", qad.status);
         assertTrue(ModelCatalog.isRecommendable(qad));
@@ -105,6 +130,34 @@ public class ModelCatalogTest {
                 NativeLlamaService.serverLibraryForFlavor(ministral.serverFlavor)
         );
         assertEquals("b10092", ministral.nativeRuntimeBuild());
+
+        ModelSpec qwen38 = catalog.byId("qwen3.8-2b-distill").orElseThrow();
+        assertEquals("empero-ai/Qwen3.8-2B-Distill-GGUF", qwen38.repo);
+        assertEquals("f4f73582d0b149595450c719b9a7521a03894f9c", qwen38.revision);
+        assertEquals("Qwen3.8-2B-Q4_K_M.gguf", qwen38.fileName);
+        assertEquals(1_312_164_224L, qwen38.bytes);
+        assertEquals(
+                "4aa0fb13c431514262f259d420ecc95a8714df58ac2a2384514e20b93983f0ff",
+                qwen38.sha256
+        );
+        assertEquals("on", qwen38.reasoningMode);
+        assertEquals(List.of("--reasoning-budget", "256"), qwen38.serverArgs);
+        assertEquals("stock", qwen38.serverFlavor);
+        assertEquals("b10092", qwen38.nativeRuntimeBuild());
+
+        ModelSpec granite = catalog.byId("granite-4.2-3b").orElseThrow();
+        assertEquals("ibm-granite/granite-4.2-3b-GGUF", granite.repo);
+        assertEquals("47a3d9699d7539606c83943d717fcea7bd9f6a19", granite.revision);
+        assertEquals("granite-4.2-3b-Q4_K_M.gguf", granite.fileName);
+        assertEquals(2_244_012_160L, granite.bytes);
+        assertEquals(
+                "20e436143017578687f7f848225cc6c6038126c84149192229c7dff6e4e0f427",
+                granite.sha256
+        );
+        assertEquals("on", granite.reasoningMode);
+        assertEquals(List.of("--reasoning-budget", "256"), granite.serverArgs);
+        assertEquals("stock", granite.serverFlavor);
+        assertEquals("b10092", granite.nativeRuntimeBuild());
 
         ModelSpec qad = catalog.byId("lfm2.5-2.6b-qad").orElseThrow();
         assertEquals("LiquidAI/LFM2.5-2.6B-GGUF", qad.repo);

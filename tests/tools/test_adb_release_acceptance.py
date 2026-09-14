@@ -48,6 +48,16 @@ class AdbReleaseAcceptanceTest(unittest.TestCase):
         acceptance.click_named(value, xml, ("Allow once",))
         self.assertEqual("ALLOW ONCE", value.tapped["text"])
 
+    def test_named_node_does_not_promote_partial_text_to_another_action(self) -> None:
+        xml = """<hierarchy>
+          <node class="android.widget.Button" text="START AND CONTINUE" bounds="[10,20][30,40]" />
+        </hierarchy>"""
+        self.assertIsNone(acceptance.named_node(xml, ("CONTINUE",)))
+        self.assertEqual(
+            "START AND CONTINUE",
+            acceptance.named_node(xml, ("START AND CONTINUE",))["text"],
+        )
+
     def test_serial_and_installed_path_fail_closed(self) -> None:
         devices = "List of devices attached\nR5C123\tdevice product:test\n"
         self.assertEqual("R5C123", acceptance.resolve_serial(devices, None))
@@ -65,6 +75,14 @@ class AdbReleaseAcceptanceTest(unittest.TestCase):
         self.assertFalse(acceptance.keyguard_showing("  showing=false\n"))
         self.assertFalse(acceptance.keyguard_showing("unrelated=true\n"))
 
+    def test_logcat_window_uses_validated_device_time_without_buffer_clear(self) -> None:
+        self.assertEqual(
+            "08-26 14:05:09.000",
+            acceptance.logcat_start_time("08-26T14:05:09\n"),
+        )
+        with self.assertRaises(acceptance.AcceptanceError):
+            acceptance.logcat_start_time("08-26 14:05:09; logcat -c")
+
     def test_report_helpers_do_not_return_raw_logs_or_ui(self) -> None:
         processes = acceptance.safe_process_facts(
             "PID NAME\n123 dev.pideck.app\n124 unrelated\n125 llama-server\n"
@@ -80,7 +98,7 @@ class AdbReleaseAcceptanceTest(unittest.TestCase):
 
     def test_tool_result_requires_a_real_uuid(self) -> None:
         xml = """<hierarchy>
-          <node text="cat /proc/sys/kernel/random/uuid" />
+          <node text="awk read of /proc/sys/kernel/random/uuid" />
           <node text="f47ac10b-58cc-4372-a567-0e02b2c3d479" />
         </hierarchy>"""
         self.assertEqual(
@@ -105,6 +123,42 @@ class AdbReleaseAcceptanceTest(unittest.TestCase):
         </hierarchy>"""
         self.assertFalse(acceptance.terminal_text_present(streaming, ("PIDECK_OK",)))
         self.assertTrue(acceptance.terminal_text_present(terminal, ("PIDECK_OK",)))
+
+    def test_submitted_prompt_count_ignores_editor_text(self) -> None:
+        xml = """<hierarchy>
+          <node class="android.widget.EditText" text="unique prompt marker" />
+          <node class="android.widget.TextView" text="unique prompt marker" />
+          <node class="android.widget.TextView" content-desc="unique prompt marker" />
+        </hierarchy>"""
+        self.assertEqual(
+            2,
+            acceptance.non_editor_text_count(xml, "unique prompt marker"),
+        )
+
+    def test_tool_prompt_can_yield_immediately_to_short_lived_approval(self) -> None:
+        class FakeAdb:
+            taps = 0
+
+            def dump_ui(self):
+                return AdbReleaseAcceptanceTest.XML
+
+            def tap(self, _node):
+                self.taps += 1
+
+            def shell(self, *_arguments, **_kwargs):
+                return ""
+
+            def wait_ui(self, *_arguments, **_kwargs):
+                raise AssertionError("tool prompt waited for a bubble before approval")
+
+        value = FakeAdb()
+        acceptance.submit_prompt(
+            value,
+            "tool prompt",
+            marker="unique marker",
+            confirm_submission=False,
+        )
+        self.assertEqual(2, value.taps)
 
 if __name__ == "__main__":
     unittest.main()

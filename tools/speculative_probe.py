@@ -144,9 +144,11 @@ def device_library_directory() -> str:
 
 def start_server(
     library_directory: str,
+    server_executable: str,
     model_path: str,
     context: int,
     threads: int,
+    batch_threads: int,
     decode_cpus: str,
     batch_cpus: str,
     extra: list[str],
@@ -154,14 +156,14 @@ def start_server(
     api_key_path: str,
 ) -> "subprocess.Popen[bytes]":
     arguments = [
-        f"{library_directory}/libpideck_llama_server.so",
+        f"{library_directory}/{server_executable}",
         "-m", model_path,
         "--host", "127.0.0.1",
         "--port", str(port),
         "-c", str(context),
         "-np", "1",
         "-t", str(threads),
-        "-tb", "8",
+        "-tb", str(batch_threads),
         "-Cr", decode_cpus,
         "--cpu-strict", "1",
         "-Crb", batch_cpus,
@@ -187,8 +189,16 @@ def start_server(
     )
 
 
-def stop_server(handle: "subprocess.Popen[bytes] | None" = None) -> None:
-    adb("shell", "pkill -f libpideck_llama_server.so", check=False)
+def stop_server(
+    library_directory: str,
+    server_executable: str,
+    handle: "subprocess.Popen[bytes] | None" = None,
+) -> None:
+    adb(
+        "shell",
+        f"pkill -f {library_directory}/{server_executable}",
+        check=False,
+    )
     if handle is not None:
         try:
             handle.terminate()
@@ -221,7 +231,7 @@ def measure(
     max_tokens: int,
     timeout_seconds: int,
     request_speculative: dict[str, Any] | None = None,
-) -> "tuple[float, float | None]":
+) -> "tuple[float, float | None, int | None, int | None]":
     payload: dict[str, Any] = {
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
@@ -248,8 +258,13 @@ def measure(
     if not isinstance(rate, (int, float)):
         raise ProbeError("Server response carried no decode timing")
     prompt_rate = timings.get("prompt_per_second")
-    return float(rate), (
-        float(prompt_rate) if isinstance(prompt_rate, (int, float)) else None
+    prompt_tokens = timings.get("prompt_n")
+    predicted_tokens = timings.get("predicted_n")
+    return (
+        float(rate),
+        float(prompt_rate) if isinstance(prompt_rate, (int, float)) else None,
+        int(prompt_tokens) if isinstance(prompt_tokens, (int, float)) else None,
+        int(predicted_tokens) if isinstance(predicted_tokens, (int, float)) else None,
     )
 
 
@@ -319,14 +334,39 @@ def wait_for_thermal_headroom() -> dict[str, Any]:
     return state
 
 
-def peak_rss_kib() -> int | None:
+def peak_rss_kib(server_executable: str) -> int | None:
     listing = adb("shell", "ps -A -o RSS,ARGS", check=False)
     for line in listing.splitlines():
-        if "libpideck_llama_server.so" in line and "pkill" not in line:
+        if server_executable in line and "pkill" not in line:
             head = line.strip().split(None, 1)[0]
             if head.isdigit():
                 return int(head)
     return None
+
+
+def thread_affinity_snapshot(server_executable: str) -> dict[str, Any]:
+    """Return an auditable histogram of the server's kernel CPU masks."""
+    raw = adb(
+        "shell",
+        f"pid=$(pidof {server_executable} | cut -d' ' -f1); "
+        "test -n \"$pid\" || exit 1; "
+        "for status in /proc/$pid/task/*/status; do "
+        "tid=${status%/status}; tid=${tid##*/}; "
+        "name=$(sed -n 's/^Name:[[:space:]]*//p' $status); "
+        "cpus=$(sed -n 's/^Cpus_allowed_list:[[:space:]]*//p' $status); "
+        "printf '%s|%s|%s\\n' \"$tid\" \"$name\" \"$cpus\"; done",
+        check=False,
+    )
+    masks: dict[str, int] = {}
+    threads = []
+    for line in raw.splitlines():
+        fields = line.split("|", 2)
+        if len(fields) != 3 or not fields[0].isdigit() or not fields[2]:
+            continue
+        tid, name, cpus = fields
+        masks[cpus] = masks.get(cpus, 0) + 1
+        threads.append({"tid": int(tid), "name": name, "cpus": cpus})
+    return {"maskHistogram": masks, "threads": threads}
 
 
 def parse_args() -> argparse.Namespace:
@@ -346,6 +386,11 @@ def parse_args() -> argparse.Namespace:
         help="Alternate absolute device directory containing a matched llama.cpp runtime",
     )
     parser.add_argument(
+        "--server-executable",
+        default="libpideck_llama_server.so",
+        help="Executable basename inside --library-directory",
+    )
+    parser.add_argument(
         "--variant",
         action="append",
         required=True,
@@ -353,6 +398,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--context", type=int, default=10240)
     parser.add_argument("--threads", type=int, default=5)
+    parser.add_argument("--batch-threads", type=int, default=8)
     parser.add_argument("--decode-cpus", default="3-7")
     parser.add_argument("--batch-cpus", default="0-7")
     parser.add_argument("--port", type=int, default=18080)
@@ -377,6 +423,12 @@ def parse_args() -> argparse.Namespace:
         action="append",
         help="Repeatable. Samples cycle through the prompts so none is measured twice.",
     )
+    parser.add_argument(
+        "--prompt-repeat",
+        type=int,
+        default=1,
+        help="Repeat each prompt deterministically; useful for prompt-ingestion sweeps",
+    )
     parser.add_argument("--label", default="prose")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
@@ -391,6 +443,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--keep-model", action="store_true")
+    parser.add_argument(
+        "--cool-between-samples",
+        action="store_true",
+        help=(
+            "Wait for full CPU headroom after server load and before every request. "
+            "Use this for CPU-profile A/B measurements where ordering must not decide the result."
+        ),
+    )
     parser.add_argument(
         "--request-overrides",
         dest="request_speculative",
@@ -409,6 +469,12 @@ def main() -> int:
         raise ProbeError("--runs must be between 2 and 12")
     if not 10 <= args.request_timeout <= 900:
         raise ProbeError("--request-timeout must be between 10 and 900 seconds")
+    if not 1 <= args.threads <= 16 or not 1 <= args.batch_threads <= 16:
+        raise ProbeError("--threads and --batch-threads must be between 1 and 16")
+    if not 1 <= args.prompt_repeat <= 512:
+        raise ProbeError("--prompt-repeat must be between 1 and 512")
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", args.server_executable) is None:
+        raise ProbeError("--server-executable must be a safe basename")
     device_draft_model = (
         validated_device_path(args.device_draft_model)
         if args.device_draft_model
@@ -428,6 +494,8 @@ def main() -> int:
         if args.prompt_file
         else [args.prompt]
     )
+    if args.prompt_repeat > 1:
+        prompts = ["\n".join([prompt] * args.prompt_repeat) for prompt in prompts]
 
     library_directory = (
         validated_device_path(args.library_directory)
@@ -465,18 +533,27 @@ def main() -> int:
         "deviceModel": device_model,
         "deviceDraftModel": device_draft_model,
         "libraryDirectory": library_directory,
+        "serverExecutable": args.server_executable,
         "context": args.context,
+        "cpuProfile": {
+            "decodeThreads": args.threads,
+            "batchThreads": args.batch_threads,
+            "decodeCpus": args.decode_cpus,
+            "batchCpus": args.batch_cpus,
+        },
         "promptLabel": args.label,
         "distinctPrompts": len(prompts),
+        "promptRepeat": args.prompt_repeat,
         "requestSpeculative": request_speculative,
         "maxTokens": args.max_tokens,
         "requestTimeoutSeconds": args.request_timeout,
+        "coolBetweenSamples": args.cool_between_samples,
         "device": adb("shell", "getprop ro.product.model").strip(),
         "variants": {},
     }
     try:
         for variant, extra in variants.items():
-            stop_server(handle)
+            stop_server(library_directory, args.server_executable, handle)
             handle = None
             print(f"Cooling down before {variant}", flush=True)
             before = wait_for_thermal_headroom()
@@ -488,9 +565,11 @@ def main() -> int:
             flags = extra + args.server_args
             handle = start_server(
                 library_directory,
+                args.server_executable,
                 device_model,
                 args.context,
                 args.threads,
+                args.batch_threads,
                 args.decode_cpus,
                 args.batch_cpus,
                 flags,
@@ -499,11 +578,20 @@ def main() -> int:
             )
             try:
                 wait_for_health(args.port, api_key)
+                affinity = thread_affinity_snapshot(args.server_executable)
                 samples = []
                 prompt_rates = []
-                thermal = []
+                prompt_token_counts = []
+                predicted_token_counts = []
+                thermal_before_samples = []
+                thermal_after_samples = []
                 for index in range(args.runs):
-                    decode_rate, prompt_rate = measure(
+                    sample_before = (
+                        wait_for_thermal_headroom()
+                        if args.cool_between_samples
+                        else thermal_state()
+                    )
+                    decode_rate, prompt_rate, prompt_tokens, predicted_tokens = measure(
                         args.port,
                         api_key,
                         prompt_for_sample(prompts, index),
@@ -513,7 +601,10 @@ def main() -> int:
                     )
                     samples.append(decode_rate)
                     prompt_rates.append(prompt_rate)
-                    thermal.append(thermal_state())
+                    prompt_token_counts.append(prompt_tokens)
+                    predicted_token_counts.append(predicted_tokens)
+                    thermal_before_samples.append(sample_before)
+                    thermal_after_samples.append(thermal_state())
                 summary = summarise(samples)
                 warm_prompt_rates = [rate for rate in prompt_rates[1:] if rate]
                 summary["medianPromptTokensPerSecond"] = (
@@ -522,9 +613,16 @@ def main() -> int:
                     else None
                 )
                 summary["serverFlags"] = flags
-                summary["residentKiB"] = peak_rss_kib()
+                summary["promptTokenCounts"] = prompt_token_counts
+                summary["predictedTokenCounts"] = predicted_token_counts
+                summary["residentKiB"] = peak_rss_kib(args.server_executable)
+                summary["threadAffinity"] = affinity
                 summary["thermalBefore"] = before
-                headrooms = [state["headroom"] for state in thermal[1:] if state["headroom"]]
+                headrooms = [
+                    state["headroom"]
+                    for state in thermal_after_samples[1:]
+                    if state["headroom"]
+                ]
                 summary["headroomDuringSamples"] = (
                     [min(headrooms), max(headrooms)] if headrooms else None
                 )
@@ -536,10 +634,22 @@ def main() -> int:
                         "index": index,
                         "warmUp": index == 0,
                         "tokensPerSecond": round(rate, 2),
+                        "promptTokens": prompt_tokens,
+                        "predictedTokens": predicted_tokens,
                         "headroom": state["headroom"],
                         "cpuMilliCelsius": state["hottestCpuMilliCelsius"],
+                        "thermalBefore": sample_before,
+                        "thermalAfter": state,
                     }
-                    for index, (rate, state) in enumerate(zip(samples, thermal))
+                    for index, (
+                        rate, prompt_tokens, predicted_tokens, sample_before, state
+                    ) in enumerate(zip(
+                        samples,
+                        prompt_token_counts,
+                        predicted_token_counts,
+                        thermal_before_samples,
+                        thermal_after_samples,
+                    ))
                 ]
                 report["variants"][variant] = summary
                 print(f"  median {summary['medianTokensPerSecond']} tok/s", flush=True)
@@ -552,7 +662,7 @@ def main() -> int:
                 }
                 print(f"  failed: {error}", flush=True)
     finally:
-        stop_server(handle)
+        stop_server(library_directory, args.server_executable, handle)
         adb("forward", "--remove", f"tcp:{args.port}", check=False)
         adb("shell", f"rm -f {api_key_path}", check=False)
         if pushed_model and not args.keep_model:

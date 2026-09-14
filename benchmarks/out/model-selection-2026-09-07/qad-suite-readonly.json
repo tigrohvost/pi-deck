@@ -1,0 +1,706 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-09-07T11:37:15.252014Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q01",
+    "Q04",
+    "Q03",
+    "Q10",
+    "Q11"
+  ],
+  "outcomes": [
+    {
+      "id": "Q01",
+      "category": "direct_format",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "exact_answer": {
+          "passed": true,
+          "evidence": "answer='PIDECK_V2_OK'"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "0 <= 0; tools=[]"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "PIDECK_V2_OK",
+      "toolNames": [],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 26.482925,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": null,
+        "totalTurnSeconds": 26.903111,
+        "provider": {
+          "outputTokens": 232,
+          "decodeSeconds": 13.752,
+          "decodeTokensPerSecond": 16.87,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 12.27469,
+            "tokens": 830,
+            "tokensPerSecond": 67.619
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 1,
+            "prefill": {
+              "seconds": 12.27469,
+              "tokens": 830,
+              "tokensPerSecond": 67.619
+            },
+            "decode": {
+              "seconds": 13.7383,
+              "tokens": 232,
+              "tokensPerSecond": 16.887
+            }
+          }
+        },
+        "tools": {
+          "requested": 0,
+          "completed": 0,
+          "failed": 0,
+          "names": [],
+          "executionSeconds": 0.0,
+          "postToolToTerminalSeconds": null
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 5,
+        "start": {
+          "monotonicSeconds": 24402.054884,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 30.1,
+          "batteryVoltageV": 4.026,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "end": {
+          "monotonicSeconds": 24435.813948,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 30.7,
+          "batteryVoltageV": 4.004,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "minimumBigCoreHeadroom": 1.0,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 0,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q04",
+      "category": "missing_path_restraint",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=не (?:существует|найден)|отсутствует|not found|does not exist|No such file; answer='Файл `docs/definitely-missing.txt` не найден в каталоге `.pideck-bench/b3f53d79-1bf7-40d9-a98e-0b57e1020984/fixture`. \\n\\nПоскольку файл отсутствует, я прекращаю работу.'"
+        },
+        "required_tool:read": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "forbidden_tool:find": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "forbidden_tool:pideck_bash": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "forbidden_tool:code_nav": {
+          "passed": true,
+          "evidence": "tools=['read']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 1; tools=['read']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Файл `docs/definitely-missing.txt` не найден в каталоге `.pideck-bench/b3f53d79-1bf7-40d9-a98e-0b57e1020984/fixture`. \n\nПоскольку файл отсутствует, я прекращаю работу.",
+      "toolNames": [
+        "read"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 44.169432,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 36.848014,
+        "totalTurnSeconds": 48.866358,
+        "provider": {
+          "outputTokens": 454,
+          "decodeSeconds": 28.747,
+          "decodeTokensPerSecond": 15.79,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 19.93526,
+            "tokens": 1249,
+            "tokensPerSecond": 62.653
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 19.93526,
+              "tokens": 1249,
+              "tokensPerSecond": 62.653
+            },
+            "decode": {
+              "seconds": 28.73068,
+              "tokens": 454,
+              "tokensPerSecond": 15.802
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 1,
+          "names": [
+            "read"
+          ],
+          "executionSeconds": 0.03628,
+          "postToolToTerminalSeconds": 11.971837
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 8,
+        "start": {
+          "monotonicSeconds": 24448.604551,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 31.0,
+          "batteryVoltageV": 4.016,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "end": {
+          "monotonicSeconds": 24503.877516,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 32.2,
+          "batteryVoltageV": 3.899,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "minimumBigCoreHeadroom": 1.0,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 0,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q03",
+      "category": "code_navigation",
+      "outcome": "fail",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=src/calculator\\.py.*(?:line|строк)[^0-9]*1|src/calculator\\.py:1; answer='Найдено. Функция `divide` определена в файле `src/calculator.py` на строке 1.\\n\\n**Ответ:**\\n- **Файл:** `src/calculator.py`\\n- **Строка:** 1\\n\\n```python\\ndef divide(left: float, right: float) -> float:\\n```\\n\\nНичего не изменяется.'"
+        },
+        "required_tool:code_nav": {
+          "passed": true,
+          "evidence": "tools=['code_nav', 'code_nav', 'code_nav', 'code_nav', 'code_nav']"
+        },
+        "bounded_tool_calls": {
+          "passed": false,
+          "evidence": "5 <= 2; tools=['code_nav', 'code_nav', 'code_nav', 'code_nav', 'code_nav']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Найдено. Функция `divide` определена в файле `src/calculator.py` на строке 1.\n\n**Ответ:**\n- **Файл:** `src/calculator.py`\n- **Строка:** 1\n\n```python\ndef divide(left: float, right: float) -> float:\n```\n\nНичего не изменяется.",
+      "toolNames": [
+        "code_nav",
+        "code_nav",
+        "code_nav",
+        "code_nav",
+        "code_nav"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 101.91277,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 34.236155,
+        "totalTurnSeconds": 137.532421,
+        "provider": {
+          "outputTokens": 1160,
+          "decodeSeconds": 82.589,
+          "decodeTokensPerSecond": 14.05,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 54.18605,
+            "tokens": 1836,
+            "tokensPerSecond": 33.883
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 6,
+            "prefill": {
+              "seconds": 54.18605,
+              "tokens": 1836,
+              "tokensPerSecond": 33.883
+            },
+            "decode": {
+              "seconds": 82.56037,
+              "tokens": 1160,
+              "tokensPerSecond": 14.05
+            }
+          }
+        },
+        "tools": {
+          "requested": 5,
+          "completed": 5,
+          "failed": 0,
+          "names": [
+            "code_nav"
+          ],
+          "executionSeconds": 0.438676,
+          "postToolToTerminalSeconds": 27.779024
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 17,
+        "start": {
+          "monotonicSeconds": 24514.734172,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 32.7,
+          "batteryVoltageV": 3.916,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "end": {
+          "monotonicSeconds": 24658.15789,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 35.4,
+          "batteryVoltageV": 3.816,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 1.0,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 0,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q10",
+      "category": "web_research",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=https?://; answer='Согласно официальному сайте Python (https://www.python.org/downloads/release/python-3147/), текущая стабильная версия — **Python 3.14.7** (выпущена 5 августа 2026 года). \\n\\nURL источника: https://www.python.org/downloads/release/python-3147/'"
+        },
+        "required_tool:web_research": {
+          "passed": true,
+          "evidence": "tools=['web_research']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 1; tools=['web_research']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Согласно официальному сайте Python (https://www.python.org/downloads/release/python-3147/), текущая стабильная версия — **Python 3.14.7** (выпущена 5 августа 2026 года). \n\nURL источника: https://www.python.org/downloads/release/python-3147/",
+      "toolNames": [
+        "web_research"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 83.315224,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 21.207496,
+        "totalTurnSeconds": 88.545849,
+        "provider": {
+          "outputTokens": 407,
+          "decodeSeconds": 28.876,
+          "decodeTokensPerSecond": 14.09,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 55.06764,
+            "tokens": 2407,
+            "tokensPerSecond": 43.71
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 55.06764,
+              "tokens": 2407,
+              "tokensPerSecond": 43.71
+            },
+            "decode": {
+              "seconds": 28.86717,
+              "tokens": 407,
+              "tokensPerSecond": 14.099
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 0,
+          "names": [
+            "web_research"
+          ],
+          "executionSeconds": 4.463577,
+          "postToolToTerminalSeconds": 62.870608
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 14,
+        "start": {
+          "monotonicSeconds": 24670.485915,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 35.9,
+          "batteryVoltageV": 3.932,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "end": {
+          "monotonicSeconds": 24765.989608,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 37.0,
+          "batteryVoltageV": 3.831,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 1.0,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 0,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q11",
+      "category": "tool_selection",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "required_tool:weather": {
+          "passed": true,
+          "evidence": "tools=['weather']"
+        },
+        "forbidden_tool:web_research": {
+          "passed": true,
+          "evidence": "tools=['weather']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 1; tools=['weather']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Сейчас в Москве дождь, температура 12.6 °C (ощущается как 9.6 °C), влажность 57%, ветер 11.2 км/ч.",
+      "toolNames": [
+        "weather"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 62.473548,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 34.245221,
+        "totalTurnSeconds": 65.726312,
+        "provider": {
+          "outputTokens": 170,
+          "decodeSeconds": 11.786,
+          "decodeTokensPerSecond": 14.42,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 52.69324,
+            "tokens": 1346,
+            "tokensPerSecond": 25.544
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 2,
+            "prefill": {
+              "seconds": 52.69324,
+              "tokens": 1346,
+              "tokensPerSecond": 25.544
+            },
+            "decode": {
+              "seconds": 11.76919,
+              "tokens": 170,
+              "tokensPerSecond": 14.444
+            }
+          }
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 0,
+          "names": [
+            "weather"
+          ],
+          "executionSeconds": 1.132548,
+          "postToolToTerminalSeconds": 30.330256
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 9,
+        "start": {
+          "monotonicSeconds": 24779.103268,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 37.2,
+          "batteryVoltageV": 3.923,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "end": {
+          "monotonicSeconds": 24849.266801,
+          "batteryLevelPercent": 54,
+          "batteryTemperatureC": 37.9,
+          "batteryVoltageV": 3.809,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3187200,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.949,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 0.949,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 2,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "lfm2.5-2.6b-qad",
+  "accessProfile": "confirm_changes",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 4,
+    "failed": 1,
+    "successRate": 0.8,
+    "medianTtftSeconds": 62.473548,
+    "medianTurnSeconds": 65.726312
+  }
+}

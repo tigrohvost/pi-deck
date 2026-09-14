@@ -61,6 +61,7 @@ EXTERNAL_OWNER = "android-native"
 EXTERNAL_RUNTIME_BUILDS = {
     "stock": "b10092",
     "nanbeige42": "nanbeige42-c6640a1",
+    "k2horizon": "k2horizon-35999d1-p2",
 }
 API_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
 CPU_SET_PATTERN = re.compile(r"^[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*$")
@@ -114,6 +115,8 @@ def effective_server_arguments(
     api_key: str,
 ) -> list[str]:
     runtime = model["runtime"]
+    if runtime["serverFlavor"] != "stock":
+        raise PiDeckError("NATIVE_RUNTIME_REQUIRED", "This model requires its bundled Android native runtime")
     sampling = model["sampling"]
     arguments = [
         str(PREFIX / "bin" / "llama-server"),

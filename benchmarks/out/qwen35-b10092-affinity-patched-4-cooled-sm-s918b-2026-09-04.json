@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "model": "Qwen3.5-2B-Q4_K_M.gguf",
+  "deviceModel": "/data/local/tmp/pideck-perf-models/Qwen3.5-2B-Q4_K_M.gguf",
+  "deviceDraftModel": null,
+  "libraryDirectory": "/data/local/tmp/pideck-b10092-affinity-repro",
+  "serverExecutable": "libpideck_llama_server.so",
+  "context": 1024,
+  "cpuProfile": {
+    "decodeThreads": 4,
+    "batchThreads": 8,
+    "decodeCpus": "4-7",
+    "batchCpus": "0-7"
+  },
+  "promptLabel": "affinity-patched-4-cooled",
+  "distinctPrompts": 1,
+  "requestSpeculative": null,
+  "maxTokens": 192,
+  "requestTimeoutSeconds": 600,
+  "coolBetweenSamples": true,
+  "device": "SM-S918B",
+  "variants": {
+    "baseline": {
+      "samples": 2,
+      "medianTokensPerSecond": 17.18,
+      "minTokensPerSecond": 17.15,
+      "maxTokensPerSecond": 17.22,
+      "discardedWarmUp": 17.58,
+      "medianPromptTokensPerSecond": 79.2,
+      "serverFlags": [],
+      "residentKiB": 2892780,
+      "threadAffinity": {
+        "maskHistogram": {
+          "0-7": 11,
+          "0": 1,
+          "1": 1,
+          "2": 1,
+          "3": 1,
+          "4": 2,
+          "5": 2,
+          "6": 2
+        },
+        "threads": [
+          {
+            "tid": 13965,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13970,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13979,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13990,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13991,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13992,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13993,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13994,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13995,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13996,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 13997,
+            "name": "libpideck_llama",
+            "cpus": "0-7"
+          },
+          {
+            "tid": 14006,
+            "name": "libpideck_llama",
+            "cpus": "0"
+          },
+          {
+            "tid": 14007,
+            "name": "libpideck_llama",
+            "cpus": "1"
+          },
+          {
+            "tid": 14008,
+            "name": "libpideck_llama",
+            "cpus": "2"
+          },
+          {
+            "tid": 14009,
+            "name": "libpideck_llama",
+            "cpus": "3"
+          },
+          {
+            "tid": 14010,
+            "name": "libpideck_llama",
+            "cpus": "4"
+          },
+          {
+            "tid": 14011,
+            "name": "libpideck_llama",
+            "cpus": "5"
+          },
+          {
+            "tid": 14012,
+            "name": "libpideck_llama",
+            "cpus": "6"
+          },
+          {
+            "tid": 14013,
+            "name": "libpideck_llama",
+            "cpus": "4"
+          },
+          {
+            "tid": 14014,
+            "name": "libpideck_llama",
+            "cpus": "5"
+          },
+          {
+            "tid": 14015,
+            "name": "libpideck_llama",
+            "cpus": "6"
+          }
+        ]
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 46900
+      },
+      "headroomDuringSamples": [
+        0.846,
+        1.0
+      ],
+      "samplesDetail": [
+        {
+          "index": 0,
+          "warmUp": true,
+          "tokensPerSecond": 17.58,
+          "headroom": 0.949,
+          "cpuMilliCelsius": 76500,
+          "thermalBefore": {
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "headroom": 1.0,
+            "hottestCpuMilliCelsius": 46900
+          },
+          "thermalAfter": {
+            "bigCoreScalingMaxHz": 3187200,
+            "bigCoreNominalMaxHz": 3360000,
+            "headroom": 0.949,
+            "hottestCpuMilliCelsius": 76500
+          }
+        },
+        {
+          "index": 1,
+          "warmUp": false,
+          "tokensPerSecond": 17.22,
+          "headroom": 1.0,
+          "cpuMilliCelsius": 72200,
+          "thermalBefore": {
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "headroom": 1.0,
+            "hottestCpuMilliCelsius": 46500
+          },
+          "thermalAfter": {
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "headroom": 1.0,
+            "hottestCpuMilliCelsius": 72200
+          }
+        },
+        {
+          "index": 2,
+          "warmUp": false,
+          "tokensPerSecond": 17.15,
+          "headroom": 0.846,
+          "cpuMilliCelsius": 72600,
+          "thermalBefore": {
+            "bigCoreScalingMaxHz": 3360000,
+            "bigCoreNominalMaxHz": 3360000,
+            "headroom": 1.0,
+            "hottestCpuMilliCelsius": 44200
+          },
+          "thermalAfter": {
+            "bigCoreScalingMaxHz": 2841600,
+            "bigCoreNominalMaxHz": 3360000,
+            "headroom": 0.846,
+            "hottestCpuMilliCelsius": 72600
+          }
+        }
+      ]
+    }
+  }
+}

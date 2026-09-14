@@ -31,6 +31,7 @@ jobs:
             "ndk;27.1.12297006" "ndk;28.2.13676358" "cmake;3.22.1"
           ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.1.12297006" \
             PIDECK_NANBEIGE_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" \
+            PIDECK_K2_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" \
             ./tools/vendor_llama_android.sh
 
       - name: Test, lint and assemble debug plus unsigned release
@@ -114,7 +115,9 @@ jobs:
           retention-days: 1
 
   signed-release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -124,14 +127,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Require a GitHub-verified annotated tag signature
+      - name: Verify release source and signed version tag
         env:
-          GH_TOKEN: ${{ github.token }}
+          GNUPGHOME: ${{ runner.temp }}/pideck-tag-verification
         run: |
-          tag_sha="$(git rev-parse "${GITHUB_REF_NAME}^{tag}")"
-          verified="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_sha}" \
-            --jq '.verification.verified')"
-          test "$verified" = true
+          set -euo pipefail
+          git fetch origin main
+          git merge-base --is-ancestor HEAD origin/main
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            mkdir -m 700 "$GNUPGHOME"
+            git show origin/main:.github/release-signing.asc | gpg --batch --import
+            git verify-tag "$GITHUB_REF_NAME"
+            version="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts)"
+            test "$GITHUB_REF_NAME" = "v$version"
+          fi
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -139,45 +148,65 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+      - name: Download tested unsigned APK
+        uses: actions/download-artifact@v8
+        with:
+          name: pi-deck-unsigned-release-do-not-publish
+          path: build/unsigned
 
-      - name: Restore pinned llama.cpp Android runtime
-        run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "ndk;27.1.12297006" "ndk;28.2.13676358" "cmake;3.22.1"
-          ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.1.12297006" \
-            PIDECK_NANBEIGE_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" \
-            ./tools/vendor_llama_android.sh
+      - name: Download tested supply-chain metadata
+        uses: actions/download-artifact@v8
+        with:
+          name: pi-deck-supply-chain-metadata
+          path: build/release
 
-      - name: Build production-signed release
+      - name: Sign and verify the tested release APK
         env:
-          PIDECK_RELEASE_STORE_FILE: ${{ github.workspace }}/release.keystore
           PIDECK_RELEASE_STORE_PASSWORD: ${{ secrets.PIDECK_RELEASE_STORE_PASSWORD }}
           PIDECK_RELEASE_KEY_ALIAS: ${{ secrets.PIDECK_RELEASE_KEY_ALIAS }}
           PIDECK_RELEASE_KEY_PASSWORD: ${{ secrets.PIDECK_RELEASE_KEY_PASSWORD }}
           RELEASE_KEYSTORE_B64: ${{ secrets.PIDECK_RELEASE_KEYSTORE_B64 }}
+          PIDECK_RELEASE_CERT_SHA256: ${{ vars.PIDECK_RELEASE_CERT_SHA256 }}
         run: |
-          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > release.keystore
-          ./gradlew verifyProductionSigning testDebugUnitTest lintDebug assembleRelease
-          apksigner verify --verbose --print-certs \
-            app/build/outputs/apk/release/app-release.apk | tee build-signing.txt
-          ! grep -qi 'Android Debug' build-signing.txt
+          set -euo pipefail
+          : "${RELEASE_KEYSTORE_B64:?Missing release keystore}"
+          : "${PIDECK_RELEASE_STORE_PASSWORD:?Missing store password}"
+          : "${PIDECK_RELEASE_KEY_ALIAS:?Missing key alias}"
+          : "${PIDECK_RELEASE_KEY_PASSWORD:?Missing key password}"
+          : "${PIDECK_RELEASE_CERT_SHA256:?Missing expected signing certificate}"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
+          build_tools="$ANDROID_HOME/build-tools/35.0.0"
+          keystore="$RUNNER_TEMP/pideck-release.keystore"
+          trap 'rm -f "$keystore"' EXIT
+          umask 077
+          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > "$keystore"
+          "$build_tools/zipalign" -P 16 -f 4 \
+            build/unsigned/app-release-unsigned.apk build/unsigned/aligned.apk
+          "$build_tools/apksigner" sign --ks "$keystore" \
+            --ks-key-alias "$PIDECK_RELEASE_KEY_ALIAS" \
+            --ks-pass env:PIDECK_RELEASE_STORE_PASSWORD \
+            --key-pass env:PIDECK_RELEASE_KEY_PASSWORD \
+            --out build/release/pi-deck.apk build/unsigned/aligned.apk
+          "$build_tools/apksigner" verify --verbose --print-certs \
+            build/release/pi-deck.apk | tee build/release/signing-certificate.txt
+          if grep -qi 'Android Debug' build/release/signing-certificate.txt; then
+            echo 'Debug certificate is forbidden' >&2
+            exit 1
+          fi
+          actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' build/release/signing-certificate.txt)"
+          test "$actual" = "$PIDECK_RELEASE_CERT_SHA256"
+          "$build_tools/zipalign" -c -P 16 4 build/release/pi-deck.apk
+          "$build_tools/aapt" dump badging build/release/pi-deck.apk > build/release/apk-info.txt
+          if grep -q '^application-debuggable' build/release/apk-info.txt; then
+            echo 'Debuggable APK is forbidden' >&2
+            exit 1
+          fi
 
       - name: Assemble signed release metadata
         run: |
-          mkdir -p build/release
-          npm pack @earendil-works/pi-coding-agent@0.82.1 \
-            --ignore-scripts --pack-destination build/release
-          python3 tools/generate_sbom.py \
-            --pi-tarball build/release/earendil-works-pi-coding-agent-0.82.1.tgz \
-            --output build/release/pi-deck.cdx.json
-          cp app/build/outputs/apk/release/app-release.apk build/release/pi-deck.apk
-          cp app/src/main/assets/models-v2.json build/release/
-          cp app/src/main/assets/compatibility.json build/release/
-          cp app/src/main/assets/native-runtime.json build/release/
           cp docs/implementation-baseline.md build/release/
           cp docs/release-process.md build/release/BUILD-INSTRUCTIONS.md
+          printf '%s\n' "$GITHUB_SHA" > build/release/SOURCE_COMMIT
           python3 tools/write_checksums.py --output build/release/SHA256SUMS \
             build/release/pi-deck.apk \
             build/release/pi-deck.cdx.json \
@@ -185,11 +214,25 @@ jobs:
             build/release/compatibility.json \
             build/release/native-runtime.json \
             build/release/implementation-baseline.md \
-            build/release/BUILD-INSTRUCTIONS.md
+            build/release/BUILD-INSTRUCTIONS.md \
+            build/release/SOURCE_COMMIT \
+            build/release/signing-certificate.txt \
+            build/release/apk-info.txt
 
-      - name: Publish immutable signed release assets
+      - name: Upload signed release APK and metadata
+        uses: actions/upload-artifact@v7
+        with:
+          name: pi-deck-signed-release
+          path: build/release/
+          if-no-files-found: error
+
+      - name: Publish signed release assets
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             build/release/pi-deck.apk
             build/release/pi-deck.cdx.json
@@ -198,4 +241,7 @@ jobs:
             build/release/native-runtime.json
             build/release/implementation-baseline.md
             build/release/BUILD-INSTRUCTIONS.md
+            build/release/SOURCE_COMMIT
+            build/release/signing-certificate.txt
+            build/release/apk-info.txt
             build/release/SHA256SUMS

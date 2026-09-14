@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-09-02T13:51:04.092861Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q01"
+  ],
+  "outcomes": [
+    {
+      "id": "Q01",
+      "category": "direct_format",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "exact_answer": {
+          "passed": true,
+          "evidence": "answer='PIDECK_V2_OK'"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "0 <= 0; tools=[]"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "PIDECK_V2_OK",
+      "toolNames": [],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 78.584692,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": null,
+        "totalTurnSeconds": 79.442449,
+        "provider": {
+          "outputTokens": 116,
+          "decodeSeconds": 15.155,
+          "decodeTokensPerSecond": 7.65,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "native_run_as_log",
+            "seconds": 63.3891,
+            "tokens": 884,
+            "tokensPerSecond": 13.946
+          },
+          "nativeTimings": {
+            "source": "native_run_as_log",
+            "providerRequests": 1,
+            "prefill": {
+              "seconds": 63.3891,
+              "tokens": 884,
+              "tokensPerSecond": 13.946
+            },
+            "decode": {
+              "seconds": 15.1335,
+              "tokens": 116,
+              "tokensPerSecond": 7.665
+            }
+          }
+        },
+        "tools": {
+          "requested": 0,
+          "completed": 0,
+          "failed": 0,
+          "names": [],
+          "executionSeconds": 0.0,
+          "postToolToTerminalSeconds": null
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 11,
+        "start": {
+          "monotonicSeconds": 33794.616467,
+          "batteryLevelPercent": 94,
+          "batteryTemperatureC": 39.0,
+          "batteryVoltageV": 4.264,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 2592000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.771,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 1
+        },
+        "end": {
+          "monotonicSeconds": 33881.015515,
+          "batteryLevelPercent": 94,
+          "batteryTemperatureC": 39.6,
+          "batteryVoltageV": 4.227,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 1593600,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 0.474,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 2
+        },
+        "minimumBigCoreHeadroom": 0.474,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 1,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "granite-4.2-3b",
+  "accessProfile": "confirm_changes",
+  "device": {
+    "model": "SM-S918B",
+    "build": "BP4A.251205.006.S918BXXSAFZG1"
+  },
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "successRate": 1.0,
+    "medianTtftSeconds": 78.584692,
+    "medianTurnSeconds": 79.442449
+  }
+}

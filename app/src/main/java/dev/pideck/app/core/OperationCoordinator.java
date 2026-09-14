@@ -103,6 +103,28 @@ public final class OperationCoordinator {
         return true;
     }
 
+    /**
+     * Package replacement kills the app-owned native server along with the Activity. A native
+     * start created by the previous package therefore cannot still be running and must not retain
+     * the single mutating slot in UNKNOWN after the replacement.
+     */
+    public synchronized boolean failNativeStartStartedBefore(long packageUpdatedAtMs) {
+        if (activeOperationId == null || packageUpdatedAtMs <= 0L) return false;
+        OperationRecord active = store.load(activeOperationId);
+        if (active == null
+                || active.state.isTerminal()
+                || active.createdAtMs >= packageUpdatedAtMs
+                || active.kind != OperationKind.START_SERVER) {
+            return false;
+        }
+        store.fail(
+                active.operationId,
+                "Application package changed during native model startup; retry with the new APK"
+        );
+        activeOperationId = null;
+        return true;
+    }
+
     public synchronized void requestAbort(OperationId target) {
         OperationRecord record = store.load(target);
         if (record == null || record.state.isTerminal()) {

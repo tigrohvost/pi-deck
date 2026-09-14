@@ -1,0 +1,542 @@
+{
+  "model": "qad",
+  "device": "SM-S918B",
+  "modelPath": "/data/local/tmp/pideck-perf-models/LFM2.5-2.6B-QAD-Q4_0.gguf",
+  "modelSha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+  "libraryDirectory": "/data/local/tmp/pideck-b10092-affinity-repro",
+  "context": 8192,
+  "threads": 5,
+  "batchThreads": 8,
+  "batchSize": 512,
+  "ubatchSize": 128,
+  "temperature": 0.1,
+  "reasoningBudget": 256,
+  "samples": [],
+  "tools": [
+    {
+      "label": "missing",
+      "passed": true,
+      "seconds": 47.881619435000175,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 45700
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 74200
+      },
+      "calls": [
+        {
+          "name": "read",
+          "args": {
+            "path": "docs/definitely-missing.txt"
+          },
+          "result": "Error: file not found"
+        }
+      ],
+      "rounds": [
+        {
+          "elapsed": 7.430242181999347,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 393,
+            "prompt_ms": 4117.423,
+            "prompt_per_token_ms": 10.47690330788804,
+            "prompt_per_second": 95.44805088036863,
+            "predicted_n": 66,
+            "predicted_ms": 3259.905,
+            "predicted_per_token_ms": 49.392500000000005,
+            "predicted_per_second": 20.245988763476237
+          },
+          "finishReason": "tool_calls",
+          "content": "",
+          "reasoningChars": 194,
+          "toolCalls": [
+            {
+              "type": "function",
+              "function": {
+                "name": "read",
+                "arguments": "{\"path\":\"docs/definitely-missing.txt\"}"
+              },
+              "id": "AjlAPeugX5qvhDJvHhmgRasBNxKsyfsL"
+            }
+          ]
+        },
+        {
+          "elapsed": 3.7871760569978505,
+          "timings": {
+            "cache_n": 458,
+            "prompt_n": 16,
+            "prompt_ms": 264.744,
+            "prompt_per_token_ms": 16.5465,
+            "prompt_per_second": 60.435741697639976,
+            "predicted_n": 65,
+            "predicted_ms": 3459.78,
+            "predicted_per_token_ms": 53.227384615384615,
+            "predicted_per_second": 18.78732173722028
+          },
+          "finishReason": "stop",
+          "content": "Файл `docs/definitely-missing.txt` не найден.",
+          "reasoningChars": 204,
+          "toolCalls": []
+        }
+      ],
+      "answer": "Файл `docs/definitely-missing.txt` не найден.",
+      "testPassed": false,
+      "inferenceSeconds": 11.217418238997197
+    },
+    {
+      "label": "repair",
+      "passed": true,
+      "seconds": 84.13779892000093,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 46100
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1977600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.589,
+        "hottestCpuMilliCelsius": 76500
+      },
+      "calls": [
+        {
+          "name": "read",
+          "args": {
+            "path": "src/math_utils.py"
+          },
+          "result": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))\n"
+        },
+        {
+          "name": "read",
+          "args": {
+            "path": "src/math_utils.py"
+          },
+          "result": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))\n"
+        },
+        {
+          "name": "edit",
+          "args": {
+            "path": "src/math_utils.py",
+            "old_text": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))",
+            "new_text": "def clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    elif value > upper:\n        return upper\n    else:\n        return value"
+          },
+          "result": "Edit saved"
+        },
+        {
+          "name": "run_tests",
+          "args": {
+            "path": "tests/test_math_utils.py"
+          },
+          "result": "4 tests passed"
+        }
+      ],
+      "rounds": [
+        {
+          "elapsed": 6.932623617001809,
+          "timings": {
+            "cache_n": 261,
+            "prompt_n": 178,
+            "prompt_ms": 2054.651,
+            "prompt_per_token_ms": 11.542983146067415,
+            "prompt_per_second": 86.63271767322041,
+            "predicted_n": 98,
+            "predicted_ms": 4847.877,
+            "predicted_per_token_ms": 49.468132653061225,
+            "predicted_per_second": 20.215034333585606
+          },
+          "finishReason": "tool_calls",
+          "content": "",
+          "reasoningChars": 358,
+          "toolCalls": [
+            {
+              "type": "function",
+              "function": {
+                "name": "read",
+                "arguments": "{\"path\":\"src/math_utils.py\"}"
+              },
+              "id": "HDZ2kjKjiZXpKmmhOVy0VGAqRk2j5Mwt"
+            }
+          ]
+        },
+        {
+          "elapsed": 15.851111768002738,
+          "timings": {
+            "cache_n": 536,
+            "prompt_n": 32,
+            "prompt_ms": 468.966,
+            "prompt_per_token_ms": 14.6551875,
+            "prompt_per_second": 68.23522387550483,
+            "predicted_n": 272,
+            "predicted_ms": 15330.257,
+            "predicted_per_token_ms": 56.36123897058823,
+            "predicted_per_second": 17.742690158423308
+          },
+          "finishReason": "tool_calls",
+          "content": "",
+          "reasoningChars": 808,
+          "toolCalls": [
+            {
+              "type": "function",
+              "function": {
+                "name": "read",
+                "arguments": "{\"path\":\"src/math_utils.py\"}"
+              },
+              "id": "j1bXWd7Ey3HTd5Hk9MVU4zzsywt4F39b"
+            }
+          ]
+        },
+        {
+          "elapsed": 23.39162765799847,
+          "timings": {
+            "cache_n": 839,
+            "prompt_n": 32,
+            "prompt_ms": 543.852,
+            "prompt_per_token_ms": 16.995375,
+            "prompt_per_second": 58.83953722703971,
+            "predicted_n": 376,
+            "predicted_ms": 22789.049,
+            "predicted_per_token_ms": 60.60917287234042,
+            "predicted_per_second": 16.499152729014714
+          },
+          "finishReason": "tool_calls",
+          "content": "The current implementation is incorrect. The function should return the value unchanged if it's within bounds, lower bound if below, and upper bound if above. Let me fix it.",
+          "reasoningChars": 763,
+          "toolCalls": [
+            {
+              "type": "function",
+              "function": {
+                "name": "edit",
+                "arguments": "{\"path\":\"src/math_utils.py\",\"old_text\":\"def clamp(value, lower, upper):\\n    return min(lower, max(upper, value))\",\"new_text\":\"def clamp(value, lower, upper):\\n    if value < lower:\\n        return lower\\n    elif value > upper:\\n        return upper\\n    else:\\n        return value\"}"
+              },
+              "id": "c2DAqIvhwibuLJtvXU1YtOICc6hGFmLP"
+            }
+          ]
+        },
+        {
+          "elapsed": 3.376779398000508,
+          "timings": {
+            "cache_n": 1246,
+            "prompt_n": 13,
+            "prompt_ms": 281.048,
+            "prompt_per_token_ms": 21.619076923076925,
+            "prompt_per_second": 46.25544390993709,
+            "predicted_n": 44,
+            "predicted_ms": 3030.64,
+            "predicted_per_token_ms": 68.87818181818182,
+            "predicted_per_second": 14.518385555526226
+          },
+          "finishReason": "tool_calls",
+          "content": "",
+          "reasoningChars": 98,
+          "toolCalls": [
+            {
+              "type": "function",
+              "function": {
+                "name": "run_tests",
+                "arguments": "{\"path\":\"tests/test_math_utils.py\"}"
+              },
+              "id": "MGAv5C6cJDGf90nVGIJcACKOGXwdJgAg"
+            }
+          ]
+        },
+        {
+          "elapsed": 11.369218365998677,
+          "timings": {
+            "cache_n": 1302,
+            "prompt_n": 14,
+            "prompt_ms": 328.226,
+            "prompt_per_token_ms": 23.444714285714287,
+            "prompt_per_second": 42.65353750159951,
+            "predicted_n": 176,
+            "predicted_ms": 10978.281,
+            "predicted_per_token_ms": 62.376596590909095,
+            "predicted_per_second": 16.031653771660608
+          },
+          "finishReason": "stop",
+          "content": "Функция `clamp` исправлена и тесты пройдены успешно. Вот исправленный код:\n\n```python\ndef clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    elif value > upper:\n        return upper\n    else:\n        return value\n```\n\nТеперь функция корректно возвращает:\n- `lower`, если `value < lower`\n- `upper`, если `value > upper`\n- `value` (без изменений), если `lower ≤ value ≤ upper`\n\nВсе 4 теста в `tests/test_math_utils.py` прошли успешно.",
+          "reasoningChars": 163,
+          "toolCalls": []
+        }
+      ],
+      "answer": "Функция `clamp` исправлена и тесты пройдены успешно. Вот исправленный код:\n\n```python\ndef clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    elif value > upper:\n        return upper\n    else:\n        return value\n```\n\nТеперь функция корректно возвращает:\n- `lower`, если `value < lower`\n- `upper`, если `value > upper`\n- `value` (без изменений), если `lower ≤ value ≤ upper`\n\nВсе 4 теста в `tests/test_math_utils.py` прошли успешно.",
+      "testPassed": true,
+      "inferenceSeconds": 60.9213608070022
+    },
+    {
+      "label": "weather",
+      "passed": true,
+      "seconds": 61.90374352600338,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 52800
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 73800
+      },
+      "calls": [
+        {
+          "name": "weather",
+          "args": {
+            "city": "Moscow"
+          },
+          "result": "{\"city\": \"Moscow\", \"temperature_c\": 13, \"condition\": \"дождь\", \"test_fixture\": true}"
+        }
+      ],
+      "rounds": [
+        {
+          "elapsed": 4.382212156000605,
+          "timings": {
+            "cache_n": 261,
+            "prompt_n": 136,
+            "prompt_ms": 1617.804,
+            "prompt_per_token_ms": 11.895617647058824,
+            "prompt_per_second": 84.06457148084687,
+            "predicted_n": 58,
+            "predicted_ms": 2719.62,
+            "predicted_per_token_ms": 46.89,
+            "predicted_per_second": 21.326508850501174
+          },
+          "finishReason": "tool_calls",
+          "content": "",
+          "reasoningChars": 212,
+          "toolCalls": [
+            {
+              "type": "function",
+              "function": {
+                "name": "weather",
+                "arguments": "{\"city\":\"Moscow\"}"
+              },
+              "id": "LElSFJfCc2GYKLc1QWTXXZToqBMTEHLD"
+            }
+          ]
+        },
+        {
+          "elapsed": 4.380107830998895,
+          "timings": {
+            "cache_n": 454,
+            "prompt_n": 42,
+            "prompt_ms": 686.971,
+            "prompt_per_token_ms": 16.35645238095238,
+            "prompt_per_second": 61.13795196594907,
+            "predicted_n": 68,
+            "predicted_ms": 3636.34,
+            "predicted_per_token_ms": 53.47558823529412,
+            "predicted_per_second": 18.70012155079008
+          },
+          "finishReason": "stop",
+          "content": "В Москве сейчас 13°C, и идёт дождь.",
+          "reasoningChars": 234,
+          "toolCalls": []
+        }
+      ],
+      "answer": "В Москве сейчас 13°C, и идёт дождь.",
+      "testPassed": false,
+      "inferenceSeconds": 8.7623199869995
+    }
+  ],
+  "serverSha256": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+  "thermalBeforeLoad": {
+    "bigCoreScalingMaxHz": 3360000,
+    "bigCoreNominalMaxHz": 3360000,
+    "headroom": 1.0,
+    "hottestCpuMilliCelsius": 48100
+  },
+  "loadSeconds": 18.089824620998115,
+  "affinity": {
+    "maskHistogram": {
+      "0-7": 11,
+      "0": 1,
+      "1": 1,
+      "2": 1,
+      "3": 2,
+      "4": 2,
+      "5": 2,
+      "6": 2
+    },
+    "threads": [
+      {
+        "tid": 10140,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10144,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10145,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10146,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10147,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10148,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10149,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10150,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10151,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10152,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10153,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 10422,
+        "name": "libpideck_llama",
+        "cpus": "0"
+      },
+      {
+        "tid": 10423,
+        "name": "libpideck_llama",
+        "cpus": "1"
+      },
+      {
+        "tid": 10424,
+        "name": "libpideck_llama",
+        "cpus": "2"
+      },
+      {
+        "tid": 10425,
+        "name": "libpideck_llama",
+        "cpus": "3"
+      },
+      {
+        "tid": 10427,
+        "name": "libpideck_llama",
+        "cpus": "4"
+      },
+      {
+        "tid": 10428,
+        "name": "libpideck_llama",
+        "cpus": "5"
+      },
+      {
+        "tid": 10429,
+        "name": "libpideck_llama",
+        "cpus": "6"
+      },
+      {
+        "tid": 10430,
+        "name": "libpideck_llama",
+        "cpus": "3"
+      },
+      {
+        "tid": 10431,
+        "name": "libpideck_llama",
+        "cpus": "4"
+      },
+      {
+        "tid": 10432,
+        "name": "libpideck_llama",
+        "cpus": "5"
+      },
+      {
+        "tid": 10433,
+        "name": "libpideck_llama",
+        "cpus": "6"
+      }
+    ]
+  },
+  "inProgress": {
+    "label": "weather",
+    "rounds": [
+      {
+        "elapsed": 4.382212156000605,
+        "timings": {
+          "cache_n": 261,
+          "prompt_n": 136,
+          "prompt_ms": 1617.804,
+          "prompt_per_token_ms": 11.895617647058824,
+          "prompt_per_second": 84.06457148084687,
+          "predicted_n": 58,
+          "predicted_ms": 2719.62,
+          "predicted_per_token_ms": 46.89,
+          "predicted_per_second": 21.326508850501174
+        },
+        "finishReason": "tool_calls",
+        "content": "",
+        "reasoningChars": 212,
+        "toolCalls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "weather",
+              "arguments": "{\"city\":\"Moscow\"}"
+            },
+            "id": "LElSFJfCc2GYKLc1QWTXXZToqBMTEHLD"
+          }
+        ]
+      },
+      {
+        "elapsed": 4.380107830998895,
+        "timings": {
+          "cache_n": 454,
+          "prompt_n": 42,
+          "prompt_ms": 686.971,
+          "prompt_per_token_ms": 16.35645238095238,
+          "prompt_per_second": 61.13795196594907,
+          "predicted_n": 68,
+          "predicted_ms": 3636.34,
+          "predicted_per_token_ms": 53.47558823529412,
+          "predicted_per_second": 18.70012155079008
+        },
+        "finishReason": "stop",
+        "content": "В Москве сейчас 13°C, и идёт дождь.",
+        "reasoningChars": 234,
+        "toolCalls": []
+      }
+    ],
+    "calls": [
+      {
+        "name": "weather",
+        "args": {
+          "city": "Moscow"
+        },
+        "result": "{\"city\": \"Moscow\", \"temperature_c\": 13, \"condition\": \"дождь\", \"test_fixture\": true}"
+      }
+    ]
+  },
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.042.794 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.046.185 I srv          init: The UI is disabled\n0.00.046.230 I srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable\n0.00.053.166 I srv    load_model: loading model '/data/local/tmp/pideck-perf-models/LFM2.5-2.6B-QAD-Q4_0.gguf'\n0.16.436.898 I srv  attach_cpu_t: attached CPU affinity thread pools: decode=5, batch=8\n0.16.515.520 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.16.525.486 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve\n0.16.525.515 I srv  llama_server: model loaded\n0.16.525.518 I srv  llama_server: listening on http://127.0.0.1:18080\n0.56.549.278 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.56.550.161 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n1.00.602.633 I slot print_timing: id  0 | task 0 | prompt processing, n_tokens =    389, progress = 0.99, t =   4.05 s / 95.99 tokens per second\n1.03.927.634 I slot print_timing: id  0 | task 0 | prompt eval time =    4117.42 ms /   393 tokens (   10.48 ms per token,    95.45 tokens per second)\n1.03.927.651 I slot print_timing: id  0 | task 0 |        eval time =    3259.91 ms /    66 tokens (   49.39 ms per token,    20.25 tokens per second)\n1.03.927.653 I slot print_timing: id  0 | task 0 |       total time =    7377.33 ms /   459 tokens\n1.03.927.654 I slot print_timing: id  0 | task 0 |    graphs reused =         65\n1.03.927.746 I slot      release: id  0 | task 0 | stop processing: n_tokens = 458, truncated = 0\n1.03.996.833 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.966 (> 0.100 thold), f_keep = 1.000\n1.03.997.203 I slot launch_slot_: id  0 | task 69 | processing task, is_child = 0\n1.07.721.757 I slot print_timing: id  0 | task 69 | prompt eval time =     264.74 ms /    16 tokens (   16.55 ms per token,    60.44 tokens per second)\n1.07.721.777 I slot print_timing: id  0 | task 69 |        eval time =    3459.78 ms /    65 tokens (   53.23 ms per token,    18.79 tokens per second)\n1.07.721.779 I slot print_timing: id  0 | task 69 |       total time =    3724.52 ms /    81 tokens\n1.07.721.780 I slot print_timing: id  0 | task 69 |    graphs reused =        127\n1.07.721.880 I slot      release: id  0 | task 69 | stop processing: n_tokens = 538, truncated = 0\n1.38.792.492 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.802 (> 0.100 thold), f_keep = 0.654\n1.38.795.676 I slot launch_slot_: id  0 | task 136 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000074e0f7580d : Invalid argument (22)\n1.45.698.318 I slot print_timing: id  0 | task 136 | prompt eval time =    2054.65 ms /   178 tokens (   11.54 ms per token,    86.63 tokens per second)\n1.45.698.331 I slot print_timing: id  0 | task 136 |        eval time =    4847.88 ms /    98 tokens (   49.47 ms per token,    20.22 tokens per second)\n1.45.698.333 I slot print_timing: id  0 | task 136 |       total time =    6902.53 ms /   276 tokens\n1.45.698.334 I slot print_timing: id  0 | task 136 |    graphs reused =        222\n1.45.698.437 I slot      release: id  0 | task 136 | stop processing: n_tokens = 536, truncated = 0\n1.45.750.730 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.944 (> 0.100 thold), f_keep = 1.000\n1.45.751.086 I slot launch_slot_: id  0 | task 237 | processing task, is_child = 0\n1.51.669.750 I slot print_timing: id  0 | task 237 | n_decoded =    100, tg =  18.35 t/s, tg_3s =  18.35 t/s\n1.54.719.200 I slot print_timing: id  0 | task 237 | n_decoded =    154, tg =  18.12 t/s, tg_3s =  17.71 t/s\n1.57.753.634 I slot print_timing: id  0 | task 237 | n_decoded =    207, tg =  17.95 t/s, tg_3s =  17.47 t/s\n2.00.785.966 I slot print_timing: id  0 | task 237 | n_decoded =    259, tg =  17.78 t/s, tg_3s =  17.15 t/s\n2.01.550.339 I slot print_timing: id  0 | task 237 | prompt eval time =     468.97 ms /    32 tokens (   14.66 ms per token,    68.24 tokens per second)\n2.01.550.352 I slot print_timing: id  0 | task 237 |        eval time =   15330.26 ms /   272 tokens (   56.36 ms per token,    17.74 tokens per second)\n2.01.550.353 I slot print_timing: id  0 | task 237 |       total time =   15799.22 ms /   304 tokens\n2.01.550.354 I slot print_timing: id  0 | task 237 |    graphs reused =        491\n2.01.550.474 I slot      release: id  0 | task 237 | stop processing: n_tokens = 839, truncated = 0\n2.01.610.591 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.963 (> 0.100 thold), f_keep = 1.000\n2.01.610.953 I slot launch_slot_: id  0 | task 511 | processing task, is_child = 0\n2.07.986.734 I slot print_timing: id  0 | task 511 | n_decoded =    100, tg =  17.15 t/s, tg_3s =  17.15 t/s\n2.10.992.558 I slot print_timing: id  0 | task 511 | n_decoded =    149, tg =  16.86 t/s, tg_3s =  16.30 t/s\n2.14.034.216 I slot print_timing: id  0 | task 511 | n_decoded =    199, tg =  16.75 t/s, tg_3s =  16.44 t/s\n2.17.083.738 I slot print_timing: id  0 | task 511 | n_decoded =    249, tg =  16.68 t/s, tg_3s =  16.40 t/s\n2.20.090.662 I slot print_timing: id  0 | task 511 | n_decoded =    298, tg =  16.61 t/s, tg_3s =  16.30 t/s\n2.23.128.150 I slot print_timing: id  0 | task 511 | n_decoded =    347, tg =  16.54 t/s, tg_3s =  16.13 t/s\n2.24.943.893 I slot print_timing: id  0 | task 511 | prompt eval time =     543.85 ms /    32 tokens (   17.00 ms per token,    58.84 tokens per second)\n2.24.943.916 I slot print_timing: id  0 | task 511 |        eval time =   22789.05 ms /   376 tokens (   60.61 ms per token,    16.50 tokens per second)\n2.24.943.918 I slot print_timing: id  0 | task 511 |       total time =   23332.90 ms /   408 tokens\n2.24.943.919 I slot print_timing: id  0 | task 511 |    graphs reused =        864\n2.24.944.089 I slot      release: id  0 | task 511 | stop processing: n_tokens = 1246, truncated = 0\n2.25.010.142 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.990 (> 0.100 thold), f_keep = 1.000\n2.25.010.631 I slot launch_slot_: id  0 | task 889 | processing task, is_child = 0\n2.28.322.349 I slot print_timing: id  0 | task 889 | prompt eval time =     281.05 ms /    13 tokens (   21.62 ms per token,    46.26 tokens per second)\n2.28.322.369 I slot print_timing: id  0 | task 889 |        eval time =    3030.64 ms /    44 tokens (   68.88 ms per token,    14.52 tokens per second)\n2.28.322.372 I slot print_timing: id  0 | task 889 |       total time =    3311.69 ms /    57 tokens\n2.28.322.374 I slot print_timing: id  0 | task 889 |    graphs reused =        905\n2.28.322.558 I slot      release: id  0 | task 889 | stop processing: n_tokens = 1302, truncated = 0\n2.28.388.260 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.989 (> 0.100 thold), f_keep = 1.000\n2.28.388.683 I slot launch_slot_: id  0 | task 935 | processing task, is_child = 0\n2.34.899.180 I slot print_timing: id  0 | task 935 | n_decoded =    100, tg =  16.18 t/s, tg_3s =  16.18 t/s\n2.37.925.116 I slot print_timing: id  0 | task 935 | n_decoded =    148, tg =  16.07 t/s, tg_3s =  15.86 t/s\n2.39.695.214 I slot print_timing: id  0 | task 935 | prompt eval time =     328.23 ms /    14 tokens (   23.44 ms per token,    42.65 tokens per second)\n2.39.695.235 I slot print_timing: id  0 | task 935 |        eval time =   10978.28 ms /   176 tokens (   62.38 ms per token,    16.03 tokens per second)\n2.39.695.237 I slot print_timing: id  0 | task 935 |       total time =   11306.51 ms /   190 tokens\n2.39.695.238 I slot print_timing: id  0 | task 935 |    graphs reused =       1079\n2.39.695.399 I slot      release: id  0 | task 935 | stop processing: n_tokens = 1491, truncated = 0\n3.41.002.624 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.887 (> 0.100 thold), f_keep = 0.236\n3.41.016.720 I slot launch_slot_: id  0 | task 1113 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000074e0f7580d : Invalid argument (22)\n3.45.354.189 I slot print_timing: id  0 | task 1113 | prompt eval time =    1617.80 ms /   136 tokens (   11.90 ms per token,    84.06 tokens per second)\n3.45.354.208 I slot print_timing: id  0 | task 1113 |        eval time =    2719.62 ms /    58 tokens (   46.89 ms per token,    21.33 tokens per second)\n3.45.354.209 I slot print_timing: id  0 | task 1113 |       total time =    4337.42 ms /   194 tokens\n3.45.354.211 I slot print_timing: id  0 | task 1113 |    graphs reused =       1135\n3.45.354.330 I slot      release: id  0 | task 1113 | stop processing: n_tokens = 454, truncated = 0\n3.45.410.464 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.915 (> 0.100 thold), f_keep = 1.000\n3.45.410.979 I slot launch_slot_: id  0 | task 1174 | processing task, is_child = 0\n3.49.734.331 I slot print_timing: id  0 | task 1174 | prompt eval time =     686.97 ms /    42 tokens (   16.36 ms per token,    61.14 tokens per second)\n3.49.734.348 I slot print_timing: id  0 | task 1174 |        eval time =    3636.34 ms /    68 tokens (   53.48 ms per token,    18.70 tokens per second)\n3.49.734.350 I slot print_timing: id  0 | task 1174 |       total time =    4323.31 ms /   110 tokens\n3.49.734.351 I slot print_timing: id  0 | task 1174 |    graphs reused =       1200\n3.49.734.423 I slot      release: id  0 | task 1174 | stop processing: n_tokens = 563, truncated = 0\n",
+  "auditNote": "Synthetic host tool executor, inference on phone; not PI//DECK. The legacy seconds field includes pre-case cooldown. Use sum(round.elapsed) for inference wall time. This run reused cache on first requests of new cases; repeat with guarded cache before any performance promotion."
+}

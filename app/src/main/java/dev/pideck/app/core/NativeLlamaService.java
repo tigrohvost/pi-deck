@@ -47,6 +47,8 @@ public final class NativeLlamaService extends Service {
     public static final String EXTRA_PROFILE = "profile";
     public static final String EXTRA_ARGUMENTS = "arguments";
     public static final String EXTRA_PHASE = "phase";
+    public static final String EXTRA_CONTEXT_TOKENS = "context_tokens";
+    public static final String EXTRA_CONTEXT_WINDOW = "context_window";
 
     private static final String PREFS = "native_llama_service";
     private static final String CHANNEL_ID = "pideck-local-inference";
@@ -66,6 +68,8 @@ public final class NativeLlamaService extends Service {
     private volatile boolean backgroundHint;
     private volatile boolean pressureStopRequested;
     private volatile String lastPromotedText = "Локальное ядро";
+    private volatile long latestContextTokens = -1L;
+    private volatile int latestContextWindow;
 
     /** The measured fact behind the suffix: a backgrounded deck decodes at ~1.5 tok/s. */
     static String notificationText(String base, boolean background) {
@@ -173,10 +177,14 @@ public final class NativeLlamaService extends Service {
         );
     }
 
-    public static void endInference(Context context) {
-        context.startService(
-                new Intent(context, NativeLlamaService.class).setAction(ACTION_INFERENCE_IDLE)
-        );
+    public static void endInference(Context context, SessionContextUsage usage) {
+        Intent intent = new Intent(context, NativeLlamaService.class)
+                .setAction(ACTION_INFERENCE_IDLE);
+        if (usage != null && usage.known()) {
+            intent.putExtra(EXTRA_CONTEXT_TOKENS, usage.tokens);
+            intent.putExtra(EXTRA_CONTEXT_WINDOW, usage.contextWindow);
+        }
+        context.startService(intent);
     }
 
     @Override
@@ -201,6 +209,8 @@ public final class NativeLlamaService extends Service {
             return START_NOT_STICKY;
         }
         if (ACTION_INFERENCE_IDLE.equals(action)) {
+            latestContextTokens = intent.getLongExtra(EXTRA_CONTEXT_TOKENS, -1L);
+            latestContextWindow = intent.getIntExtra(EXTRA_CONTEXT_WINDOW, 0);
             releaseInferenceWakeLock();
             promote("Локальная модель готова");
             armIdleTimer();
@@ -228,6 +238,8 @@ public final class NativeLlamaService extends Service {
         }
 
         idleHandler.removeCallbacks(idleShutdown);
+        latestContextTokens = -1L;
+        latestContextWindow = 0;
         String operationId = intent.getStringExtra(EXTRA_OPERATION_ID);
         String modelId = intent.getStringExtra(EXTRA_MODEL_ID);
         String modelPath = intent.getStringExtra(EXTRA_MODEL_PATH);
@@ -347,6 +359,9 @@ public final class NativeLlamaService extends Service {
     static String serverLibraryForFlavor(String flavor) {
         if ("stock".equals(flavor)) return "libpideck_llama_server.so";
         if ("nanbeige42".equals(flavor)) return "libpideck_nanbeige_server.so";
+        if ("k2horizon".equals(flavor)) return CpuProfile.supportsI8mm()
+                ? "libpideck_k2horizon_i8mm_server.so"
+                : "libpideck_k2horizon_server.so";
         throw new IllegalArgumentException("Неизвестный native runtime: " + safeLabel(flavor));
     }
 
@@ -401,20 +416,26 @@ public final class NativeLlamaService extends Service {
     /** Armed only in READY/idle states; any activity cancels before it can fire. */
     private void armIdleTimer() {
         idleHandler.removeCallbacks(idleShutdown);
-        long minutes = new DeckPreferences(this).coreIdleTimeoutMinutes();
-        if (!IdleShutdown.enabled(minutes)) return;
-        idleHandler.postDelayed(idleShutdown, IdleShutdown.delayMs(minutes));
+        long setting = new DeckPreferences(this).coreIdleTimeoutMinutes();
+        if (!IdleShutdown.enabled(setting)) return;
+        long effectiveMinutes = IdleShutdown.effectiveMinutes(
+                setting, latestContextTokens, latestContextWindow
+        );
+        idleHandler.postDelayed(idleShutdown, IdleShutdown.delayMs(effectiveMinutes));
     }
 
     private void onIdleTimeout() {
         Snapshot current = snapshot(this);
         // Fail closed: a race with a starting or answering core means no stop.
         if (!"READY".equals(current.state)) return;
-        long minutes = new DeckPreferences(this).coreIdleTimeoutMinutes();
-        if (!IdleShutdown.enabled(minutes)) return;
+        long setting = new DeckPreferences(this).coreIdleTimeoutMinutes();
+        if (!IdleShutdown.enabled(setting)) return;
+        long effectiveMinutes = IdleShutdown.effectiveMinutes(
+                setting, latestContextTokens, latestContextWindow
+        );
         getSharedPreferences(PREFS, MODE_PRIVATE)
                 .edit().putBoolean("idle_stop", true).apply();
-        promote("Останавливаю ядро: бездействие " + minutes + " мин");
+        promote("Останавливаю ядро: бездействие " + effectiveMinutes + " мин");
         new Thread(this::stopAndExit, "pideck-native-llama-idle-stop").start();
     }
 

@@ -1,19 +1,31 @@
 /**
- * Keeps the small local model's initial tool schema proportional to the task.
- *
- * Pi registers every trusted bundled tool, but only the profile's compact core is active for a
- * normal turn. Explicit current-data requests activate the matching managed tools before Pi
- * builds the prompt. The model can load a remaining optional group when the core is insufficient.
- * No route can cross the Android-selected access profile.
+ * Starts each session without tool schemas and exposes only what the first task needs.
+ * Later tasks may append tools; they never remove or reorder the session schema. A task
+ * allowlist enforces the Android access profile. Completion sets provider tool_choice=none;
+ * bounded retries and an abort guard stop a provider that ignores that instruction.
  */
 
+import { createHash } from "node:crypto";
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { lstatSync, readFileSync, realpathSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import {
+	existsSync,
+	lstatSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+} from "node:fs";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
 import { explicitNavigationScope } from "./pideck-code-nav.ts";
-import { annotateReadText } from "./pideck-hashline-edit.ts";
+import {
+	annotateAuthoritativeRead,
+	annotateReadText,
+} from "./pideck-hashline-edit.ts";
+import {
+	classifyShellCommand,
+	dedicatedToolForShell,
+} from "./pideck-permission-gate.ts";
 
 export type AccessProfile = "read_only" | "confirm_changes" | "autonomous";
 export type AgentMode = "chat" | "agent";
@@ -25,11 +37,28 @@ export const DIRECT_LIVE_LOOKUP_MAX_TOKENS = 256;
 const PREFETCH_MAX_FILES = 3;
 const PREFETCH_MAX_FILE_BYTES = 4 * 1024;
 const PREFETCH_MAX_TOTAL_BYTES = 6 * 1024;
+const RULE_MAX_FILE_BYTES = 6 * 1024;
+const RULE_MAX_TOTAL_BYTES = 12 * 1024;
+const RULE_MAX_FILES = 8;
+const CURSOR_RULE_MAX_FILES = 32;
 
 type PrefetchedFile = {
 	path: string;
 	displayPath: string;
 	annotated: string;
+};
+
+type RepoInstruction = {
+	path: string;
+	displayPath: string;
+	content: string;
+	fingerprint: string;
+};
+
+type RepoInstructionBundle = {
+	content: string;
+	paths: string[];
+	fingerprints: string[];
 };
 
 const CORE_TOOLS: Record<AccessProfile, readonly string[]> = {
@@ -39,9 +68,9 @@ const CORE_TOOLS: Record<AccessProfile, readonly string[]> = {
 		"code_nav",
 		"pideck_bash",
 		"pideck_write",
-		"pideck_replace_lines",
+		"pideck_edit_text",
 	],
-	autonomous: ["read", "bash", "write", "pideck_replace_lines", "run_tests"],
+	autonomous: ["read", "code_nav", "bash", "write", "pideck_edit_text", "run_tests"],
 };
 
 const OPTIONAL_TOOLS: Record<AccessProfile, Record<ToolCapability, readonly string[]>> = {
@@ -55,13 +84,13 @@ const OPTIONAL_TOOLS: Record<AccessProfile, Record<ToolCapability, readonly stri
 		files: [],
 		web: ["web_research"],
 		weather: ["weather"],
-		exact_edit: ["pideck_edit"],
+		exact_edit: ["pideck_replace_lines", "pideck_edit"],
 	},
 	autonomous: {
-		files: ["code_nav"],
+		files: [],
 		web: ["web_research"],
 		weather: ["weather"],
-		exact_edit: ["edit"],
+		exact_edit: ["pideck_replace_lines", "edit"],
 	},
 };
 
@@ -313,7 +342,7 @@ export function explicitReadPath(text: string): string | undefined {
 	);
 	if (forFile?.[1]) return cleanExplicitPath(forFile[1]);
 	const direct = text.match(
-		/(?:прочитай|прочти)(?:\s+файл)?\s+[`"'«]?([^\s`"'»<>]+)[`"'»]?|(?:read)(?:\s+(?:the\s+)?file)?\s+[`"']?([^\s`"'<>]+)[`"']?/iu,
+		/(?:прочитай|прочти)(?:\s+файл)?\s+[`"'«]?([^\s`"'»<>]+)[`"'»]?|\bread(?:\s+(?:the\s+)?file)?\s+[`"']?([^\s`"'<>]+)[`"']?/iu,
 	);
 	return cleanExplicitPath(direct?.[1] ?? direct?.[2]);
 }
@@ -369,9 +398,14 @@ export function boundedRepairPrefetch(
 			}
 			const text = raw.toString("utf8");
 			if (!Buffer.from(text, "utf8").equals(raw)) continue;
-			const annotated = annotateReadText(text);
-			const annotatedBytes = Buffer.byteLength(annotated, "utf8");
+			const preview = annotateReadText(text);
+			const annotatedBytes = Buffer.byteLength(preview, "utf8");
 			if (used + annotatedBytes > PREFETCH_MAX_TOTAL_BYTES) continue;
+			const annotated = annotateAuthoritativeRead(actual, text, 1, {
+				explicitRange: true,
+				source: raw,
+			});
+			if (!/(?:^|\n)\d{1,6}:[0-9a-f]{8}\|/u.test(annotated)) continue;
 			used += annotatedBytes;
 			snapshots.push({
 				path: actual,
@@ -385,12 +419,260 @@ export function boundedRepairPrefetch(
 	return snapshots;
 }
 
+function safeWorkspaceTarget(
+	cwd: string,
+	target: string,
+): { root: string; lexical: string; relativePath: string } | undefined {
+	try {
+		const root = realpathSync(cwd);
+		const lexical = resolve(root, target);
+		if (lexical !== root && !lexical.startsWith(`${root}${sep}`)) return undefined;
+		let existing = existsSync(lexical) ? lexical : dirname(lexical);
+		while (!existsSync(existing) && existing !== root) existing = dirname(existing);
+		const state = lstatSync(existing);
+		if (state.isSymbolicLink()) return undefined;
+		const actual = realpathSync(existing);
+		if (actual !== root && !actual.startsWith(`${root}${sep}`)) return undefined;
+		return {
+			root,
+			lexical,
+			relativePath: relative(root, lexical).replace(/\\/g, "/"),
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+function readInstructionFile(
+	root: string,
+	candidate: string,
+	stripFrontmatter = false,
+): RepoInstruction | undefined {
+	try {
+		const state = lstatSync(candidate);
+		if (!state.isFile() || state.isSymbolicLink() || state.size > RULE_MAX_FILE_BYTES) {
+			return undefined;
+		}
+		const actual = realpathSync(candidate);
+		if (actual !== root && !actual.startsWith(`${root}${sep}`)) return undefined;
+		const raw = readFileSync(actual);
+		if (raw.includes(0) || raw.length > RULE_MAX_FILE_BYTES) return undefined;
+		let content = raw.toString("utf8");
+		if (!Buffer.from(content, "utf8").equals(raw)) return undefined;
+		if (stripFrontmatter) {
+			content = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/u, "");
+		}
+		content = content.trim();
+		if (!content) return undefined;
+		const displayPath = relative(root, actual).replace(/\\/g, "/") || basename(actual);
+		return {
+			path: actual,
+			displayPath,
+			content,
+			fingerprint: createHash("sha256")
+				.update(actual)
+				.update("\0")
+				.update(raw)
+				.digest("hex"),
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+function globPatternRegExp(pattern: string): RegExp | undefined {
+	let value = pattern.trim().replace(/^['"]|['"]$/g, "").replace(/^\.\//, "");
+	if (!value || value.includes("\0") || value.length > 512) return undefined;
+	if (value.endsWith("/")) value += "**";
+	let rendered = "^";
+	for (let index = 0; index < value.length; index++) {
+		const character = value[index];
+		if (character === "*") {
+			if (value[index + 1] === "*") {
+				index += 1;
+				if (value[index + 1] === "/") {
+					index += 1;
+					rendered += "(?:.*/)?";
+				} else {
+					rendered += ".*";
+				}
+			} else {
+				rendered += "[^/]*";
+			}
+			continue;
+		}
+		if (character === "?") {
+			rendered += "[^/]";
+			continue;
+		}
+		if (character === "{") {
+			const end = value.indexOf("}", index + 1);
+			if (end > index + 1) {
+				const alternatives = value.slice(index + 1, end).split(",");
+				if (alternatives.every((item) => /^[A-Za-z0-9_.+-]+$/u.test(item))) {
+					rendered += `(?:${alternatives
+						.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+						.join("|")})`;
+					index = end;
+					continue;
+				}
+			}
+		}
+		rendered += /[.*+^${}()|[\]\\]/u.test(character) ? `\\${character}` : character;
+	}
+	try {
+		return new RegExp(`${rendered}$`, "u");
+	} catch {
+		return undefined;
+	}
+}
+
+export function repoGlobMatches(pattern: string, relativePath: string): boolean {
+	const matcher = globPatternRegExp(pattern);
+	if (matcher === undefined) return false;
+	const normalized = relativePath.replace(/\\/g, "/").replace(/^\.\//, "");
+	return matcher.test(normalized)
+		|| (!pattern.includes("/") && matcher.test(basename(normalized)));
+}
+
+function cursorRuleApplies(content: string, relativePath: string): boolean {
+	const header = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(content)?.[1];
+	if (header === undefined) return false;
+	if (/^\s*alwaysApply\s*:\s*true\s*$/imu.test(header)) return true;
+	const patterns: string[] = [];
+	const lines = header.split(/\r?\n/u);
+	let readingGlobs = false;
+	for (const line of lines) {
+		const start = /^\s*globs\s*:\s*(.*)$/u.exec(line);
+		if (start !== null) {
+			readingGlobs = true;
+			const rest = start[1].trim().replace(/^\[|\]$/g, "");
+			if (rest) {
+				const quoted = [...rest.matchAll(/(['"])(.*?)\1/gu)].map((match) => match[2]);
+				if (quoted.length > 0) {
+					patterns.push(...quoted.filter(Boolean));
+				} else {
+					let depth = 0;
+					let token = "";
+					for (const character of `${rest},`) {
+						if (character === "{") depth += 1;
+						if (character === "}") depth = Math.max(0, depth - 1);
+						if (character === "," && depth === 0) {
+							const value = token.trim();
+							if (value) patterns.push(value);
+							token = "";
+						} else {
+							token += character;
+						}
+					}
+				}
+			}
+			continue;
+		}
+		if (!readingGlobs) continue;
+		const item = /^\s*-\s*(.+?)\s*$/u.exec(line)?.[1];
+		if (item !== undefined) {
+			const value = item.replace(/^['"]|['"]$/g, "");
+			if (value) patterns.push(value);
+			continue;
+		}
+		if (/^\S/u.test(line)) readingGlobs = false;
+	}
+	return patterns.some((pattern) => repoGlobMatches(pattern, relativePath));
+}
+
+/** Deterministically resolves only instructions applicable to one workspace path. */
+export function repoInstructionsForTarget(cwd: string, target: string): RepoInstruction[] {
+	const safe = safeWorkspaceTarget(cwd, target);
+	if (safe === undefined) return [];
+	const collected: RepoInstruction[] = [];
+	const seen = new Set<string>();
+	const add = (instruction: RepoInstruction | undefined) => {
+		if (instruction === undefined || seen.has(instruction.path)) return;
+		seen.add(instruction.path);
+		collected.push(instruction);
+	};
+
+	add(readInstructionFile(
+		safe.root,
+		join(safe.root, ".github", "copilot-instructions.md"),
+	));
+	const targetDirectory = safe.lexical === safe.root ? safe.root : dirname(safe.lexical);
+	const directoryPath = relative(safe.root, targetDirectory);
+	let current = safe.root;
+	for (const part of directoryPath.split(sep).filter(Boolean)) {
+		current = join(current, part);
+		add(readInstructionFile(safe.root, join(current, "AGENTS.md")));
+	}
+
+	const cursorDirectory = join(safe.root, ".cursor", "rules");
+	try {
+		const state = lstatSync(cursorDirectory);
+		if (state.isDirectory() && !state.isSymbolicLink()) {
+			const entries = readdirSync(cursorDirectory, { withFileTypes: true })
+				.filter((entry) => entry.isFile() && /\.(?:md|mdc)$/iu.test(entry.name))
+				.sort((left, right) => left.name.localeCompare(right.name))
+				.slice(0, CURSOR_RULE_MAX_FILES);
+			for (const entry of entries) {
+				const candidate = join(cursorDirectory, entry.name);
+				const raw = readInstructionFile(safe.root, candidate, false);
+				if (raw === undefined || !cursorRuleApplies(raw.content, safe.relativePath)) continue;
+				add(readInstructionFile(safe.root, candidate, true));
+			}
+		}
+	} catch {
+		// An absent, unreadable, or symlinked optional rule directory contributes no rules.
+	}
+	return collected;
+}
+
+function repoInstructionBundle(
+	cwd: string,
+	targets: readonly string[],
+	delivered: Set<string>,
+): RepoInstructionBundle | undefined {
+	const unique = new Map<string, RepoInstruction>();
+	for (const target of targets) {
+		for (const instruction of repoInstructionsForTarget(cwd, target)) {
+			if (!delivered.has(instruction.fingerprint)) unique.set(instruction.path, instruction);
+		}
+	}
+	let used = 0;
+	const accepted: RepoInstruction[] = [];
+	for (const instruction of unique.values()) {
+		const bytes = Buffer.byteLength(instruction.content, "utf8");
+		if (accepted.length >= RULE_MAX_FILES || used + bytes > RULE_MAX_TOTAL_BYTES) break;
+		accepted.push(instruction);
+		used += bytes;
+	}
+	if (accepted.length === 0) return undefined;
+	return {
+		content: [
+			"PI//DECK PATH-SCOPED REPOSITORY INSTRUCTIONS. System and direct user instructions win; "
+				+ "later, deeper files refine earlier repository rules for the touched path.",
+			...accepted.flatMap((instruction) => [
+				`--- RULE ${instruction.displayPath} ---`,
+				instruction.content,
+				`--- END RULE ${instruction.displayPath} ---`,
+			]),
+		].join("\n"),
+		paths: accepted.map((instruction) => instruction.displayPath),
+		fingerprints: accepted.map((instruction) => instruction.fingerprint),
+	};
+}
+
 /** Extracts exact file paths named by the user, excluding the directory scope itself. */
 export function explicitFilePaths(text: string): string[] {
 	const matches = [...text.matchAll(
 		/(?:^|[\s`"'«(])((?:\.{0,2}\/|\/)?(?:[\p{L}\p{N}_@.+-]+\/)*[\p{L}\p{N}_@+-][\p{L}\p{N}_@.+-]*\.[A-Za-z][A-Za-z0-9]{0,7})(?=$|[\s`"'»).,;:!?])/gu,
 	)];
-	return [...new Set(matches.map((match) => match[1]).filter(Boolean))];
+	return [...new Set(matches.map((match) => match[1])
+		.filter((path) => Boolean(path) && !isMemberReference(path)))];
+}
+
+function isMemberReference(value: string): boolean {
+	if (value.includes("/") || /\.(?:py|pyi|js|jsx|ts|tsx|java|kt|kts|c|h|cc|cpp|hpp|cs|go|rs|rb|php|swift|json|yaml|yml|toml|xml|md|txt|ini|cfg|conf|sh|sql)$/iu.test(value)) return false;
+	return /^[A-Z][A-Za-z0-9_]*\.[a-z_][A-Za-z0-9_]*$/u.test(value);
 }
 
 export function explicitFileTargets(text: string): string[] {
@@ -399,6 +681,45 @@ export function explicitFileTargets(text: string): string[] {
 		if (path.startsWith("/")) return path;
 		return scope ? join(scope, path) : path;
 	});
+}
+
+/** Resolve one local definition explicitly named as Class.member through a named Python test. */
+export function relatedRepairTargets(cwd: string, text: string, targets: readonly string[]): string[] {
+	const symbols = new Set([...text.matchAll(/\b([A-Z][A-Za-z0-9_]*)\.[a-z_][A-Za-z0-9_]*\b/gu)]
+		.filter((match) => isMemberReference(match[0])).map((match) => match[1]));
+	if (symbols.size === 0) return [...targets];
+	const scoped = safeWorkspaceTarget(cwd, explicitNavigationScope(text) ?? ".");
+	if (scoped === undefined) return [...targets];
+	let project: string;
+	try { project = realpathSync(scoped.lexical); } catch { return [...targets]; }
+	const readLocal = (path: string): string | undefined => {
+		const safe = safeWorkspaceTarget(cwd, path);
+		if (safe === undefined) return undefined;
+		try {
+			const actual = realpathSync(safe.lexical);
+			if (!actual.startsWith(`${project}${sep}`)) return undefined;
+			const stat = lstatSync(safe.lexical);
+			if (!stat.isFile() || stat.isSymbolicLink() || stat.size > PREFETCH_MAX_FILE_BYTES) return undefined;
+			const raw = readFileSync(actual);
+			if (raw.includes(0) || raw.length > PREFETCH_MAX_FILE_BYTES) return undefined;
+			const content = raw.toString("utf8");
+			return Buffer.from(content, "utf8").equals(raw) ? content : undefined;
+		} catch { return undefined; }
+	};
+	const result = [...targets];
+	for (const target of targets.slice(0, PREFETCH_MAX_FILES)) {
+		if (!isTestTarget(target) || !target.endsWith(".py")) continue;
+		const content = readLocal(target);
+		if (content === undefined) continue;
+		for (const match of content.matchAll(/^from ([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*) import ([A-Za-z_]\w*)\b/gmu)) {
+			if (!symbols.has(match[2]) || result.length >= PREFETCH_MAX_FILES) continue;
+			const source = join(project, ...match[1].split(".")) + ".py";
+			const definition = readLocal(source);
+			if (definition === undefined || !new RegExp(`^class ${match[2]}\\b`, "mu").test(definition)) continue;
+			if (!result.includes(source)) result.push(source);
+		}
+	}
+	return result;
 }
 
 /** A bounded existing-file repair can run without a general-purpose shell. */
@@ -496,7 +817,7 @@ export function taskCoreTools(profile: AccessProfile, text: string): string[] {
 	const soleTool = explicitlyRequestedSoleTool(text);
 	if (soleTool) return [soleTool];
 	if (profile === "autonomous" && isScopedRepairRequest(text)) {
-		return ["read", "pideck_replace_lines", "run_tests"];
+		return ["read", "pideck_edit_text", "run_tests"];
 	}
 	if (isLocationOnlyNavigationRequest(text)) return ["code_nav"];
 	const directLookup = directLiveLookupTool(text);
@@ -629,12 +950,20 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 	let scopedRepairTargets: string[] = [];
 	let scopedRepairAnchors = new Map<string, Map<string, string[]>>();
 	let scopedRepairEditFailures = new Map<string, number>();
-	let scopedRepairReadTargets = new Set<string>();
 	let scopedRepairTestFailed = false;
 	let prefetchPending = false;
 	let taskTerminal = false;
+	let providerRounds = 0;
+	let toolAttempts = 0;
+	let failedResults = 0;
+	let repeatedCalls = new Map<string, number>();
 	let directLookupTool: "web_research" | "weather" | undefined;
 	let directLookupCalls = 0;
+	/** Provider-visible schema for this session; append-only so the KV prefix survives. */
+	let sessionTools: string[] = [];
+	/** Task allowlist enforced in depth; undefined means the whole session schema is usable. */
+	let taskAllowedTools: Set<string> | undefined;
+	const deliveredRepoRules = new Set<string>();
 	const capabilities = optionalCapabilities(profile);
 	const allowed = new Set([
 		...CORE_TOOLS[profile],
@@ -642,36 +971,84 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		LOADER_TOOL,
 	]);
 
+	function consumeRepoInstructions(
+		cwd: string,
+		targets: readonly string[],
+	): RepoInstructionBundle | undefined {
+		const bundle = repoInstructionBundle(cwd, targets, deliveredRepoRules);
+		if (bundle === undefined) return undefined;
+		for (const fingerprint of bundle.fingerprints) deliveredRepoRules.add(fingerprint);
+		return bundle;
+	}
+
+	function extendSessionTools(names: readonly string[]): void {
+		const additions = unique(names).filter((name) =>
+			allowed.has(name) && !sessionTools.includes(name));
+		if (additions.length === 0) return;
+		sessionTools = [...sessionTools, ...additions];
+		pi.setActiveTools(sessionTools);
+	}
+
+	/**
+	 * Grows the session schema when a request needs a group that is not active yet and records
+	 * the task allowlist. An additive steer/follow-up or bridge retry belongs to the in-flight
+	 * task and may only widen what that task is allowed to call.
+	 */
 	function activate(
 		requested: readonly ToolCapability[],
 		additive: boolean,
 		text?: string,
 	): string[] {
 		if (mode === "chat") {
+			sessionTools = [];
+			taskAllowedTools = undefined;
 			pi.setActiveTools([]);
 			return [];
 		}
-		const base = additive
-			? pi.getActiveTools().filter((name) => allowed.has(name))
-			: taskCoreTools(profile, text ?? "");
-		const additions = requested.flatMap((capability) =>
-			OPTIONAL_TOOLS[profile][capability] ?? []);
-		const active = unique([...base, ...additions]).filter((name) => allowed.has(name));
-		pi.setActiveTools(active);
-		return active;
+		const additions = requested
+			.flatMap((capability) => OPTIONAL_TOOLS[profile][capability] ?? [])
+			.filter((name) => allowed.has(name));
+		if (additive) {
+			if (taskAllowedTools !== undefined) {
+				for (const name of additions) taskAllowedTools.add(name);
+			}
+			extendSessionTools(additions);
+			return [...sessionTools];
+		}
+		const core = coreTools(profile);
+		const task = taskCoreTools(profile, text ?? "");
+		const restricted = task.length !== core.length
+			|| task.some((name) => !core.includes(name));
+		taskAllowedTools = restricted
+			? new Set([...task, ...additions].filter((name) => allowed.has(name)))
+			: undefined;
+		extendSessionTools([...task, ...additions]);
+		return [...sessionTools];
 	}
 
-	function rememberAuthoritativeRead(actualPath: string, textParts: readonly string[]): void {
+	/** Tells the model, at the end of the context, which tools this request may use. */
+	function taskToolsNote(): string | undefined {
+		if (taskAllowedTools === undefined) return undefined;
+		if (taskAllowedTools.size === 0) {
+			return "PI//DECK TASK TOOLS: none. Answer this request directly from the message; "
+				+ "every tool call will be refused.";
+		}
+		return `PI//DECK TASK TOOLS: this request permits only ${[...taskAllowedTools].join(", ")}. `
+			+ "Other tools are refused; if none of these fits, answer directly.";
+	}
+
+	function rememberAuthoritativeRead(actualPath: string, textParts: readonly string[]): boolean {
 		const byDigest = new Map<string, string[]>();
 		for (const text of textParts) {
-			for (const match of text.matchAll(/(?:^|\n)(\d{1,6}:([0-9a-f]{2}))\|/gu)) {
+			for (const match of text.matchAll(/(?:^|\n)(\d{1,6}:([0-9a-f]{8}))\|/gu)) {
 				const anchors = byDigest.get(match[2]) ?? [];
 				anchors.push(match[1]);
 				byDigest.set(match[2], anchors);
 			}
 		}
-		if (byDigest.size > 0) scopedRepairAnchors.set(actualPath, byDigest);
-		scopedRepairReadTargets.add(actualPath);
+		if (byDigest.size === 0) return false;
+		scopedRepairAnchors.set(actualPath, byDigest);
+		return true;
 	}
 
 	function markScopedRepairTerminal(): void {
@@ -680,7 +1057,6 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		scopedRepairTargets = [];
 		scopedRepairAnchors = new Map();
 		scopedRepairEditFailures = new Map();
-		scopedRepairReadTargets = new Set();
 		scopedRepairTestFailed = false;
 	}
 
@@ -722,13 +1098,15 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		scopedRepairTargets = [];
 		scopedRepairAnchors = new Map();
 		scopedRepairEditFailures = new Map();
-		scopedRepairReadTargets = new Set();
 		scopedRepairTestFailed = false;
 		prefetchPending = false;
 		taskTerminal = false;
 		directLookupTool = undefined;
 		directLookupCalls = 0;
-		activate([], false);
+		sessionTools = [];
+		taskAllowedTools = undefined;
+		deliveredRepoRules.clear();
+		pi.setActiveTools([]);
 	});
 
 	pi.on("input", (event) => {
@@ -736,6 +1114,12 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		// tool that may be referenced by the in-flight conversation. A bridge retry crosses an
 		// idle boundary deliberately and carries a stripped internal marker for the same reason.
 		const routed = routeInput(event.text, event.streamingBehavior);
+		if (!routed.additive) {
+			providerRounds = 0;
+			toolAttempts = 0;
+			failedResults = 0;
+			repeatedCalls = new Map();
+		}
 		if (disablesTools(routed.text)) {
 			oneShotTool = undefined;
 			oneShotStopsOnError = false;
@@ -743,13 +1127,14 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			scopedRepairTargets = [];
 			scopedRepairAnchors = new Map();
 			scopedRepairEditFailures = new Map();
-			scopedRepairReadTargets = new Set();
 			scopedRepairTestFailed = false;
 			prefetchPending = false;
 			taskTerminal = true;
 			directLookupTool = undefined;
 			directLookupCalls = 0;
-			pi.setActiveTools([]);
+			// The schema stays byte-stable; the guard refuses every call and the task note
+			// tells the model to answer from the message.
+			taskAllowedTools = new Set();
 		} else {
 			// A normal input starts a new task. Remember an explicit one-tool contract so
 			// the execution guard can make it terminal without rewriting the provider schema.
@@ -758,7 +1143,6 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			if (!routed.additive) {
 				scopedRepairAnchors = new Map();
 				scopedRepairEditFailures = new Map();
-				scopedRepairReadTargets = new Set();
 				scopedRepairTestFailed = false;
 				prefetchPending = false;
 				taskTerminal = false;
@@ -781,37 +1165,120 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			: { action: "continue" };
 	});
 
-	pi.on("before_provider_request", (event) =>
-		capDirectLookupProviderRequest(event.payload, directLookupTool !== undefined));
-
-	pi.on("before_agent_start", (_event, context) => {
-		if (!prefetchPending || scopedRepairTargets.length === 0) return undefined;
-		prefetchPending = false;
-		const snapshots = boundedRepairPrefetch(context.cwd, scopedRepairTargets);
-		if (snapshots.length === 0) return undefined;
-		for (const snapshot of snapshots) {
-			rememberAuthoritativeRead(snapshot.path, [snapshot.annotated]);
+	pi.on("before_provider_request", (event, context) => {
+		providerRounds += 1;
+		const roundLimit = scopedRepairTargets.length > 0 ? 10 : 26;
+		if (providerRounds > roundLimit) {
+			context?.abort?.();
+			throw new Error("PI//DECK: достигнут предел шагов задачи; выполненные изменения сохранены.");
 		}
-		const content = [
-			"PI//DECK BOUNDED PREFETCH: authoritative snapshots of small files explicitly named by the user.",
-			"Do not call read for a file shown below. Use its line:hash anchors directly; skipped files remain readable with the read tool.",
-			...snapshots.flatMap((snapshot) => [
-				`--- FILE ${snapshot.displayPath} ---`,
-				snapshot.annotated,
-				`--- END FILE ${snapshot.displayPath} ---`,
-			]),
-		].join("\n");
+		const payload = capDirectLookupProviderRequest(event.payload, directLookupTool !== undefined)
+			?? event.payload;
+		if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return undefined;
+		// The provider enforces completion. A verbal refusal alone leaves a small model looping.
+		return taskTerminal || taskAllowedTools?.size === 0
+			? { ...payload, tool_choice: "none", parallel_tool_calls: false }
+			: { ...payload, parallel_tool_calls: false };
+	});
+
+	pi.on("before_agent_start", (event, context) => {
+		const contentParts: string[] = [];
+		const detailPaths: string[] = [];
+		if (prefetchPending && scopedRepairTargets.length > 0) {
+			scopedRepairTargets = relatedRepairTargets(context.cwd, event.prompt, scopedRepairTargets);
+		}
+		const note = taskToolsNote();
+		if (note !== undefined) contentParts.push(note);
+		const directReadTarget = explicitReadTarget(event.prompt);
+		const explicitTargets = unique([
+			".",
+			...explicitFileTargets(event.prompt),
+			...(directReadTarget ? [directReadTarget] : []),
+			...scopedRepairTargets,
+		]);
+		const instructions = consumeRepoInstructions(context.cwd, explicitTargets);
+		if (instructions !== undefined) {
+			contentParts.push(instructions.content);
+			detailPaths.push(...instructions.paths);
+		}
+
+		if (prefetchPending && scopedRepairTargets.length > 0) {
+			prefetchPending = false;
+			const snapshots = boundedRepairPrefetch(context.cwd, scopedRepairTargets);
+			for (const snapshot of snapshots) {
+				rememberAuthoritativeRead(snapshot.path, [snapshot.annotated]);
+			}
+			if (snapshots.length > 0) {
+				contentParts.push([
+					"PI//DECK BOUNDED PREFETCH: small task files and directly imported definitions named by the user.",
+					"These are current file contents. Edit unique literal oldText with pideck_edit_text; read remains available for an explicit check or a skipped file.",
+					...snapshots.flatMap((snapshot) => [
+						`--- FILE ${snapshot.displayPath} ---`,
+						`Exact tool path: ${snapshot.path}`,
+						snapshot.annotated,
+						`--- END FILE ${snapshot.displayPath} ---`,
+					]),
+				].join("\n"));
+				detailPaths.push(...snapshots.map((snapshot) => snapshot.displayPath));
+			}
+		}
+		if (contentParts.length === 0) return undefined;
 		return {
 			message: {
-				customType: "pideck-bounded-prefetch",
-				content,
+				customType: "pideck-managed-context",
+				content: contentParts.join("\n\n"),
 				display: false,
-				details: { paths: snapshots.map((snapshot) => snapshot.displayPath) },
+				details: { paths: unique(detailPaths) },
 			},
 		};
 	});
 
-	pi.on("tool_result", (event) => {
+	pi.on("tool_result", (event, context) => {
+		if (!event.isError && ["pideck_edit_text", "pideck_replace_lines", "edit", "write", "pideck_edit", "pideck_write"].includes(event.toolName)) repeatedCalls.clear();
+		failedResults = event.isError ? failedResults + 1 : 0;
+		if (failedResults >= 3) taskTerminal = true;
+		let routedContent = event.content;
+		if (failedResults >= 3) routedContent = [...routedContent, {
+			type: "text" as const,
+			text: "Three consecutive calls failed. Stop and report the actual results and remaining work.",
+		}];
+		// The user's exact file has been delivered once; later reads in this task keep the
+		// model's own path so a request naming several files cannot loop on the first one.
+		// An error keeps the redirect for the retry.
+		const scopedReadPath = scopedReadTarget;
+		if (event.toolName === "read" && !event.isError && scopedReadTarget !== undefined) {
+			scopedReadTarget = undefined;
+		}
+		if (event.toolName === "read" && !event.isError) {
+			const actualPath = String((event.input as { path?: unknown }).path ?? "");
+			const instructions = consumeRepoInstructions(context?.cwd ?? process.cwd(), [actualPath]);
+			if (instructions !== undefined) {
+				routedContent = [
+					{ type: "text" as const, text: instructions.content },
+					...routedContent,
+				];
+			}
+		}
+		const structuralRead = event.toolName === "read"
+			&& !event.isError
+			&& event.content.some((part) =>
+				part.type === "text" && part.text.includes("[PI//DECK STRUCTURAL READ:"));
+		if (
+			oneShotTool === "read"
+			&& structuralRead
+			&& !oneShotStopsOnError
+		) {
+			return {
+				content: [
+					...routedContent,
+					{
+						type: "text" as const,
+						text: "This was only a structural outline. Make one exact read with offset/limit "
+							+ "for the relevant range before answering; do not rediscover the path.",
+					},
+				],
+			};
+		}
 		if (
 			oneShotTool !== undefined
 			&& event.toolName === oneShotTool
@@ -824,14 +1291,14 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			taskTerminal = true;
 			const authoritativeStatus = event.isError
 				? "TOOL RESULT: вызов завершился ошибкой; сообщи её как факт."
-				: event.toolName === "read" && scopedReadTarget !== undefined
-					? `READ SUCCEEDED: точный файл ${scopedReadTarget} уже прочитан. `
+				: event.toolName === "read" && scopedReadPath !== undefined
+					? `READ SUCCEEDED: точный файл ${scopedReadPath} уже прочитан. `
 						+ "Следующий text block — его авторитетное содержимое."
 					: "TOOL SUCCEEDED: следующий text block — авторитетный результат вызова.";
 			return {
 				content: [
 					{ type: "text" as const, text: authoritativeStatus },
-					...event.content,
+					...routedContent,
 					{
 						type: "text" as const,
 						text:
@@ -844,8 +1311,9 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		}
 		if (scopedRepairTargets.length > 0 && event.toolName === "read") {
 			const actualPath = String((event.input as { path?: unknown }).path ?? "");
+			let editableRange = false;
 			if (!event.isError) {
-				rememberAuthoritativeRead(
+				editableRange = rememberAuthoritativeRead(
 					actualPath,
 					event.content
 						.filter((part) => part.type === "text")
@@ -860,17 +1328,21 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 							? `READ FAILED for ${actualPath}: the following error is authoritative.`
 							: `READ SUCCEEDED for ${actualPath}: the following text is the authoritative file content.`,
 					},
-					...event.content,
+					...routedContent,
 					{
 						type: "text" as const,
 						text: event.isError
 							? "Correct the named path once; do not rediscover the workspace."
-							: "Use this content now. Do not reread this path or rediscover it with shell commands.",
+							: editableRange
+								? "Use pideck_edit_text with unique oldText copied from this content (without line prefixes), or use complete anchors with pideck_replace_lines."
+								: structuralRead
+									? "This outline grants no edit anchors. Read one exact offset/limit for the needed range now."
+									: "This read supplied no safe edit anchors; stop or request one exact text range.",
 					},
 				],
 			};
 		}
-		if (scopedRepairTargets.length > 0 && event.toolName === "pideck_replace_lines") {
+		if (scopedRepairTargets.length > 0 && ["pideck_replace_lines", "pideck_edit_text"].includes(event.toolName)) {
 			const actualPath = String((event.input as { path?: unknown }).path ?? "");
 			if (event.isError) {
 				const failures = (scopedRepairEditFailures.get(actualPath) ?? 0) + 1;
@@ -883,7 +1355,7 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 								type: "text" as const,
 								text: `EDIT RETRY LIMIT REACHED for ${actualPath}.`,
 							},
-							...event.content,
+							...routedContent,
 							{
 								type: "text" as const,
 								text: "Stop now and report that the scoped edit could not be applied safely; do not emit another tool call.",
@@ -894,6 +1366,14 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			} else {
 				scopedRepairEditFailures.delete(actualPath);
 				if (scopedRepairTestFailed) scopedRepairTestFailed = false;
+				// The committed edit returns the current anchors of the changed range; index
+				// them so a bare digest in the next edit still resolves to a full anchor.
+				rememberAuthoritativeRead(
+					actualPath,
+					event.content
+						.filter((part) => part.type === "text")
+						.map((part) => part.type === "text" ? part.text : ""),
+				);
 			}
 			return {
 				content: [
@@ -903,12 +1383,12 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 							? `EDIT FAILED for ${actualPath}.`
 							: `EDIT SUCCEEDED for ${actualPath}.`,
 					},
-					...event.content,
+					...routedContent,
 					{
 						type: "text" as const,
 						text: event.isError
-							? "One correction remains. Use exactly one full line:hash anchor from the authoritative read or the returned current anchors."
-							: "Do not reread the changed file. Edit any other named file, or run the exact named test now.",
+							? "One correction remains. Follow the error above; copy exact oldText from read, or a full line:hash anchor for pideck_replace_lines."
+							: "The changed range is current. Edit another named file if needed, then run the exact named test.",
 					},
 				],
 			};
@@ -928,7 +1408,7 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 							? "TEST PASSED: this verdict is authoritative."
 							: "TEST FAILED: use the following failure as authoritative evidence.",
 					},
-					...event.content,
+					...routedContent,
 					{
 						type: "text" as const,
 						text: status === 0
@@ -942,11 +1422,37 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_call", (event, context) => {
+		if (taskTerminal) {
+			// Defend against a provider that ignores tool_choice=none.
+			context?.abort?.();
+			return { block: true, reason: "Task stopped; answer without tools" };
+		}
+		toolAttempts += 1;
+		const signature = `${event.toolName}\0${JSON.stringify(event.input)}`;
+		const repeats = (repeatedCalls.get(signature) ?? 0) + 1;
+		repeatedCalls.set(signature, repeats);
+		if (toolAttempts > (scopedRepairTargets.length > 0 ? 8 : 24) || repeats > 2) {
+			taskTerminal = true;
+			return { block: true, reason: "Tool retry limit reached. Report the completed work and the last result." };
+		}
 		if (!allowed.has(event.toolName) || mode === "chat") {
 			return {
 				block: true,
 				reason: "Tool is outside the active PI//DECK access profile",
-			};
+				};
+		}
+		if (event.toolName === "bash" || event.toolName === "pideck_bash") {
+			const command = String((event.input as { command?: unknown }).command ?? "");
+			const dedicated = dedicatedToolForShell(command, pi.getActiveTools());
+			if (dedicated !== undefined) return { block: true, reason: dedicated };
+			const risk = classifyShellCommand(command);
+			if (event.toolName === "bash" && risk.level === "critical") {
+				return {
+					block: true,
+					reason: `Critical shell command refused in AUTONOMOUS: ${risk.reason}. `
+						+ "Switch to CONFIRM_CHANGES for an explicit one-time Android approval.",
+				};
+			}
 		}
 		if (directLookupTool !== undefined) {
 			if (event.toolName !== directLookupTool) {
@@ -963,6 +1469,15 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 					reason: "Direct live lookup retry limit reached; report the last result without another tool call",
 				};
 			}
+		}
+		if (taskAllowedTools !== undefined && !taskAllowedTools.has(event.toolName)) {
+			return {
+				block: true,
+				reason: taskAllowedTools.size === 0
+					? "This request must be answered without tools; reply directly from the message"
+					: `This request permits only ${[...taskAllowedTools].join(", ")}; `
+						+ "call one of those or answer the user directly",
+			};
 		}
 		if (taskTerminal) {
 			return {
@@ -990,19 +1505,6 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 					reason: "The user-scoped read path must stay inside the current workspace",
 				};
 			}
-			if (scopedRepairTargets.length > 0 && scopedRepairReadTargets.has(target)) {
-				const unread = scopedRepairTargets
-					.map((candidate) => safeReadTarget(context.cwd, candidate))
-					.find((candidate): candidate is string =>
-						candidate !== undefined && !scopedRepairReadTargets.has(candidate));
-				if (unread === undefined) {
-					return {
-						block: true,
-						reason: "Every user-scoped repair file is already available; use its authoritative anchors instead of reading again",
-					};
-				}
-				target = unread;
-			}
 			const requestedName = requested.replace(/\\/g, "/").split("/").at(-1) ?? "";
 			const targetName = target.replace(/\\/g, "/").split("/").at(-1) ?? "";
 			if (scopedRepairTargets.length > 0 && requestedName !== targetName) {
@@ -1011,7 +1513,7 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			}
 			input.path = target;
 		}
-		if (event.toolName === "pideck_replace_lines" && scopedRepairTargets.length > 0) {
+		if (["pideck_replace_lines", "pideck_edit_text"].includes(event.toolName) && scopedRepairTargets.length > 0) {
 			const input = event.input as { path?: unknown; edits?: unknown };
 			const intended = selectScopedTarget(String(input.path ?? ""), scopedRepairTargets, false);
 			const target = intended === undefined
@@ -1028,7 +1530,7 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 					const fields = edit as Record<string, unknown>;
 					for (const field of ["anchor", "throughAnchor"] as const) {
 						const digest = String(fields[field] ?? "").trim();
-						if (!/^[0-9a-f]{2}$/u.test(digest)) continue;
+						if (!/^[0-9a-f]{8}$/u.test(digest)) continue;
 						const matches = anchorIndex.get(digest) ?? [];
 						if (matches.length === 1) fields[field] = matches[0];
 					}
@@ -1055,6 +1557,18 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 				const expression = normalizeScopedTestExpression(requestedExpr, target);
 				if (expression === undefined) delete input.expr;
 				else input.expr = expression;
+			}
+		}
+		if (["edit", "write", "pideck_edit", "pideck_write", "pideck_replace_lines", "pideck_edit_text"]
+			.includes(event.toolName)) {
+			const target = String((event.input as { path?: unknown }).path ?? "");
+			const instructions = consumeRepoInstructions(context.cwd, [target]);
+			if (instructions !== undefined) {
+				return {
+					block: true,
+					reason: `${instructions.content}\n\nRepository rules were delivered before mutation. `
+						+ "Re-evaluate the edit against them, then call the tool again only if compliant.",
+				};
 			}
 		}
 		return undefined;

@@ -1,0 +1,268 @@
+{
+  "model": "k2",
+  "device": "SM-S918B",
+  "modelPath": "/data/local/tmp/pideck-audit-20260907/K2-Horizon-3.7B-Q4_K_M.gguf",
+  "modelSha256": "f8dce940ec3e45be3e884a203b0eb3dee4ba57eb23fc63d0e210cdade2ca48ec",
+  "libraryDirectory": "/data/local/tmp/pideck-audit-20260907",
+  "context": 8192,
+  "threads": 5,
+  "batchThreads": 5,
+  "batchCpus": "3-7",
+  "extraFlags": [
+    "--cpu-strict",
+    "0",
+    "--cpu-strict-batch",
+    "0",
+    "--poll",
+    "0",
+    "--poll-batch",
+    "0",
+    "--reasoning-effort",
+    "low",
+    "--reasoning-format",
+    "deepseek"
+  ],
+  "toolPromptCache": "false on first request of each case, true only for its exact growing prefix",
+  "batchSize": 512,
+  "ubatchSize": 128,
+  "temperature": 1.0,
+  "minimumHeadroom": 0.6,
+  "reasoningBudget": 256,
+  "samples": [],
+  "tools": [
+    {
+      "label": "missing",
+      "passed": true,
+      "seconds": 31.75463643599869,
+      "cooldownSeconds": 20.5625569799995,
+      "inferenceSeconds": 31.753396863998205,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 2342400,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.697,
+        "hottestCpuMilliCelsius": 59700
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1977600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.589,
+        "hottestCpuMilliCelsius": 74200
+      },
+      "calls": [
+        {
+          "name": "read",
+          "args": {
+            "path": "docs/definitely-missing.txt"
+          },
+          "result": "Error: file not found"
+        }
+      ],
+      "rounds": [
+        {
+          "elapsed": 27.820505372998014,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 347,
+            "prompt_ms": 25221.21,
+            "prompt_per_token_ms": 72.6836023054755,
+            "prompt_per_second": 13.758261399829747,
+            "predicted_n": 23,
+            "predicted_ms": 2319.444,
+            "predicted_per_token_ms": 105.42927272727273,
+            "predicted_per_second": 9.485031757610876
+          },
+          "finishReason": "tool_calls",
+          "content": "</ifm|think_faster>",
+          "reasoningChars": 0,
+          "toolCalls": [
+            {
+              "type": "function",
+              "function": {
+                "name": "read",
+                "arguments": "{\"path\":\"docs/definitely-missing.txt\"}"
+              },
+              "id": "a7TiEsS0sZX0PfZBjQc4OfZ8FFmvDksu"
+            }
+          ]
+        },
+        {
+          "elapsed": 3.9328914910001913,
+          "timings": {
+            "cache_n": 348,
+            "prompt_n": 37,
+            "prompt_ms": 1224.645,
+            "prompt_per_token_ms": 33.09851351351351,
+            "prompt_per_second": 30.212837189552893,
+            "predicted_n": 23,
+            "predicted_ms": 2496.12,
+            "predicted_per_token_ms": 113.46,
+            "predicted_per_second": 8.813678829543452
+          },
+          "finishReason": "stop",
+          "content": "</ifm|think_faster>Файл `docs/definitely-missing.txt` не найден. Остановаюсь.",
+          "reasoningChars": 0,
+          "toolCalls": []
+        }
+      ],
+      "answer": "</ifm|think_faster>Файл `docs/definitely-missing.txt` не найден. Остановаюсь.",
+      "testPassed": false
+    }
+  ],
+  "serverSha256": "ad64e48f9b066ea6705fa4d4b95b4a5601e1460a5c7f143d43e60a259926a33c",
+  "thermalBeforeLoad": {
+    "bigCoreScalingMaxHz": 2476800,
+    "bigCoreNominalMaxHz": 3360000,
+    "headroom": 0.737,
+    "hottestCpuMilliCelsius": 59600
+  },
+  "loadSeconds": 12.094695389998378,
+  "affinity": {
+    "maskHistogram": {
+      "3-7": 6,
+      "0-7": 10
+    },
+    "threads": [
+      {
+        "tid": 31617,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 31620,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31621,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31622,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31623,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31624,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31625,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31627,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31628,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31629,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31630,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 31700,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 31701,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 31702,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 31703,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 31719,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      }
+    ]
+  },
+  "inProgress": {
+    "label": "missing",
+    "rounds": [
+      {
+        "elapsed": 27.820505372998014,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 347,
+          "prompt_ms": 25221.21,
+          "prompt_per_token_ms": 72.6836023054755,
+          "prompt_per_second": 13.758261399829747,
+          "predicted_n": 23,
+          "predicted_ms": 2319.444,
+          "predicted_per_token_ms": 105.42927272727273,
+          "predicted_per_second": 9.485031757610876
+        },
+        "finishReason": "tool_calls",
+        "content": "</ifm|think_faster>",
+        "reasoningChars": 0,
+        "toolCalls": [
+          {
+            "type": "function",
+            "function": {
+              "name": "read",
+              "arguments": "{\"path\":\"docs/definitely-missing.txt\"}"
+            },
+            "id": "a7TiEsS0sZX0PfZBjQc4OfZ8FFmvDksu"
+          }
+        ]
+      },
+      {
+        "elapsed": 3.9328914910001913,
+        "timings": {
+          "cache_n": 348,
+          "prompt_n": 37,
+          "prompt_ms": 1224.645,
+          "prompt_per_token_ms": 33.09851351351351,
+          "prompt_per_second": 30.212837189552893,
+          "predicted_n": 23,
+          "predicted_ms": 2496.12,
+          "predicted_per_token_ms": 113.46,
+          "predicted_per_second": 8.813678829543452
+        },
+        "finishReason": "stop",
+        "content": "</ifm|think_faster>Файл `docs/definitely-missing.txt` не найден. Остановаюсь.",
+        "reasoningChars": 0,
+        "toolCalls": []
+      }
+    ],
+    "calls": [
+      {
+        "name": "read",
+        "args": {
+          "path": "docs/definitely-missing.txt"
+        },
+        "result": "Error: file not found"
+      }
+    ]
+  },
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.006.185 W DEPRECATED: argument '--cpu-strict' specified multiple times, use comma-separated values instead (only last value will be used)\n0.00.006.204 W DEPRECATED: argument '--cpu-strict-batch' specified multiple times, use comma-separated values instead (only last value will be used)\n0.00.006.426 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.006.623 I srv          init: The UI is disabled\n0.00.006.639 I srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable\n0.00.008.141 I srv    load_model: loading model '/data/local/tmp/pideck-audit-20260907/K2-Horizon-3.7B-Q4_K_M.gguf'\n0.00.929.451 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect\n0.09.497.298 I cmn          init: llama threadpool init, n_threads = 5\n0.10.294.189 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.10.439.550 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve\n0.10.440.019 I srv  llama_server: model loaded\n0.10.440.078 I srv  llama_server: listening on http://127.0.0.1:18080\n0.34.327.599 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.34.331.015 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n1.01.872.064 I slot print_timing: id  0 | task 0 | prompt eval time =   25221.21 ms /   347 tokens (   72.68 ms per token,    13.76 tokens per second)\n1.01.872.081 I slot print_timing: id  0 | task 0 |        eval time =    2319.44 ms /    23 tokens (  105.43 ms per token,     9.49 tokens per second)\n1.01.872.083 I slot print_timing: id  0 | task 0 |       total time =   27540.65 ms /   370 tokens\n1.01.872.085 I slot print_timing: id  0 | task 0 |    graphs reused =         23\n1.01.873.151 I slot      release: id  0 | task 0 | stop processing: n_tokens = 369, truncated = 0\n1.02.086.699 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.904 (> 0.100 thold), f_keep = 0.943\n1.02.087.347 I slot launch_slot_: id  0 | task 24 | processing task, is_child = 0\n1.05.808.139 I slot print_timing: id  0 | task 24 | prompt eval time =    1224.64 ms /    37 tokens (   33.10 ms per token,    30.21 tokens per second)\n1.05.808.155 I slot print_timing: id  0 | task 24 |        eval time =    2496.12 ms /    23 tokens (  113.46 ms per token,     8.81 tokens per second)\n1.05.808.158 I slot print_timing: id  0 | task 24 |       total time =    3720.76 ms /    60 tokens\n1.05.808.160 I slot print_timing: id  0 | task 24 |    graphs reused =         44\n1.05.808.294 I slot      release: id  0 | task 24 | stop processing: n_tokens = 407, truncated = 0\n",
+  "auditNote": "Presentation diagnostic only; relaxed 0.6 minimum frequency headroom. Globally aligning --reasoning-effort low and --reasoning-format deepseek did NOT remove the IFM close tag. No production/parser promotion."
+}

@@ -21,6 +21,7 @@ public final class CpuProfile {
     public static final int MAX_DECODE_THREADS = 5;
     public static final int MAX_BATCH_THREADS = 8;
 
+    public final boolean strictAffinity;
     public final int decodeThreads;
     public final int batchThreads;
     public final String decodeCpuSet;
@@ -32,6 +33,12 @@ public final class CpuProfile {
             String decodeCpuSet,
             String batchCpuSet
     ) {
+        this(decodeThreads, batchThreads, decodeCpuSet, batchCpuSet, true);
+    }
+
+    private CpuProfile(int decodeThreads, int batchThreads, String decodeCpuSet,
+                       String batchCpuSet, boolean strictAffinity) {
+        this.strictAffinity = strictAffinity;
         this.decodeThreads = decodeThreads;
         this.batchThreads = batchThreads;
         this.decodeCpuSet = decodeCpuSet;
@@ -45,6 +52,33 @@ public final class CpuProfile {
             frequencies[cpu] = readFrequency(cpu);
         }
         return fromMaxFrequencies(frequencies);
+    }
+
+    /** K2 was measured with equal decode/batch pools and polling disabled. */
+    public CpuProfile forModel(ModelSpec model) {
+        return "k2horizon".equals(model.serverFlavor)
+                ? new CpuProfile(decodeThreads, decodeThreads, decodeCpuSet, decodeCpuSet, false)
+                : this;
+    }
+
+    public static boolean supportsI8mm() {
+        try {
+            return supportsI8mm(new String(Files.readAllBytes(Paths.get("/proc/cpuinfo")), StandardCharsets.US_ASCII));
+        } catch (IOException | SecurityException ignored) {
+            return false;
+        }
+    }
+
+    static boolean supportsI8mm(String cpuInfo) {
+        boolean found = false;
+        for (String line : cpuInfo.split("\\n")) {
+            if (!line.matches("(?i)^features\\s*:.*")) continue;
+            java.util.Set<String> features = new java.util.HashSet<>(
+                    Arrays.asList(line.substring(line.indexOf(':') + 1).trim().split("\\s+")));
+            if (!features.containsAll(List.of("i8mm", "asimddp", "asimdhp"))) return false;
+            found = true;
+        }
+        return found;
     }
 
     static CpuProfile fromMaxFrequencies(long[] maximumFrequencies) {

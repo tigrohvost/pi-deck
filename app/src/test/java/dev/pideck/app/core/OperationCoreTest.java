@@ -260,6 +260,28 @@ public class OperationCoreTest {
     }
 
     @Test
+    public void packageUpdateClosesAnOlderNativeStartWithoutTouchingAgentTurns() {
+        OperationRecord start = coordinator.begin(
+                OperationKind.START_SERVER,
+                new JSONObject()
+        );
+        coordinator.dispatched(start.operationId);
+
+        assertTrue(coordinator.failNativeStartStartedBefore(start.createdAtMs + 1));
+        assertNull(coordinator.active());
+        assertEquals(OperationState.FAILED, store.load(start.operationId).state);
+        assertEquals(
+                "Application package changed during native model startup; retry with the new APK",
+                store.load(start.operationId).error
+        );
+
+        OperationRecord turn = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
+        coordinator.dispatched(turn.operationId);
+        assertFalse(coordinator.failNativeStartStartedBefore(turn.createdAtMs + 1));
+        assertEquals(turn.operationId, coordinator.activeOperationId());
+    }
+
+    @Test
     public void abortRequiresAnExplicitConfirmedTerminalState() {
         OperationRecord turn = coordinator.begin(OperationKind.AGENT_TURN, new JSONObject());
         coordinator.dispatched(turn.operationId);

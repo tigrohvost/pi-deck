@@ -1,0 +1,14 @@
+{
+  "sha256": "e73d4413f587b348a24cd5ef5397d5de7ed7f38796776aeef713c1ab39dc87e0",
+  "bytes": 20459847,
+  "applicationId": "dev.pideck.app",
+  "versionCode": 22,
+  "versionName": "0.3.0-alpha14",
+  "signerSha256": "4c2a52c0af70ce1904e4792450df592f4efe68c9e6a810505dbfde1e198b1ab8",
+  "variant": "release",
+  "minified": true,
+  "resourcesShrunk": true,
+  "debuggable": false,
+  "signing": "Android Debug, explicit test signing for preserved-data sideload",
+  "zipalign16KiB": true
+}

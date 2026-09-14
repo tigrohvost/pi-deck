@@ -18,6 +18,7 @@ from .bridge import (
     AGENT_BASE_PROMPT,
     CODE_NAV_EXTENSION,
     LOCAL_CACHE_EXTENSION,
+    PLAN_LEDGER_EXTENSION,
     CONTEXT_GUARD_EXTENSION,
     HASHLINE_EXTENSION,
     RUN_TESTS_EXTENSION,
@@ -54,6 +55,7 @@ from .common import (
 )
 from .model_store import (
     adaptive_thinking_enabled,
+    stable_tool_choice_prefix,
     ensure_pi_compaction_settings,
     install_private,
     model_by_id,
@@ -87,7 +89,7 @@ def _profile_arguments(profile: str, agent_mode: str = "agent") -> list[str]:
             "--no-builtin-tools",
             "--tools",
             "read,code_nav,web_research,weather,"
-            "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
+            "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,pideck_edit_text,"
             "pideck_load_tools",
             "--extension",
             str(BASE / "runtime" / "pideck-permission-gate.ts"),
@@ -96,7 +98,7 @@ def _profile_arguments(profile: str, agent_mode: str = "agent") -> list[str]:
         return [
             "--tools",
             "read,bash,edit,write,code_nav,web_research,weather,"
-            "pideck_replace_lines,run_tests,pideck_load_tools",
+            "pideck_replace_lines,pideck_edit_text,run_tests,pideck_load_tools",
         ]
     raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
 
@@ -176,6 +178,11 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
             "TOOL_ROUTER_EXTENSION_MISSING",
             "Managed tool-router extension is not installed",
         )
+    if not PLAN_LEDGER_EXTENSION.is_file():
+        raise PiDeckError(
+            "PLAN_LEDGER_EXTENSION_MISSING",
+            "Managed plan-ledger extension is not installed",
+        )
 
     arguments = [
         str(BASE / "runtime" / "bin" / "pi"),
@@ -196,8 +203,6 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         "--offline",
         "--no-extensions",
         "--extension",
-        str(LOCAL_CACHE_EXTENSION),
-        "--extension",
         str(ADAPTIVE_THINKING_EXTENSION),
         "--extension",
         str(SYSTEM_PROMPT_EXTENSION),
@@ -215,6 +220,10 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
         str(CODE_NAV_EXTENSION),
         "--extension",
         str(TOOL_ROUTER_EXTENSION),
+        "--extension",
+        str(PLAN_LEDGER_EXTENSION),
+        "--extension",
+        str(LOCAL_CACHE_EXTENSION),
     ]
     persist_system_prompt(system_prompt_path, system_prompt_content)
     if session_id:
@@ -227,6 +236,9 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
     environment["PIDECK_AGENT_MODE"] = agent_mode
     environment["PIDECK_ADAPTIVE_THINKING"] = (
         "1" if adaptive_thinking_enabled(model) else "0"
+    )
+    environment["PIDECK_STABLE_TOOL_CHOICE_PREFIX"] = (
+        "1" if stable_tool_choice_prefix(model) else "0"
     )
     environment["PIDECK_HASHLINE_APPROVAL"] = (
         "none" if profile == "autonomous" else "required"
@@ -489,6 +501,7 @@ def probe() -> dict[str, Any]:
             CONTEXT_GUARD_EXTENSION,
             WEB_TOOLS_EXTENSION,
             TOOL_ROUTER_EXTENSION,
+            PLAN_LEDGER_EXTENSION,
             BASE / "runtime" / "pideck-permission-gate.ts",
             BASE / "workspace",
             BASE / "sessions",

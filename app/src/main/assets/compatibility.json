@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "appVersion": "0.3.0-alpha13",
+  "appVersion": "0.3.0-alpha14",
   "baselineCommit": "34daad9173318545e0bebaf52b6a1fc87cfa2a6c",
   "pi": {
     "package": "@earendil-works/pi-coding-agent",
@@ -24,7 +24,12 @@
     "owner": "android-native",
     "minimumVersion": "b10092",
     "maximumTestedVersion": "b10092",
-    "requiredCapabilities": ["server", "jinja", "reasoning", "api-key"],
+    "requiredCapabilities": [
+      "server",
+      "jinja",
+      "reasoning",
+      "api-key"
+    ],
     "sidecars": [
       {
         "flavor": "nanbeige42",
@@ -32,6 +37,18 @@
         "repository": "https://github.com/Nanbeige/llama.cpp.git",
         "commit": "c6640a1c0cf7b38df342b67021a3900b04d092e7",
         "sha256": "68d8b71f1b3ecb8e43a34477df9ac4fd4ec3ccbb537b06820d452c92f457884d"
+      },
+      {
+        "flavor": "k2horizon",
+        "build": "k2horizon-35999d1-p2",
+        "repository": "https://github.com/MBZUAI-IFM/llama.cpp.git",
+        "commit": "35999d101cf2233fc54f09c3c8d599da7303ce02",
+        "ndkRevision": "28.2.13676358",
+        "file": "libpideck_k2horizon_server.so",
+        "optimizedFile": "libpideck_k2horizon_i8mm_server.so",
+        "patchSha256": "04fe290be17bf608e862471e555320f1b924896cf096fe3e1d4b9073dc7b0d0b",
+        "sha256": "695d3cdc03d098a392dd1a33788cc4c3c7a8aa040381fc87456551885bef0069",
+        "optimizedSha256": "202c2565a098dd91b1a00871631ce3e6b43f714dbc065bb7b8e40ee45ef41287"
       }
     ]
   },
@@ -48,7 +65,9 @@
     "package": "com.termux.api",
     "minimumVersion": "0.50.1",
     "optional": true,
-    "usedFor": ["wake-lock"]
+    "usedFor": [
+      "wake-lock"
+    ]
   },
   "modelManifestSchema": 2,
   "testedAndroid": [

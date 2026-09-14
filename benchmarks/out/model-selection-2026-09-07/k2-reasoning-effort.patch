@@ -1,0 +1,29 @@
+diff --git a/common/chat.cpp b/common/chat.cpp
+index 743ecde..93d925e 100644
+--- a/common/chat.cpp
++++ b/common/chat.cpp
+@@ -3718,6 +3718,24 @@ static common_chat_params common_chat_templates_apply_jinja(const struct common_
+         LOG_DBG("%s: using differential autoparser\n", __func__);
+         struct autoparser::autoparser autoparser;
+         autoparser.analyze_template(tmpl);
++        // K2 renders stored reasoning_content with the high-effort tag, while
++        // its generation prefix selects a different tag for medium/low effort.
++        // Parse the tag actually opened for this request, preserving the prompt.
++        if (src.find("<|ifm|im_start|>") != std::string::npos) {
++            const auto prefix = trim_whitespace(common_chat_template_generation_prompt_impl(tmpl, params));
++            for (const std::string tag : { "ifm|think_faster", "ifm|think_fast", "ifm|think" }) {
++                const std::string open = "<" + tag + ">";
++                if (prefix.size() >= open.size() &&
++                    prefix.compare(prefix.size() - open.size(), open.size(), open) == 0) {
++                    autoparser.reasoning.mode = autoparser::reasoning_mode::TAG_BASED;
++                    autoparser.reasoning.start = open;
++                    autoparser.reasoning.end = "</" + tag + ">";
++                    autoparser.preserved_tokens.push_back(open);
++                    autoparser.preserved_tokens.push_back(autoparser.reasoning.end);
++                    break;
++                }
++            }
++        }
+         auto auto_params = autoparser::peg_generator::generate_parser(tmpl, params, autoparser);
+ 
+         common_chat_msg_delimiters delimiters;

@@ -536,6 +536,44 @@ def summarize_cases(cases: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def summarize_cache_sequence(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    summary = summarize_cases(cases)
+    if not cases:
+        return {**summary, "sameSession": None, "firstToContinuationTtftRatio": None}
+    session_hashes = {
+        case.get("sessionIdHash") for case in cases
+        if isinstance(case.get("sessionIdHash"), str)
+    }
+    first_ttft = _finite_number(
+        cases[0].get("turn", {}).get("dispatchToFirstVisibleTokenSeconds")
+    )
+    continuation_ttfts = [
+        value
+        for case in cases[1:]
+        if (value := _finite_number(
+            case.get("turn", {}).get("dispatchToFirstVisibleTokenSeconds")
+        )) is not None
+    ]
+    median_continuation = (
+        statistics.median(continuation_ttfts) if continuation_ttfts else None
+    )
+    ratio = (
+        first_ttft / median_continuation
+        if first_ttft is not None and median_continuation is not None
+        and median_continuation > 0
+        else None
+    )
+    return {
+        **summary,
+        "sameSession": len(session_hashes) == 1 and len(cases) >= 2,
+        "firstTtftSeconds": round(first_ttft, 6) if first_ttft is not None else None,
+        "medianContinuationTtftSeconds": (
+            round(median_continuation, 6) if median_continuation is not None else None
+        ),
+        "firstToContinuationTtftRatio": round(ratio, 6) if ratio is not None else None,
+    }
+
+
 class AdbClient:
     def __init__(self, serial: str):
         self.serial = serial
@@ -850,8 +888,12 @@ class AgentBenchmark:
         prompt: str,
         ready_state: dict[str, Any],
         sampler: EnvironmentSampler | None = None,
+        reset_session: bool = True,
     ) -> dict[str, Any]:
-        state, reset_seconds = self.new_session(ready_state)
+        if reset_session:
+            state, reset_seconds = self.new_session(ready_state)
+        else:
+            state, reset_seconds = ready_state, 0.0
         session_id = state.get("sessionId")
         if not isinstance(session_id, str):
             raise BenchmarkError("Bridge sessionId is unavailable")
@@ -958,6 +1000,8 @@ class AgentBenchmark:
             "label": label,
             "promptSha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
             "promptBytes": len(prompt.encode("utf-8")),
+            "sessionIdHash": hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:16],
+            "sessionReset": reset_session,
             "sessionResetSeconds": round(reset_seconds, 6),
             "turn": turn,
             "transcript": {
@@ -1005,6 +1049,28 @@ class AgentBenchmark:
         result["startupSeconds"] = None
         return result
 
+    def run_cache_sequence(self, count: int, prompt: str) -> list[dict[str, Any]]:
+        """Measure a growing conversation while retaining one exact Pi session."""
+        self.adb.bring_to_front(self.component)
+        cooldown = self.wait_cooldown()
+        ready = self.wait_ready()
+        results = []
+        for index in range(count):
+            result = self.run_turn(
+                f"cache-{index + 1}",
+                prompt,
+                ready,
+                reset_session=index == 0,
+            )
+            result["cooldown"] = cooldown if index == 0 else None
+            result["startupSeconds"] = None
+            results.append(result)
+            ready = self.wait_ready()
+        session_hashes = {result["sessionIdHash"] for result in results}
+        if len(session_hashes) != 1:
+            raise BenchmarkError("Cache sequence did not retain one exact session")
+        return results
+
 
 def _adb_devices() -> str:
     try:
@@ -1031,6 +1097,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cold-runs", type=int, default=1)
     parser.add_argument("--warm-runs", type=int, default=3)
     parser.add_argument("--tool-runs", type=int, default=1)
+    parser.add_argument(
+        "--cache-runs",
+        type=int,
+        default=0,
+        help=(
+            "Run this many prompts in one growing session (0 disables; use at least 2) "
+            "to measure real prefix-cache continuation latency."
+        ),
+    )
     parser.add_argument("--timeout-seconds", type=float, default=2700)
     parser.add_argument("--sample-interval", type=float, default=2.0)
     parser.add_argument("--cooldown-headroom", type=float, default=0.98)
@@ -1058,11 +1133,16 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    for name in ("cold_runs", "warm_runs", "tool_runs"):
+    for name in ("cold_runs", "warm_runs", "tool_runs", "cache_runs"):
         value = getattr(args, name)
         if not 0 <= value <= 20:
             raise BenchmarkError(f"--{name.replace('_', '-')} must be between 0 and 20")
-    if args.cold_runs + args.warm_runs + args.tool_runs == 0 and not args.retry_prompt:
+    if args.cache_runs == 1:
+        raise BenchmarkError("--cache-runs must be 0 or between 2 and 20")
+    if (
+        args.cold_runs + args.warm_runs + args.tool_runs + args.cache_runs == 0
+        and not args.retry_prompt
+    ):
         raise BenchmarkError("At least one benchmark case is required")
     if not 1024 <= args.bridge_port <= 65535 or not 1024 <= args.host_port <= 65535:
         raise BenchmarkError("Bridge ports must be between 1024 and 65535")
@@ -1100,7 +1180,7 @@ def main() -> int:
         "bridgePort": args.bridge_port,
         "hostForwardPort": args.host_port,
         "samplingIntervalSeconds": args.sample_interval,
-        "cases": {"cold": [], "warm": [], "tool": [], "retry": []},
+        "cases": {"cold": [], "warm": [], "tool": [], "retry": [], "cache": []},
     }
     adb.forward(args.host_port, args.bridge_port)
     try:
@@ -1129,9 +1209,17 @@ def main() -> int:
             )
         if args.retry_prompt:
             report["cases"]["retry"].append(runner.run_warm("retry-1", args.retry_prompt))
-        report["summary"] = {
-            name: summarize_cases(cases) for name, cases in report["cases"].items()
-        }
+        if args.cache_runs:
+            report["cases"]["cache"].extend(
+                runner.run_cache_sequence(args.cache_runs, args.prompt)
+            )
+        report["summary"] = {}
+        for name, cases in report["cases"].items():
+            report["summary"][name] = (
+                summarize_cache_sequence(cases)
+                if name == "cache"
+                else summarize_cases(cases)
+            )
         report["retryCoverageObserved"] = any(
             case.get("turn", {}).get("retries", {}).get("rejections", 0) > 0
             for cases in report["cases"].values()

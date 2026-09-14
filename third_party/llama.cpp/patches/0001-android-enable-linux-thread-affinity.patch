@@ -1,0 +1,19 @@
+From: PI//DECK maintainers
+Subject: [PATCH 1/2] ggml-cpu: enable Linux thread affinity on Android
+
+Android's Bionic defines __linux__, but not __gnu_linux__. The narrower guard
+silently compiled the no-op affinity implementation into upstream b10092.
+
+diff --git a/ggml/src/ggml-cpu/ggml-cpu.c b/ggml/src/ggml-cpu/ggml-cpu.c
+index 491316f..7918845 100644
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -2608,7 +2608,7 @@ static bool ggml_thread_apply_priority(int32_t prio) {
+     return true;
+ }
+ 
+-#elif defined(__gnu_linux__)
++#elif defined(__linux__)
+ // TODO: this may not work on BSD, to be verified
+ 
+ static bool ggml_thread_apply_affinity(const bool * mask) {

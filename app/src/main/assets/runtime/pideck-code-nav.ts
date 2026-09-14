@@ -250,13 +250,6 @@ export default function pideckCodeNav(pi: ExtensionAPI) {
 		label: "Code navigation",
 		description:
 			"Find relevant files, symbols, definitions, references, or exact text in one bounded read-only workspace search.",
-		promptSnippet: "Find files and exact code locations in one bounded search",
-		promptGuidelines: [
-			"Use code_nav instead of chaining ls, find, and grep.",
-			"Copy an explicit directory path from the user verbatim; never shorten it to / or only its final segment.",
-			"After code_nav, read only the relevant file range before editing.",
-			"If code_nav returns no match, stop or try one narrower synonym; do not scan the whole device.",
-		],
 		parameters: Type.Object({
 			query: Type.String({
 				description: "Filename, symbol, function, class, error text, or exact phrase to locate",

@@ -1,0 +1,1222 @@
+{
+  "schemaVersion": 1,
+  "status": "measured",
+  "candidate": {
+    "directory": "/tmp/pideck-opencl-b10687-repro1",
+    "artifacts": [
+      {
+        "name": "llama-bench",
+        "bytes": 6748096,
+        "sha256": "a47b7593a1f386d9efe438892159b3501eefe66d18943a86df114a6524421e92"
+      },
+      {
+        "name": "libomp.so",
+        "bytes": 965024,
+        "sha256": "f30aa5c388ff0cc9d6c06962981d024dc52797fadb26e6ef4cd84f5e4bdc4643"
+      },
+      {
+        "name": "libc++_shared.so",
+        "bytes": 1253544,
+        "sha256": "cd61762848882a16c8244c964a6f396c0caa0b440588a210ce9cc4ab0e6d9f0c"
+      },
+      {
+        "name": "llama-server",
+        "bytes": 11797592,
+        "sha256": "872bca41efd6fa62684b614c6a98176022575150c87f6e8ee2da3f335ca4c219"
+      },
+      {
+        "name": "test-backend-ops",
+        "bytes": 4262680,
+        "sha256": "d9c502b2d611f00b77de0ef2010839ebe69472c69596ed39001c7ee7a74c8368"
+      }
+    ]
+  },
+  "model": {
+    "path": "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+    "bytes": 3013027808,
+    "sha256": "13c16f426047e2de38cd075bdade4a7bcbc8c774384876f677740cda65f8a983"
+  },
+  "method": {
+    "variants": [
+      "cpu",
+      "op-offload",
+      "hybrid-8",
+      "hybrid-16",
+      "accelerator-all",
+      "accelerator-all-cpu-state"
+    ],
+    "promptTokens": [
+      128,
+      512
+    ],
+    "generatedTokens": 32,
+    "repetitions": 3,
+    "threads": 8,
+    "cpuMask": "0xff",
+    "flashAttention": "on",
+    "expectedBackend": "OpenCL",
+    "correctnessTests": [
+      "q6-k-mul-mat",
+      "flash-attention"
+    ],
+    "cooldown": true
+  },
+  "correctnessPlan": [
+    {
+      "label": "q6-k-mul-mat",
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/test-backend-ops",
+        "test",
+        "-o",
+        "MUL_MAT",
+        "-p",
+        "type_a=q6_K"
+      ]
+    },
+    {
+      "label": "flash-attention",
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/test-backend-ops",
+        "test",
+        "-o",
+        "FLASH_ATTN_EXT"
+      ]
+    }
+  ],
+  "plan": [
+    {
+      "variant": "cpu",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1"
+      ]
+    },
+    {
+      "variant": "cpu",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1"
+      ]
+    },
+    {
+      "variant": "op-offload",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "0",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "op-offload",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "0",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "hybrid-8",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "8",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "hybrid-8",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "8",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "hybrid-16",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "16",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "hybrid-16",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "16",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "accelerator-all",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "99",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "accelerator-all",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "99",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "0"
+      ]
+    },
+    {
+      "variant": "accelerator-all-cpu-state",
+      "promptTokens": 128,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "128",
+        "-n",
+        "32",
+        "-b",
+        "128",
+        "-ub",
+        "128",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "99",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "1"
+      ]
+    },
+    {
+      "variant": "accelerator-all-cpu-state",
+      "promptTokens": 512,
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/llama-bench",
+        "-m",
+        "/data/local/tmp/pideck-perf-models/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "-p",
+        "512",
+        "-n",
+        "32",
+        "-b",
+        "512",
+        "-ub",
+        "512",
+        "-r",
+        "3",
+        "--delay",
+        "1",
+        "-o",
+        "jsonl",
+        "-t",
+        "8",
+        "-C",
+        "0xff",
+        "--cpu-strict",
+        "1",
+        "-fa",
+        "on",
+        "-ngl",
+        "99",
+        "-sm",
+        "layer",
+        "-nopo",
+        "0",
+        "-nkvo",
+        "1"
+      ]
+    }
+  ],
+  "resume": {
+    "sourceReportSha256": "1f33db4fc9c51a0884fa44ab48ee31b07e9988f232710e01a84d1e5ea94d8278",
+    "completedSamples": 10,
+    "correctnessRerun": true
+  },
+  "stagedCandidateSha256": {
+    "llama-bench": "a47b7593a1f386d9efe438892159b3501eefe66d18943a86df114a6524421e92",
+    "libomp.so": "f30aa5c388ff0cc9d6c06962981d024dc52797fadb26e6ef4cd84f5e4bdc4643",
+    "libc++_shared.so": "cd61762848882a16c8244c964a6f396c0caa0b440588a210ce9cc4ab0e6d9f0c",
+    "llama-server": "872bca41efd6fa62684b614c6a98176022575150c87f6e8ee2da3f335ca4c219",
+    "test-backend-ops": "d9c502b2d611f00b77de0ef2010839ebe69472c69596ed39001c7ee7a74c8368"
+  },
+  "device": {
+    "serial": "R5CW11HGLVV",
+    "model": "SM-S918B",
+    "soc": "SM8550",
+    "android": "16",
+    "backendListing": [
+      "Available devices:",
+      "  GPUOpenCL: QUALCOMM Adreno(TM) (5522 MiB, 4498 MiB free)",
+      "",
+      "ggml_opencl: selected platform: 'QUALCOMM Snapdragon(TM)'",
+      "",
+      "ggml_opencl: device: 'QUALCOMM Adreno(TM) (OpenCL 3.0 Adreno(TM) 740)'",
+      "ggml_opencl: default device: 'QUALCOMM Adreno(TM) (OpenCL 3.0 Adreno(TM) 740)'"
+    ]
+  },
+  "correctness": [
+    {
+      "label": "q6-k-mul-mat",
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/test-backend-ops",
+        "test",
+        "-o",
+        "MUL_MAT",
+        "-p",
+        "type_a=q6_K"
+      ],
+      "returnCode": 0,
+      "expectedBackendObserved": true,
+      "testSummaries": [
+        {
+          "passed": 11,
+          "total": 11
+        }
+      ],
+      "outputSha256": "a89f1183a673151f61b71d8be55a7180856c3606ef31796113487dfd7337dedd",
+      "summaryTail": [
+        "Backend 1/2: GPUOpenCL",
+        "Device description: QUALCOMM Adreno(TM)",
+        "11/11 tests passed",
+        "Backend OpenCL: OK",
+        "Backend 2/2: CPU",
+        "2/2 backends passed"
+      ],
+      "passed": true,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 44200
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-3",
+          "milliCelsius": 63900
+        }
+      }
+    },
+    {
+      "label": "flash-attention",
+      "arguments": [
+        "/data/local/tmp/pideck-accelerator/test-backend-ops",
+        "test",
+        "-o",
+        "FLASH_ATTN_EXT"
+      ],
+      "returnCode": 0,
+      "expectedBackendObserved": true,
+      "testSummaries": [
+        {
+          "passed": 229,
+          "total": 229
+        }
+      ],
+      "outputSha256": "2e5a02fba881919124002a90c00003a81062d096144a84c0618e12b9ef893f50",
+      "summaryTail": [
+        "Backend 1/2: GPUOpenCL",
+        "Device description: QUALCOMM Adreno(TM)",
+        "229/229 tests passed",
+        "Backend OpenCL: OK",
+        "Backend 2/2: CPU",
+        "2/2 backends passed"
+      ],
+      "passed": true,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-0",
+          "milliCelsius": 45300
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 65500
+        }
+      }
+    }
+  ],
+  "samples": [
+    {
+      "variant": "cpu",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-0",
+          "milliCelsius": 44600
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2227200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.663,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 62300
+        }
+      },
+      "promptTokensPerSecond": 20.419181,
+      "decodeTokensPerSecond": 4.805344,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 0,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "cpu",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 43800
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1593600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.474,
+        "hottestComputeZone": {
+          "zone": "cpu-1-5",
+          "milliCelsius": 65900
+        }
+      },
+      "promptTokensPerSecond": 18.063531,
+      "decodeTokensPerSecond": 2.372206,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 0,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "op-offload",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-3",
+          "milliCelsius": 46100
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2227200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.663,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 65500
+        }
+      },
+      "promptTokensPerSecond": 24.092038,
+      "decodeTokensPerSecond": 4.347316,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 0,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "op-offload",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-4",
+          "milliCelsius": 46500
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1593600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.474,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 63500
+        }
+      },
+      "promptTokensPerSecond": 19.400714,
+      "decodeTokensPerSecond": 3.740292,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 0,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "hybrid-8",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 46100
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1977600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 64700
+        }
+      },
+      "promptTokensPerSecond": 25.926121,
+      "decodeTokensPerSecond": 3.022917,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 8,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "hybrid-8",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46500
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3187200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.949,
+        "hottestComputeZone": {
+          "zone": "cpu-1-5",
+          "milliCelsius": 72600
+        }
+      },
+      "promptTokensPerSecond": 23.9175,
+      "decodeTokensPerSecond": 4.2678,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 8,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "hybrid-16",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46500
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2342400,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.697,
+        "hottestComputeZone": {
+          "zone": "cpu-1-10",
+          "milliCelsius": 85200
+        }
+      },
+      "promptTokensPerSecond": 30.196035,
+      "decodeTokensPerSecond": 4.466705,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 16,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "hybrid-16",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46500
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1593600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.474,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 59900
+        }
+      },
+      "promptTokensPerSecond": 27.639684,
+      "decodeTokensPerSecond": 2.66668,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 16,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "accelerator-all",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46500
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1977600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 64900
+        }
+      },
+      "promptTokensPerSecond": 50.620254,
+      "decodeTokensPerSecond": 3.692175,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 99,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "accelerator-all",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 43800
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 67400
+        }
+      },
+      "promptTokensPerSecond": 46.732549,
+      "decodeTokensPerSecond": 4.877953,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 99,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "accelerator-all-cpu-state",
+      "promptTokens": 128,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-2",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1977600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 60300
+        }
+      },
+      "promptTokensPerSecond": 42.839766,
+      "decodeTokensPerSecond": 3.009593,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 99,
+        "tensor_buft_overrides": "none"
+      }
+    },
+    {
+      "variant": "accelerator-all-cpu-state",
+      "promptTokens": 512,
+      "generatedTokens": 32,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-7",
+          "milliCelsius": 44900
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1977600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 57600
+        }
+      },
+      "promptTokensPerSecond": 30.769756,
+      "decodeTokensPerSecond": 2.647873,
+      "benchmark": {
+        "build_commit": "c841aeeb8bb2fe417038dadfa9b007cf1a9ef950",
+        "build_number": 10687,
+        "cpu_info": "CPU",
+        "gpu_info": "QUALCOMM Adreno(TM)",
+        "backends": "OpenCL",
+        "model_type": "qwen35 4B Q4_K - Medium",
+        "model_size": 3002058752,
+        "model_n_params": 4326350848,
+        "n_gpu_layers": 99,
+        "tensor_buft_overrides": "none"
+      }
+    }
+  ],
+  "verdict": {
+    "gate": {
+      "minimumPromptRatio": 2.0,
+      "minimumDecodeRatio": 0.95,
+      "requireAllPromptSizes": true,
+      "requireNoCrash": true
+    },
+    "variants": {
+      "op-offload": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 1.179873,
+            "decodeRatio": 0.904684
+          },
+          {
+            "promptTokens": 512,
+            "promptRatio": 1.074027,
+            "decodeRatio": 1.576715
+          }
+        ],
+        "minimumPromptRatio": 1.074027,
+        "minimumDecodeRatio": 0.904684,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "hybrid-8": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 1.269694,
+            "decodeRatio": 0.629074
+          },
+          {
+            "promptTokens": 512,
+            "promptRatio": 1.324077,
+            "decodeRatio": 1.799085
+          }
+        ],
+        "minimumPromptRatio": 1.269694,
+        "minimumDecodeRatio": 0.629074,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "hybrid-16": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 1.478807,
+            "decodeRatio": 0.929529
+          },
+          {
+            "promptTokens": 512,
+            "promptRatio": 1.530137,
+            "decodeRatio": 1.124135
+          }
+        ],
+        "minimumPromptRatio": 1.478807,
+        "minimumDecodeRatio": 0.929529,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      },
+      "accelerator-all": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 2.479054,
+            "decodeRatio": 0.768348
+          },
+          {
+            "promptTokens": 512,
+            "promptRatio": 2.587121,
+            "decodeRatio": 2.056294
+          }
+        ],
+        "minimumPromptRatio": 2.479054,
+        "minimumDecodeRatio": 0.768348,
+        "gatePassed": false,
+        "prefillOnlyPotential": true
+      },
+      "accelerator-all-cpu-state": {
+        "comparisons": [
+          {
+            "promptTokens": 128,
+            "promptRatio": 2.098016,
+            "decodeRatio": 0.626301
+          },
+          {
+            "promptTokens": 512,
+            "promptRatio": 1.703419,
+            "decodeRatio": 1.116207
+          }
+        ],
+        "minimumPromptRatio": 1.703419,
+        "minimumDecodeRatio": 0.626301,
+        "gatePassed": false,
+        "prefillOnlyPotential": false
+      }
+    },
+    "gatePassed": false,
+    "winner": null,
+    "action": "Keep the production runtime CPU-only."
+  }
+}

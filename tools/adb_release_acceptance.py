@@ -28,6 +28,7 @@ UUID_PATTERN = re.compile(
     re.IGNORECASE,
 )
 READY_LABELS = ("Готово отвечать", "Ready ·")
+DEVICE_LOGCAT_TIME_PATTERN = re.compile(r"\A\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\Z")
 
 
 def sha256_file(path: Path) -> str:
@@ -104,6 +105,16 @@ def terminal_text_present(xml: str, needles: Iterable[str]) -> bool:
     return text_present(xml, needles) and text_present(xml, READY_LABELS)
 
 
+def non_editor_text_count(xml: str, needle: str) -> int:
+    expected = needle.casefold()
+    return sum(
+        1
+        for node in ui_nodes(xml)
+        if not node.get("class", "").endswith("EditText")
+        and expected in (node.get("text", "") + " " + node.get("content-desc", "")).casefold()
+    )
+
+
 def resolve_serial(devices_output: str, requested: str | None) -> str:
     ready = []
     for line in devices_output.splitlines()[1:]:
@@ -130,6 +141,14 @@ def remote_apk_path(pm_output: str) -> str:
 def keyguard_showing(policy_output: str) -> bool:
     match = re.search(r"^\s*showing=(true|false)\s*$", policy_output, re.MULTILINE)
     return match is not None and match.group(1) == "true"
+
+
+def logcat_start_time(device_time_output: str) -> str:
+    """Return a validated logcat -T value without clearing the shared device buffer."""
+    value = device_time_output.strip()
+    if DEVICE_LOGCAT_TIME_PATTERN.fullmatch(value) is None:
+        raise AcceptanceError("Device did not return a usable logcat start time")
+    return value.replace("T", " ") + ".000"
 
 
 class Adb:
@@ -196,6 +215,31 @@ class Adb:
         raise AcceptanceError(f"Timed out waiting for {label}{suffix}")
 
 
+def wait_stable_prompt_ready(
+    adb: Adb,
+    timeout: float,
+    *,
+    stable_samples: int = 4,
+    interval: float = 1.0,
+) -> str:
+    """Avoid submitting during the brief READY edge before idle compaction starts."""
+    deadline = time.monotonic() + timeout
+    stable = 0
+    last_xml = ""
+    while time.monotonic() < deadline:
+        last_xml = adb.dump_ui()
+        if text_present(last_xml, READY_LABELS) and find_node(
+            last_xml, class_suffix="EditText"
+        ) is not None:
+            stable += 1
+            if stable >= stable_samples:
+                return last_xml
+        else:
+            stable = 0
+        time.sleep(interval)
+    raise AcceptanceError("Timed out waiting for stable READY prompt input")
+
+
 def android_tool(name: str) -> str | None:
     direct = shutil.which(name)
     if direct:
@@ -249,7 +293,7 @@ def apk_metadata(apk: Path) -> dict[str, object]:
     return result
 
 
-def click_named(adb: Adb, xml: str, names: Iterable[str]) -> None:
+def named_node(xml: str, names: Iterable[str]) -> dict[str, str] | None:
     expected = tuple(names)
     node = find_node(xml, texts=expected) or find_node(xml, descriptions=expected)
     if node is None:
@@ -263,13 +307,28 @@ def click_named(adb: Adb, xml: str, names: Iterable[str]) -> None:
             ),
             None,
         )
+    return node
+
+
+def click_named(adb: Adb, xml: str, names: Iterable[str]) -> None:
+    expected = tuple(names)
+    node = named_node(xml, expected)
     if node is None:
         raise AcceptanceError(f"UI control is not visible: {', '.join(expected)}")
     adb.tap(node)
 
 
-def submit_prompt(adb: Adb, prompt: str) -> None:
+def submit_prompt(
+    adb: Adb,
+    prompt: str,
+    *,
+    marker: str | None = None,
+    acknowledgement_timeout: float = 120,
+    confirm_submission: bool = True,
+) -> None:
     xml = adb.dump_ui()
+    submission_marker = marker or prompt[:48]
+    existing_bubbles = non_editor_text_count(xml, submission_marker)
     editor = find_node(xml, class_suffix="EditText")
     if editor is None:
         raise AcceptanceError("Prompt editor is not visible")
@@ -290,6 +349,14 @@ def submit_prompt(adb: Adb, prompt: str) -> None:
     if send is None:
         raise AcceptanceError("Send control is not enabled after text input")
     adb.tap(send)
+    if not confirm_submission:
+        return
+    adb.wait_ui(
+        lambda value: non_editor_text_count(value, submission_marker) > existing_bubbles,
+        acknowledgement_timeout,
+        "submitted prompt bubble",
+        interval=0.5,
+    )
 
 
 def scroll_until(adb: Adb, labels: Iterable[str], attempts: int = 8) -> str:
@@ -300,6 +367,34 @@ def scroll_until(adb: Adb, labels: Iterable[str], attempts: int = 8) -> str:
         adb.shell("input", "swipe", "540", "1750", "540", "650", "350")
         time.sleep(0.4)
     raise AcceptanceError(f"Could not reveal UI row: {', '.join(labels)}")
+
+
+def reveal_resumed_answer(adb: Adb, marker: str, timeout: float) -> str:
+    """Scroll toward older transcript rows until one marked exact-answer turn is visible."""
+    deadline = time.monotonic() + timeout
+    for _ in range(24):
+        if time.monotonic() >= deadline:
+            break
+        xml = adb.dump_ui()
+        if terminal_text_present(xml, ("PIDECK_OK",)) and text_present(xml, (marker,)):
+            return xml
+        adb.shell("input", "swipe", "540", "700", "540", "1550", "350")
+        time.sleep(0.4)
+    raise AcceptanceError("Timed out revealing the marked resumed PIDECK_OK turn")
+
+
+def reveal_prompt_editor(adb: Adb, timeout: float) -> str:
+    """Return from transcript evidence to the live composer without a coordinate tap."""
+    deadline = time.monotonic() + timeout
+    for _ in range(24):
+        if time.monotonic() >= deadline:
+            break
+        xml = adb.dump_ui()
+        if find_node(xml, class_suffix="EditText") is not None:
+            return xml
+        adb.shell("input", "swipe", "540", "1650", "540", "650", "350")
+        time.sleep(0.4)
+    raise AcceptanceError("Timed out returning to the prompt editor")
 
 
 def wait_ready_with_safe_bootstrap(adb: Adb, timeout: float) -> str:
@@ -325,14 +420,17 @@ def wait_ready_with_safe_bootstrap(adb: Adb, timeout: float) -> str:
             ("CONNECT_BRIDGE", ("START BRIDGE", "CONTINUE", "ПРОДОЛЖИТЬ")),
         )
         for action, labels in safe_actions:
-            if action in clicked or not text_present(xml, labels):
+            if action in clicked:
+                continue
+            node = named_node(xml, labels)
+            if node is None:
                 continue
             print(
                 f"[acceptance] safe boot action: {action}",
                 file=sys.stderr,
                 flush=True,
             )
-            click_named(adb, xml, labels)
+            adb.tap(node)
             clicked.add(action)
             break
         time.sleep(1.0)
@@ -421,7 +519,9 @@ def run_acceptance(arguments: argparse.Namespace) -> dict[str, object]:
     }
 
     print("[acceptance] cold-launch sampling boot UI", file=sys.stderr, flush=True)
-    adb.run("logcat", "-c", timeout=30, check=False)
+    log_window_start = logcat_start_time(
+        adb.shell("date", "+%m-%dT%H:%M:%S", timeout=20)
+    )
     adb.shell("am", "force-stop", package)
     adb.shell("am", "start", "-W", "-n", f"{package}/.MainActivity", timeout=60)
     false_link_seen = False
@@ -443,24 +543,46 @@ def run_acceptance(arguments: argparse.Namespace) -> dict[str, object]:
 
     ready_xml = wait_ready_with_safe_bootstrap(adb, arguments.ready_timeout)
     checks["readyUi"] = True
-    print("[acceptance] exact-answer turn", file=sys.stderr, flush=True)
-    submit_prompt(
-        adb,
-        "Reply only with PIDECK underscore OK replacing the word underscore with the character",
-    )
-    adb.wait_ui(
-        lambda value: terminal_text_present(value, ("PIDECK_OK",)),
-        arguments.turn_timeout,
-        "terminal PIDECK_OK answer",
-    )
+    wait_stable_prompt_ready(adb, arguments.ready_timeout)
+    acceptance_nonce = datetime.now(timezone.utc).strftime("%H%M%S%f")
+    if arguments.resume_answer_marker:
+        if re.fullmatch(r"PIDECKANSWER\d{12,20}", arguments.resume_answer_marker) is None:
+            raise AcceptanceError("Resume answer marker has an invalid format")
+        print("[acceptance] resume visible exact-answer turn", file=sys.stderr, flush=True)
+        reveal_resumed_answer(adb, arguments.resume_answer_marker, arguments.turn_timeout)
+        reveal_prompt_editor(adb, arguments.turn_timeout)
+        checks["promptAnswerResumed"] = True
+    else:
+        print("[acceptance] exact-answer turn", file=sys.stderr, flush=True)
+        answer_marker = f"PIDECKANSWER{acceptance_nonce}"
+        submit_prompt(
+            adb,
+            f"Acceptance request {answer_marker}. Reply with exactly these 9 ASCII "
+            "characters and nothing else: PIDECK_OK. Do not add spaces, quotes, or punctuation.",
+            marker=answer_marker,
+            acknowledgement_timeout=arguments.turn_timeout,
+        )
+        adb.wait_ui(
+            lambda value: terminal_text_present(value, ("PIDECK_OK",)),
+            arguments.turn_timeout,
+            "terminal PIDECK_OK answer",
+        )
+        checks["promptAnswerResumed"] = False
     checks["promptAnswer"] = "PIDECK_OK"
+    wait_stable_prompt_ready(adb, arguments.turn_timeout)
 
     print("[acceptance] real shell-tool turn", file=sys.stderr, flush=True)
+    tool_marker = f"PIDECKTOOL{acceptance_nonce}"
     submit_prompt(
         adb,
-        "You must call the pideck_bash tool exactly once with this command: "
-        "cat /proc/sys/kernel/random/uuid . Reply only with the UUID returned by the tool. "
+        f"Acceptance request {tool_marker}. You must call the pideck_bash tool exactly once "
+        "with this command: "
+        "awk NR==1 /proc/sys/kernel/random/uuid . "
+        "Reply only with the UUID returned by the tool. "
         "Never infer or invent it.",
+        marker=tool_marker,
+        acknowledgement_timeout=arguments.turn_timeout,
+        confirm_submission=False,
     )
     approval_xml = adb.wait_ui(
         lambda value: text_present(value, ("Разрешить один раз", "Allow once")),
@@ -478,6 +600,7 @@ def run_acceptance(arguments: argparse.Namespace) -> dict[str, object]:
         raise AcceptanceError("Tool result was not a UUID")
     checks["toolResult"] = "kernel-random-uuid"
     checks["oneTimeApproval"] = True
+    wait_stable_prompt_ready(adb, arguments.turn_timeout)
 
     # The deck keeps its tab bar above the IME. Pressing BACK unconditionally after a completed
     # turn can therefore leave the application when the keyboard has already closed itself.
@@ -544,7 +667,9 @@ def run_acceptance(arguments: argparse.Namespace) -> dict[str, object]:
     checks["topActivity"] = package in window and "MainActivity" in window
     report["processes"] = safe_process_facts(adb.shell("ps", "-A", "-o", "PID,NAME"))
     report["memory"] = memory_facts(adb.shell("dumpsys", "meminfo", package, timeout=90))
-    logs = adb.run("logcat", "-d", "-t", "1200", timeout=60, check=False).stdout
+    logs = adb.run(
+        "logcat", "-d", "-T", log_window_start, timeout=60
+    ).stdout
     checks["fatalExceptionCount"] = sum(
         1 for line in logs.splitlines()
         if package in line and ("FATAL EXCEPTION" in line or "Fatal signal" in line)
@@ -575,6 +700,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--background-seconds", type=float, default=8.0)
     parser.add_argument("--ready-timeout", type=float, default=360.0)
     parser.add_argument("--turn-timeout", type=float, default=900.0)
+    parser.add_argument("--resume-answer-marker")
     return parser.parse_args()
 
 

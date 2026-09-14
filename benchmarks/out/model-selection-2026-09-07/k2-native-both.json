@@ -1,0 +1,156 @@
+{
+  "model": "k2",
+  "device": "SM-S918B",
+  "modelPath": "/data/local/tmp/pideck-audit-20260907/K2-Horizon-3.7B-Q4_K_M.gguf",
+  "modelSha256": "f8dce940ec3e45be3e884a203b0eb3dee4ba57eb23fc63d0e210cdade2ca48ec",
+  "libraryDirectory": "/data/local/tmp/pideck-audit-20260907",
+  "context": 8192,
+  "threads": 5,
+  "batchThreads": 8,
+  "batchSize": 512,
+  "ubatchSize": 128,
+  "temperature": 1.0,
+  "reasoningBudget": 256,
+  "samples": [],
+  "tools": [],
+  "serverSha256": "372448c9533737f4b86efcbdecd04f060990961005f8614ed4e51c77d6b4b58f",
+  "thermalBeforeLoad": {
+    "bigCoreScalingMaxHz": 3360000,
+    "bigCoreNominalMaxHz": 3360000,
+    "headroom": 1.0,
+    "hottestCpuMilliCelsius": 55600
+  },
+  "loadSeconds": 8.070506690000911,
+  "affinity": {
+    "maskHistogram": {
+      "7": 3,
+      "0-7": 10,
+      "0": 1,
+      "1": 1,
+      "2": 1,
+      "3": 2,
+      "4": 2,
+      "5": 2,
+      "6": 1
+    },
+    "threads": [
+      {
+        "tid": 2664,
+        "name": "k2-server",
+        "cpus": "7"
+      },
+      {
+        "tid": 2668,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2669,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2670,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2673,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2674,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2675,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2676,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2677,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2682,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2684,
+        "name": "k2-server",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 2731,
+        "name": "k2-server",
+        "cpus": "0"
+      },
+      {
+        "tid": 2733,
+        "name": "k2-server",
+        "cpus": "1"
+      },
+      {
+        "tid": 2735,
+        "name": "k2-server",
+        "cpus": "2"
+      },
+      {
+        "tid": 2736,
+        "name": "k2-server",
+        "cpus": "3"
+      },
+      {
+        "tid": 2737,
+        "name": "k2-server",
+        "cpus": "4"
+      },
+      {
+        "tid": 2738,
+        "name": "k2-server",
+        "cpus": "5"
+      },
+      {
+        "tid": 2739,
+        "name": "k2-server",
+        "cpus": "6"
+      },
+      {
+        "tid": 2740,
+        "name": "k2-server",
+        "cpus": "3"
+      },
+      {
+        "tid": 2741,
+        "name": "k2-server",
+        "cpus": "4"
+      },
+      {
+        "tid": 2743,
+        "name": "k2-server",
+        "cpus": "5"
+      },
+      {
+        "tid": 2744,
+        "name": "k2-server",
+        "cpus": "7"
+      },
+      {
+        "tid": 2749,
+        "name": "k2-server",
+        "cpus": "7"
+      }
+    ]
+  },
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.004.202 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.004.328 I srv          init: The UI is disabled\n0.00.004.328 I srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable\n0.00.006.012 I srv    load_model: loading model '/data/local/tmp/pideck-audit-20260907/K2-Horizon-3.7B-Q4_K_M.gguf'\n0.00.710.491 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect\n0.06.062.097 warn: failed to set affinity mask 0xb40000722fe9c48d : Invalid argument (22)\nI cmn          init: llama threadpool init, n_threads = 5\n0.07.097.513 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.07.244.559 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve\n0.07.244.619 I srv  llama_server: model loaded\n0.07.244.634 I srv  llama_server: listening on http://127.0.0.1:18080\n0.15.410.028 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.15.410.866 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n",
+  "auditNote": "Initial armv8.2 dotprod/fp16, dual strict pools 5/8. First 192-token request timed out at 360 s; no valid throughput sample. Superseded for performance by i8mm single-pool configuration."
+}

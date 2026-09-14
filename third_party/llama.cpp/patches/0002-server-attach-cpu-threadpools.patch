@@ -1,0 +1,118 @@
+From: PI//DECK maintainers
+Subject: [PATCH 2/2] server: attach configured CPU thread pools
+
+llama-server b10092 parses the decode and batch CPU mask flags, but unlike
+llama-completion it never creates and attaches thread pools from those parsed
+parameters. Own the pools beside the target context and release them before
+the context so affinity is effective across server sleep/wake cycles.
+
+diff --git a/tools/server/server-context.cpp b/tools/server/server-context.cpp
+index 744593c..8802e90 100644
+--- a/tools/server/server-context.cpp
++++ b/tools/server/server-context.cpp
+@@ -889,6 +889,13 @@ private:
+ 
+     llama_context * ctx_tgt = nullptr;
+ 
++    // llama-server historically forwarded the CPU mask flags into common_params but never
++    // attached the configured thread pools to its context. Keep the pools beside the context so
++    // Android can use the same decode/batch affinity contract as llama-completion.
++    ggml_threadpool_t threadpool_tgt       = nullptr;
++    ggml_threadpool_t threadpool_batch_tgt = nullptr;
++    decltype(ggml_threadpool_free) * threadpool_free_fn = nullptr;
++
+     server_batch batch;
+ 
+     llama_model   * model_dft = nullptr;
+@@ -933,6 +940,71 @@ private:
+ 
+     int64_t t_last_load_progress_ms = 0;
+ 
++    void free_threadpools() {
++        if (ctx_tgt != nullptr && (threadpool_tgt != nullptr || threadpool_batch_tgt != nullptr)) {
++            llama_detach_threadpool(ctx_tgt);
++        }
++        if (threadpool_free_fn != nullptr) {
++            if (threadpool_tgt != nullptr) {
++                threadpool_free_fn(threadpool_tgt);
++            }
++            if (threadpool_batch_tgt != nullptr) {
++                threadpool_free_fn(threadpool_batch_tgt);
++            }
++        }
++        threadpool_tgt       = nullptr;
++        threadpool_batch_tgt = nullptr;
++        threadpool_free_fn   = nullptr;
++    }
++
++    bool attach_cpu_threadpools(llama_context * ctx, const common_params & params) {
++        if (!params.cpuparams.mask_valid && !params.cpuparams_batch.mask_valid) {
++            return true;
++        }
++
++        auto * cpu_dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU);
++        if (cpu_dev == nullptr) {
++            SRV_ERR("%s", "no CPU backend found for affinity thread pools\n");
++            return false;
++        }
++        auto * reg = ggml_backend_dev_backend_reg(cpu_dev);
++        auto * threadpool_new_fn = (decltype(ggml_threadpool_new) *)
++                ggml_backend_reg_get_proc_address(reg, "ggml_threadpool_new");
++        threadpool_free_fn = (decltype(ggml_threadpool_free) *)
++                ggml_backend_reg_get_proc_address(reg, "ggml_threadpool_free");
++        if (threadpool_new_fn == nullptr || threadpool_free_fn == nullptr) {
++            SRV_ERR("%s", "CPU backend does not expose affinity thread pools\n");
++            threadpool_free_fn = nullptr;
++            return false;
++        }
++
++        struct ggml_threadpool_params tpp =
++                ggml_threadpool_params_from_cpu_params(params.cpuparams);
++        struct ggml_threadpool_params tpp_batch =
++                ggml_threadpool_params_from_cpu_params(params.cpuparams_batch);
++        if (!ggml_threadpool_params_match(&tpp, &tpp_batch)) {
++            threadpool_batch_tgt = threadpool_new_fn(&tpp_batch);
++            if (threadpool_batch_tgt == nullptr) {
++                SRV_ERR("%s", "batch affinity thread pool creation failed\n");
++                free_threadpools();
++                return false;
++            }
++            // Match llama-completion: only the active pool should spin while the other is idle.
++            tpp.paused = true;
++        }
++
++        threadpool_tgt = threadpool_new_fn(&tpp);
++        if (threadpool_tgt == nullptr) {
++            SRV_ERR("%s", "decode affinity thread pool creation failed\n");
++            free_threadpools();
++            return false;
++        }
++        llama_attach_threadpool(ctx, threadpool_tgt, threadpool_batch_tgt);
++        SRV_INF("attached CPU affinity thread pools: decode=%d, batch=%d\n",
++                tpp.n_threads, tpp_batch.n_threads);
++        return true;
++    }
++
+     void destroy() {
+         spec.reset();
+         spec_init.reset();
+@@ -940,6 +1012,7 @@ private:
+         ctx_dft   = nullptr;
+         model_dft = nullptr;
+ 
++        free_threadpools();
+         llama_init.reset();
+ 
+         ctx_tgt = nullptr;
+@@ -1157,6 +1230,11 @@ private:
+             return false;
+         }
+ 
++        if (!attach_cpu_threadpools(ctx_tgt, params_base)) {
++            SRV_ERR("%s", "failed to attach CPU affinity thread pools\n");
++            return false;
++        }
++
+         vocab = llama_model_get_vocab(model_tgt);
+ 
+         n_ctx = llama_n_ctx(ctx_tgt);

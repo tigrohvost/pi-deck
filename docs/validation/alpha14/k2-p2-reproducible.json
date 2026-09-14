@@ -1,0 +1,12 @@
+[
+  {
+    "file": "libpideck_k2horizon_i8mm_server.so",
+    "sha256": "81f15c4254dc9ab75054805ecb19e852fff94c98477a61ea27e08934d7788dcd",
+    "reproduced": true
+  },
+  {
+    "file": "libpideck_k2horizon_server.so",
+    "sha256": "54bf7107379b2438e18b296eeb7d0ab92a0db07ceb9e0c24f665876e5009f389",
+    "reproduced": true
+  }
+]

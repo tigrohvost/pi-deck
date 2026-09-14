@@ -1,0 +1,29 @@
+{
+  "modelId": "lfm2.5-2.6b-qad",
+  "accessProfile": "confirm_changes",
+  "piAlive": true,
+  "serverState": "READY",
+  "activeOperation": false,
+  "sessionMatchesOriginal": true,
+  "sessionStats": {
+    "userMessages": 2,
+    "assistantMessages": 2,
+    "toolCalls": 0,
+    "toolResults": 0,
+    "totalMessages": 4
+  },
+  "originalSessionStats": {
+    "userMessages": 2,
+    "assistantMessages": 2,
+    "toolCalls": 0,
+    "toolResults": 0,
+    "totalMessages": 4
+  },
+  "idleTimeoutRestored": true,
+  "accessProfileRestored": true,
+  "autonomousExpiryRestored": true,
+  "selectedModelRestored": true,
+  "nativeProcessRestarted": true,
+  "selectedModelSha256Matches": true,
+  "uiReadyAgent": true
+}

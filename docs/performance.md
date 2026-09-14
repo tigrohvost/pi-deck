@@ -15,7 +15,7 @@ one slot. This is a device smoke, not the 28-task model-admission benchmark.
 | Peak server RSS after Pi + direct probes | 3031 MiB |
 | Clean-session Pi RPC result | exact `PIDECK_OK` |
 | Foreground process CPU-set | `/top-app`, CPUs `0-7` |
-| Managed profile | decode `5@3-7`, batch `8@0-7` |
+| Requested profile | decode `5@3-7`, batch `8@0-7` (later proven unenforced by the official b10092 server) |
 
 Pi 0.82.1 keeps a 4096-token safety reserve before issuing a provider request.
 The default 2B profile therefore uses a real 10240-token llama context so the
@@ -545,6 +545,13 @@ SM-S918B, debug-сборка ветки perf/stage4-resource-policy, Qwen3.5 2B,
 
 ### Этап 4, эксперимент фоновой аффинности (2026-08-12): перепиновка не нужна
 
+Correction, 2026-09-04: the official b10092 Android server accepted the CPU
+mask flags but left its caller and worker threads allowed on `0-7`. Therefore
+the old «strict-пины» label below is false and this experiment cannot measure a
+pinned-versus-unpinned difference. Its screen-off collapse remains useful
+device evidence, but the affinity conclusion is superseded by the patched
+server measurements later in this document.
+
 Вопрос спеки: помогает ли фоновому инференсу перестройка thread-affinity.
 Метод: app-owned сервер (Qwen3.5 2B), запросы в обход деки (adb forward +
 curl с ключом из argv сервера) — т.е. БЕЗ продового partial wake-lock;
@@ -571,3 +578,104 @@ curl с ключом из argv сервера) — т.е. БЕЗ продово�
   реального turn'а при погасшем экране этим экспериментом не измерено.
 - Сырьё: scratchpad `bg-strict2.txt`, `bg-relaxed.txt`, `bg-relaxed-off.txt`
   этой сессии; ключевые строки перенесены в таблицу выше.
+
+## Android thread affinity and Hexagon HTP, measured 2026-09-04
+
+### b10092 server affinity repair
+
+The official b10092 Android binary parsed `-C`/`-Cb`/`--cpu-strict`, but two
+independent gaps made the requested policy ineffective: Android was excluded
+from the Linux affinity implementation and `llama-server` did not attach the
+parsed CPU thread pools to its model context. `/proc/<pid>/task/*/status`
+therefore showed every official caller and worker allowed on `0-7`.
+
+PI//DECK now rebuilds the same pinned source commit with the two small patches
+under `third_party/llama.cpp/patches/`. Two clean NDK 27.1 builds produced
+byte-identical sets of all 14 runtime ELFs. A live server snapshot then showed
+the request caller on CPU 7, decode workers on CPUs 3–6 (caller 7 completes the
+five-thread pool), and batch workers on CPUs 0–6 (caller 7 completes the
+eight-thread pool). The APK manifest pins source, patches, toolchain, sizes,
+and SHA-256 for every bundled file.
+
+Matched cooled Qwen3.5 2B, 192-token decode results were:
+
+| Runtime/profile | Median decode | Relative to official |
+|---|---:|---:|
+| Official b10092, requested 5 threads but actually allowed `0-7` | 14.37 tok/s | 1.000× |
+| Patched b10092, 4-thread profile | 17.18 tok/s | 1.196× |
+| Patched b10092, 5-thread profile | **17.98 tok/s** | **1.251×** |
+| Patched b10092, 6-thread diagnostic | 15.88 tok/s | excluded: headroom fell to 0.474–0.589 |
+
+The production decode profile therefore remains five fast cores, now actually
+enforced. Long-prompt checks measured 77.3 tok/s with four batch threads and
+76.8 tok/s with six; the eight-thread/ubatch sweep is kept as a separate gate
+because these two close values do not justify changing the production batch
+profile alone. Raw reports are the
+`benchmarks/out/qwen35-b10092-affinity-*-sm-s918b-2026-09-04.json` files.
+
+This correction also changes how older b10092/b10333 pin comparisons should be
+read: their throughput numbers remain historical measurements, but an official
+b10092 row is not evidence for strict Android worker placement.
+
+### Isolated Snapdragon Hexagon v73 result
+
+The HTP candidate is a separate b10092 build using the official Hexagon SDK
+6.6.0.0 / Tools 19.0.07 and never enters the APK. Two clean builds were
+byte-identical. On SM-S918B it opened a real `HTP0: Hexagon` v73 session; a
+bounded server request returned exact `HTP_OK`, and a repeated request reported
+16 cached prompt tokens.
+
+The complete six-way LFM2.5 2.6B QAD Q4_0 sweep used the exact 1,593,894,944-byte
+artifact with SHA-256
+`a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03`,
+three repetitions, p128/tg64, five CPU threads, and a fresh ≤47 °C/100%-clock
+gate before every row:
+
+| Variant | Prefill tok/s | vs CPU | Decode tok/s | vs CPU |
+|---|---:|---:|---:|---:|
+| Physical CPU control (`GGML_HEXAGON_NDEV=0`, no op/KV offload) | 97.26 | 1.000× | **20.37** | 1.000× |
+| HTP op-only | 94.48 | 0.971× | 19.66 | 0.966× |
+| 8 layers | 115.89 | 1.192× | 18.90 | 0.928× |
+| 16 layers | 169.52 | 1.743× | 16.07 | 0.789× |
+| All layers/state | **674.22** | **6.932×** | 13.21 | 0.649× |
+| All layers, KV on CPU | 604.70 | 6.218× | 14.31 | 0.703× |
+
+All rows completed without a crash, but none passes the joint ≥2× prefill and
+≥0.95× decode gate. The two full-offload modes are prefill-only wins and make
+interactive generation materially slower, so production remains CPU-only.
+The standalone `llama-bench` rows emitted identical Android affinity `EINVAL`
+warnings; they are not used as affinity proof, which comes from the patched
+server `/proc` snapshot above. The complete atomic report is
+`benchmarks/out/lfm25-qad-hexagon-v73-tuning-sm-s918b-2026-09-04.json`.
+
+### Adreno 740 OpenCL retest on b10687
+
+The isolated OpenCL candidate uses official llama.cpp b10687, the first pinned
+tag in this experiment that contains Qualcomm's E031 q6_K compiler workaround.
+Two clean NDK 28.2 builds, including the pinned Khronos headers and ICD loader,
+produced byte-identical artifacts. On the handset, the backend identified
+OpenCL 3.0 on Adreno 740. Before each performance sweep, targeted backend tests
+passed all 11 q6_K `MUL_MAT` cases and all 229 `FLASH_ATTN_EXT` cases.
+
+The complete 12-row Qwen3.5 4B Q4_K_M sweep used the exact 3,013,027,808-byte
+artifact with SHA-256
+`13c16f426047e2de38cd075bdade4a7bcbc8c774384876f677740cda65f8a983`,
+three repetitions, p128 and p512, tg32, eight CPU threads, FlashAttention, and
+a fresh thermal gate before every row:
+
+| Variant | p128 prefill | p512 prefill | p128 decode | p512 decode |
+|---|---:|---:|---:|---:|
+| Physical CPU control | 20.42 tok/s | 18.06 tok/s | **4.81 tok/s** | 2.37 tok/s |
+| OpenCL op-only | 24.09 tok/s | 19.40 tok/s | 4.35 tok/s | 3.74 tok/s |
+| 8 layers | 25.93 tok/s | 23.92 tok/s | 3.02 tok/s | 4.27 tok/s |
+| 16 layers | 30.20 tok/s | 27.64 tok/s | 4.47 tok/s | 2.67 tok/s |
+| All layers/state | **50.62 tok/s** | **46.73 tok/s** | 3.69 tok/s | **4.88 tok/s** |
+| All layers, CPU state | 42.84 tok/s | 30.77 tok/s | 3.01 tok/s | 2.65 tok/s |
+
+Every variant completed without a crash, but none passed the joint gate across
+both prompt sizes: the best minimum prefill ratio was 2.479x while its minimum
+decode ratio was only 0.768x. The apparent full-offload win is therefore a
+prefill-only trade-off, not a general interactive-agent improvement. OpenCL
+remains an isolated, reproducible experiment and the APK stays on the repaired
+b10092 CPU runtime. The atomic report is
+`benchmarks/out/adreno740-opencl-b10687-2026-09-04.json`.

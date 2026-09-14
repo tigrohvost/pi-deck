@@ -21,6 +21,7 @@ FRAGMENT_PROMPT_MARKER = "PIDECK_PROTOCOL_FRAGMENT"
 RETRY_PROMPT_MARKER = "PIDECK_PROTOCOL_RETRY_FULL"
 RETRY_COMPLETE_TEXT = "Полный ответ после settled retry"
 CACHE_ROUND_MARKER = "PIDECK_PROTOCOL_CACHE_ROUND"
+LOOP_ROUND_MARKER = "PIDECK_PROTOCOL_IGNORES_TOOL_CHOICE"
 CACHE_ROUND_COMPLETE_TEXT = "Кэшированный tool round завершён"
 
 
@@ -30,6 +31,17 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
 
     def log_message(self, _format: str, *_args: object) -> None:
         return
+
+    @staticmethod
+    def user_text(message: dict[str, object]) -> str:
+        content = message.get("content", "")
+        if isinstance(content, list):
+            return "".join(
+                str(part.get("text", ""))
+                for part in content
+                if isinstance(part, dict)
+            )
+        return str(content)
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path != "/v1/chat/completions":
@@ -41,11 +53,17 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
         if request.get("model") != "fixture-model":
             self.send_error(400)
             return
+        # Managed router context (task tools note, repo rules, prefetch) is delivered as a
+        # hidden user-role message after the real prompt; the fixture keys on the prompt.
         latest_user_text = next(
             (
-                str(message.get("content", ""))
-                for message in reversed(request.get("messages", []))
-                if isinstance(message, dict) and message.get("role") == "user"
+                text
+                for text in (
+                    self.user_text(message)
+                    for message in reversed(request.get("messages", []))
+                    if isinstance(message, dict) and message.get("role") == "user"
+                )
+                if not text.startswith("PI//DECK ")
             ),
             "",
         )
@@ -53,7 +71,7 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
             isinstance(message, dict) and message.get("role") == "tool"
             for message in request.get("messages", [])
         )
-        if CACHE_ROUND_MARKER in latest_user_text and not has_tool_result:
+        if (CACHE_ROUND_MARKER in latest_user_text and not has_tool_result) or LOOP_ROUND_MARKER in latest_user_text:
             chunks = [
                 {
                     "id": "fixture",
@@ -68,7 +86,7 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
                                 "tool_calls": [
                                     {
                                         "index": 0,
-                                        "id": "fixture-read",
+                                        "id": "fixture-read-" + uuid.uuid4().hex,
                                         "type": "function",
                                         "function": {
                                             "name": "read",
@@ -351,6 +369,15 @@ class PiRpcProtocolTest(unittest.TestCase):
                 / "runtime"
                 / "pideck-tool-router.ts"
             )
+            plan_ledger_extension = (
+                REPOSITORY
+                / "app"
+                / "src"
+                / "main"
+                / "assets"
+                / "runtime"
+                / "pideck-plan-ledger.ts"
+            )
             arguments = [
                 pi_binary,
                 "--mode",
@@ -370,8 +397,7 @@ class PiRpcProtocolTest(unittest.TestCase):
                 "--approve",
                 "--offline",
                 "--no-extensions",
-                "--extension",
-                str(cache_extension),
+                "--no-skills",
                 "--extension",
                 str(adaptive_thinking_extension),
                 "--extension",
@@ -390,10 +416,14 @@ class PiRpcProtocolTest(unittest.TestCase):
                 str(code_nav_extension),
                 "--extension",
                 str(tool_router_extension),
+                "--extension",
+                str(plan_ledger_extension),
+                "--extension",
+                str(cache_extension),
                 "--no-builtin-tools",
                 "--tools",
                 "read,code_nav,web_research,weather,"
-                "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
+                "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,pideck_edit_text,"
                 "pideck_load_tools",
                 "--extension",
                 str(extension),
@@ -406,6 +436,7 @@ class PiRpcProtocolTest(unittest.TestCase):
             environment["PIDECK_ACCESS_PROFILE"] = "confirm_changes"
             environment["PIDECK_AGENT_MODE"] = "agent"
             environment["PIDECK_ADAPTIVE_THINKING"] = "1"
+            environment["PIDECK_STABLE_TOOL_CHOICE_PREFIX"] = "1"
             environment["PIDECK_HASHLINE_APPROVAL"] = "required"
             environment["PIDECK_SYSTEM_PROMPT_MODE"] = "append"
             environment["PIDECK_SYSTEM_PROMPT_PATH"] = str(system_prompt)
@@ -584,7 +615,7 @@ class PiRpcProtocolTest(unittest.TestCase):
                     ),
                 )
                 self.assertIn(
-                    "Answer direct questions and explicit-format requests immediately",
+                    "Use tools only when the request needs them",
                     json.dumps(
                         provider_request.get("messages", []),
                         ensure_ascii=False,
@@ -647,7 +678,8 @@ class PiRpcProtocolTest(unittest.TestCase):
                 )
 
                 # A tool round keeps the exact provider schema and therefore enables
-                # same-process recurrent/KV prefix reuse on the following request.
+                # same-process recurrent/KV prefix reuse on the following request. The
+                # explicit single-tool contract is enforced by the guard, not by the schema.
                 (workspace / "cache-round.txt").write_text(
                     "authoritative cache fixture\n", encoding="utf-8"
                 )
@@ -686,8 +718,11 @@ class PiRpcProtocolTest(unittest.TestCase):
                 )
                 cache_first_request = FakeLlamaHandler.requests.get_nowait()
                 cache_second_request = FakeLlamaHandler.requests.get_nowait()
-                self.assertIs(cache_first_request.get("cache_prompt"), False)
+                # A pinned runtime keeps the same rendered prefix for auto/none. The
+                # terminal choice still reaches the provider and prevents more tools.
+                self.assertIs(cache_first_request.get("cache_prompt"), True)
                 self.assertIs(cache_second_request.get("cache_prompt"), True)
+                self.assertEqual("none", cache_second_request.get("tool_choice"))
                 self.assertEqual(
                     cache_first_request.get("tools"),
                     cache_second_request.get("tools"),
@@ -716,6 +751,30 @@ class PiRpcProtocolTest(unittest.TestCase):
                     any(value.get("type") == "extension_error" for value in cache_events),
                     cache_events,
                 )
+
+                # A broken provider keeps emitting tool calls even after tool_choice=none.
+                # The real Pi loop must settle after the second request, not only refuse IO.
+                process.stdin.write(json.dumps({
+                    "id": str(uuid.uuid4()), "type": "prompt",
+                    "message": "Вызови read ровно один раз для файла cache-round.txt. Не вызывай другие инструменты. " + LOOP_ROUND_MARKER,
+                }, ensure_ascii=False) + "\n")
+                process.stdin.flush()
+                loop_events = []
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline:
+                    try:
+                        value = lines.get(timeout=0.5)
+                    except queue.Empty:
+                        continue
+                    loop_events.append(value)
+                    if value.get("type") == "agent_settled":
+                        break
+                self.assertTrue(any(value.get("type") == "agent_settled" for value in loop_events), loop_events)
+                loop_first = FakeLlamaHandler.requests.get_nowait()
+                loop_second = FakeLlamaHandler.requests.get_nowait()
+                self.assertEqual("none", loop_second.get("tool_choice"))
+                self.assertTrue(FakeLlamaHandler.requests.empty(), "a terminal task kept calling the provider")
+                self.assertEqual("authoritative cache fixture\n", (workspace / "cache-round.txt").read_text())
 
                 # A command written from message_end is processed too late to become a
                 # follow-up in Pi 0.82.1. The bridge therefore waits for agent_settled and

@@ -20,6 +20,7 @@ public final class BridgeEvent {
         TOOL_CALL_COMPLETED,
         APPROVAL_REQUESTED,
         APPROVAL_RESOLVED,
+        PLAN_STATE_CHANGED,
         TURN_COMPLETED,
         TURN_FAILED,
         TURN_ABORTED,

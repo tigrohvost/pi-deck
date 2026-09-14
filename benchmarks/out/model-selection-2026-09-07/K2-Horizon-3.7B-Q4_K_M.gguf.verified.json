@@ -1,0 +1,9 @@
+{
+  "model": "NANI-Nithin/K2-Horizon-3.7B-GGUF",
+  "revision": "6b8f11e53bd89304a715ba7b6cffb37589d90834",
+  "file": "K2-Horizon-3.7B-Q4_K_M.gguf",
+  "devicePath": "/data/local/tmp/pideck-audit-20260907/K2-Horizon-3.7B-Q4_K_M.gguf",
+  "bytes": 3156598464,
+  "sha256": "f8dce940ec3e45be3e884a203b0eb3dee4ba57eb23fc63d0e210cdade2ca48ec",
+  "verified": true
+}

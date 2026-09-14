@@ -1,0 +1,60 @@
+{
+  "checkedAt": "2026-09-07T16:23:07.112626+00:00",
+  "device": "SM-S918B",
+  "installedApkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+  "installedApkMatchesArtifact": true,
+  "preferencesRestored": {
+    "selected_model": true,
+    "access_profile_v1": true,
+    "autonomous_until_v1": true,
+    "core_idle_timeout_v1": true,
+    "session_id_v1": true,
+    "has_session": true,
+    "autostart_core_v1": true,
+    "composer_draft_v1": true,
+    "queued_prompt_v1": true,
+    "queued_prompt_plan_v1": true,
+    "oom_risk_ack_v1": true
+  },
+  "originalTranscriptEntries": 60,
+  "originalTranscriptEntriesPreserved": false,
+  "originalTranscriptEntriesStillVisible": 56,
+  "transcriptRetentionLimit": 60,
+  "originalConversationEntriesPreserved": true,
+  "originalConsoleSnapshotArchived": true,
+  "originalSessionIdentityPreserved": true,
+  "sessionStats": {
+    "assistantMessages": 2,
+    "contextUsage": {
+      "contextWindow": 10240,
+      "percent": 19,
+      "tokens": 1975
+    },
+    "toolCalls": 0,
+    "toolResults": 0,
+    "totalMessages": 4,
+    "userMessages": 2
+  },
+  "selectedModel": "qwen3.8-2b-distill",
+  "accessProfile": "confirm_changes",
+  "agentMode": "agent",
+  "piAlive": true,
+  "serverState": "READY",
+  "noActiveOperation": true,
+  "pendingApprovals": 0,
+  "previousModelFiles": 10,
+  "previousModelMetadataUnchanged": true,
+  "stayOnRestored": true,
+  "onlyChangedPreferenceKeys": [
+    "bridge_instance",
+    "download_uri_k2-horizon-3.7b",
+    "download_uri_qwen3.8-4b-distill",
+    "private_model_k2-horizon-3.7b",
+    "private_model_qwen3.8-4b-distill",
+    "runtime_bundle_sha256",
+    "transcript",
+    "verified_k2-horizon-3.7b",
+    "verified_qwen3.8-4b-distill"
+  ],
+  "forwardsRemoved": true
+}

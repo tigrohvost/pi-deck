@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import struct
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,6 +30,7 @@ validate_benchmark = load_tool("validate_benchmark")
 generate_sbom = load_tool("generate_sbom")
 speculative_probe = load_tool("speculative_probe")
 accelerator_probe = load_tool("adb_accelerator_probe")
+hexagon_probe = load_tool("adb_hexagon_probe")
 
 
 def gguf_string(value: str) -> bytes:
@@ -419,6 +421,198 @@ class ToolTests(unittest.TestCase):
         ):
             with self.assertRaises(accelerator_probe.ProbeError):
                 accelerator_probe.verify_staged_candidate(None, manifest)
+
+    def test_accelerator_device_model_manifest_and_flash_attention_are_exact(self) -> None:
+        digest = "c" * 64
+        manifest = accelerator_probe.parse_device_model_manifest(
+            f"3013027808\n{digest}  /data/local/tmp/model.gguf\n",
+            "/data/local/tmp/model.gguf",
+            digest,
+        )
+        self.assertEqual(3_013_027_808, manifest["bytes"])
+        arguments = accelerator_probe.bench_arguments(
+            "/data/local/tmp/model.gguf", "cpu", 128, 32, 3, 8, "0xff", "on"
+        )
+        self.assertIn("-fa", arguments)
+        self.assertEqual("on", arguments[arguments.index("-fa") + 1])
+        with self.assertRaises(accelerator_probe.ProbeError):
+            accelerator_probe.parse_device_model_manifest(
+                f"3013027808\n{digest}  /data/local/tmp/model.gguf\n",
+                "/data/local/tmp/model.gguf",
+                "d" * 64,
+            )
+
+    def test_accelerator_correctness_gate_requires_real_tests_and_backend(self) -> None:
+        arguments = accelerator_probe.correctness_arguments("q6-k-mul-mat")
+        self.assertEqual(
+            [
+                "/data/local/tmp/pideck-accelerator/test-backend-ops",
+                "test",
+                "-o",
+                "MUL_MAT",
+                "-p",
+                "type_a=q6_K",
+            ],
+            arguments,
+        )
+        passed = accelerator_probe.correctness_result(
+            "q6-k-mul-mat",
+            arguments,
+            0,
+            "Backend 1/2: OpenCL0\n  919/919 tests passed\n2/2 backends passed\n",
+            "",
+            "OpenCL",
+        )
+        self.assertTrue(passed["passed"])
+        self.assertTrue(passed["expectedBackendObserved"])
+        failed = accelerator_probe.correctness_result(
+            "q6-k-mul-mat",
+            arguments,
+            0,
+            "Backend 1/2: OpenCL0\n  918/919 tests passed\n1/2 backends passed\n",
+            "",
+            "OpenCL",
+        )
+        self.assertFalse(failed["passed"])
+        with self.assertRaises(ValueError):
+            accelerator_probe.correctness_arguments("unknown")
+
+    def test_accelerator_resume_requires_an_exact_incomplete_prefix(self) -> None:
+        planned = {
+            "schemaVersion": 1,
+            "candidate": {"artifacts": [{"name": "llama-bench", "sha256": "a" * 64}]},
+            "model": {"path": "/data/local/tmp/model.gguf", "expectedSha256": "b" * 64},
+            "method": {"variants": ["cpu", "hybrid-8"]},
+            "correctnessPlan": [{"label": "q6-k-mul-mat", "arguments": ["test"]}],
+            "plan": [
+                {"variant": "cpu", "promptTokens": 128, "arguments": ["cpu"]},
+                {"variant": "hybrid-8", "promptTokens": 128, "arguments": ["gpu"]},
+            ],
+        }
+        previous = {
+            **planned,
+            "status": "incomplete",
+            "model": {
+                "path": "/data/local/tmp/model.gguf",
+                "bytes": 123,
+                "sha256": "b" * 64,
+            },
+            "correctness": [{"label": "q6-k-mul-mat", "passed": True}],
+            "samples": [{"variant": "cpu", "promptTokens": 128}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "report.json"
+            path.write_text(json.dumps(previous), encoding="utf-8")
+            samples, digest = accelerator_probe.load_resume_report(path, planned)
+            self.assertEqual(previous["samples"], samples)
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
+
+            previous["samples"] = [{"variant": "hybrid-8", "promptTokens": 128}]
+            path.write_text(json.dumps(previous), encoding="utf-8")
+            with self.assertRaises(accelerator_probe.ProbeError):
+                accelerator_probe.load_resume_report(path, planned)
+
+    def test_accelerator_thermal_gate_fails_closed_without_telemetry(self) -> None:
+        self.assertTrue(accelerator_probe.thermal_ready({
+            "headroom": 1.0,
+            "hottestComputeZone": {"milliCelsius": 47_000},
+        }))
+        self.assertFalse(accelerator_probe.thermal_ready({
+            "headroom": None,
+            "hottestComputeZone": None,
+        }))
+        self.assertFalse(accelerator_probe.thermal_ready({
+            "headroom": 1.0,
+            "hottestComputeZone": {"milliCelsius": 47_001},
+        }))
+
+    def test_hexagon_probe_uses_a_physical_cpu_control_and_htp_device(self) -> None:
+        self.assertEqual(
+            ["-dev", "none", "-ngl", "0", "-nopo", "1", "-nkvo", "1"],
+            hexagon_probe.variant_arguments("cpu"),
+        )
+        self.assertEqual(
+            ["-dev", "HTP0", "-ngl", "99", "-nopo", "0", "-nkvo", "0"],
+            hexagon_probe.variant_arguments("htp-all"),
+        )
+        with self.assertRaises(ValueError):
+            hexagon_probe.variant_arguments("fake-htp")
+
+    def test_hexagon_remote_exec_can_disable_the_htp_backend(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, "", "")
+        with mock.patch.object(hexagon_probe, "adb_run", return_value=completed) as run:
+            hexagon_probe.remote_exec(
+                "SERIAL", "/data/local/tmp/probe", ["./bin/llama-bench"],
+                timeout=30, hexagon_devices=0,
+            )
+        command = run.call_args.args[2]
+        self.assertIn("GGML_HEXAGON_NDEV=0", command)
+
+    def test_hexagon_device_model_manifest_requires_expected_sha(self) -> None:
+        digest = "a" * 64
+        manifest = hexagon_probe.parse_device_model_manifest(
+            f"1593894944\n{digest}  /data/local/tmp/model.gguf\n",
+            "/data/local/tmp/model.gguf",
+            digest,
+        )
+        self.assertEqual(1_593_894_944, manifest["bytes"])
+        self.assertEqual(digest, manifest["sha256"])
+        with self.assertRaises(hexagon_probe.ProbeError):
+            hexagon_probe.parse_device_model_manifest(
+                f"1593894944\n{digest}  /data/local/tmp/model.gguf\n",
+                "/data/local/tmp/model.gguf",
+                "b" * 64,
+            )
+
+    def test_hexagon_gate_rejects_a_prefill_only_win(self) -> None:
+        samples = [
+            {
+                "variant": "cpu",
+                "promptTokens": 128,
+                "promptTokensPerSecond": 80.77,
+                "decodeTokensPerSecond": 14.52,
+            },
+            {
+                "variant": "htp-all",
+                "promptTokens": 128,
+                "promptTokensPerSecond": 625.16,
+                "decodeTokensPerSecond": 13.14,
+            },
+        ]
+        verdict = hexagon_probe.score_samples(samples, [128], 2.0, 0.95)
+        self.assertFalse(verdict["gatePassed"])
+        self.assertTrue(verdict["variants"]["htp-all"]["prefillOnlyPotential"])
+        self.assertAlmostEqual(
+            0.905,
+            verdict["variants"]["htp-all"]["minimumDecodeRatio"],
+            places=3,
+        )
+
+    def test_hexagon_thermal_gate_requires_clock_and_temperature(self) -> None:
+        self.assertTrue(hexagon_probe.thermal_ready({
+            "headroom": 1.0,
+            "hottestCpuMilliCelsius": 47_000,
+        }))
+        self.assertFalse(hexagon_probe.thermal_ready({
+            "headroom": 0.95,
+            "hottestCpuMilliCelsius": 45_000,
+        }))
+        self.assertFalse(hexagon_probe.thermal_ready({
+            "headroom": 1.0,
+            "hottestCpuMilliCelsius": 47_001,
+        }))
+        self.assertFalse(hexagon_probe.thermal_ready({
+            "headroom": None,
+            "hottestCpuMilliCelsius": None,
+        }))
+        self.assertEqual(
+            "/data/local/tmp/models/model.gguf",
+            hexagon_probe.validated_device_path(
+                "/data/local/tmp/models/model.gguf"
+            ),
+        )
+        with self.assertRaises(ValueError):
+            hexagon_probe.validated_device_path("/sdcard/model.gguf")
 
     def test_sbom_converts_npm_integrity_to_cyclonedx_hex(self) -> None:
         digest = bytes(range(64))

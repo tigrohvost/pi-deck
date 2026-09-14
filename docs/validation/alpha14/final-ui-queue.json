@@ -1,0 +1,26 @@
+{
+  "modelId": "qwen3.8-4b-distill",
+  "inputNavigationTaps": 0,
+  "sendActions": 1,
+  "keyboardAndFocusDeviceTest": "PASS",
+  "prompt": "Ответь только PIDECK_UI_OK без инструментов.",
+  "answer": "PIDECK_UI_OK",
+  "answerIsExactMarker": true,
+  "queueCleared": true,
+  "sessionStats": {
+    "assistantMessages": 1,
+    "contextUsage": {
+      "contextWindow": 8192,
+      "percent": 8,
+      "tokens": 659
+    },
+    "toolCalls": 0,
+    "toolResults": 0,
+    "totalMessages": 2,
+    "userMessages": 1
+  },
+  "resumeToCompletionSeconds": 76.64987585900235,
+  "queuePersistedAfterInstrumentationFinished": true,
+  "apkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+  "deviceTest": "dev.pideck.app.LaunchComposerDeviceTest"
+}

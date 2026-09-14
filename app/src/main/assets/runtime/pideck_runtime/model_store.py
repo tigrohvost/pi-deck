@@ -43,6 +43,7 @@ ALLOWED_LICENSES = {"Apache-2.0", "MIT", "LicenseRef-LFM-Open-1.0"}
 SERVER_FLAVOR_BUILDS = {
     "stock": "b10092",
     "nanbeige42": "nanbeige42-c6640a1",
+    "k2horizon": "k2horizon-35999d1-p2",
 }
 
 
@@ -138,6 +139,34 @@ def adaptive_thinking_enabled(model: dict[str, Any]) -> bool:
         and runtime.get("reasoningMode") == "on"
         and isinstance(source, dict)
         and source.get("architecture") == "qwen3.5"
+    )
+
+
+def stable_tool_choice_prefix(model: dict[str, Any]) -> bool:
+    """Exact GGUF/runtime pairs whose auto/none rendered prompts were checked on device."""
+    verified = {
+        "lfm2.5-2.6b-qad": (
+            "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+            "stock", "b10092",
+        ),
+        "k2-horizon-3.7b": (
+            "f8dce940ec3e45be3e884a203b0eb3dee4ba57eb23fc63d0e210cdade2ca48ec",
+            "k2horizon", "k2horizon-35999d1-p2",
+        ),
+        "qwen3.8-4b-distill": (
+            "dec96e8cf2e11b613bb46513dec485377f9ca5a351e71712ee0e244f287c6790",
+            "stock", "b10092",
+        ),
+    }
+    if not isinstance(model, dict):
+        return False
+    artifact = model.get("artifact")
+    runtime = model.get("runtime")
+    if not isinstance(artifact, dict) or not isinstance(runtime, dict):
+        return False
+    return verified.get(model.get("id")) == (
+        artifact.get("sha256"), runtime.get("serverFlavor"),
+        runtime.get("minimumLlamaCppVersion"),
     )
 
 

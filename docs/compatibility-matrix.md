@@ -2,13 +2,13 @@
 
 | Component | Activated contract | Current evidence |
 |---|---|---|
-| PI//DECK | 0.3.0-alpha13, runtime contract 53, Android API 26+, arm64-v8a | host barriers plus exact-device QAD performance/tool smoke; final APK acceptance recorded per release |
+| PI//DECK | 0.3.0-alpha13, runtime contract 56, Android API 26+, arm64-v8a | host barriers plus exact debug-APK acceptance on SM-S918B: READY, exact answer, approved shell UUID, diagnostics, background/resume, zero observed crash/LMK |
 | Termux | package `com.termux`, version >=0.118.0 | signer allowlist; F-Droid 0.118.3 device smoke |
 | Termux:API | `com.termux.api` >=0.50.1, same signer | 0.53.0 device smoke; optional wake-lock |
 | Node.js | >=22.19.0 | exact Pi package engine requirement; v26.4.0 device smoke |
 | Pi | `@earendil-works/pi-coding-agent` 0.82.1 | npm integrity, gitHead, shrinkwrap, exact device CLI |
 | Pi RPC | JSONL mode from Pi 0.82.1 | fixture/types plus real `PIDECK_OK` device turn |
-| llama.cpp | official Android arm64 b10092 plus isolated Nanbeige fork c6640a1 | archive/source pin + per-ELF SHA-256; flavor-bound foreground adoption and health/models/Jinja/API-key checks |
+| llama.cpp | Android arm64 b10092 + checksum-pinned `pideck-affinity1`, plus isolated Nanbeige fork c6640a1 | exact source/patch/toolchain pins + per-ELF SHA-256; kernel-verified decode/batch affinity; flavor-bound foreground adoption and health/models/Jinja/API-key checks |
 | Model catalog | schema 2, catalog 2026.08.23.1 | build and strict Java/Python parser validation |
 | Qwen3.5 0.8B/2B/4B/9B | experimental | 2B app-private SHA/server/Pi smoke passed; full admission incomplete |
 | LFM2.5 2.6B QAD Q4_0 | experimental, first automatic profile when capacity permits | exact official artifact on b10092; SM-S918B 16.47 tok/s @128 and 15.71 @192, valid `read` → correct `edit` → final-answer loop with reasoning cap 256; full 28-task suite incomplete |

@@ -1,0 +1,32 @@
+{
+  "modelId": "lfm2.5-2.6b-qad",
+  "apkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+  "cases": [
+    {
+      "templateKwargs": {},
+      "messageCount": 2,
+      "auto": {
+        "sha256": "ae637376a0376960a62f42dd3a2efaec070a7436e8012816ce305f3b5761bc94",
+        "characters": 353
+      },
+      "none": {
+        "sha256": "ae637376a0376960a62f42dd3a2efaec070a7436e8012816ce305f3b5761bc94",
+        "characters": 353
+      },
+      "identical": true
+    },
+    {
+      "templateKwargs": {},
+      "messageCount": 4,
+      "auto": {
+        "sha256": "5cb2d5eb96bed5df91c0d390943b8b80230962f284a9c0ddf65790d9fbeee9ee",
+        "characters": 488
+      },
+      "none": {
+        "sha256": "5cb2d5eb96bed5df91c0d390943b8b80230962f284a9c0ddf65790d9fbeee9ee",
+        "characters": 488
+      },
+      "identical": true
+    }
+  ]
+}

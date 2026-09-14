@@ -155,6 +155,7 @@ def fake_bridge() -> bridge.PiDeckBridge:
     value.last_client_seen = time.monotonic()
     value.context_window = 1024
     value.session_stats = bridge.bounded_session_stats(None, value.context_window)
+    value.plan_ledger = bridge.empty_plan_ledger()
     value.last_terminal_event = None
     value.last_terminal_operation_id = None
     value.compacting = False
@@ -206,6 +207,15 @@ class RuntimeTestCase(unittest.TestCase):
                     "contextUsage": {"tokens": 700},
                     "prompt": "must not survive",
                 },
+                "planLedger": {
+                    "schemaVersion": 1,
+                    "phase": "executing",
+                    "goal": "repair parser",
+                    "items": [
+                        {"step": 9, "text": "read the parser", "status": "verified"},
+                        {"step": 9, "text": "run its tests", "status": "active"},
+                    ],
+                },
             },
         )
         stats, event, last_operation = bridge.load_session_checkpoint(session, 1_000)
@@ -215,6 +225,13 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertNotIn("prompt", stats)
         self.assertEqual("TURN_COMPLETED", event)
         self.assertIsNotNone(last_operation)
+        ledger = bridge.load_plan_ledger(session)
+        self.assertEqual("blocked", ledger["phase"])
+        self.assertEqual([1, 2], [item["step"] for item in ledger["items"]])
+        self.assertEqual(
+            ["verified", "blocked"], [item["status"] for item in ledger["items"]]
+        )
+        self.assertNotIn("prompt", ledger)
 
     def test_runtime_log_pump_retains_only_a_bounded_tail(self) -> None:
         with tempfile.TemporaryDirectory(prefix="pideck-log-") as directory:
@@ -301,6 +318,7 @@ class RuntimeTestCase(unittest.TestCase):
             bridge.RUN_TESTS_EXTENSION,
             bridge.CONTEXT_GUARD_EXTENSION,
             bridge.WEB_TOOLS_EXTENSION,
+            bridge.PLAN_LEDGER_EXTENSION,
             common.BASE / "runtime" / "pideck-permission-gate.ts",
         )
         for path in required:
@@ -904,6 +922,44 @@ class RuntimeTestCase(unittest.TestCase):
             server_supervisor.adopt_external_server(request)
         self.assertEqual("WRONG_RUNTIME", raised.exception.code)
 
+    def test_k2_adoption_requires_its_pinned_sidecar(self) -> None:
+        model = tiny_model(b"GGUF")
+        model["runtime"]["serverFlavor"] = "k2horizon"
+        model["runtime"]["minimumLlamaCppVersion"] = "k2horizon-35999d1-p2"
+        install_catalog(model)
+        request = {
+            "schemaVersion": 1,
+            "operationId": operation_id(),
+            "modelId": model["id"],
+            "modelSha256": model["artifact"]["sha256"],
+            "owner": "android-native",
+            "runtimeBuild": "k2horizon-35999d1-p2",
+            "port": 8080,
+            "apiKey": "A" * 43,
+            "pid": 4242,
+            "decodeThreads": 5,
+            "batchThreads": 8,
+            "decodeCpuSet": "3-7",
+            "batchCpuSet": "0-7",
+        }
+        with (
+            mock.patch.object(server_supervisor, "strict_health"),
+            mock.patch.object(server_supervisor, "_write_pi_models"),
+            mock.patch.object(server_supervisor, "_wake_lock"),
+        ):
+            result = server_supervisor.adopt_external_server(request)
+        self.assertEqual("READY", result["state"])
+        self.assertEqual(
+            "k2horizon-35999d1-p2",
+            server_supervisor.read_server_status()["runtimeBuild"],
+        )
+
+        request["operationId"] = operation_id()
+        request["runtimeBuild"] = "b10092"
+        with self.assertRaises(common.PiDeckError) as raised:
+            server_supervisor.adopt_external_server(request)
+        self.assertEqual("WRONG_RUNTIME", raised.exception.code)
+
     def test_pi_model_config_offsets_fixed_api_margin_without_growing_llama_context(self) -> None:
         model = tiny_model(b"GGUF")
         model["runtime"]["recommendedContext"] = 10_240
@@ -944,6 +1000,24 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertTrue(provider["models"][0]["reasoning"])
         self.assertNotIn("thinkingFormat", provider["compat"])
         self.assertFalse(model_store.adaptive_thinking_enabled(model))
+
+    def test_terminal_prefix_reuse_requires_the_measured_artifact_and_runtime(self) -> None:
+        catalog = json.loads((Path(__file__).resolve().parents[2]
+                              / "app/src/main/assets/models-v2.json").read_text("utf-8"))
+        expected = {"lfm2.5-2.6b-qad", "k2-horizon-3.7b", "qwen3.8-4b-distill"}
+        for entry in catalog["models"]:
+            with self.subTest(model=entry["id"]):
+                self.assertEqual(entry["id"] in expected,
+                                 model_store.stable_tool_choice_prefix(entry))
+                if entry["id"] not in expected:
+                    continue
+                for section, field in (("artifact", "sha256"),
+                                       ("runtime", "serverFlavor"),
+                                       ("runtime", "minimumLlamaCppVersion")):
+                    changed = json.loads(json.dumps(entry))
+                    changed[section][field] = "unmeasured"
+                    self.assertFalse(model_store.stable_tool_choice_prefix(changed))
+        self.assertFalse(model_store.stable_tool_choice_prefix({}))
 
     def test_idempotent_server_start_refreshes_stale_pi_model_contract(self) -> None:
         model = tiny_model(b"GGUF")
@@ -1730,6 +1804,72 @@ class RuntimeTestCase(unittest.TestCase):
                 if event["type"] == "MODEL_OUTPUT_DELTA"
             ),
         )
+
+    def test_tool_markup_detection_matches_only_text_that_imitates_a_call(self) -> None:
+        positives = (
+            '<tool_call>\n{"name": "read", "arguments": {"path": "README.md"}}\n</tool_call>',
+            '```json\n{"name": "code_nav", "arguments": {"query": "divide"}}\n```',
+            '{"name": "run_tests", "parameters": {"path": "tests"}}',
+            "```bash\nread src/counter.py\n```",
+            "```\ncode_nav divide\n```",
+            "Сейчас проверю.\n[TOOL_CALLS][{\"name\": \"weather\", \"arguments\": {}}]",
+            '<|tool_call_start|>[read(path="a.py")]<|tool_call_end|>',
+        )
+        negatives = (
+            "Функция divide определена в src/calculator.py:12.",
+            "```python\ndef sort_list(items):\n    return sorted(items)\n```",
+            "```bash\nls -la\n```",
+            "```bash\nread -r line < input.txt\n```",
+            'Пример JSON: {"name": "Alice", "age": 30}',
+            "Прочитай файл README.md и ответь кратко.",
+            "",
+        )
+        for text in positives:
+            self.assertTrue(bridge.looks_like_tool_markup(text), text)
+        for text in negatives:
+            self.assertFalse(bridge.looks_like_tool_markup(text), text)
+
+    def test_tool_markup_as_text_retries_once_and_is_never_shown_as_an_answer(self) -> None:
+        value = fake_bridge()
+        value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "PROMPT",
+                "payload": {
+                    "message": "Найди функцию divide и укажи файл",
+                    "sessionId": value.session_id,
+                },
+            }
+        )
+        markup = {
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": '<tool_call>\n{"name": "code_nav", "arguments": {"query": "divide"}}\n</tool_call>',
+            }],
+            "stopReason": "stop",
+        }
+        value.handle_pi_message({"type": "message_end", "message": markup})
+
+        self.assertEqual("", value.last_answer)
+        self.assertIn("настоящий tool call", value.answer_retry_message)
+        _gap, events = value.journal.after(0, 0)
+        rejected = [
+            event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
+        ]
+        self.assertEqual("tool_markup_as_text", rejected[-1]["payload"]["reason"])
+        self.assertTrue(rejected[-1]["payload"]["willRetry"])
+
+        value.handle_pi_message({"type": "message_end", "message": markup})
+        _gap, events = value.journal.after(0, 0)
+        rejected = [
+            event for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"
+        ]
+        self.assertEqual(2, len(rejected))
+        self.assertFalse(rejected[-1]["payload"]["willRetry"])
+        self.assertIn("текстом", value.active_failed_reason)
+        self.assertEqual("", value.last_answer)
 
     def test_single_letter_answer_retries_once_and_never_completes_as_a_fragment(self) -> None:
         value = fake_bridge()
@@ -3319,6 +3459,122 @@ class RuntimeTestCase(unittest.TestCase):
         _gap, events = value.journal.after(0, 0)
         self.assertEqual("TURN_ABORTED", events[-1]["type"])
 
+    def test_plan_prompt_is_opt_in_read_only_then_tracks_android_approval(self) -> None:
+        value = fake_bridge()
+        identifier = operation_id()
+        response = value.command(
+            {
+                "schemaVersion": 1,
+                "operationId": identifier,
+                "type": "PROMPT",
+                "payload": {
+                    "message": "repair the parser",
+                    "sessionId": value.session_id,
+                    "planRequested": True,
+                },
+            }
+        )
+        self.assertTrue(response["accepted"])
+        self.assertEqual(
+            bridge.PLAN_REQUEST_PREFIX + "repair the parser",
+            value.child.sent[-1]["message"],
+        )
+        self.assertEqual("planning", value.plan_ledger["phase"])
+
+        decision = bridge.DECISION_PREFIX + json.dumps(
+            {
+                "kind": "plan",
+                "reason": "repair the parser",
+                "preview": ["inspect parser", "repair parser", "run tests"],
+            }
+        ) + "\nread-only planning pass"
+        with mock.patch.object(bridge.time, "monotonic", return_value=100.0):
+            value._handle_extension_ui(
+                {
+                    "type": "extension_ui_request",
+                    "id": "plan-approval",
+                    "method": "confirm",
+                    "title": "Execute?",
+                    "message": decision,
+                }
+            )
+        pending = value.pending_approvals["plan-approval"]
+        self.assertEqual(
+            bridge.PLAN_APPROVAL_TTL_SECONDS,
+            pending["expiresMonotonic"] - 100.0,
+        )
+        self.assertEqual("planned", value.plan_ledger["phase"])
+        value.last_answer = "Plan:\n1. inspect parser\n2. repair parser\n3. run tests"
+        value.handle_pi_message({"type": "agent_settled"})
+        self.assertEqual(identifier, value.active_operation_id)
+        self.assertIn("plan-approval", value.pending_approvals)
+        _gap, waiting_events = value.journal.after(0, 0)
+        self.assertNotIn(
+            "TURN_COMPLETED", [event["type"] for event in waiting_events]
+        )
+        pending["expiresMonotonic"] = time.monotonic() + 60.0
+        value._approval_decision(
+            identifier, {"approvalId": "plan-approval", "confirmed": True}
+        )
+        self.assertEqual("executing", value.plan_ledger["phase"])
+        self.assertEqual("active", value.plan_ledger["items"][0]["status"])
+
+        message = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "fixed [DONE:1] [DONE:2] [DONE:3]"}],
+            "stopReason": "stop",
+        }
+        value._handle_assistant_message_end(message)
+        self.assertEqual("complete", value.plan_ledger["phase"])
+        self.assertEqual("fixed", value.last_answer)
+        value.handle_pi_message({"type": "agent_settled"})
+        self.assertIsNone(value.active_operation_id)
+        _gap, completed_events = value.journal.after(0, 0)
+        self.assertEqual("TURN_COMPLETED", completed_events[-1]["type"])
+
+    def test_declined_plan_finishes_the_waiting_turn(self) -> None:
+        value = fake_bridge()
+        identifier = operation_id()
+        value.active_operation_id = identifier
+        value.active_operation_kind = "prompt"
+        decision = bridge.DECISION_PREFIX + json.dumps(
+            {
+                "kind": "plan",
+                "reason": "inspect only",
+                "preview": ["inspect one", "inspect two", "report result"],
+            }
+        )
+        value._handle_extension_ui(
+            {
+                "type": "extension_ui_request",
+                "id": "plan-decline",
+                "method": "confirm",
+                "title": "Execute?",
+                "message": decision,
+            }
+        )
+        value.handle_pi_message({"type": "agent_settled"})
+        self.assertEqual(identifier, value.active_operation_id)
+        value._approval_decision(
+            identifier, {"approvalId": "plan-decline", "confirmed": False}
+        )
+        self.assertIsNone(value.active_operation_id)
+        self.assertEqual("cancelled", value.plan_ledger["phase"])
+        _gap, events = value.journal.after(0, 0)
+        self.assertEqual("TURN_COMPLETED", events[-1]["type"])
+
+    def test_plan_prompt_is_rejected_outside_writable_agent_mode(self) -> None:
+        for mode, profile in (("chat", "confirm_changes"), ("agent", "read_only")):
+            value = fake_bridge()
+            value.config["agentMode"] = mode
+            value.config["accessProfile"] = profile
+            with self.assertRaises(common.PiDeckError) as raised:
+                value._prompt(
+                    operation_id(),
+                    {"message": "plan this", "planRequested": True},
+                )
+            self.assertEqual("PLAN_MODE_UNAVAILABLE", raised.exception.code)
+
     def test_abort_fallback_never_claims_terminal_before_confirmed_exit(self) -> None:
         value = fake_bridge()
         target = operation_id()
@@ -3645,6 +3901,17 @@ class DecisionHeaderTestCase(unittest.TestCase):
         decision, message = bridge.split_decision(raw)
         self.assertIsNone(decision)
         self.assertEqual(raw, message)
+
+    def test_plan_decision_keeps_at_most_seven_bounded_steps(self) -> None:
+        decision, _ = bridge.split_decision(
+            self.header(
+                kind="plan",
+                reason="repair parser",
+                preview=[f"step {index}" for index in range(20)],
+            )
+        )
+        self.assertEqual("plan", decision["kind"])
+        self.assertEqual(bridge.MAX_PLAN_ITEMS, len(decision["preview"]))
 
     def test_malformed_header_is_refused_and_the_message_survives(self) -> None:
         raw = bridge.DECISION_PREFIX + "{not json\nTool: pideck_write"

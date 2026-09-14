@@ -15,9 +15,11 @@ bridge used by the app.
 
 ## Safety and prerequisites
 
-- Use a disposable benchmark session and make sure no turn is active. The
-  harness creates a fresh Pi session before every sample; Android will adopt
-  the bridge's authoritative session on its next state reconciliation.
+- Use a disposable benchmark session and make sure no turn is active. Cold,
+  warm, tool, and retry cases create a fresh Pi session before every sample;
+  Android will adopt the bridge's authoritative session on its next state
+  reconciliation. A requested cache sequence deliberately creates one fresh
+  session and retains it for all continuation samples.
 - A cold sample deliberately runs `am force-stop dev.pideck.app`, restarts the
   exported main Activity, and waits for authenticated `server=READY` plus a
   live Pi child. It interrupts any existing app-owned inference.
@@ -48,8 +50,16 @@ python3 tools/adb_agent_benchmark.py \
   --cold-runs 3 \
   --warm-runs 5 \
   --tool-runs 3 \
+  --cache-runs 3 \
   --output out/agent-speed-qwen2b.json
 ```
+
+`--cache-runs N` (where `N` is 2–20) sends the same bounded prompt through one
+growing conversation. The report stores a non-reversible session-ID hash and
+requires every sample to retain it. Its cache summary compares the first-turn
+TTFT with the median continuation TTFT; it does not infer a cache hit merely
+from a fast response. Use the native per-request prompt timings and server cache
+counts as the primary cache evidence when the debuggable APK log is available.
 
 The default cooldown gate waits for at least 98% big-core frequency headroom
 for up to ten minutes before each case. A timed-out gate does not invent a
@@ -106,6 +116,8 @@ are never silently attributed to the current sample.
 cache may still be warm; the harness does not require root, reboot the phone or
 drop kernel caches. "Warm" means the server and bridge stay alive, while a new
 Pi session prevents earlier conversation growth from deciding the result.
+"Cache" means the server, bridge, and exact Pi session all stay alive so each
+later request has the previous message list as an exact prefix.
 
 Instantaneous battery current is signed differently across devices and USB
 charging can dominate it. The harness reports an absolute sampled mean tagged

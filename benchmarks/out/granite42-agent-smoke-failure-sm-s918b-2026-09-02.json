@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "reportType": "pideck-agent-smoke-failure-observation",
+  "createdAt": "2026-09-02T13:57:00Z",
+  "device": "SM-S918B",
+  "modelId": "granite-4.2-3b",
+  "runtimeBuild": "b10092",
+  "harness": {
+    "toolTimeoutSeconds": 420,
+    "completedReportWritten": false,
+    "error": "Agent turn timed out after 420s"
+  },
+  "warmRussianCase": {
+    "terminalType": "TURN_COMPLETED",
+    "answer": "Четыре.",
+    "outputTokens": 153,
+    "decodeTokensPerSecond": 7.69,
+    "nativePrefillTokens": 1943,
+    "nativePrefillSeconds": 96.0796,
+    "nativeTotalSeconds": 115.9567
+  },
+  "toolCase": {
+    "observationSource": "authenticated bridge event ring after harness deadline",
+    "terminalType": "TURN_FAILED",
+    "eventCounts": {
+      "TURN_ACCEPTED": 1,
+      "TURN_STARTED": 4,
+      "MODEL_THINKING_STARTED": 8,
+      "TOOL_CALL_REQUESTED": 4,
+      "TOOL_CALL_STARTED": 4,
+      "TOOL_CALL_COMPLETED": 4,
+      "MODEL_OUTPUT_REJECTED": 1,
+      "TURN_FAILED": 1
+    },
+    "toolNames": [
+      "read",
+      "read",
+      "code_nav",
+      "read"
+    ],
+    "rejectionReasons": [
+      "provider_error"
+    ]
+  },
+  "runtimeBoundary": {
+    "configuredCoreIdleTimeoutMinutes": 10,
+    "observedNativeStateAfterRun": "STOPPED",
+    "note": "The external bridge harness does not create an Android-owned operation, so the configured idle timer was not suspended. Tool restraint had already failed before shutdown."
+  },
+  "admissionResult": "FAIL"
+}

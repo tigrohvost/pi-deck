@@ -1,0 +1,9 @@
+{
+  "model": "empero-ai/Qwen3.8-4B-Distill-GGUF",
+  "revision": "391fc7d103e3942a408def3e4f51c2f85d464417",
+  "file": "Qwen3.8-4B-Q4_K_M.gguf",
+  "devicePath": "/data/local/tmp/pideck-audit-20260907/Qwen3.8-4B-Q4_K_M.gguf",
+  "bytes": 2783446304,
+  "sha256": "dec96e8cf2e11b613bb46513dec485377f9ca5a351e71712ee0e244f287c6790",
+  "verified": true
+}

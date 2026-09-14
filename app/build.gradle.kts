@@ -23,8 +23,8 @@ android {
         applicationId = "dev.pideck.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21
-        versionName = "0.3.0-alpha13"
+        versionCode = 22
+        versionName = "0.3.0-alpha14"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters += "arm64-v8a"
@@ -124,6 +124,7 @@ val verifyModelManifest by tasks.registering {
             val expectedRuntimeBuild = when (serverFlavor) {
                 "stock" -> "b10092"
                 "nanbeige42" -> "nanbeige42-c6640a1"
+                "k2horizon" -> "k2horizon-35999d1-p2"
                 else -> error("$id serverFlavor is not allowlisted")
             }
             require(runtime["minimumLlamaCppVersion"] == expectedRuntimeBuild) {
@@ -261,17 +262,55 @@ tasks.register("verifyNativeRuntime") {
     description = "Verifies every bundled llama.cpp ELF against the pinned manifest"
     val manifestFile = layout.projectDirectory.file("src/main/assets/native-runtime.json")
     val nativeDirectory = layout.projectDirectory.dir("src/main/jniLibs/arm64-v8a")
+    val patchDirectory = rootProject.layout.projectDirectory.dir("third_party/llama.cpp/patches")
     inputs.file(manifestFile)
     inputs.dir(nativeDirectory)
+    inputs.dir(patchDirectory)
+    inputs.dir(rootProject.layout.projectDirectory.dir("third_party/k2-horizon/patches"))
     doLast {
         val root = groovy.json.JsonSlurper().parse(manifestFile.asFile) as Map<*, *>
-        require(root["schemaVersion"] == 1 && root["build"] == "b10092") {
+        require(
+            root["schemaVersion"] == 1
+                    && root["runtime"] == "llama.cpp"
+                    && root["build"] == "b10092"
+                    && root["commit"] == "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a"
+                    && root["sourceArchiveSha256"] ==
+                    "b7bd2871ffcb467cc1445b5a5de8dda18fbeefd0a3c42c249a9650209a4da346"
+                    && root["ndkRevision"] == "27.1.12297006"
+                    && root["cmakeVersion"] == "3.22.1-g37088a8"
+                    && root["patchSet"] == "pideck-affinity1"
+        ) {
             "Unsupported native runtime manifest"
+        }
+        val expectedPatches = listOf(
+            mapOf(
+                "name" to "0001-android-enable-linux-thread-affinity.patch",
+                "sha256" to "bfd2eac7e3eec8ab1c92694cbe9a18ee24c02bb7789e327644e786f55f1ab7a1",
+            ),
+            mapOf(
+                "name" to "0002-server-attach-cpu-threadpools.patch",
+                "sha256" to "4edc60ac71034e0f4f2f74a216e7224b0d85411b4d0c0ec94bf2a8db9e833e18",
+            ),
+        )
+        require(root["patches"] == expectedPatches) {
+            "Native runtime patch metadata is not exactly pinned"
+        }
+        val patchDigest = MessageDigest.getInstance("SHA-256")
+        expectedPatches.forEach { metadata ->
+            val patch = patchDirectory.file(metadata.getValue("name")).asFile
+            require(patch.isFile) { "Pinned native runtime patch is missing: ${patch.name}" }
+            patchDigest.reset()
+            val hash = patchDigest.digest(patch.readBytes()).joinToString("") {
+                "%02x".format(it.toInt() and 0xff)
+            }
+            require(hash == metadata.getValue("sha256")) {
+                "${patch.name} SHA-256 differs from native-runtime.json"
+            }
         }
         val sidecars = root["sidecars"] as? List<*>
             ?: error("native runtime sidecars are missing")
-        require(sidecars.size == 1) { "Exactly one pinned native sidecar is required" }
-        val nanbeige = sidecars.single() as? Map<*, *>
+        require(sidecars.size == 2) { "Exactly two pinned native sidecars are required" }
+        val nanbeige = sidecars[0] as? Map<*, *>
             ?: error("Nanbeige sidecar metadata must be an object")
         require(
             nanbeige == mapOf(
@@ -283,6 +322,22 @@ tasks.register("verifyNativeRuntime") {
                 "file" to "libpideck_nanbeige_server.so",
             )
         ) { "Nanbeige sidecar metadata is not exactly pinned" }
+        val k2 = sidecars[1] as? Map<*, *> ?: error("K2 sidecar metadata must be an object")
+        require(k2 == mapOf(
+            "flavor" to "k2horizon",
+            "build" to "k2horizon-35999d1-p2",
+            "repository" to "https://github.com/MBZUAI-IFM/llama.cpp.git",
+            "commit" to "35999d101cf2233fc54f09c3c8d599da7303ce02",
+            "ndkRevision" to "28.2.13676358",
+            "file" to "libpideck_k2horizon_server.so",
+            "optimizedFile" to "libpideck_k2horizon_i8mm_server.so",
+            "patchSha256" to "04fe290be17bf608e862471e555320f1b924896cf096fe3e1d4b9073dc7b0d0b",
+        )) { "K2 sidecar metadata is not exactly pinned" }
+        val k2Patch = rootProject.file("third_party/k2-horizon/patches/0001-request-reasoning-tag.patch")
+        val k2Hash = MessageDigest.getInstance("SHA-256").digest(k2Patch.readBytes()).joinToString("") {
+            "%02x".format(it.toInt() and 0xff)
+        }
+        require(k2Hash == k2["patchSha256"]) { "K2 parser patch is not pinned" }
         val entries = root["files"] as? List<*> ?: error("native runtime files are missing")
         val expected = entries.associate { raw ->
             val item = raw as? Map<*, *> ?: error("native runtime entry must be an object")

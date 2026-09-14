@@ -27,8 +27,66 @@ artifact.
 
 Current Qwen3.5 artifacts preserve existing compatibility but have incomplete
 third-party conversion provenance and no current suite report. They therefore
-remain `EXPERIMENTAL`. Granite and Gemma metadata is not added merely because
-the specification names those candidates.
+remain `EXPERIMENTAL`. Gemma metadata is not added merely because the
+specification names that candidate.
+
+## Qwen3.8 2B Distill (`qwen3.8-2b-distill`)
+
+Listed as a manual-only `CANDIDATE` on 2026-09-02. The publisher's Q4_K_M GGUF
+is pinned to `empero-ai/Qwen3.8-2B-Distill-GGUF` revision
+`f4f73582d0b149595450c719b9a7521a03894f9c`, 1,312,164,224 bytes and SHA-256
+`4aa0fb13c431514262f259d420ecc95a8714df58ac2a2384514e20b93983f0ff`.
+The upstream distillation revision is recorded separately as
+`e37a2dc4acc68ad75a91e07e63168cb04cc06345`. Both repositories declare
+Apache-2.0. The GGUF metadata identifies the stock-supported `qwen35`
+architecture and embeds the model's tool-aware Jinja template.
+
+Conversion provenance remains `INCOMPLETE`: the publisher does not provide an
+exact llama.cpp converter revision, quantization command, or build
+environment. The provisional mobile profile keeps stock b10092, a 10,240-token
+context, the publisher's 0.6/0.95/20 sampling values, and a 256-token native
+reasoning cap. On the reference SM-S918B it loaded successfully and decoded a
+controlled 192-token run at a 15.82 tok/s median (15.54–16.19), with 2,783 MiB
+peak RSS. The app then verified the same SHA-256, installed a read-only private
+copy and launched that exact model through the authenticated bridge. A Russian
+answer completed successfully. Suite-v2 Q01 passed at 16.86 s TTFT, while Q04
+failed because the model emitted a Markdown/Python imitation instead of a
+`read` tool call. See
+[`qwen38-b10092-192-sm-s918b-2026-09-02.json`](../benchmarks/out/qwen38-b10092-192-sm-s918b-2026-09-02.json),
+[`qwen38-agent-smoke-sm-s918b-2026-09-02.json`](../benchmarks/out/qwen38-agent-smoke-sm-s918b-2026-09-02.json),
+and
+[`suite-v2-qwen38-q01q04-2026-09-02.json`](../benchmarks/out/suite-v2-qwen38-q01q04-2026-09-02.json).
+The failed tool contract, incomplete provenance, complete device suites and ten
+clean smokes still block promotion and automatic recommendation.
+
+## Granite 4.2 3B (`granite-4.2-3b`)
+
+Listed as a manual-only `CANDIDATE` on 2026-09-02 from IBM's official GGUF
+repository. `granite-4.2-3b-Q4_K_M.gguf` is pinned at revision
+`47a3d9699d7539606c83943d717fcea7bd9f6a19`, 2,244,012,160 bytes and SHA-256
+`20e436143017578687f7f848225cc6c6038126c84149192229c7dff6e4e0f427`.
+The official upstream weights are pinned separately at
+`b7e947307dd2efb3ad3b853b0e8a7e75f8ad4ac2`; both repositories declare
+Apache-2.0.
+
+IBM does not publish the complete converter command and environment required
+by gate 3, so provenance remains `INCOMPLETE`. The provisional profile uses
+stock b10092, an 8,192-token context, IBM's 1.0/0.95 sampling, and a 256-token
+reasoning cap. On the reference SM-S918B it loaded successfully and decoded a
+controlled 192-token run at an 11.04 tok/s median (10.26–11.20), with 4,612 MiB
+peak RSS. The catalog therefore requires 5,632 MiB available RAM. The app
+verified the same SHA-256, installed a read-only private copy and launched that
+exact model through the authenticated bridge after showing the OOM warning. A
+Russian answer and suite-v2 Q01 passed; Q01 TTFT was 78.58 s. The tool smoke did
+invoke tools, but made four calls (`read`, `read`, `code_nav`, `read`) instead
+of one and reached `TURN_FAILED` after the 420-second harness deadline. See
+[`granite42-b10092-192-sm-s918b-2026-09-02.json`](../benchmarks/out/granite42-b10092-192-sm-s918b-2026-09-02.json)
+and
+[`suite-v2-granite42-q01-2026-09-02.json`](../benchmarks/out/suite-v2-granite42-q01-2026-09-02.json),
+with the bounded failure observation in
+[`granite42-agent-smoke-failure-sm-s918b-2026-09-02.json`](../benchmarks/out/granite42-agent-smoke-failure-sm-s918b-2026-09-02.json).
+The failed tool restraint, incomplete provenance, complete device suites and
+ten clean smokes still block promotion and automatic recommendation.
 
 ## Ministral 3 3B Instruct (`ministral-3-3b-instruct-2512`)
 

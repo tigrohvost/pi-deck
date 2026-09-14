@@ -1,0 +1,12 @@
+{
+  "installedApkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+  "fingerprint": "5b80fe2808443880e2cb5006a0961c5dc4edf143c25baff1d863d4b32fd93591",
+  "update": [
+    {
+      "state": "COMPLETED",
+      "createdAt": "2026-09-07T14:58:36.885Z",
+      "updatedAt": "2026-09-07T14:58:46.416Z",
+      "uiConsumed": true
+    }
+  ]
+}

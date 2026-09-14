@@ -1,0 +1,248 @@
+{
+  "model": "k2",
+  "device": "SM-S918B",
+  "modelPath": "/data/local/tmp/pideck-audit-20260907/K2-Horizon-3.7B-Q4_K_M.gguf",
+  "modelSha256": "f8dce940ec3e45be3e884a203b0eb3dee4ba57eb23fc63d0e210cdade2ca48ec",
+  "libraryDirectory": "/data/local/tmp/pideck-audit-20260907",
+  "context": 8192,
+  "threads": 5,
+  "batchThreads": 5,
+  "batchCpus": "3-7",
+  "extraFlags": [
+    "--cpu-strict",
+    "0",
+    "--cpu-strict-batch",
+    "0",
+    "--poll",
+    "0",
+    "--poll-batch",
+    "0"
+  ],
+  "toolPromptCache": true,
+  "batchSize": 512,
+  "ubatchSize": 128,
+  "temperature": 1.0,
+  "reasoningBudget": 256,
+  "samples": [
+    {
+      "index": 0,
+      "warmup": true,
+      "valid": true,
+      "elapsedSeconds": 23.446866032001708,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 50,
+        "prompt_ms": 1265.6,
+        "prompt_per_token_ms": 25.311999999999998,
+        "prompt_per_second": 39.50695322376739,
+        "predicted_n": 192,
+        "predicted_ms": 22044.724,
+        "predicted_per_token_ms": 115.41740314136125,
+        "predicted_per_second": 8.66420464143711
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 63900
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2342400,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.697,
+        "hottestCpuMilliCelsius": 74900
+      },
+      "peakRssKiB": 5583208
+    },
+    {
+      "index": 1,
+      "warmup": false,
+      "valid": true,
+      "elapsedSeconds": 21.80967959500049,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 50,
+        "prompt_ms": 1119.445,
+        "prompt_per_token_ms": 22.3889,
+        "prompt_per_second": 44.66499024069964,
+        "predicted_n": 192,
+        "predicted_ms": 20500.818,
+        "predicted_per_token_ms": 107.33412565445026,
+        "predicted_per_second": 9.316701411621722
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 48900
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2726400,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.811,
+        "hottestCpuMilliCelsius": 74900
+      },
+      "peakRssKiB": 5558608
+    },
+    {
+      "index": 2,
+      "warmup": false,
+      "valid": true,
+      "elapsedSeconds": 21.961331310998503,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 50,
+        "prompt_ms": 1093.935,
+        "prompt_per_token_ms": 21.8787,
+        "prompt_per_second": 45.70655477702058,
+        "predicted_n": 192,
+        "predicted_ms": 20696.6,
+        "predicted_per_token_ms": 108.35916230366492,
+        "predicted_per_second": 9.228568943691235
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 44200
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2956800,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.88,
+        "hottestCpuMilliCelsius": 74900
+      },
+      "peakRssKiB": 5538404
+    },
+    {
+      "index": 3,
+      "warmup": false,
+      "valid": true,
+      "elapsedSeconds": 22.030933460999222,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 50,
+        "prompt_ms": 1110.334,
+        "prompt_per_token_ms": 22.206680000000002,
+        "prompt_per_second": 45.03149502762231,
+        "predicted_n": 192,
+        "predicted_ms": 20772.009,
+        "predicted_per_token_ms": 108.75397382198952,
+        "predicted_per_second": 9.195066302927176
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 46100
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2726400,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.811,
+        "hottestCpuMilliCelsius": 74600
+      },
+      "peakRssKiB": 5439140
+    }
+  ],
+  "tools": [],
+  "serverSha256": "ad64e48f9b066ea6705fa4d4b95b4a5601e1460a5c7f143d43e60a259926a33c",
+  "thermalBeforeLoad": {
+    "bigCoreScalingMaxHz": 3360000,
+    "bigCoreNominalMaxHz": 3360000,
+    "headroom": 1.0,
+    "hottestCpuMilliCelsius": 57600
+  },
+  "loadSeconds": 22.15015314500124,
+  "affinity": {
+    "maskHistogram": {
+      "3-7": 6,
+      "0-7": 10
+    },
+    "threads": [
+      {
+        "tid": 15358,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 15361,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15362,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15363,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15364,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15365,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15366,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15367,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15368,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15369,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15370,
+        "name": "k2-server-i8mm",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 15611,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 15612,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 15613,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 15614,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      },
+      {
+        "tid": 15628,
+        "name": "k2-server-i8mm",
+        "cpus": "3-7"
+      }
+    ]
+  },
+  "medianDecodeTokensPerSecond": 9.228568943691235,
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.006.879 W DEPRECATED: argument '--cpu-strict' specified multiple times, use comma-separated values instead (only last value will be used)\n0.00.006.938 W DEPRECATED: argument '--cpu-strict-batch' specified multiple times, use comma-separated values instead (only last value will be used)\n0.00.007.224 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.007.506 I srv          init: The UI is disabled\n0.00.007.528 I srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable\n0.00.009.763 I srv    load_model: loading model '/data/local/tmp/pideck-audit-20260907/K2-Horizon-3.7B-Q4_K_M.gguf'\n0.00.782.776 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect\n0.05.915.685 I cmn          init: llama threadpool init, n_threads = 5\n0.21.783.352 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.21.925.349 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve\n0.21.925.769 I srv  llama_server: model loaded\n0.21.925.793 I srv  llama_server: listening on http://127.0.0.1:18080\n0.44.475.101 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.44.475.416 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n0.56.164.315 I slot print_timing: id  0 | task 0 | n_gen =    100, tg =   9.50 t/s, tg_3s =   9.59 t/s\n0.59.178.577 I slot print_timing: id  0 | task 0 | n_gen =    122, tg =   9.00 t/s, tg_3s =   7.30 t/s\n1.02.233.736 I slot print_timing: id  0 | task 0 | n_gen =    147, tg =   8.85 t/s, tg_3s =   8.18 t/s\n1.05.356.484 I slot print_timing: id  0 | task 0 | n_gen =    172, tg =   8.72 t/s, tg_3s =   8.01 t/s\n1.07.785.840 I slot print_timing: id  0 | task 0 | prompt eval time =    1265.60 ms /    50 tokens (   25.31 ms per token,    39.51 tokens per second)\n1.07.785.853 I slot print_timing: id  0 | task 0 |        eval time =   22044.72 ms /   192 tokens (  115.42 ms per token,     8.66 tokens per second)\n1.07.785.855 I slot print_timing: id  0 | task 0 |       total time =   23310.32 ms /   242 tokens\n1.07.785.856 I slot print_timing: id  0 | task 0 |    graphs reused =        191\n1.07.786.133 I slot      release: id  0 | task 0 | stop processing: n_tokens = 241, truncated = 0\n2.22.417.813 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.140 (> 0.100 thold), f_keep = 0.029\n2.22.438.623 I slot launch_slot_: id  0 | task 193 | processing task, is_child = 0\n2.33.755.624 I slot print_timing: id  0 | task 193 | n_gen =    100, tg =   9.71 t/s, tg_3s =   9.81 t/s\n2.36.788.812 I slot print_timing: id  0 | task 193 | n_gen =    128, tg =   9.60 t/s, tg_3s =   9.23 t/s\n2.39.834.032 I slot print_timing: id  0 | task 193 | n_gen =    155, tg =   9.46 t/s, tg_3s =   8.87 t/s\n2.42.922.681 I slot print_timing: id  0 | task 193 | n_gen =    182, tg =   9.35 t/s, tg_3s =   8.74 t/s\n2.44.058.990 I slot print_timing: id  0 | task 193 | prompt eval time =    1119.44 ms /    50 tokens (   22.39 ms per token,    44.66 tokens per second)\n2.44.059.012 I slot print_timing: id  0 | task 193 |        eval time =   20500.82 ms /   192 tokens (  107.33 ms per token,     9.32 tokens per second)\n2.44.059.014 I slot print_timing: id  0 | task 193 |       total time =   21620.26 ms /   242 tokens\n2.44.059.015 I slot print_timing: id  0 | task 193 |    graphs reused =        381\n2.44.059.054 I slot      release: id  0 | task 193 | stop processing: n_tokens = 241, truncated = 0\n3.44.841.785 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.140 (> 0.100 thold), f_keep = 0.029\n3.44.860.455 I slot launch_slot_: id  0 | task 386 | processing task, is_child = 0\n3.56.139.694 I slot print_timing: id  0 | task 386 | n_gen =    100, tg =   9.72 t/s, tg_3s =   9.82 t/s\n3.59.327.545 I slot print_timing: id  0 | task 386 | n_gen =    127, tg =   9.42 t/s, tg_3s =   8.47 t/s\n4.02.344.819 I slot print_timing: id  0 | task 386 | n_gen =    155, tg =   9.40 t/s, tg_3s =   9.28 t/s\n4.05.437.245 I slot print_timing: id  0 | task 386 | n_gen =    182, tg =   9.29 t/s, tg_3s =   8.73 t/s\n4.06.651.049 I slot print_timing: id  0 | task 386 | prompt eval time =    1093.93 ms /    50 tokens (   21.88 ms per token,    45.71 tokens per second)\n4.06.651.069 I slot print_timing: id  0 | task 386 |        eval time =   20696.60 ms /   192 tokens (  108.36 ms per token,     9.23 tokens per second)\n4.06.651.071 I slot print_timing: id  0 | task 386 |       total time =   21790.53 ms /   242 tokens\n4.06.651.072 I slot print_timing: id  0 | task 386 |    graphs reused =        571\n4.06.651.129 I slot      release: id  0 | task 386 | stop processing: n_tokens = 241, truncated = 0\n4.50.264.433 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.140 (> 0.100 thold), f_keep = 0.029\n4.50.287.150 I slot launch_slot_: id  0 | task 579 | processing task, is_child = 0\n5.01.737.827 I slot print_timing: id  0 | task 579 | n_gen =    100, tg =   9.57 t/s, tg_3s =   9.67 t/s\n5.04.841.737 I slot print_timing: id  0 | task 579 | n_gen =    127, tg =   9.37 t/s, tg_3s =   8.70 t/s\n5.07.897.962 I slot print_timing: id  0 | task 579 | n_gen =    154, tg =   9.27 t/s, tg_3s =   8.83 t/s\n5.10.900.201 I slot print_timing: id  0 | task 579 | n_gen =    181, tg =   9.23 t/s, tg_3s =   8.99 t/s\n5.12.169.545 I slot print_timing: id  0 | task 579 | prompt eval time =    1110.33 ms /    50 tokens (   22.21 ms per token,    45.03 tokens per second)\n5.12.169.567 I slot print_timing: id  0 | task 579 |        eval time =   20772.01 ms /   192 tokens (  108.75 ms per token,     9.20 tokens per second)\n5.12.169.569 I slot print_timing: id  0 | task 579 |       total time =   21882.34 ms /   242 tokens\n5.12.169.570 I slot print_timing: id  0 | task 579 |    graphs reused =        761\n5.12.169.618 I slot      release: id  0 | task 579 | stop processing: n_tokens = 241, truncated = 0\n",
+  "auditNote": "Speed complete: warmup plus 3 valid 192-token repetitions. Operator stopped before tools to restart with per-case cache reset; this is not a tool failure. Tool tests stored separately."
+}

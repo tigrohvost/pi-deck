@@ -115,7 +115,7 @@ public final class CoreRootView extends ScrollView {
         public UiLanguage language = UiLanguage.RUSSIAN;
         public boolean maximumSpeed = true;
         public boolean autostartCore = false;
-        public long coreIdleTimeoutMinutes = IdleShutdown.DEFAULT_MINUTES;
+        public long coreIdleTimeoutMinutes = IdleShutdown.DEFAULT_TIMEOUT;
         public boolean thermalPacing = false;
         public boolean smartCompaction = true;
         /** Mirror of the checkbox on the consent screen. */
@@ -235,11 +235,11 @@ public final class CoreRootView extends ScrollView {
 
         TextView idleNote = style.bodySecondary(
                 t(
-                        "Таймаут ядра: без запросов модель выгружается сама и освобождает память. "
-                                + "«Всегда» повторяет старое поведение — ядро живёт до ручной остановки.",
+                        "Таймаут ядра: «Умно» ждёт 10 минут для малого контекста и 30 минут, "
+                                + "если заполнено хотя бы 40%. «Всегда» оставляет ядро до ручной остановки.",
                         "Core timeout: after this much idle time the model unloads itself and frees "
-                                + "memory. “Always” keeps the old behavior — the core lives "
-                                + "until stopped by hand."
+                                + "memory. “Smart” waits 10 minutes for a small context and 30 minutes "
+                                + "once at least 40% is filled. “Always” keeps it until stopped by hand."
                 )
         );
         LinearLayout.LayoutParams idleNoteLp = new LinearLayout.LayoutParams(
@@ -249,8 +249,9 @@ public final class CoreRootView extends ScrollView {
         idleNoteLp.bottomMargin = style.dp(8);
         column.addView(idleNote, idleNoteLp);
         column.addView(segments(
-                new String[]{t("5м", "5m"), t("10м", "10m"), t("30м", "30m"), t("Всегда", "Always")},
-                new Long[]{5L, 10L, 30L, IdleShutdown.NEVER},
+                new String[]{t("Умно", "Smart"), t("5м", "5m"), t("10м", "10m"),
+                        t("30м", "30m"), t("Всегда", "Always")},
+                new Long[]{IdleShutdown.ADAPTIVE, 5L, 10L, 30L, IdleShutdown.NEVER},
                 state.coreIdleTimeoutMinutes,
                 value -> listener.onCoreIdleTimeoutChanged((Long) value)
         ));

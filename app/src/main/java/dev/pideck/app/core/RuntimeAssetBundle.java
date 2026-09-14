@@ -9,6 +9,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.TreeMap;
 import java.util.zip.GZIPOutputStream;
 
 /** Installs the exact assets shipped in the APK into app-private Termux storage. */
@@ -39,6 +42,7 @@ public final class RuntimeAssetBundle {
             "runtime/pideck-web-tools.ts",
             "runtime/pideck-code-nav.ts",
             "runtime/pideck-tool-router.ts",
+            "runtime/pideck-plan-ledger.ts",
             "runtime/pideck-permission-gate.ts",
             "runtime/pideck_runtime/__init__.py",
             "runtime/pideck_runtime/common.py",
@@ -237,6 +241,7 @@ public final class RuntimeAssetBundle {
                 export PI_CODING_AGENT_DIR="$BASE/pi"
                 export PI_CODING_AGENT_SESSION_DIR="$BASE/sessions"
                 export LD_PRELOAD="$PREFIX/lib/libtermux-exec.so"
+                python -m pideck_runtime.launcher bridge-stop
                 printf 'PI_VERSION='
                 pi --version
                 python -m pideck_runtime.launcher probe
@@ -269,7 +274,33 @@ public final class RuntimeAssetBundle {
                 """;
     }
 
+    public static String fingerprint(Context context) {
+        return fingerprintFromContents(readContents(context));
+    }
+
+    static String fingerprintFromContents(Map<String, byte[]> contents) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            for (Map.Entry<String, byte[]> item : new TreeMap<>(contents).entrySet()) {
+                digest.update(item.getKey().getBytes(StandardCharsets.UTF_8));
+                digest.update((byte) 0);
+                digest.update(Integer.toString(item.getValue().length).getBytes(StandardCharsets.US_ASCII));
+                digest.update((byte) 0);
+                digest.update(item.getValue());
+            }
+            StringBuilder result = new StringBuilder();
+            for (byte value : digest.digest()) result.append(String.format(java.util.Locale.ROOT, "%02x", value & 0xff));
+            return result.toString();
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256 is unavailable", error);
+        }
+    }
+
     private static String build(Context context, boolean installPackages) {
+        return buildFromContents(readContents(context), installPackages);
+    }
+
+    private static LinkedHashMap<String, byte[]> readContents(Context context) {
         LinkedHashMap<String, byte[]> contents = new LinkedHashMap<>();
         for (String asset : ASSETS) {
             try (InputStream input = context.getAssets().open(asset)) {
@@ -278,7 +309,7 @@ public final class RuntimeAssetBundle {
                 throw new IllegalStateException("Missing bundled runtime asset: " + asset, error);
             }
         }
-        return buildFromContents(contents, installPackages);
+        return contents;
     }
 
     private static byte[] readBounded(InputStream input) throws IOException {

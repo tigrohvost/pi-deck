@@ -41,7 +41,7 @@ public final class NativeLlamaController {
             NativeModelStore store
     ) {
         Context app = context.getApplicationContext();
-        CpuProfile profile = CpuProfile.detect();
+        CpuProfile profile = CpuProfile.detect().forModel(model);
         String apiKey = newApiKey();
         File modelFile = store.fileFor(model);
         remember(app, operationId, model, apiKey, profile);
@@ -75,7 +75,7 @@ public final class NativeLlamaController {
             return;
         }
         String apiKey = prefs.getString("api_key", "");
-        CpuProfile profile = CpuProfile.detect();
+        CpuProfile profile = CpuProfile.detect().forModel(model);
         if (apiKey.isBlank()) {
             publishFailure(app, operationId, "Native server API key is missing");
             return;

@@ -1,0 +1,23 @@
+{
+  "K2-Horizon-3.7B-Q4_K_M.gguf.verified.json": "579e3a0b96c511493408a3c51aa68af6ba96b349a46b33992501662eb3287caa",
+  "Qwen3.8-4B-Q4_K_M.gguf.verified.json": "71a5a51b772bc73a5a0d403c59147f687acb3eaca431fec9a682fb34db8c0d67",
+  "README.md": "cc3c12816e7957bddbdddfc4753f7b718980a3beb8ff92016900bf8b23e47c5b",
+  "autonomous_suite.py": "c3f02c72e319fcb49275b7df2823112c7b594787bcb7afe14ad090eed5d24dfa",
+  "build-k2-i8mm.sh": "01eeea69f9a0f18c25479861dac5ccb4b86596be30e49b0af24e11e1ecee869e",
+  "k2-diagnostic.json": "86ff52d165e188b468006425e21781dd1384a005c23ef4cd5f2ddea8bed99140",
+  "k2-i8mm-native-both.json": "97987ad3776258bfc081244764ee637dedc879c0151703828b230a72933badb2",
+  "k2-i8mm-native-tools.json": "f1a28fc2255e1bfc771e7a9292d5b4260755ce0a6c1f15499a4c861ee5e07ee7",
+  "k2-native-both.json": "5a86366891bc82af5ec58a497fe2016d43eb9581970b1ed38290f276305aaee0",
+  "k2-parser-fixed.json": "14f08c959dba7170c2788643ca6f3a3b7b5761db6c12c19cbbdf623ec56c7199",
+  "k2-reasoning-effort.patch": "9c725aacd2e8f0283f5fa92808fe52ceae908f6d7f80cf3a286e8625d1521384",
+  "k2-template-alignment.json": "2591184078e879a1c2616380c3cb620c9bfb2c44b6ce15b5d524f0dd46ec7bac",
+  "native_compare.py": "31bd0ef359a3a461ecba84dd7b05e31b3be4643a0e2751808cb7c323f882e515",
+  "qad-autonomous-coding.json": "abd438aed1349c804ae7445af76902c9e7da1cccdc53da4d12c7ab57c95c4bba",
+  "qad-coding.json": "a296f6396e682e487663cad40c7d4ea9ffa445df5c7782b4d2f7bb988b6baf00",
+  "qad-native-tools.json": "80dfbc6ab31bbbe31d0953c757e75577919463bb1247765a2d821bea04cdb722",
+  "qad-suite-readonly.json": "b68cf7bf1c7e9a391e27f6c9f56c80b7169f9e350548e149444ea0b6206ba039",
+  "qwen4-native-both.json": "4f524494826b5f05498fe1b07bcd389794ec90b5445c06f66d01c429808cbb4b",
+  "restoration.json": "50ec0678ab2a0607e312be7b6861991dd5787178024f151382688730de6832a1",
+  "runtime-tests.log": "c60a4464b2bdb4e6565862ab0a6fb1c52c9c7db0c9f7d24b2300abb34d754ac1",
+  "tools-tests.log": "9139578a820a07028538a240df5b040196f5eb7c370dcaf3922ca35f4233451d"
+}

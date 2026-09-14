@@ -217,11 +217,6 @@ export default function pideckRunTests(pi: ExtensionAPI) {
 		label: "Run tests",
 		description:
 			"Run the workspace's pytest tests and return the verdict plus the first failure verbatim.",
-		promptSnippet: "Run pytest and get the verdict with the first failure",
-		promptGuidelines: [
-			"Use run_tests instead of running pytest through bash: the result is bounded and always contains the first failure in full.",
-			"After a failure, fix the named test or code and run run_tests again; pass path or expr to narrow the run.",
-		],
 		parameters: Type.Object({
 			path: Type.Optional(Type.String({
 				description: "File or directory with tests, relative to the workspace",

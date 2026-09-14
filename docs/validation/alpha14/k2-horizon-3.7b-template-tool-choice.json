@@ -1,0 +1,96 @@
+{
+  "modelId": "k2-horizon-3.7b",
+  "apkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+  "cases": [
+    {
+      "templateKwargs": {
+        "reasoning_effort": "low"
+      },
+      "messageCount": 2,
+      "auto": {
+        "sha256": "addd07a61671ecf08dd72541dfb72bf8560eb98423f66c9cae25e76e297906c9",
+        "characters": 963
+      },
+      "none": {
+        "sha256": "addd07a61671ecf08dd72541dfb72bf8560eb98423f66c9cae25e76e297906c9",
+        "characters": 963
+      },
+      "identical": true
+    },
+    {
+      "templateKwargs": {
+        "reasoning_effort": "medium"
+      },
+      "messageCount": 2,
+      "auto": {
+        "sha256": "efa0ccebecaa8499b24a88a12848e9e745d420f0d4bbbeef10489da1fdd4f771",
+        "characters": 961
+      },
+      "none": {
+        "sha256": "efa0ccebecaa8499b24a88a12848e9e745d420f0d4bbbeef10489da1fdd4f771",
+        "characters": 961
+      },
+      "identical": true
+    },
+    {
+      "templateKwargs": {
+        "reasoning_effort": "high"
+      },
+      "messageCount": 2,
+      "auto": {
+        "sha256": "f7d5f6f947e002ca582ff19c2e73c598cdb80b8a3e18c225b98b27b85fef3dff",
+        "characters": 956
+      },
+      "none": {
+        "sha256": "f7d5f6f947e002ca582ff19c2e73c598cdb80b8a3e18c225b98b27b85fef3dff",
+        "characters": 956
+      },
+      "identical": true
+    },
+    {
+      "templateKwargs": {
+        "reasoning_effort": "low"
+      },
+      "messageCount": 4,
+      "auto": {
+        "sha256": "69a75a1d89ba1bc889ed0bba973185dff7e9d02af80d52975ff9618769e629b5",
+        "characters": 1221
+      },
+      "none": {
+        "sha256": "69a75a1d89ba1bc889ed0bba973185dff7e9d02af80d52975ff9618769e629b5",
+        "characters": 1221
+      },
+      "identical": true
+    },
+    {
+      "templateKwargs": {
+        "reasoning_effort": "medium"
+      },
+      "messageCount": 4,
+      "auto": {
+        "sha256": "04f8d0dcd5f9eaf1619160fbd5b647f7f17664e2e484bcd43642e3aa2672f9fb",
+        "characters": 1219
+      },
+      "none": {
+        "sha256": "04f8d0dcd5f9eaf1619160fbd5b647f7f17664e2e484bcd43642e3aa2672f9fb",
+        "characters": 1219
+      },
+      "identical": true
+    },
+    {
+      "templateKwargs": {
+        "reasoning_effort": "high"
+      },
+      "messageCount": 4,
+      "auto": {
+        "sha256": "222c86545273a504d97a3af82e322acb6ffbe6cbf0357a2d3d93745993a33c84",
+        "characters": 1214
+      },
+      "none": {
+        "sha256": "222c86545273a504d97a3af82e322acb6ffbe6cbf0357a2d3d93745993a33c84",
+        "characters": 1214
+      },
+      "identical": true
+    }
+  ]
+}

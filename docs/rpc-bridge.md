@@ -29,6 +29,7 @@ pi --mode rpc --provider pideck --model <exact-id> --offline
    --extension pideck-web-tools.ts
    --extension pideck-code-nav.ts
    --extension pideck-tool-router.ts
+   --extension pideck-plan-ledger.ts
    [profile-specific tools and explicit permission extension]
 ```
 
@@ -43,6 +44,25 @@ therefore reuse an exact common KV/recurrent prefix. A new user task, explicit
 optional-tool load, or adaptive-thinking transition still invalidates reuse and
 fails closed.
 
+`PROMPT.payload.planRequested=true` is accepted only in Agent mode with
+`CONFIRM_CHANGES` or an active bounded `AUTONOMOUS` grant. The bridge adds a
+private marker consumed by `pideck-plan-ledger.ts`; the user text itself remains
+the normal Pi prompt and never enters argv. Planning narrows the active set to
+managed read-only tools and hard-blocks every other `tool_call`. A valid answer
+must contain a sequential 3–7-item `Plan:`/`План:` section. The extension then
+uses the existing RPC confirm channel with structured decision kind `plan` and
+a 120-second TTL. Android approval queues one internal execution follow-up;
+ordinary prompts and rejected plans have no extra execution round.
+
+`GET /v1/state`, the atomic session checkpoint, and `PLAN_STATE_CHANGED` events
+carry only a bounded ledger whose phase is one of `idle`, `planning`, `planned`,
+`executing`, `blocked`, `complete`, or `cancelled`; it has a 2,048-character
+goal and at most seven 200-character items with
+`pending|active|verified|blocked` status. The bridge parses `[DONE:n]` and
+`[BLOCKED:n]` from execution output, updates/checkpoints the ledger, and strips
+the markers from the authoritative terminal answer. A new session clears the
+ledger; a process/activity restart restores it without replaying a prompt.
+
 For reasoning-capable Qwen profiles, Pi's `qwen-chat-template` compatibility
 serializes `chat_template_kwargs.enable_thinking` with `preserve_thinking=true`.
 The pinned adaptive extension chooses `off` once for direct/read-only/Chat turns
@@ -54,8 +74,27 @@ A scoped repair that explicitly names complete regular files gets a hidden,
 6 KiB-total bounded prefetch before the first provider request. Only up to three
 files of at most 4 KiB each are accepted; missing, oversized, non-UTF-8, symlinked,
 or outside-workspace files fall back to ordinary managed `read`. Prefetched text
-uses the same verified `line:hash` anchors as `read`, removing one model/tool
-round without weakening anchored-edit checks.
+uses the same full eight-hex `line:hash` anchors as `read`, removing one
+model/tool round without weakening anchored-edit checks. Both paths retain the
+exact backing bytes and the anchors actually shown; a changed file or invented
+anchor is refused. A successful replacement is preflighted, fsynced and atomically
+renamed, preserving BOM, line endings, final newline and permission mode.
+
+An unbounded source read may be converted into a declaration/import outline once
+it reaches 100 lines. The model must request an explicit offset/limit before
+editing a hidden body line, and a third identical successful read is replaced by
+a loop-breaker. Provider-facing context pruning removes only older byte-identical
+`read`/`code_nav` results after a material saving threshold. The durable Pi
+history is unchanged; the cache hook observes any changed prefix and disables
+`cache_prompt` for that request before allowing reuse on a subsequent stable
+prefix.
+
+Repository guidance is resolved per target before work: the root
+`.github/copilot-instructions.md`, nested `AGENTS.md` files, and Cursor `.md` or
+`.mdc` rules marked `alwaysApply` or matching the relative path. The resolver is
+workspace-confined, symlink-safe and byte-bounded. If a mutation reveals a rule
+that was not delivered earlier, the call is blocked once with that guidance and
+may be retried only after the model re-evaluates it.
 
 The managed web extension registers `web_search`, `web_fetch` and `weather`.
 `web_search` returns at most five compact sourced results and falls back from

@@ -673,11 +673,6 @@ export default function pideckWebTools(pi: ExtensionAPI) {
 		label: "Web research",
 		description:
 			"Research a live-web query or read one URL in a single bounded call, returning source URLs and relevant page excerpts.",
-		promptSnippet: "Search and read live web sources in one bounded call",
-		promptGuidelines: [
-			"Use web_research for explicit web requests, current information, or a supplied URL; do not pretend to have searched.",
-			"Pass either a focused search query or one exact URL, then answer from the returned excerpts and cite their URLs.",
-		],
 		parameters: Type.Object({
 			request: Type.String({
 				description: "A focused search query or one exact http/https URL",
@@ -718,11 +713,6 @@ export default function pideckWebTools(pi: ExtensionAPI) {
 		label: "Weather",
 		description:
 			"Get current weather and a compact three-day forecast for a named place from Open-Meteo.",
-		promptSnippet: "Get current weather and a three-day forecast for a place",
-		promptGuidelines: [
-			"Use weather for current conditions or forecasts instead of guessing or using a generic shell search.",
-			"After weather, state the observation time and name Open-Meteo as the source.",
-		],
 		parameters: Type.Object({
 			location: Type.String({
 				description: "City or place name, for example Москва",

@@ -1,0 +1,147 @@
+{
+  "modelId": "lfm2.5-2.6b-qad",
+  "mode": "speed",
+  "owner": "installed APK UID",
+  "apkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+  "modelSha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+  "thermalGate": {
+    "minimumHeadroom": 0.95,
+    "maximumCpuMilliCelsius": 65000
+  },
+  "samples": [
+    {
+      "index": 0,
+      "warmup": true,
+      "valid": true,
+      "foregroundStable": true,
+      "foregroundChecks": 5,
+      "startedAt": "2026-09-07T16:19:29.174137+00:00",
+      "completedAt": "2026-09-07T16:19:41.293179+00:00",
+      "elapsedSeconds": 12.043621905999316,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 64,
+        "prompt_ms": 786.757,
+        "prompt_per_token_ms": 12.293078125,
+        "prompt_per_second": 81.34659113296736,
+        "predicted_n": 192,
+        "predicted_ms": 11227.56,
+        "predicted_per_token_ms": 58.476875,
+        "predicted_per_second": 17.10077701655569
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 59600
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 78900
+      }
+    },
+    {
+      "index": 1,
+      "warmup": false,
+      "valid": true,
+      "foregroundStable": true,
+      "foregroundChecks": 5,
+      "startedAt": "2026-09-07T16:19:53.006662+00:00",
+      "completedAt": "2026-09-07T16:20:05.087582+00:00",
+      "elapsedSeconds": 12.0013853499986,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 64,
+        "prompt_ms": 730.025,
+        "prompt_per_token_ms": 11.406640625,
+        "prompt_per_second": 87.66823054005,
+        "predicted_n": 192,
+        "predicted_ms": 11252.203,
+        "predicted_per_token_ms": 58.60522395833333,
+        "predicted_per_second": 17.063325288390196
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 60500
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3187200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.949,
+        "hottestCpuMilliCelsius": 80900
+      }
+    },
+    {
+      "index": 2,
+      "warmup": false,
+      "valid": true,
+      "foregroundStable": true,
+      "foregroundChecks": 5,
+      "startedAt": "2026-09-07T16:20:32.858084+00:00",
+      "completedAt": "2026-09-07T16:20:44.690456+00:00",
+      "elapsedSeconds": 11.770757284997671,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 64,
+        "prompt_ms": 837.389,
+        "prompt_per_token_ms": 13.084203125,
+        "prompt_per_second": 76.4280400148557,
+        "predicted_n": 192,
+        "predicted_ms": 10911.209,
+        "predicted_per_token_ms": 56.82921354166667,
+        "predicted_per_second": 17.596583476679804
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 59200
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3187200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.949,
+        "hottestCpuMilliCelsius": 78500
+      }
+    },
+    {
+      "index": 3,
+      "warmup": false,
+      "valid": true,
+      "foregroundStable": true,
+      "foregroundChecks": 5,
+      "startedAt": "2026-09-07T16:21:12.364645+00:00",
+      "completedAt": "2026-09-07T16:21:24.107756+00:00",
+      "elapsedSeconds": 11.680126179999206,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 64,
+        "prompt_ms": 703.51,
+        "prompt_per_token_ms": 10.99234375,
+        "prompt_per_second": 90.97240977384827,
+        "predicted_n": 192,
+        "predicted_ms": 10957.965,
+        "predicted_per_token_ms": 57.072734375,
+        "predicted_per_second": 17.521501483167725
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 53700
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3187200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.949,
+        "hottestCpuMilliCelsius": 78900
+      }
+    }
+  ],
+  "medianDecodeTokensPerSecond": 17.521501483167725,
+  "minimumDecodeTokensPerSecond": 17.063325288390196
+}

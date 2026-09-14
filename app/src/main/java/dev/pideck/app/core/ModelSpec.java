@@ -25,7 +25,7 @@ public final class ModelSpec {
     private static final Set<String> STATUSES = Set.of(
             "DEFAULT", "SUPPORTED", "CANDIDATE", "EXPERIMENTAL", "DEPRECATED", "BLOCKED"
     );
-    private static final Set<String> SERVER_FLAVORS = Set.of("stock", "nanbeige42");
+    private static final Set<String> SERVER_FLAVORS = Set.of("stock", "nanbeige42", "k2horizon");
     // LicenseRef-LFM-Open-1.0: LFM Open License v1.0, reviewed 2026-08-07 — Apache-2.0-derived,
     // full use below a $10M annual-revenue threshold; see docs/model-admission.md.
     private static final Set<String> LICENSES =
@@ -227,9 +227,11 @@ public final class ModelSpec {
             throw new JSONException("Unsupported native server flavor: " + serverFlavor);
         }
         String minimumLlamaCppVersion = required(runtime, "minimumLlamaCppVersion");
-        String expectedRuntimeBuild = "nanbeige42".equals(serverFlavor)
-                ? "nanbeige42-c6640a1"
-                : "b10092";
+        String expectedRuntimeBuild = switch (serverFlavor) {
+            case "nanbeige42" -> "nanbeige42-c6640a1";
+            case "k2horizon" -> "k2horizon-35999d1-p2";
+            default -> "b10092";
+        };
         if (!expectedRuntimeBuild.equals(minimumLlamaCppVersion)) {
             throw new JSONException("Native server flavor and minimum runtime disagree");
         }
@@ -359,6 +361,8 @@ public final class ModelSpec {
                 return "libpideck_llama_server.so";
             case "nanbeige42":
                 return "libpideck_nanbeige_server.so";
+            case "k2horizon":
+                return "libpideck_k2horizon_server.so";
             default:
                 throw new IllegalStateException("Unsupported native server flavor: " + serverFlavor);
         }
@@ -371,6 +375,8 @@ public final class ModelSpec {
                 return "b10092";
             case "nanbeige42":
                 return "nanbeige42-c6640a1";
+            case "k2horizon":
+                return "k2horizon-35999d1-p2";
             default:
                 throw new IllegalStateException("Unsupported native server flavor: " + serverFlavor);
         }
@@ -445,9 +451,9 @@ public final class ModelSpec {
                     args,
                     "-tb", Integer.toString(profile.batchThreads),
                     "-Cr", profile.decodeCpuSet,
-                    "--cpu-strict", "1",
+                    "--cpu-strict", profile.strictAffinity ? "1" : "0",
                     "-Crb", profile.batchCpuSet,
-                    "--cpu-strict-batch", "1"
+                    "--cpu-strict-batch", profile.strictAffinity ? "1" : "0"
             );
         }
         if (requiresJinja) args.add("--jinja");

@@ -1,0 +1,22 @@
+{
+  "seconds": 5.033068546999857,
+  "timings": {
+    "cache_n": 0,
+    "prompt_n": 22,
+    "prompt_ms": 839.635,
+    "prompt_per_token_ms": 38.16522727272727,
+    "prompt_per_second": 26.201861523161853,
+    "predicted_n": 32,
+    "predicted_ms": 4040.57,
+    "predicted_per_token_ms": 130.3409677419355,
+    "predicted_per_second": 7.6721848650066695
+  },
+  "error": null,
+  "context": 2048,
+  "threads": 4,
+  "batchThreads": 4,
+  "affinity": "unset",
+  "poll": 0,
+  "maxTokens": 32,
+  "note": "Short diagnostic only, logger failed after response on non UTF-8 token bytes; server stopped separately"
+}

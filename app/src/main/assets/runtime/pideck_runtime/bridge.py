@@ -48,6 +48,7 @@ from .server_supervisor import SERVER_API_KEY, read_server_status, strict_health
 from .model_store import (
     PI_CONTEXT_CONTRACT_VERSION,
     adaptive_thinking_enabled,
+    stable_tool_choice_prefix,
     ensure_pi_compaction_settings,
     model_by_id,
 )
@@ -74,6 +75,7 @@ WEB_TOOLS_EXTENSION = BASE / "runtime" / "pideck-web-tools.ts"
 CODE_NAV_EXTENSION = BASE / "runtime" / "pideck-code-nav.ts"
 TOOL_ROUTER_EXTENSION = BASE / "runtime" / "pideck-tool-router.ts"
 PERMISSION_EXTENSION = BASE / "runtime" / "pideck-permission-gate.ts"
+PLAN_LEDGER_EXTENSION = BASE / "runtime" / "pideck-plan-ledger.ts"
 AGENT_BASE_PROMPT = BASE / "runtime" / "pideck-agent-base-prompt.md"
 BENCHMARK_FIXTURE_FILE = BASE / "runtime" / "pideck-benchmark-fixture-v2.json"
 BENCHMARK_ROOT = BASE / "workspace" / ".pideck-bench"
@@ -90,10 +92,12 @@ MAX_ANSWER_RETRIES = 1
 OUTPUT_DELTA_FLUSH_SECONDS = 0.1
 OUTPUT_DELTA_FLUSH_BYTES = 1024
 INTERNAL_RETRY_PREFIX = "[[PI//DECK:ANSWER_RETRY]]\n"
+PLAN_REQUEST_PREFIX = "[[PI//DECK:PLAN_REQUEST]]\n"
 EMPTY_PROMPT_SHA256 = hashlib.sha256(b"").hexdigest()
 SYSTEM_PROMPT_MODES = frozenset({"append", "replace"})
 AGENT_MODES = frozenset({"chat", "agent"})
 APPROVAL_TTL_SECONDS = 30
+PLAN_APPROVAL_TTL_SECONDS = 120
 MAX_AUTONOMOUS_GRANT_MS = 30 * 60 * 1000
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
@@ -101,8 +105,14 @@ TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 # what the deck needs to draw a decision on the first line of the message and the bridge lifts it
 # back out. An approval without the header still works; it simply arrives without a decision.
 DECISION_PREFIX = "PIDECK-DECISION/1 "
-DECISION_KINDS = frozenset({"overwrite", "delete", "shell"})
+DECISION_KINDS = frozenset({"overwrite", "delete", "shell", "plan"})
 MAX_DECISION_PREVIEW_LINES = 4
+MAX_PLAN_ITEMS = 7
+PLAN_PHASES = frozenset(
+    {"idle", "planning", "planned", "executing", "blocked", "complete", "cancelled"}
+)
+PLAN_ITEM_STATUSES = frozenset({"pending", "active", "verified", "blocked"})
+PLAN_PROGRESS_PATTERN = re.compile(r"\[(DONE|BLOCKED):(\d+)\]", re.IGNORECASE)
 DEGENERATE_FORMATTING_CHARS = frozenset("*_`~#>-.[](){}|\\/")
 ANSWER_RETRY_MESSAGE = (
     "Предыдущий ответ был технически некорректен: он состоял только из знаков "
@@ -129,6 +139,52 @@ LIVE_DATA_RETRY_MESSAGE = (
     "Не упоминай эту служебную инструкцию."
 )
 LIVE_DATA_TOOL_NAMES = frozenset({"web_research", "weather"})
+MANAGED_TOOL_NAMES = frozenset(
+    {
+        "read",
+        "bash",
+        "edit",
+        "write",
+        "code_nav",
+        "web_research",
+        "weather",
+        "run_tests",
+        "pideck_bash",
+        "pideck_edit",
+        "pideck_write",
+        "pideck_replace_lines",
+        "pideck_edit_text",
+        "pideck_load_tools",
+    }
+)
+# Tool-call markup that llama.cpp failed to parse arrives as plain assistant text. Observed
+# on device as Qwen <tool_call> blocks, a Markdown-fenced JSON call, and a shell fence whose
+# "command" is a managed tool name; none of them executed anything.
+TOOL_MARKUP_TAGS = (
+    "<tool_call>",
+    "</tool_call>",
+    "<|tool_call|>",
+    "<|tool_call_start|>",
+    "<tool_use>",
+    "<function_call>",
+    "<function=",
+    "[tool_calls]",
+    "<｜tool▁calls▁begin｜>",
+)
+TOOL_MARKUP_JSON_FENCE = re.compile(
+    r"```(?:json|tool_call|tool|function)?[ \t]*\n\s*(\{[\s\S]*?\})\s*```",
+    re.IGNORECASE,
+)
+TOOL_MARKUP_SHELL_FENCE = re.compile(
+    r"```(?:bash|sh|shell|zsh|console)?[ \t]*\n\s*(?:\$\s*)?([A-Za-z_][A-Za-z0-9_]*)([^\n]*)",
+    re.IGNORECASE,
+)
+TOOL_MARKUP_RETRY_MESSAGE = (
+    "Предыдущий ответ содержал вызов инструмента, записанный текстом, поэтому инструмент "
+    "не был выполнен. Если инструмент нужен, вызови его как настоящий tool call, а не "
+    "описывай его в тексте. Если инструмент не нужен, ответь обычным текстом. "
+    "Не упоминай этот служебный повтор."
+)
 MAX_BENCHMARK_FILES = 128
 MAX_BENCHMARK_FILE_BYTES = 64 * 1024
 MAX_BENCHMARK_TOTAL_BYTES = 512 * 1024
@@ -420,6 +476,70 @@ def bounded_session_stats(
     return result
 
 
+def empty_plan_ledger() -> dict[str, Any]:
+    return {"schemaVersion": 1, "phase": "idle", "goal": "", "items": []}
+
+
+def bounded_plan_ledger(value: Any) -> dict[str, Any]:
+    """Keeps a small non-secret execution checklist safe for checkpoint/UI transport."""
+    if not isinstance(value, dict) or value.get("schemaVersion") != 1:
+        return empty_plan_ledger()
+    phase = value.get("phase")
+    if phase not in PLAN_PHASES:
+        phase = "idle"
+    items: list[dict[str, Any]] = []
+    source = value.get("items")
+    if isinstance(source, list):
+        for index, item in enumerate(source[:MAX_PLAN_ITEMS]):
+            if not isinstance(item, dict):
+                continue
+            text = bounded_text(item.get("text", ""), 200).strip()
+            if len(text) < 4:
+                continue
+            status = item.get("status")
+            if status not in PLAN_ITEM_STATUSES:
+                status = "pending"
+            items.append(
+                {
+                    "step": len(items) + 1,
+                    "text": text,
+                    "status": status,
+                }
+            )
+    return {
+        "schemaVersion": 1,
+        "phase": phase,
+        "goal": bounded_text(value.get("goal", ""), 2048),
+        "items": items,
+    }
+
+
+def load_plan_ledger(session_id: str | None) -> dict[str, Any]:
+    if not session_id or not SESSION_CHECKPOINT.is_file():
+        return empty_plan_ledger()
+    try:
+        value = read_json(SESSION_CHECKPOINT)
+    except PiDeckError:
+        return empty_plan_ledger()
+    if value.get("schemaVersion") != 1 or value.get("sessionId") != session_id:
+        return empty_plan_ledger()
+    ledger = bounded_plan_ledger(value.get("planLedger"))
+    phase = ledger["phase"]
+    if phase in {"planning", "planned"}:
+        ledger["phase"] = "cancelled"
+    elif phase == "executing":
+        ledger["phase"] = "blocked"
+        for item in ledger["items"]:
+            if item["status"] == "active":
+                item["status"] = "blocked"
+                break
+    return ledger
+
+
+def strip_plan_markers(value: str) -> str:
+    return PLAN_PROGRESS_PATTERN.sub("", value).rstrip()
+
+
 def load_session_checkpoint(
     session_id: str | None, context_window: int
 ) -> tuple[dict[str, Any], str | None, str | None]:
@@ -460,6 +580,45 @@ def bounded_compaction_payload(value: Any) -> dict[str, Any]:
         if count is not None:
             result[target] = count
     return result
+
+
+def _tool_markup_object(candidate: str) -> bool:
+    try:
+        parsed = json.loads(candidate)
+    except (TypeError, ValueError):
+        return False
+    if isinstance(parsed, list) and len(parsed) == 1:
+        parsed = parsed[0]
+    if not isinstance(parsed, dict):
+        return False
+    call = parsed.get("function") if isinstance(parsed.get("function"), dict) else parsed
+    name = call.get("name")
+    if name not in MANAGED_TOOL_NAMES:
+        return False
+    return any(key in call for key in ("arguments", "parameters", "input", "args"))
+
+
+def looks_like_tool_markup(value: str) -> bool:
+    """Detects a tool call that the model wrote as text instead of emitting a real tool call."""
+    text = value.strip()
+    if not text:
+        return False
+    lowered = text.casefold()
+    if any(tag.casefold() in lowered for tag in TOOL_MARKUP_TAGS):
+        return True
+    candidates = [text, *(match.group(1) for match in TOOL_MARKUP_JSON_FENCE.finditer(text))]
+    if any(_tool_markup_object(candidate) for candidate in candidates):
+        return True
+    for match in TOOL_MARKUP_SHELL_FENCE.finditer(text):
+        command, rest = match.group(1), match.group(2).strip()
+        if command in {"bash", "read", "edit", "write"}:
+            # Real shell words: flag them only with a lone path-like argument, never a flag.
+            if command == "read" and re.fullmatch(r"[^\s-][^\s]*[./][^\s]*", rest):
+                return True
+            continue
+        if command in MANAGED_TOOL_NAMES:
+            return True
+    return False
 
 
 def is_degenerate_answer(value: str) -> bool:
@@ -813,8 +972,9 @@ def _bounded_decision(value: dict[str, Any]) -> dict[str, Any] | None:
         return None
     preview_source = value.get("preview")
     preview: list[str] = []
+    preview_limit = MAX_PLAN_ITEMS if kind == "plan" else MAX_DECISION_PREVIEW_LINES
     if isinstance(preview_source, list):
-        for line in preview_source[:MAX_DECISION_PREVIEW_LINES]:
+        for line in preview_source[:preview_limit]:
             if isinstance(line, str):
                 preview.append(bounded_text(line, 200))
     return {
@@ -1143,6 +1303,11 @@ class PiRpcChild:
                 "TOOL_ROUTER_EXTENSION_MISSING",
                 "Managed tool-router extension is not installed",
             )
+        if not PLAN_LEDGER_EXTENSION.is_file():
+            raise PiDeckError(
+                "PLAN_LEDGER_EXTENSION_MISSING",
+                "Managed plan-ledger extension is not installed",
+            )
 
         arguments = [
             str(BASE / "runtime" / "bin" / "pi"),
@@ -1162,8 +1327,6 @@ class PiRpcChild:
             "--offline",
             "--no-extensions",
             "--extension",
-            str(LOCAL_CACHE_EXTENSION),
-            "--extension",
             str(ADAPTIVE_THINKING_EXTENSION),
             "--extension",
             str(SYSTEM_PROMPT_EXTENSION),
@@ -1181,6 +1344,10 @@ class PiRpcChild:
             str(CODE_NAV_EXTENSION),
             "--extension",
             str(TOOL_ROUTER_EXTENSION),
+            "--extension",
+            str(PLAN_LEDGER_EXTENSION),
+            "--extension",
+            str(LOCAL_CACHE_EXTENSION),
         ]
         if session_id:
             arguments.extend(["--session-id", str(session_id)])
@@ -1192,6 +1359,9 @@ class PiRpcChild:
         environment["PIDECK_AGENT_MODE"] = agent_mode
         environment["PIDECK_ADAPTIVE_THINKING"] = (
             "1" if adaptive_thinking_enabled(model) else "0"
+        )
+        environment["PIDECK_STABLE_TOOL_CHOICE_PREFIX"] = (
+            "1" if stable_tool_choice_prefix(model) else "0"
         )
         environment.update(system_prompt_environment(config, SYSTEM_PROMPT_FILE))
         # The anchored-edit tool is one tool across two profiles that disagree about
@@ -1275,7 +1445,7 @@ class PiRpcChild:
                 "--no-builtin-tools",
                 "--tools",
                 "read,code_nav,web_research,weather,"
-                "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
+                "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,pideck_edit_text,"
                 "pideck_load_tools",
                 "--extension",
                 str(PERMISSION_EXTENSION),
@@ -1284,7 +1454,7 @@ class PiRpcChild:
             return [
                 "--tools",
                 "read,bash,edit,write,code_nav,web_research,weather,"
-                "pideck_replace_lines,run_tests,pideck_load_tools",
+                "pideck_replace_lines,pideck_edit_text,run_tests,pideck_load_tools",
             ]
         raise PiDeckError("INVALID_PROFILE", "Unknown access profile")
 
@@ -1401,6 +1571,7 @@ class PiDeckBridge:
             self.last_terminal_event,
             self.last_terminal_operation_id,
         ) = load_session_checkpoint(self.session_id, self.context_window)
+        self.plan_ledger = load_plan_ledger(self.session_id)
         self.compacting = False
         self.compaction_reason: str | None = None
         self._stats_request_id: str | None = None
@@ -1446,12 +1617,66 @@ class PiDeckBridge:
             "sessionStats": bounded_session_stats(
                 self.session_stats, self.context_window
             ),
+            "planLedger": bounded_plan_ledger(self.plan_ledger),
         }
         try:
             atomic_write_json(SESSION_CHECKPOINT, payload, 0o600)
         except (OSError, PiDeckError):
             # A telemetry checkpoint may never turn a completed model turn into failure.
             return
+
+    def _set_plan_ledger(
+        self,
+        value: dict[str, Any],
+        operation_id: str | None = None,
+    ) -> None:
+        self.plan_ledger = bounded_plan_ledger(value)
+        self._checkpoint_session()
+        self.journal.append(
+            "PLAN_STATE_CHANGED",
+            operation_id if operation_id is not None else self.active_operation_id,
+            self.session_id,
+            {"planLedger": self.plan_ledger},
+        )
+
+    def _advance_plan_from_markers(self, answer: str) -> None:
+        if self.plan_ledger.get("phase") != "executing":
+            return
+        markers = list(PLAN_PROGRESS_PATTERN.finditer(answer))
+        if not markers:
+            return
+        items = [dict(item) for item in self.plan_ledger.get("items", [])]
+        changed = False
+        for marker in markers:
+            step = int(marker.group(2))
+            if step < 1 or step > len(items):
+                continue
+            status = "verified" if marker.group(1).upper() == "DONE" else "blocked"
+            if items[step - 1].get("status") != status:
+                items[step - 1]["status"] = status
+                changed = True
+        if not changed:
+            return
+        if any(item.get("status") == "blocked" for item in items):
+            phase = "blocked"
+        elif items and all(item.get("status") == "verified" for item in items):
+            phase = "complete"
+        else:
+            phase = "executing"
+            activated = False
+            for item in items:
+                if item.get("status") == "verified":
+                    continue
+                item["status"] = "active" if not activated else "pending"
+                activated = True
+        self._set_plan_ledger(
+            {
+                "schemaVersion": 1,
+                "phase": phase,
+                "goal": self.plan_ledger.get("goal", ""),
+                "items": items,
+            }
+        )
 
     def command(self, request: dict[str, Any]) -> dict[str, Any]:
         if request.get("schemaVersion") != 1:
@@ -1525,6 +1750,17 @@ class PiDeckBridge:
                 f"Active operation must finish first: {self.active_operation_id}",
             )
         message = require_string(payload, "message", MAX_PROMPT_BYTES)
+        plan_requested = payload.get("planRequested", False)
+        if not isinstance(plan_requested, bool):
+            raise PiDeckError("MALFORMED_COMMAND", "planRequested must be boolean")
+        if plan_requested and (
+            self.config.get("agentMode") != "agent"
+            or self.config.get("accessProfile") == "read_only"
+        ):
+            raise PiDeckError(
+                "PLAN_MODE_UNAVAILABLE",
+                "Plan execution requires Agent mode and a writable access profile",
+            )
         supplied_session = payload.get("sessionId")
         if supplied_session is not None and supplied_session != self.session_id:
             raise PiDeckError("SESSION_MISMATCH", "Prompt targets a different session")
@@ -1549,8 +1785,21 @@ class PiDeckBridge:
         )
         self.successful_live_tools = set()
         self._reset_generation_metrics()
+        child_message = PLAN_REQUEST_PREFIX + message if plan_requested else message
         try:
-            self.child.send({"id": operation_id, "type": "prompt", "message": message})
+            self.child.send(
+                {"id": operation_id, "type": "prompt", "message": child_message}
+            )
+            if plan_requested:
+                self._set_plan_ledger(
+                    {
+                        "schemaVersion": 1,
+                        "phase": "planning",
+                        "goal": message,
+                        "items": [],
+                    },
+                    operation_id,
+                )
         except Exception:
             self.active_operation_id = None
             self.active_operation_kind = None
@@ -1700,6 +1949,8 @@ class PiDeckBridge:
             raise PiDeckError("APPROVAL_NOT_PENDING", "Approval is unknown or already resolved")
         if pending["operationId"] != operation_id:
             raise PiDeckError("APPROVAL_OPERATION_MISMATCH", "Approval belongs to another turn")
+        decision = pending.get("decision")
+        is_plan = isinstance(decision, dict) and decision.get("kind") == "plan"
         if time.monotonic() > pending["expiresMonotonic"]:
             try:
                 self.child.send(
@@ -1712,6 +1963,8 @@ class PiDeckBridge:
             except PiDeckError:
                 pass
             self._resolve_approval(approval_id, False, "expired")
+            if is_plan and self.active_operation_id == operation_id:
+                self._complete_active_turn()
             raise PiDeckError("APPROVAL_EXPIRED", "Approval has expired")
         self.child.send(
             {
@@ -1721,6 +1974,8 @@ class PiDeckBridge:
             }
         )
         self._resolve_approval(approval_id, confirmed, "android")
+        if is_plan and not confirmed and self.active_operation_id == operation_id:
+            self._complete_active_turn()
         return {
             "accepted": True,
             "operationId": operation_id,
@@ -1860,6 +2115,8 @@ class PiDeckBridge:
                 ):
                     for message in reversed(messages):
                         candidate = self._assistant_text(message)
+                        self._advance_plan_from_markers(candidate)
+                        candidate = strip_plan_markers(candidate)
                         incomplete = (
                             incomplete_answer_reason(
                                 message,
@@ -1988,7 +2245,10 @@ class PiDeckBridge:
         if fingerprint is not None:
             self._last_assistant_message_end_fingerprint = fingerprint
         self._capture_generation_metrics(message)
-        candidate = self._assistant_text(message)
+        raw_candidate = self._assistant_text(message)
+        self._advance_plan_from_markers(raw_candidate)
+        candidate = strip_plan_markers(raw_candidate)
+        self.last_answer = strip_plan_markers(self.last_answer)
         effective_answer = candidate or self.last_answer
         has_tool_call = self._assistant_has_tool_call(message)
         incomplete_reason = incomplete_answer_reason(
@@ -2032,6 +2292,15 @@ class PiDeckBridge:
             and not self.active_failed_reason
         ):
             self._reject_degenerate_answer()
+        elif (
+            effective_answer
+            and looks_like_tool_markup(effective_answer)
+            and not has_tool_call
+            and self.active_operation_kind == "prompt"
+            and not self.abort_requested
+            and not self.active_failed_reason
+        ):
+            self._reject_tool_markup_answer()
         elif (
             effective_answer
             and self.required_live_tools
@@ -2226,9 +2495,16 @@ class PiDeckBridge:
                             "percent": 0,
                         },
                     }
+                    self.plan_ledger = empty_plan_ledger()
                     self.last_terminal_event = "SESSION_CREATED"
                     self.last_terminal_operation_id = pending["operationId"]
                     self._checkpoint_session()
+                    self.journal.append(
+                        "PLAN_STATE_CHANGED",
+                        pending["operationId"],
+                        self.session_id,
+                        {"planLedger": self.plan_ledger},
+                    )
                 self.pending_new_session = None
                 self._stats_request_id = None
                 self.request_session_stats()
@@ -2262,15 +2538,21 @@ class PiDeckBridge:
                     {"type": "extension_ui_response", "id": approval_id, "cancelled": True}
                 )
             return
-        expires = time.monotonic() + APPROVAL_TTL_SECONDS
         decision, message = split_decision(
             bounded_text(value.get("message", ""), 32 * 1024)
         )
+        ttl_seconds = (
+            PLAN_APPROVAL_TTL_SECONDS
+            if decision is not None and decision.get("kind") == "plan"
+            else APPROVAL_TTL_SECONDS
+        )
+        expires = time.monotonic() + ttl_seconds
         pending = {
             "operationId": self.active_operation_id,
             "expiresMonotonic": expires,
             "title": bounded_text(value.get("title", "Allow change?"), 512),
             "message": message,
+            "decision": decision,
         }
         self.pending_approvals[approval_id] = pending
         payload = {
@@ -2278,11 +2560,23 @@ class PiDeckBridge:
             "title": pending["title"],
             "message": pending["message"],
             "expiresAtEpochMs": int(
-                (time.time() + APPROVAL_TTL_SECONDS) * 1000
+                (time.time() + ttl_seconds) * 1000
             ),
         }
         if decision is not None:
             payload["decision"] = decision
+            if decision.get("kind") == "plan" and decision.get("preview"):
+                self._set_plan_ledger(
+                    {
+                        "schemaVersion": 1,
+                        "phase": "planned",
+                        "goal": decision.get("reason", ""),
+                        "items": [
+                            {"text": line, "status": "pending"}
+                            for line in decision["preview"]
+                        ],
+                    }
+                )
         self.journal.append(
             "APPROVAL_REQUESTED",
             self.active_operation_id,
@@ -2294,6 +2588,19 @@ class PiDeckBridge:
         self._flush_output_delta()
         operation_id = self.active_operation_id
         if operation_id is None:
+            return
+        # Pi can publish agent_settled while an async agent_end extension hook is waiting on
+        # ctx.ui.confirm(). A plan approval deliberately spans that boundary: keep the original
+        # operation alive so Android can answer it and the approved follow-up remains part of the
+        # same user turn. Ordinary tool approvals still fail closed at every terminal boundary.
+        pending_plan = any(
+            pending.get("operationId") == operation_id
+            and isinstance(pending.get("decision"), dict)
+            and pending["decision"].get("kind") == "plan"
+            for pending in self.pending_approvals.values()
+        )
+        if pending_plan and not self.abort_requested and not self.active_failed_reason:
+            self._checkpoint_session()
             return
         if self.abort_requested:
             event_type = "TURN_ABORTED"
@@ -2309,6 +2616,23 @@ class PiDeckBridge:
             payload = {"answer": bounded_text(self.last_answer, 256 * 1024)}
         payload.update(self._generation_metrics_payload())
         self._deny_all_approvals("turn terminal")
+        phase = self.plan_ledger.get("phase")
+        if phase in {"planning", "planned", "executing"}:
+            items = [dict(item) for item in self.plan_ledger.get("items", [])]
+            if phase == "executing":
+                for item in items:
+                    if item.get("status") == "active":
+                        item["status"] = "blocked"
+                        break
+            self._set_plan_ledger(
+                {
+                    "schemaVersion": 1,
+                    "phase": "blocked",
+                    "goal": self.plan_ledger.get("goal", ""),
+                    "items": items,
+                },
+                operation_id,
+            )
         self.journal.append(
             event_type,
             operation_id,
@@ -2508,6 +2832,13 @@ class PiDeckBridge:
             "Модель дважды вернула ответ только из знаков форматирования.",
         )
 
+    def _reject_tool_markup_answer(self) -> None:
+        self._reject_answer(
+            "tool_markup_as_text",
+            TOOL_MARKUP_RETRY_MESSAGE,
+            "Модель дважды записала вызов инструмента текстом вместо настоящего tool call.",
+        )
+
     def _reject_missing_live_tool(self) -> None:
         self._reject_answer(
             "live_tool_required",
@@ -2633,6 +2964,24 @@ class PiDeckBridge:
         pending = self.pending_approvals.pop(approval_id, None)
         if pending is None:
             return
+        decision = pending.get("decision")
+        if isinstance(decision, dict) and decision.get("kind") == "plan":
+            items = [dict(item) for item in self.plan_ledger.get("items", [])]
+            if confirmed:
+                for index, item in enumerate(items):
+                    item["status"] = "active" if index == 0 else "pending"
+                phase = "executing" if items else "blocked"
+            else:
+                phase = "cancelled"
+            self._set_plan_ledger(
+                {
+                    "schemaVersion": 1,
+                    "phase": phase,
+                    "goal": self.plan_ledger.get("goal", decision.get("reason", "")),
+                    "items": items,
+                },
+                pending["operationId"],
+            )
         audit = {
             "schemaVersion": 1,
             "timestamp": utc_now(),
@@ -2697,6 +3046,13 @@ class PiDeckBridge:
                     if now > pending["expiresMonotonic"]
                 ]
                 for approval_id in expired:
+                    pending = self.pending_approvals.get(approval_id)
+                    decision = pending.get("decision") if pending is not None else None
+                    operation_id = pending.get("operationId") if pending is not None else None
+                    is_plan = (
+                        isinstance(decision, dict)
+                        and decision.get("kind") == "plan"
+                    )
                     try:
                         self.child.send(
                             {
@@ -2708,6 +3064,8 @@ class PiDeckBridge:
                     except PiDeckError:
                         pass
                     self._resolve_approval(approval_id, False, "expired")
+                    if is_plan and self.active_operation_id == operation_id:
+                        self._complete_active_turn()
 
     def handle_pi_exit(
         self,
@@ -2801,6 +3159,7 @@ class PiDeckBridge:
                 "autonomousExpired": not autonomous_prompt_allowed(self.config),
                 "agentMode": self.config.get("agentMode", "agent"),
                 "sessionStats": self.session_stats,
+                "planLedger": self.plan_ledger,
                 "compacting": self.compacting,
                 "compactionReason": self.compaction_reason,
                 "compactionSettings": self.config.get("compaction", {}),

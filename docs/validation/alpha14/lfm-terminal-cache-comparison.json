@@ -1,0 +1,55 @@
+{
+  "modelId": "lfm2.5-2.6b-qad",
+  "case": "Q05",
+  "runs": [
+    {
+      "label": "before_terminal_cache_fix",
+      "apkSha256": "639c00bdbaf0d1816c25b39c3874e3c12cc2fcda07b84486fcf6a600e8261a37",
+      "outcome": "pass",
+      "toolNames": [
+        "pideck_edit_text",
+        "run_tests"
+      ],
+      "totalTurnSeconds": 126.859835,
+      "nativeTimings": {
+        "source": "native_run_as_log",
+        "providerRequests": 3,
+        "prefill": {
+          "seconds": 95.01221,
+          "tokens": 4144,
+          "tokensPerSecond": 43.615
+        },
+        "decode": {
+          "seconds": 30.91914,
+          "tokens": 463,
+          "tokensPerSecond": 14.975
+        }
+      }
+    },
+    {
+      "label": "final",
+      "apkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+      "outcome": "pass",
+      "toolNames": [
+        "pideck_edit_text",
+        "run_tests"
+      ],
+      "totalTurnSeconds": 79.130771,
+      "nativeTimings": {
+        "source": "native_run_as_log",
+        "providerRequests": 3,
+        "prefill": {
+          "seconds": 44.70898,
+          "tokens": 2052,
+          "tokensPerSecond": 45.897
+        },
+        "decode": {
+          "seconds": 33.50847,
+          "tokens": 451,
+          "tokensPerSecond": 13.459
+        }
+      }
+    }
+  ],
+  "caveat": "Same fixture task and runtime family; different APKs and sequential device conditions, not an isolated timing A/B. Native prefill token counts expose the avoided terminal re-prefill."
+}

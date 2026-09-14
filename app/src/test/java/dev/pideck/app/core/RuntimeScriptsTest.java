@@ -22,6 +22,25 @@ public class RuntimeScriptsTest {
     public final TemporaryFolder temporary = new TemporaryFolder();
 
     @Test
+    public void bundleIdentityCoversPathsAndBytesIndependentOfMapOrder() {
+        Map<String, byte[]> first = new LinkedHashMap<>();
+        first.put("a.ts", new byte[]{1, 2});
+        first.put("b.json", new byte[]{3});
+        Map<String, byte[]> reordered = new LinkedHashMap<>();
+        reordered.put("b.json", new byte[]{3});
+        reordered.put("a.ts", new byte[]{1, 2});
+        assertEquals(RuntimeAssetBundle.fingerprintFromContents(first),
+                RuntimeAssetBundle.fingerprintFromContents(reordered));
+        reordered.put("a.ts", new byte[]{1, 4});
+        org.junit.Assert.assertNotEquals(RuntimeAssetBundle.fingerprintFromContents(first),
+                RuntimeAssetBundle.fingerprintFromContents(reordered));
+        reordered.remove("a.ts");
+        reordered.put("renamed.ts", new byte[]{1, 2});
+        org.junit.Assert.assertNotEquals(RuntimeAssetBundle.fingerprintFromContents(first),
+                RuntimeAssetBundle.fingerprintFromContents(reordered));
+    }
+
+    @Test
     public void generatedBootstrapScriptsPassBashSyntaxCheck() throws Exception {
         assertBashSyntax(RuntimeScripts.probe());
         Map<String, byte[]> contents = new LinkedHashMap<>();
@@ -73,7 +92,7 @@ public class RuntimeScriptsTest {
         String ready = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
-                 "runtimeContractVersion":53,
+                 "runtimeContractVersion":57,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
                  "pythonVersion":"3.13","llamaVersion":"b10092"}
                 """.replace("\n ", "");
@@ -83,14 +102,34 @@ public class RuntimeScriptsTest {
                 ready.replace("\"state\":\"READY\"", "\"state\":\"NOT_READY\"")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":53", "\"runtimeContractVersion\":52")
+                ready.replace("\"runtimeContractVersion\":57", "\"runtimeContractVersion\":56")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":53,", "")
+                ready.replace("\"runtimeContractVersion\":57,", "")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 "noise {\"schemaVersion\":1,\"ok\":true,\"state\":\"READY\"}"
         ));
+    }
+
+    @Test
+    public void predecessorContractCanBeUpdatedBeforeItIsReadyForTheNewAgent() {
+        String previous = """
+                PIDECK_LINK_OK
+                {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
+                 "runtimeContractVersion":56,"versionsCompatible":true,
+                 "nodeVersion":"v26.4.0","pythonVersion":"Python 3.14.6"}
+                """.replace("\n ", " ");
+        assertFalse(RuntimeScripts.isReadyProbeOutput(previous));
+        assertTrue(RuntimeScripts.canUpdateRuntimeFromProbe(previous));
+        assertFalse(RuntimeScripts.canUpdateRuntimeFromProbe(
+                previous.replace("PIDECK_LINK_OK", "")));
+        assertFalse(RuntimeScripts.canUpdateRuntimeFromProbe(
+                previous.replace("\"layoutReady\":true", "\"layoutReady\":false")));
+        assertFalse(RuntimeScripts.canUpdateRuntimeFromProbe(
+                previous.replace("\"versionsCompatible\":true", "\"versionsCompatible\":false")));
+        assertFalse(RuntimeScripts.canUpdateRuntimeFromProbe(
+                "PIDECK_LINK_OK\n{\"schemaVersion\":1,\"ok\":false,\"state\":\"NOT_INSTALLED\"}"));
     }
 
     @Test
@@ -162,6 +201,7 @@ public class RuntimeScriptsTest {
                 "pideck-web-tools.ts",
                 "pideck-code-nav.ts",
                 "pideck-tool-router.ts",
+                "pideck-plan-ledger.ts",
                 "pideck-permission-gate.ts",
                 "pideck_runtime/__init__.py",
                 "pideck_runtime/common.py",

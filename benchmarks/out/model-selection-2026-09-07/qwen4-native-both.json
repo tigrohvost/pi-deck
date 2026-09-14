@@ -1,0 +1,357 @@
+{
+  "model": "qwen4",
+  "device": "SM-S918B",
+  "modelPath": "/data/local/tmp/pideck-audit-20260907/Qwen3.8-4B-Q4_K_M.gguf",
+  "modelSha256": "dec96e8cf2e11b613bb46513dec485377f9ca5a351e71712ee0e244f287c6790",
+  "libraryDirectory": "/data/local/tmp/pideck-b10092-affinity-repro",
+  "context": 8192,
+  "threads": 5,
+  "batchThreads": 8,
+  "batchSize": 512,
+  "ubatchSize": 128,
+  "temperature": 0.6,
+  "reasoningBudget": 256,
+  "samples": [
+    {
+      "index": 0,
+      "warmup": true,
+      "valid": true,
+      "elapsedSeconds": 25.122789730001386,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 53,
+        "prompt_ms": 1642.914,
+        "prompt_per_token_ms": 30.998377358490565,
+        "prompt_per_second": 32.25975309724063,
+        "predicted_n": 192,
+        "predicted_ms": 23392.134,
+        "predicted_per_token_ms": 121.83403125,
+        "predicted_per_second": 8.207887318018955
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 59700
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3187200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.949,
+        "hottestCpuMilliCelsius": 76100
+      },
+      "peakRssKiB": 3117776,
+      "eligibleForCleanComparison": false
+    },
+    {
+      "index": 1,
+      "warmup": false,
+      "valid": true,
+      "elapsedSeconds": 25.989260539001407,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 53,
+        "prompt_ms": 2492.909,
+        "prompt_per_token_ms": 47.03601886792453,
+        "prompt_per_second": 21.260302722642503,
+        "predicted_n": 192,
+        "predicted_ms": 23339.174,
+        "predicted_per_token_ms": 121.55819791666666,
+        "predicted_per_second": 8.226512215042401
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 54900
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3187200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.949,
+        "hottestCpuMilliCelsius": 76500
+      },
+      "peakRssKiB": 3229896,
+      "eligibleForCleanComparison": true
+    },
+    {
+      "index": 2,
+      "warmup": false,
+      "valid": true,
+      "elapsedSeconds": 33.88533909200123,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 53,
+        "prompt_ms": 3480.689,
+        "prompt_per_token_ms": 65.67337735849057,
+        "prompt_per_second": 15.226870312170952,
+        "predicted_n": 192,
+        "predicted_ms": 30205.629,
+        "predicted_per_token_ms": 157.320984375,
+        "predicted_per_second": 6.356431114213843
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 63900
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2956800,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.88,
+        "hottestCpuMilliCelsius": 89200
+      },
+      "peakRssKiB": 3238072,
+      "eligibleForCleanComparison": false
+    },
+    {
+      "index": 3,
+      "warmup": false,
+      "valid": true,
+      "elapsedSeconds": 25.91639732999829,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 53,
+        "prompt_ms": 1584.965,
+        "prompt_per_token_ms": 29.904999999999998,
+        "prompt_per_second": 33.43922420999833,
+        "predicted_n": 192,
+        "predicted_ms": 24211.505,
+        "predicted_per_token_ms": 126.10158854166667,
+        "predicted_per_second": 7.930114216361188
+      },
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 51300
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3187200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.949,
+        "hottestCpuMilliCelsius": 78100
+      },
+      "peakRssKiB": 3349788,
+      "eligibleForCleanComparison": true
+    }
+  ],
+  "tools": [
+    {
+      "label": "missing",
+      "passed": true,
+      "seconds": 119.35367704599776,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestCpuMilliCelsius": 59700
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2956800,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.88,
+        "hottestCpuMilliCelsius": 78100
+      },
+      "calls": [
+        {
+          "name": "read",
+          "args": {
+            "path": "docs/definitely-missing.txt"
+          },
+          "result": "Error: file not found"
+        }
+      ],
+      "rounds": [
+        {
+          "elapsed": 82.06685347299936,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 573,
+            "prompt_ms": 73349.387,
+            "prompt_per_token_ms": 128.00940139616057,
+            "prompt_per_second": 7.811926226459125,
+            "predicted_n": 63,
+            "predicted_ms": 8571.086,
+            "predicted_per_token_ms": 136.04898412698412,
+            "predicted_per_second": 7.3502937667408785
+          },
+          "finishReason": "tool_calls",
+          "content": "",
+          "reasoningChars": 134,
+          "toolCalls": [
+            {
+              "type": "function",
+              "function": {
+                "name": "read",
+                "arguments": "{\"path\":\"docs/definitely-missing.txt\"}"
+              },
+              "id": "ECAIXsPtOLV7amzk9ud50rU54RLNvulA"
+            }
+          ]
+        },
+        {
+          "elapsed": 31.454658507002023,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 656,
+            "prompt_ms": 26631.113,
+            "prompt_per_token_ms": 40.596208841463415,
+            "prompt_per_second": 24.632842044566445,
+            "predicted_n": 36,
+            "predicted_ms": 4766.524,
+            "predicted_per_token_ms": 132.40344444444446,
+            "predicted_per_second": 7.552673604496694
+          },
+          "finishReason": "stop",
+          "content": "Файл `docs/definitely-missing.txt` отсутствует.",
+          "reasoningChars": 82,
+          "toolCalls": []
+        }
+      ],
+      "answer": "Файл `docs/definitely-missing.txt` отсутствует.",
+      "testPassed": false
+    }
+  ],
+  "serverSha256": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+  "thermalBeforeLoad": {
+    "bigCoreScalingMaxHz": 3360000,
+    "bigCoreNominalMaxHz": 3360000,
+    "headroom": 1.0,
+    "hottestCpuMilliCelsius": 51700
+  },
+  "loadSeconds": 38.185421117999795,
+  "affinity": {
+    "maskHistogram": {
+      "7": 1,
+      "0-7": 10,
+      "0": 1,
+      "1": 1,
+      "2": 1,
+      "3": 2,
+      "4": 2,
+      "5": 2,
+      "6": 2
+    },
+    "threads": [
+      {
+        "tid": 24508,
+        "name": "libpideck_llama",
+        "cpus": "7"
+      },
+      {
+        "tid": 24512,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 24513,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 24514,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 24515,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 24516,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 24517,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 24519,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 24520,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 24521,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 24522,
+        "name": "libpideck_llama",
+        "cpus": "0-7"
+      },
+      {
+        "tid": 26107,
+        "name": "libpideck_llama",
+        "cpus": "0"
+      },
+      {
+        "tid": 26108,
+        "name": "libpideck_llama",
+        "cpus": "1"
+      },
+      {
+        "tid": 26109,
+        "name": "libpideck_llama",
+        "cpus": "2"
+      },
+      {
+        "tid": 26110,
+        "name": "libpideck_llama",
+        "cpus": "3"
+      },
+      {
+        "tid": 26111,
+        "name": "libpideck_llama",
+        "cpus": "4"
+      },
+      {
+        "tid": 26112,
+        "name": "libpideck_llama",
+        "cpus": "5"
+      },
+      {
+        "tid": 26113,
+        "name": "libpideck_llama",
+        "cpus": "6"
+      },
+      {
+        "tid": 26114,
+        "name": "libpideck_llama",
+        "cpus": "3"
+      },
+      {
+        "tid": 26115,
+        "name": "libpideck_llama",
+        "cpus": "4"
+      },
+      {
+        "tid": 26116,
+        "name": "libpideck_llama",
+        "cpus": "5"
+      },
+      {
+        "tid": 26117,
+        "name": "libpideck_llama",
+        "cpus": "6"
+      }
+    ]
+  },
+  "medianDecodeTokensPerSecond": 7.930114216361188,
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.054.213 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.057.563 I srv          init: The UI is disabled\n0.00.057.606 I srv          init: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable\n0.00.063.263 I srv    load_model: loading model '/data/local/tmp/pideck-audit-20260907/Qwen3.8-4B-Q4_K_M.gguf'\n0.35.867.775 I srv  attach_cpu_t: attached CPU affinity thread pools: decode=5, batch=8\n0.36.675.594 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.36.725.187 I srv  llama_server: model loaded\n0.36.725.213 I srv  llama_server: listening on http://127.0.0.1:18080\n0.56.268.429 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.56.270.129 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n1.09.645.325 I slot print_timing: id  0 | task 0 | n_decoded =    100, tg =   8.52 t/s, tg_3s =   8.52 t/s\n1.12.666.742 I slot print_timing: id  0 | task 0 | n_decoded =    124, tg =   8.40 t/s, tg_3s =   7.94 t/s\n1.15.698.865 I slot print_timing: id  0 | task 0 | n_decoded =    148, tg =   8.32 t/s, tg_3s =   7.92 t/s\n1.18.757.079 I slot print_timing: id  0 | task 0 | n_decoded =    172, tg =   8.25 t/s, tg_3s =   7.85 t/s\n1.21.305.391 I slot print_timing: id  0 | task 0 | prompt eval time =    1642.91 ms /    53 tokens (   31.00 ms per token,    32.26 tokens per second)\n1.21.305.411 I slot print_timing: id  0 | task 0 |        eval time =   23392.13 ms /   192 tokens (  121.83 ms per token,     8.21 tokens per second)\n1.21.305.413 I slot print_timing: id  0 | task 0 |       total time =   25035.05 ms /   245 tokens\n1.21.305.414 I slot print_timing: id  0 | task 0 |    graphs reused =        191\n1.21.305.958 I slot      release: id  0 | task 0 | stop processing: n_tokens = 244, truncated = 0\n1.35.886.721 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.132 (> 0.100 thold), f_keep = 0.029\n1.35.987.989 I slot launch_slot_: id  0 | task 194 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000075f947380d : Invalid argument (22)\n1.50.167.174 I slot print_timing: id  0 | task 194 | n_decoded =    100, tg =   8.56 t/s, tg_3s =   8.56 t/s\n1.53.183.817 I slot print_timing: id  0 | task 194 | n_decoded =    124, tg =   8.43 t/s, tg_3s =   7.96 t/s\n1.56.208.508 I slot print_timing: id  0 | task 194 | n_decoded =    148, tg =   8.35 t/s, tg_3s =   7.93 t/s\n1.59.252.762 I slot print_timing: id  0 | task 194 | n_decoded =    172, tg =   8.28 t/s, tg_3s =   7.88 t/s\n2.01.820.115 I slot print_timing: id  0 | task 194 | prompt eval time =    2492.91 ms /    53 tokens (   47.04 ms per token,    21.26 tokens per second)\n2.01.820.135 I slot print_timing: id  0 | task 194 |        eval time =   23339.17 ms /   192 tokens (  121.56 ms per token,     8.23 tokens per second)\n2.01.820.137 I slot print_timing: id  0 | task 194 |       total time =   25832.08 ms /   245 tokens\n2.01.820.139 I slot print_timing: id  0 | task 194 |    graphs reused =        381\n2.01.820.193 I slot      release: id  0 | task 194 | stop processing: n_tokens = 244, truncated = 0\n2.16.765.992 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.132 (> 0.100 thold), f_keep = 0.029\n2.16.898.038 I slot launch_slot_: id  0 | task 388 | processing task, is_child = 0\n2.32.790.012 I slot print_timing: id  0 | task 388 | n_decoded =    100, tg =   8.06 t/s, tg_3s =   8.06 t/s\n2.35.848.488 I slot print_timing: id  0 | task 388 | n_decoded =    123, tg =   7.95 t/s, tg_3s =   7.52 t/s\n2.38.947.768 I slot print_timing: id  0 | task 388 | n_decoded =    141, tg =   7.59 t/s, tg_3s =   5.81 t/s\n2.41.982.910 I slot print_timing: id  0 | task 388 | n_decoded =    155, tg =   7.17 t/s, tg_3s =   4.61 t/s\n2.45.114.037 I slot print_timing: id  0 | task 388 | n_decoded =    169, tg =   6.83 t/s, tg_3s =   4.47 t/s\n2.48.268.666 I slot print_timing: id  0 | task 388 | n_decoded =    182, tg =   6.53 t/s, tg_3s =   4.12 t/s\n2.50.584.422 I slot print_timing: id  0 | task 388 | prompt eval time =    3480.69 ms /    53 tokens (   65.67 ms per token,    15.23 tokens per second)\n2.50.584.440 I slot print_timing: id  0 | task 388 |        eval time =   30205.63 ms /   192 tokens (  157.32 ms per token,     6.36 tokens per second)\n2.50.584.442 I slot print_timing: id  0 | task 388 |       total time =   33686.32 ms /   245 tokens\n2.50.584.443 I slot print_timing: id  0 | task 388 |    graphs reused =        571\n2.50.584.506 I slot      release: id  0 | task 388 | stop processing: n_tokens = 244, truncated = 0\n3.28.178.537 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.132 (> 0.100 thold), f_keep = 0.029\n3.28.245.539 I slot launch_slot_: id  0 | task 582 | processing task, is_child = 0\n3.41.727.287 I slot print_timing: id  0 | task 582 | n_decoded =    100, tg =   8.41 t/s, tg_3s =   8.41 t/s\n3.44.784.819 I slot print_timing: id  0 | task 582 | n_decoded =    124, tg =   8.29 t/s, tg_3s =   7.85 t/s\n3.47.879.636 I slot print_timing: id  0 | task 582 | n_decoded =    147, tg =   8.14 t/s, tg_3s =   7.43 t/s\n3.51.014.422 I slot print_timing: id  0 | task 582 | n_decoded =    169, tg =   7.98 t/s, tg_3s =   7.02 t/s\n3.54.042.060 I slot print_timing: id  0 | task 582 | prompt eval time =    1584.96 ms /    53 tokens (   29.90 ms per token,    33.44 tokens per second)\n3.54.042.086 I slot print_timing: id  0 | task 582 |        eval time =   24211.51 ms /   192 tokens (  126.10 ms per token,     7.93 tokens per second)\n3.54.042.087 I slot print_timing: id  0 | task 582 |       total time =   25796.47 ms /   245 tokens\n3.54.042.089 I slot print_timing: id  0 | task 582 |    graphs reused =        761\n3.54.042.145 I slot      release: id  0 | task 582 | stop processing: n_tokens = 244, truncated = 0\n4.05.949.663 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = 607520618792\n4.06.020.795 I slot launch_slot_: id  0 | task 776 | processing task, is_child = 0\n5.14.079.271 I slot print_timing: id  0 | task 776 | prompt processing, n_tokens =    441, progress = 0.77, t =  68.06 s / 6.48 tokens per second\n5.17.754.021 I slot print_timing: id  0 | task 776 | prompt processing, n_tokens =    535, progress = 0.93, t =  71.73 s / 7.46 tokens per second\n5.19.163.406 I slot print_timing: id  0 | task 776 | prompt processing, n_tokens =    569, progress = 0.99, t =  73.14 s / 7.78 tokens per second\n5.27.941.311 I slot print_timing: id  0 | task 776 | prompt eval time =   73349.39 ms /   573 tokens (  128.01 ms per token,     7.81 tokens per second)\n5.27.941.360 I slot print_timing: id  0 | task 776 |        eval time =    8571.09 ms /    63 tokens (  136.05 ms per token,     7.35 tokens per second)\n5.27.941.362 I slot print_timing: id  0 | task 776 |       total time =   81920.47 ms /   636 tokens\n5.27.941.404 I slot print_timing: id  0 | task 776 |    graphs reused =        822\n5.27.942.905 I slot      release: id  0 | task 776 | stop processing: n_tokens = 635, truncated = 0\n5.27.998.709 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.968 (> 0.100 thold), f_keep = 1.000\n5.27.999.206 I slot launch_slot_: id  0 | task 843 | processing task, is_child = 0\n5.48.609.819 I slot print_timing: id  0 | task 843 | prompt processing, n_tokens =    512, progress = 0.78, t =  20.61 s / 24.84 tokens per second\n5.49.090.326 I slot print_timing: id  0 | task 843 | prompt processing, n_tokens =    524, progress = 0.80, t =  21.09 s / 24.84 tokens per second\n5.49.680.229 I slot print_timing: id  0 | task 843 | prompt processing, n_tokens =    535, progress = 0.82, t =  21.68 s / 24.68 tokens per second\n5.53.687.941 I slot print_timing: id  0 | task 843 | prompt processing, n_tokens =    637, progress = 0.97, t =  25.69 s / 24.80 tokens per second\n5.54.422.351 I slot print_timing: id  0 | task 843 | prompt processing, n_tokens =    652, progress = 0.99, t =  26.42 s / 24.68 tokens per second\n5.59.396.877 I slot print_timing: id  0 | task 843 | prompt eval time =   26631.11 ms /   656 tokens (   40.60 ms per token,    24.63 tokens per second)\n5.59.396.919 I slot print_timing: id  0 | task 843 |        eval time =    4766.52 ms /    36 tokens (  132.40 ms per token,     7.55 tokens per second)\n5.59.396.921 I slot print_timing: id  0 | task 843 |       total time =   31397.64 ms /   692 tokens\n5.59.396.923 I slot print_timing: id  0 | task 843 |    graphs reused =        857\n5.59.397.076 I slot      release: id  0 | task 843 | stop processing: n_tokens = 691, truncated = 0\n6.24.954.231 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.894 (> 0.100 thold), f_keep = 0.779\n6.24.956.371 I slot launch_slot_: id  0 | task 885 | processing task, is_child = 0\n6.41.013.645 I slot print_timing: id  0 | task 885 | prompt processing, n_tokens =    470, progress = 0.78, t =  16.06 s / 29.27 tokens per second\n6.43.514.387 I slot print_timing: id  0 | task 885 | prompt processing, n_tokens =    535, progress = 0.89, t =  18.56 s / 28.83 tokens per second\n6.45.963.200 I slot print_timing: id  0 | task 885 | prompt processing, n_tokens =    598, progress = 0.99, t =  21.01 s / 28.47 tokens per second\n6.55.151.985 I slot print_timing: id  0 | task 885 | prompt eval time =   21226.54 ms /   602 tokens (   35.26 ms per token,    28.36 tokens per second)\n6.55.152.019 I slot print_timing: id  0 | task 885 |        eval time =    8969.00 ms /    69 tokens (  129.99 ms per token,     7.69 tokens per second)\n6.55.152.021 I slot print_timing: id  0 | task 885 |       total time =   30195.54 ms /   671 tokens\n6.55.152.022 I slot print_timing: id  0 | task 885 |    graphs reused =        924\n6.55.152.610 I slot      release: id  0 | task 885 | stop processing: n_tokens = 670, truncated = 0\n6.55.230.327 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.949 (> 0.100 thold), f_keep = 1.000\n6.55.230.849 I slot launch_slot_: id  0 | task 958 | processing task, is_child = 0\n7.14.172.925 I slot print_timing: id  0 | task 958 | prompt processing, n_tokens =    512, progress = 0.73, t =  18.94 s / 27.03 tokens per second\n7.15.259.388 I slot print_timing: id  0 | task 958 | prompt processing, n_tokens =    535, progress = 0.76, t =  20.03 s / 26.71 tokens per second\n7.16.824.528 I slot print_timing: id  0 | task 958 | prompt processing, n_tokens =    574, progress = 0.81, t =  21.59 s / 26.58 tokens per second\n7.20.944.843 I slot print_timing: id  0 | task 958 | prompt processing, n_tokens =    672, progress = 0.95, t =  25.71 s / 26.13 tokens per second\n7.22.147.793 I slot print_timing: id  0 | task 958 | prompt processing, n_tokens =    702, progress = 0.99, t =  26.92 s / 26.08 tokens per second\n",
+  "auditNote": "Sample index 2 overlapped K2 artifact assembly and hash: excluded from clean comparison. Clean measured indices 1 and 3 only; index 0 is warmup. Tool requests in this run used cache_prompt=false. Only missing-file case completed; later cases interrupted by operator, not model failures.",
+  "cleanMeasuredDecodeTokensPerSecond": [
+    8.226512215042401,
+    7.930114216361188
+  ]
+}

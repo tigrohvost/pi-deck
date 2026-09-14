@@ -19,6 +19,7 @@ const MUTATING_TOOLS = new Set([
 	"pideck_write",
 	"pideck_edit",
 	"pideck_replace_lines",
+	"pideck_edit_text",
 ]);
 const CHECK_TIMEOUT_MS = 5000;
 const MAX_ERROR_LINES = 8;

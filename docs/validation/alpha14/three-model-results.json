@@ -1,0 +1,373 @@
+{
+  "checkedAt": "2026-09-07T16:23:15.500738+00:00",
+  "apkSha256": "bce9286ed916af4f9a640e675bf6ad82ad966eb99d28368f14005899c644d4af",
+  "requestedSpeedFloor": {
+    "initial": "8-10 tokens/s",
+    "updated": "above 5 tokens/s acceptable if quality high"
+  },
+  "models": [
+    {
+      "modelId": "lfm2.5-2.6b-qad",
+      "title": "LFM2.5 2.6B QAD",
+      "medianDecodeTokensPerSecond": 17.521501483167725,
+      "minimumDecodeTokensPerSecond": 17.063325288390196,
+      "maximumDecodeTokensPerSecond": 17.596583476679804,
+      "measuredSamples": 3,
+      "excludedSamples": 0,
+      "qualityPassed": 5,
+      "qualityTotal": 7,
+      "outcomes": [
+        {
+          "id": "Q01",
+          "outcome": "pass",
+          "toolNames": [],
+          "changedPaths": [],
+          "totalTurnSeconds": 16.820853,
+          "nativeDecodeTokensPerSecond": 16.99,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q03",
+          "outcome": "fail",
+          "toolNames": [
+            "code_nav",
+            "code_nav",
+            "code_nav"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 66.734444,
+          "nativeDecodeTokensPerSecond": 14.117,
+          "foregroundStable": true,
+          "failedSignals": {
+            "turn_completed": {
+              "passed": false,
+              "evidence": "TURN_ABORTED"
+            },
+            "answer_regex": {
+              "passed": false,
+              "evidence": "pattern=src/calculator\\.py.*(?:line|строк)[^0-9]*1|src/calculator\\.py:1; answer=''"
+            },
+            "bounded_tool_calls": {
+              "passed": false,
+              "evidence": "3 <= 2; tools=['code_nav', 'code_nav', 'code_nav']"
+            }
+          },
+          "error": null
+        },
+        {
+          "id": "Q04",
+          "outcome": "pass",
+          "toolNames": [
+            "read"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 56.673897,
+          "nativeDecodeTokensPerSecond": 14.226,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q05",
+          "outcome": "pass",
+          "toolNames": [
+            "pideck_edit_text",
+            "run_tests"
+          ],
+          "changedPaths": [
+            "src/counter.py"
+          ],
+          "totalTurnSeconds": 79.130771,
+          "nativeDecodeTokensPerSecond": 13.459,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q06",
+          "outcome": "pass",
+          "toolNames": [
+            "read",
+            "pideck_edit_text",
+            "pideck_edit_text",
+            "run_tests"
+          ],
+          "changedPaths": [
+            "src/service.py",
+            "tests/test_service.py"
+          ],
+          "totalTurnSeconds": 163.608973,
+          "nativeDecodeTokensPerSecond": 12.611,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q10",
+          "outcome": "pass",
+          "toolNames": [
+            "web_research"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 95.862931,
+          "nativeDecodeTokensPerSecond": 14.107,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q11",
+          "outcome": "fail",
+          "toolNames": [
+            "weather"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 78.490619,
+          "nativeDecodeTokensPerSecond": 13.692,
+          "foregroundStable": true,
+          "failedSignals": {
+            "turn_completed": {
+              "passed": false,
+              "evidence": "TURN_FAILED"
+            }
+          },
+          "error": null
+        }
+      ],
+      "speedEvidence": "lfm2.5-2.6b-qad-native-speed.json",
+      "qualityEvidence": "lfm2.5-2.6b-qad-quality-Q01-Q03-Q04-Q05-Q06-Q10-Q11.json",
+      "templateEvidence": "lfm2.5-2.6b-qad-template-tool-choice.json"
+    },
+    {
+      "modelId": "k2-horizon-3.7b",
+      "title": "K2 Horizon 3.7B",
+      "medianDecodeTokensPerSecond": 8.667701254379741,
+      "minimumDecodeTokensPerSecond": 8.300079059339437,
+      "maximumDecodeTokensPerSecond": 8.669339455793336,
+      "measuredSamples": 3,
+      "excludedSamples": 0,
+      "qualityPassed": 7,
+      "qualityTotal": 7,
+      "outcomes": [
+        {
+          "id": "Q01",
+          "outcome": "pass",
+          "toolNames": [],
+          "changedPaths": [],
+          "totalTurnSeconds": 22.539112,
+          "nativeDecodeTokensPerSecond": 9.283,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q03",
+          "outcome": "pass",
+          "toolNames": [
+            "code_nav",
+            "code_nav"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 126.831146,
+          "nativeDecodeTokensPerSecond": 6.266,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q04",
+          "outcome": "pass",
+          "toolNames": [
+            "read"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 64.866709,
+          "nativeDecodeTokensPerSecond": 6.971,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q05",
+          "outcome": "pass",
+          "toolNames": [
+            "pideck_edit_text",
+            "run_tests"
+          ],
+          "changedPaths": [
+            "src/counter.py"
+          ],
+          "totalTurnSeconds": 158.111614,
+          "nativeDecodeTokensPerSecond": 5.012,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q06",
+          "outcome": "pass",
+          "toolNames": [
+            "pideck_edit_text",
+            "pideck_edit_text",
+            "run_tests"
+          ],
+          "changedPaths": [
+            "src/service.py",
+            "tests/test_service.py"
+          ],
+          "totalTurnSeconds": 201.054574,
+          "nativeDecodeTokensPerSecond": 5.285,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q10",
+          "outcome": "pass",
+          "toolNames": [
+            "web_research"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 118.06098,
+          "nativeDecodeTokensPerSecond": 4.346,
+          "foregroundStable": false,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q11",
+          "outcome": "pass",
+          "toolNames": [
+            "weather"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 80.89632,
+          "nativeDecodeTokensPerSecond": 7.032,
+          "foregroundStable": true,
+          "failedSignals": {},
+          "error": null
+        }
+      ],
+      "speedEvidence": "k2-horizon-3.7b-native-speed.json",
+      "qualityEvidence": "k2-horizon-3.7b-quality-Q01-Q03-Q04-Q05-Q06-Q10-Q11.json",
+      "templateEvidence": "k2-horizon-3.7b-template-tool-choice.json"
+    },
+    {
+      "modelId": "qwen3.8-4b-distill",
+      "title": "Empero Qwen3.8 4B Distill",
+      "medianDecodeTokensPerSecond": 7.078289606523411,
+      "minimumDecodeTokensPerSecond": 7.052007194075755,
+      "maximumDecodeTokensPerSecond": 7.432852884562452,
+      "measuredSamples": 3,
+      "excludedSamples": 1,
+      "qualityPassed": 7,
+      "qualityTotal": 7,
+      "outcomes": [
+        {
+          "id": "Q01",
+          "outcome": "pass",
+          "toolNames": [],
+          "changedPaths": [],
+          "totalTurnSeconds": 30.223357,
+          "nativeDecodeTokensPerSecond": 8.081,
+          "foregroundStable": null,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q03",
+          "outcome": "pass",
+          "toolNames": [
+            "code_nav"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 80.473141,
+          "nativeDecodeTokensPerSecond": 7.57,
+          "foregroundStable": null,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q04",
+          "outcome": "pass",
+          "toolNames": [
+            "read"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 102.116416,
+          "nativeDecodeTokensPerSecond": 6.185,
+          "foregroundStable": null,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q05",
+          "outcome": "pass",
+          "toolNames": [
+            "pideck_edit_text",
+            "run_tests"
+          ],
+          "changedPaths": [
+            "src/counter.py"
+          ],
+          "totalTurnSeconds": 245.937702,
+          "nativeDecodeTokensPerSecond": 6.614,
+          "foregroundStable": null,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q06",
+          "outcome": "pass",
+          "toolNames": [
+            "pideck_edit_text",
+            "pideck_edit_text",
+            "run_tests"
+          ],
+          "changedPaths": [
+            "src/service.py",
+            "tests/test_service.py"
+          ],
+          "totalTurnSeconds": 390.424532,
+          "nativeDecodeTokensPerSecond": 4.069,
+          "foregroundStable": null,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q10",
+          "outcome": "pass",
+          "toolNames": [
+            "web_research"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 200.014634,
+          "nativeDecodeTokensPerSecond": 5.955,
+          "foregroundStable": null,
+          "failedSignals": {},
+          "error": null
+        },
+        {
+          "id": "Q11",
+          "outcome": "pass",
+          "toolNames": [
+            "weather"
+          ],
+          "changedPaths": [],
+          "totalTurnSeconds": 126.420727,
+          "nativeDecodeTokensPerSecond": 6.693,
+          "foregroundStable": null,
+          "failedSignals": {},
+          "error": null
+        }
+      ],
+      "speedEvidence": "qwen3.8-4b-distill-native-speed.json",
+      "qualityEvidence": "qwen3.8-4b-distill-quality-Q01-Q03-Q04-Q05-Q06-Q10-Q11.json",
+      "templateEvidence": "qwen3.8-4b-distill-template-tool-choice.json"
+    }
+  ],
+  "scope": "Seven selected suite-v2 tasks, one run per model; not full admission or a statistical reliability estimate. Native speed: one warmup plus three valid 192-token samples under the APK UID, foreground monitored and cooling before each sample.",
+  "qualityTimingCaveat": "Qwen quality was not monitored for foreground changes; later LFM and K2 quality runs record foregroundStable. Warmed device and memory pressure affect latency. Q10 checks tool use and a source URL, not independent factual accuracy."
+}

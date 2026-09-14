@@ -1,0 +1,40 @@
+From 7eed508c351973568f77fc00c1e38359213440b7 Mon Sep 17 00:00:00 2001
+From: PI//DECK <pideck@local>
+Date: Fri, 4 Sep 2026 13:20:00 +0000
+Subject: [PATCH] hexagon: support the pinned Android CMake toolchain
+
+Android SDK CMake 3.22.1 successfully configures and builds the Hexagon v73
+subproject, but upstream declares 3.22.2 as its minimum. Keep the isolated
+Snapdragon probe on the SDK-pinned CMake and explicitly pass its Ninja binary
+to ExternalProject so the nested build does not depend on the host PATH.
+---
+ ggml/src/ggml-hexagon/CMakeLists.txt     | 3 +++
+ ggml/src/ggml-hexagon/htp/CMakeLists.txt | 2 +-
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/ggml/src/ggml-hexagon/CMakeLists.txt b/ggml/src/ggml-hexagon/CMakeLists.txt
+index ac9bfde..8eec054 100644
+--- a/ggml/src/ggml-hexagon/CMakeLists.txt
++++ b/ggml/src/ggml-hexagon/CMakeLists.txt
+@@ -64,6 +64,9 @@ function(build_htp_skel V)
+         BUILD_BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/libggml-htp-${V}.so
+         CMAKE_ARGS
+             -DCMAKE_BUILD_TYPE=Release
++            -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
++            -DCMAKE_C_FLAGS=-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.
++            -DCMAKE_CXX_FLAGS=-ffile-prefix-map=${CMAKE_SOURCE_DIR}=.
+             -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/htp/cmake-toolchain.cmake
+             -DCMAKE_INSTALL_LIBDIR=${CMAKE_CURRENT_BINARY_DIR}
+             -DHEXAGON_SDK_ROOT=${HEXAGON_SDK_ROOT}
+diff --git a/ggml/src/ggml-hexagon/htp/CMakeLists.txt b/ggml/src/ggml-hexagon/htp/CMakeLists.txt
+index 091deaf..187333f 100644
+--- a/ggml/src/ggml-hexagon/htp/CMakeLists.txt
++++ b/ggml/src/ggml-hexagon/htp/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-cmake_minimum_required(VERSION 3.22.2)
++cmake_minimum_required(VERSION 3.22.1)
+ project(ggml-htp C CXX ASM)
+ 
+ include(${HEXAGON_SDK_ROOT}/build/cmake/hexagon_fun.cmake)
+-- 
+2.51.0

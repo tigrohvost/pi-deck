@@ -75,13 +75,13 @@ public enum AccessProfile {
             case CONFIRM_CHANGES -> List.of(
                     "--no-builtin-tools",
                     "--tools", "read,code_nav,web_research,weather,"
-                            + "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,"
+                            + "pideck_bash,pideck_edit,pideck_write,pideck_replace_lines,pideck_edit_text,"
                             + "pideck_load_tools",
                     "--extension", extensionPath
             );
             case AUTONOMOUS -> List.of(
                     "--tools", "read,bash,edit,write,code_nav,"
-                            + "web_research,weather,pideck_replace_lines,run_tests,"
+                            + "web_research,weather,pideck_replace_lines,pideck_edit_text,run_tests,"
                             + "pideck_load_tools"
             );
         };

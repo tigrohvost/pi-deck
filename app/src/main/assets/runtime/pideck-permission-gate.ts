@@ -23,6 +23,86 @@ const MAX_PREVIEW = 4_096;
 const MAX_DIFF_BYTES = 256 * 1024;
 const PREVIEW_LINES = 4;
 
+export type ShellRisk = {
+	level: "normal" | "critical";
+	reason?: string;
+};
+
+/**
+ * Classifies commands whose blast radius is wider than a single agent workspace. This is a
+ * deliberately small fail-closed boundary, not a claim that shell text can be sandboxed. In
+ * CONFIRM_CHANGES the reason is shown to the user; AUTONOMOUS imports the same classifier and
+ * refuses these commands because that profile has no per-command approval channel.
+ */
+export function classifyShellCommand(command: string): ShellRisk {
+	const value = command
+		.replace(/\\\r?\n/g, " ")
+		.replace(/\s+/g, " ")
+		.trim()
+		.toLowerCase();
+	const critical: Array<[RegExp, string]> = [
+		[/\b(?:curl|wget)\b[^|\n]{0,2048}\|\s*(?:(?:sudo|env|command|nohup)\s+)*(?:\/(?:usr\/)?bin\/)?(?:ba|da|k|z)?sh\b/u,
+			"remote download is piped directly into a shell"],
+		[/\b(?:eval)\b/u, "eval can hide a second unclassified command"],
+		[/\b(?:mkfs(?:\.[a-z0-9_+-]+)?|wipefs|fdisk|sfdisk|parted)\b/u,
+			"disk or filesystem metadata may be destroyed"],
+		[/\bdd\b[^\n]{0,2048}\bof\s*=\s*\/dev\//u, "dd writes directly to a device"],
+		[/\b(?:reboot|poweroff|shutdown|halt)\b/u, "the phone or runtime may be stopped"],
+		[/\b(?:pm\s+(?:clear|uninstall|disable-user)|cmd\s+package\s+(?:clear|uninstall|disable-user))\b/u,
+			"Android application data or package state may be removed"],
+		[/\b(?:apt(?:-get)?|pkg)\b[^;&|\n]{0,512}\b(?:remove|purge|uninstall)\b/u,
+			"installed runtime packages may be removed"],
+		[/\bsystemctl\b[^;&|\n]{0,512}\b(?:disable|mask|stop)\b/u,
+			"a system service may be disabled"],
+		[/\bgit\b[^;&|\n]{0,512}\breset\b[^;&|\n]{0,256}\s--hard\b/u,
+			"uncommitted repository changes may be discarded"],
+		[/\bgit\b[^;&|\n]{0,512}\bclean\b[^;&|\n]{0,256}(?:-[^\s]*f[^\s]*|--force)\b/u,
+			"untracked repository data may be deleted"],
+		[/\brm\s+[^\n]*(?:-[^\s]*r[^\s]*|--recursive)[^\n]*\s(?:\/[^\s;&|]*|~[^\s;&|]*|\$home[^\s;&|]*|\$\{home\}[^\s;&|]*|\.\.?|\*)(?=\s*(?:$|&&|\|\||;))/u,
+			"recursive deletion targets a broad, absolute, home, or wildcard path"],
+		[/\bfind\s+(?:\/\S*|~\S*|\$home\S*|\$\{home\}\S*|\.\.?)\s[^\n]*\s-delete\b/u,
+			"recursive find deletion has a broad starting path"],
+		[/\b(?:chmod|chown)\s+[^\n]*(?:-[^\s]*r[^\s]*|--recursive)\b[^\n]*(?:\/|~|\$home|\$\{home\})/u,
+			"recursive ownership or permission changes escape a narrow workspace target"],
+	];
+	for (const [pattern, reason] of critical) {
+		if (pattern.test(value)) return { level: "critical", reason };
+	}
+	return { level: "normal" };
+}
+
+/** Suggests a managed equivalent only for a simple command with no pipelines or redirection. */
+export function dedicatedToolForShell(
+	command: string,
+	activeTools: readonly string[],
+): string | undefined {
+	const value = command.trim();
+	if (!value || /[|&;<>\n\r]/u.test(value)) return undefined;
+	const executable = /^(?:(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]+)\s+)*(?:sudo\s+)?([^\s]+)/u
+		.exec(value)?.[1]
+		?.split("/")
+		.at(-1)
+		?.toLowerCase();
+	if (["cat", "head", "tail"].includes(executable ?? "") && activeTools.includes("read")) {
+		return "Use the managed read tool with an exact path/range instead of shell text output.";
+	}
+	if (
+		["grep", "rg", "find", "fd"].includes(executable ?? "")
+		&& activeTools.includes("code_nav")
+	) {
+		return "Use code_nav for one bounded workspace search instead of shell discovery.";
+	}
+	if (
+		executable === "sed"
+		&& /(?:^|\s)(?:-[^\s]*i[^\s]*|--in-place(?:=[^\s]*)?)(?:\s|$)/u.test(value)
+		&& (activeTools.includes("pideck_replace_lines") || activeTools.includes("pideck_edit_text"))
+	) {
+		return "Use read plus " + (activeTools.includes("pideck_edit_text") ? "pideck_edit_text" : "pideck_replace_lines")
+			+ "; direct sed -i bypasses snapshot-backed editing.";
+	}
+	return undefined;
+}
+
 /**
  * Pi's confirm() carries a title and a message, so anything the Android side needs in a
  * structured form travels on the first line of the message and is lifted back off by the bridge.
@@ -86,12 +166,13 @@ export async function approved(
 	ctx: ExtensionContext,
 	title: string,
 	message: string,
+	timeoutMs: number = APPROVAL_TIMEOUT_MS,
 ): Promise<boolean> {
 	if (!ctx.hasUI || ctx.mode !== "rpc") return false;
 	try {
 		return (
 			(await ctx.ui.confirm(title, message, {
-				timeout: APPROVAL_TIMEOUT_MS,
+				timeout: timeoutMs,
 			})) === true
 		);
 	} catch {
@@ -118,10 +199,23 @@ export default function pideckPermissionGate(pi: ExtensionAPI) {
 		parameters: bashParameters,
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
 			const command = String(params.command ?? "");
+			const dedicated = dedicatedToolForShell(command, pi.getActiveTools());
+			if (dedicated !== undefined) throw new Error(dedicated);
+			const risk = classifyShellCommand(command);
 			const allow = await approved(
 				ctx,
-				"Allow shell command?",
-				`Tool: pideck_bash\nCWD: ${ctx.cwd}\nWorkspace escape risk: possible\n\n${preview(command)}`,
+				risk.level === "critical" ? "Allow critical shell command?" : "Allow shell command?",
+				decisionHeader({
+					kind: "shell",
+					path: ctx.cwd,
+					reason: risk.reason ?? "Shell can read or change data with the Termux user's permissions.",
+					addedLines: 0,
+					removedLines: 0,
+					selfCreated: false,
+					preview: [],
+				})
+					+ `Tool: pideck_bash\nRisk: ${risk.level}\nCWD: ${ctx.cwd}\n`
+					+ `Workspace escape risk: possible\n\n${preview(command)}`,
 			);
 			if (!allow) throw new Error("PI//DECK approval denied or expired");
 			return createBashTool(ctx.cwd).execute(toolCallId, params, signal, onUpdate);

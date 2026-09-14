@@ -20,6 +20,8 @@ flowchart LR
   PI -->|same authenticated API| NB
   PI --> AT[adaptive FAST or DEEP]
   PI --> TR[stable profile-safe tool router]
+  PI --> PL[read-only Plan Ledger]
+  PL -->|Android approval| TR
   TR -->|managed web and weather tools| WEB[fixed public endpoints]
   RT --> AD[Exact-health server adoption]
   AD --> LS
@@ -44,9 +46,11 @@ and shows repair instructions only after a final failure.
 
 Pi's transcript remains the durable conversation authority. The bridge also
 writes an atomic non-sensitive checkpoint with session ID, context/message
-counters and the last terminal operation; after restart these counters are
-estimated until Pi reports fresh state. No disk KV/slot cache is claimed for
-hybrid-recurrent Qwen3.5.
+counters, the last terminal operation, and a bounded Plan Ledger of at most
+seven short steps; after restart the counters are estimated until Pi reports
+fresh state. Plan goals and steps are working-session data, not diagnostics,
+and are not copied into the approval audit. No disk KV/slot cache is claimed
+for hybrid-recurrent Qwen3.5.
 
 Pi's package/extension API remains the integration seam, but automatic package
 discovery is disabled. The APK explicitly installs and loads a small web-tools
@@ -54,16 +58,54 @@ extension and a profile-safe tool router alongside the prompt/cache/context
 guards. Pi receives the complete hard allowlist for the selected access profile,
 then the router activates only its compact core. Explicit live-data prompts add
 the matching managed tools before the first model call; other optional groups
-can be loaded without ever crossing the selected profile. This keeps the network
-surface reproducible while avoiding permanent schemas for capabilities an
-ordinary local task does not need.
+can be loaded without ever crossing the selected profile. Within a session the
+provider schema only ever grows: llama.cpp renders `tools` inside the system
+turn, so a task-specific restriction (one explicit tool, a read-only navigation,
+a bounded repair) is enforced by the `tool_call` guard and announced in a short
+`PI//DECK TASK TOOLS` note at the end of the context instead of by rewriting
+the schema. The cache guard likewise ignores sampling-only fields such as
+`max_tokens` and the per-turn `enable_thinking` switch, so a new prompt in the
+same process reuses the growing prefix. This keeps the network surface
+reproducible while avoiding permanent schemas for capabilities an ordinary
+local task does not need.
+
+Planning is a one-shot Android-selected mode, not another autonomous agent. The
+first pass permits only `read`, `code_nav`, managed web search, and weather: a
+`tool_call` guard rejects every other name while the provider schema stays
+unchanged, so neither the plan nor the execution turn replays the session.
+Only a parsed `Plan:`/`План:` section with 3–7 sequential steps can cross the
+bridge as a plan decision. Android owns the two-minute Execute/Cancel card. An
+approval queues one Pi follow-up; denial, timeout, disconnect, abort, or unsupported Chat/READ_ONLY
+mode cannot start execution. `[DONE:n]` and `[BLOCKED:n]` markers update the
+checkpoint and are removed from the user-visible terminal answer.
 
 Reasoning-capable Qwen turns are classified once at input: direct/read-only/Chat
-work uses FAST, while repairs and diagnosis retain bounded DEEP. The task's tool
-schema then stays fixed across results so llama.cpp can reuse the growing exact
-prefix; one-shot, retry, and terminal restrictions live in execution guards.
+work uses FAST, while repairs and diagnosis retain bounded DEEP. The session's
+tool schema stays fixed across results and prompts so llama.cpp can reuse the
+growing exact prefix; one-shot, retry, and terminal restrictions live in
+execution guards.
 For an explicitly scoped repair, a small fail-closed prefetch can inject complete
 user-named files with the same line-hash anchors before the first model call.
+Those anchors are backed by an in-memory exact-byte snapshot and by the set of
+lines actually delivered to the model. Large source reads default to a bounded
+declaration outline; an explicit offset/limit returns the exact editable range.
+An accepted edit is fully preflighted and committed by same-directory fsync and
+atomic rename; the result then carries the current anchors of the changed range
+backed by a fresh snapshot of the committed bytes, so a follow-up edit of the
+same file needs no extra read round.
+
+Before the model acts on a known target—and at latest alongside its first
+managed read result—the router deterministically merges applicable repository
+guidance: the root Copilot file, nested `AGENTS.md` files from shallow to deep,
+and matching or always-on Cursor rules. Content, file count and total bytes are
+bounded, symlinks and workspace escapes are rejected, and a mutation is stopped
+once if newly discovered rules have not yet reached the model.
+
+The context guard may replace old provider-facing copies of byte-identical
+`read`/`code_nav` results with small markers once the saving is material. Pi's
+durable transcript remains untouched. The local-cache hook sees the rewritten
+prefix and disables recurrent-state reuse for that request; caching resumes only
+after the pruned prefix itself is stable.
 
 The Core screen persists an optional custom system prompt in Android-private
 preferences. Bridge bootstrap carries it in stdin JSON, turns it into a private

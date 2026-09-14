@@ -59,7 +59,7 @@
             "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
             "official": {"type": "boolean"},
             "provenance": {
-              "enum": ["official", "llama.cpp-maintained-conversion", "third-party-conversion", "local-conversion"]
+              "enum": ["official", "publisher-conversion", "llama.cpp-maintained-conversion", "third-party-conversion", "local-conversion"]
             },
             "provenanceStatus": {"enum": ["VERIFIED", "INCOMPLETE"]},
             "architecture": {"type": "string", "minLength": 1},
@@ -120,7 +120,7 @@
             "speculative"
           ],
           "properties": {
-            "serverFlavor": {"enum": ["stock", "nanbeige42"]},
+            "serverFlavor": {"enum": ["stock", "nanbeige42", "k2horizon"]},
             "minimumLlamaCppVersion": {"type": "string", "minLength": 1},
             "recommendedContext": {"type": "integer", "minimum": 512},
             "maximumTestedContext": {"type": "integer", "minimum": 512},

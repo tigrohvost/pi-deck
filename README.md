@@ -22,23 +22,31 @@ authenticated loopback RPC bridge, with no root required.
 > network. Explicit web tools send their own requests even though model
 > inference stays on-device.
 
-## Current validated build
+## Release and device validation
 
-`0.3.0-alpha13` (`versionCode 21`, runtime contract 53) is the current source
-and handset-tested state. On the reference Samsung SM-S918B, the selected
-LFM2.5 2.6B QAD Q4_0 profile is `READY · AGENT`, uses a 10,240-token context
-and a native 256-token reasoning cap, and is shown as both `recommended` and
-`active`. Its exact installed APK and model hashes match the local artifacts.
+The current source version is `0.3.0-alpha14` (`versionCode 22`). It includes
+the accumulated runtime changes and a production-signing CI pipeline. Historical
+alpha14 measurements are in [validation evidence](docs/validation/alpha14);
+these do not constitute device acceptance of the new production-signed CI APK.
+
+The earlier `0.3.0-alpha13` (`versionCode 21`, runtime contract 56) build was
+validated as follows. On 2026-08-26 its exact debug APK passed handset acceptance on a Samsung
+SM-S918B: `READY · AGENT`, exact `PIDECK_OK`, a one-time-approved real
+`pideck_bash` UUID read, operation diagnostics, and background/resume all
+passed with no app crash or LMK. The selected LFM2.5 2.6B QAD Q4_0 profile uses
+a 10,240-token context and a native 256-token reasoning cap, shown as both
+`recommended` and `active`.
 During an active task the metrics row stays on one line: context condenses to
 `CTX ≈10% · 986/10240`, while accessibility keeps the full localized value.
 This layout is device-tested at 360 dp with the largest in-app text scale in
 both interface languages.
 
-The alpha13 gate passed Gradle unit/lint/debug/androidTest/unsigned-release
-builds, 117 runtime tests, 43 tooling tests, the 11-extension/9-tool contract,
-the pinned Pi RPC smoke, and the 28-task benchmark-contract validator. Debug
-APKs are Android-debug-signed and intended only for sideloading; an unsigned
-release artifact is never presented as a production release.
+The contract-56 gate passed Gradle unit/lint/debug/androidTest/unsigned-release
+builds, 121 runtime tests, 47 tooling tests, the 12-extension/9-tool contract,
+the pinned Pi RPC smoke, the 28-task benchmark-contract validator, and the
+exact-APK handset run above. The accepted debug APK is Android-debug-signed and
+intended only for sideloading; an unsigned release artifact is never presented
+as a production release.
 
 ## What it looks like
 
@@ -66,14 +74,25 @@ release artifact is never presented as a production release.
   0.8B. QAD uses native reasoning capped at 256 tokens, while Pi receives only
   the currently active model contract;
 - manually selected Qwen3.5 4B keeps adaptive FAST/DEEP behavior with a
-  512-token reasoning cap. A tool turn keeps a stable schema for prompt-cache
-  reuse;
+  512-token reasoning cap. A session keeps one append-only tool schema, so a
+  new prompt reuses the llama.cpp prefix instead of replaying the conversation;
 - a short direct live-data question exposes exactly one bounded web or weather
   tool and caps both provider rounds at 256 tokens; multi-step research stays
   on the ordinary agent route;
 - scoped repairs prefetch complete small files explicitly named by the user
-  before the first model request, so verified `line:hash` edits need no initial
-  `read` round trip.
+  before the first model request. Their eight-hex `line:hash` anchors are backed
+  by exact byte snapshots; unseen or stale anchors fail, and accepted edits use
+  an fsynced atomic rename;
+- large source reads start with a declaration outline, exact ranges remain
+  available on demand, and only byte-identical superseded reads may be pruned
+  from provider context without rewriting durable session history;
+- root Copilot instructions, nested `AGENTS.md`, and matching Cursor rules are
+  applied per target path. Common shell-shaped reads/searches are routed to
+  managed tools, while critical broad commands require `CONFIRM_CHANGES`.
+- `PLAN` is an opt-in phone-native boundary: Pi's first pass may call only read-only tools,
+  Android shows a bounded 3–7-step plan, and execution begins only after an
+  explicit two-minute decision. The durable checklist adds no model round to
+  ordinary prompts and does not widen the selected access profile.
 
 ## Requirements
 
@@ -106,6 +125,8 @@ release artifact is never presented as a production release.
    file is retained separately after the verified private copy is installed.
 5. Send a prompt. A cold deck queues it, warms the model, and dispatches it when
    the Pi RPC bridge is ready. `Core → Autostart` can warm the model earlier.
+6. For a larger change, tap `PLAN` before Send (or prefix the prompt with
+   `/plan `). Review the read-only plan card, then choose `Execute` or `Cancel`.
 
 Runtime layout:
 
@@ -138,7 +159,8 @@ restart denies any pending approval.
 
 - **Mode** — Agent for tools and files, or Chat for a direct response;
 - **Autostart** — load the selected model when the deck opens; off by default;
-- **Core timeout** — the idle model unloads itself after 5/10/30 minutes, or never;
+- **Core timeout** — Smart keeps a small context for 10 minutes and a context at
+  least 40% full for 30 minutes; fixed 5/10/30-minute and never-stop choices remain;
 - **Cooldown wait** — optionally wait up to 60 s for the clock to recover before dispatching;
 - **System prompt** — append to the built-in Pi prompt or replace it entirely;
 - **Language** — Russian or English UI without rewriting user/agent messages;
@@ -180,8 +202,9 @@ popularity is not an admission signal.
 ## Build and test
 
 Native arm64 binaries are rebuilt from pinned sources rather than stored in
-Git. Stock b10092 requires NDK 27.1; the Nanbeige sidecar requires NDK 28.2 and
-Android CMake 3.22.1:
+Git. The stock-compatible runtime is b10092 plus the checksum-pinned
+`pideck-affinity1` Android/server patch set; it requires NDK 27.1. The isolated
+Nanbeige sidecar requires NDK 28.2, and both builds use Android CMake 3.22.1:
 
 ```sh
 ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.1.12297006" \
@@ -197,6 +220,12 @@ PYTHONDONTWRITEBYTECODE=1 python3 -W error::ResourceWarning \
 python3 -m unittest discover -s tests/tools -v
 python3 tools/validate_benchmark.py
 ```
+
+Signed APKs are built automatically on every push to `main` and are available
+as the `pi-deck-signed-release` Actions artifact. Version tags publish the APK,
+checksums and source commit to [GitHub Releases](https://github.com/tigrohvost/pi-deck/releases).
+Alpha versions are prereleases. See [release signing and migration](docs/release-process.md)
+when upgrading from an older debug-signed test APK.
 
 JDK 21 is required. Without production signing secrets the release APK remains
 unsigned; the build never substitutes the Android debug key for a release.

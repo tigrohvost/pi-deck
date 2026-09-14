@@ -71,6 +71,7 @@ import dev.pideck.app.core.OperationKind;
 import dev.pideck.app.core.OperationRecord;
 import dev.pideck.app.core.OperationState;
 import dev.pideck.app.core.PendingPromptDispatch;
+import dev.pideck.app.core.PlanLedger;
 import dev.pideck.app.core.OperationStore;
 import dev.pideck.app.core.PiJsonOutput;
 import dev.pideck.app.core.RpcBridgeClient;
@@ -92,6 +93,7 @@ import dev.pideck.app.ui.DeckView;
 import dev.pideck.app.ui.DecisionCardView;
 import dev.pideck.app.ui.FailureCardView;
 import dev.pideck.app.ui.Palette;
+import dev.pideck.app.ui.PlanDecisionCardView;
 import dev.pideck.app.ui.SessionsRootView;
 import dev.pideck.app.ui.TabBarView;
 
@@ -143,6 +145,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private boolean activityStarted;
     private boolean composerHasText;
     private boolean composerWarmAttempted;
+    private String runtimeFingerprint;
+    private boolean runtimeUpdateAttempted;
+    private boolean runtimeUpdateAvailable;
+    private boolean focusComposerOnWindowFocus;
+    private boolean warmAfterRuntimeUpdate;
     private String pendingComposerDraft = "";
 
     private boolean linkConfirmed;
@@ -161,6 +168,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private float textScale;
     /** A prompt typed while a turn was running, or at a cold core; dispatched once the deck can. */
     private String queuedPrompt;
+    private boolean queuedPromptPlanRequested;
     private int queuedWarmAttempts;
     /** The heat warning is worth one line per turn, not one per event. */
     private boolean thermalWarned;
@@ -200,9 +208,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private long lastRateUpdateUptimeMs;
     private String inferencePhase = "";
     private String pendingPromptAfterCompaction;
+    private boolean pendingPlanAfterCompaction;
     private String pendingPromptAfterNewSession;
+    private boolean pendingPlanAfterNewSession;
     private final PendingPromptDispatch pendingRpcPrompt = new PendingPromptDispatch();
     private AlertDialog contextWarningDialog;
+    private PlanLedger planLedger = PlanLedger.empty();
 
     private final Runnable heartbeat = new Runnable() {
         @Override
@@ -238,12 +249,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = new DeckPreferences(this);
+        runtimeFingerprint = RuntimeAssetBundle.fingerprint(this);
         operationStore = new OperationStore(this);
         operations = new OperationCoordinator(operationStore);
         try {
-            operations.failRuntimeInstallStartedBefore(
-                    getPackageManager().getPackageInfo(getPackageName(), 0).lastUpdateTime
-            );
+            long packageUpdatedAt = getPackageManager()
+                    .getPackageInfo(getPackageName(), 0)
+                    .lastUpdateTime;
+            operations.failRuntimeInstallStartedBefore(packageUpdatedAt);
+            operations.failNativeStartStartedBefore(packageUpdatedAt);
         } catch (PackageManager.NameNotFoundException ignored) {
         }
         palette = Palette.forId(prefs.colorScheme());
@@ -289,6 +303,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         busy = restored != null && !restored.state.isTerminal();
         String durableQueue = prefs.queuedPrompt();
         queuedPrompt = durableQueue.isBlank() ? null : durableQueue;
+        queuedPromptPlanRequested = queuedPrompt != null && prefs.queuedPromptPlanRequested();
+        planLedger = prefs.planLedger();
 
         textScale = DeckStyle.normalizeScale(prefs.textScale());
         deck = new DeckView(this, this, palette, textScale, uiLanguage);
@@ -301,7 +317,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 prefs.activeTab(),
                 busy || queuedPrompt != null || !pendingComposerDraft.isBlank()
         ));
-        main.post(deck::clearInitialComposerFocus);
+        if (savedInstanceState != null) {
+            deck.setActiveTab(savedInstanceState.getInt("visible_tab", 0));
+        } else if (prefs.consentGranted() && queuedPrompt == null && !busy) {
+            // The window may acquire focus after a cold Termux/app startup. Asking
+            // the IME earlier is ignored because the editor is not served yet.
+            focusComposerOnWindowFocus = true;
+        }
         refreshUi();
         if (restored != null && !restored.state.isTerminal()) {
             OperationRecord active = operations.active();
@@ -324,6 +346,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 }
             }
         }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle state) {
+        state.putInt("visible_tab", deck.activeTab());
+        super.onSaveInstanceState(state);
     }
 
     @Override
@@ -502,15 +530,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     @Override
-    public void onSend(String prompt) {
+    public void onSend(String prompt, boolean planRequested) {
         if (prompt.getBytes(StandardCharsets.UTF_8).length > 64 * 1024) {
             toast(t("Промпт больше лимита 64 KiB", "Prompt exceeds the 64 KiB limit"));
+            return;
+        }
+        if (planRequested && !canRequestPlan()) {
+            toast(t(
+                    "План доступен только в режиме Агент с правом на изменения",
+                    "Plan is available only in Agent mode with a writable profile"
+            ));
             return;
         }
         if (!canRunAgent()) {
             // A prompt typed at a cold core is the clearest possible request to start it.
             if (StartupPolicy.queuesUntilReady(false, canWarmCore(), queuedPrompt != null)) {
-                if (!prefs.setQueuedPrompt(prompt)) {
+                if (!prefs.setQueuedPrompt(prompt, planRequested)) {
                     toast(t(
                             "Не удалось надёжно сохранить запрос",
                             "Could not safely save the prompt"
@@ -518,12 +553,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     return;
                 }
                 queuedPrompt = prompt;
+                queuedPromptPlanRequested = planRequested;
                 queuedWarmAttempts = 0;
                 deck.acknowledgePrompt(prompt);
                 pendingComposerDraft = "";
                 prefs.setComposerDraft("");
                 deck.setQueueCount(1);
-                append(ConsoleEntry.Channel.USER, prompt);
+                append(ConsoleEntry.Channel.USER, displayedPrompt(prompt, planRequested));
                 append(ConsoleEntry.Channel.SYSTEM, t(
                         "Прогреваю ядро и отправлю запрос, как только Pi ответит.",
                         "Warming the core; the prompt goes out as soon as Pi answers."
@@ -550,7 +586,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 ));
                 return;
             }
-            if (!prefs.setQueuedPrompt(prompt)) {
+            if (!prefs.setQueuedPrompt(prompt, planRequested)) {
                 toast(t(
                         "Не удалось надёжно сохранить запрос",
                         "Could not safely save the prompt"
@@ -558,12 +594,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 return;
             }
             queuedPrompt = prompt;
+            queuedPromptPlanRequested = planRequested;
             queuedWarmAttempts = 0;
             deck.acknowledgePrompt(prompt);
             pendingComposerDraft = "";
             prefs.setComposerDraft("");
             deck.setQueueCount(1);
-            append(ConsoleEntry.Channel.USER, prompt);
+            append(ConsoleEntry.Channel.USER, displayedPrompt(prompt, planRequested));
             append(ConsoleEntry.Channel.SYSTEM, t(
                     "Отправлю, как только текущая задача закончится.",
                     "I will send it as soon as the current task finishes."
@@ -572,16 +609,24 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
 
         if (needsLargeContextChoice()) {
-            showLargeContextChoice(prompt);
+            showLargeContextChoice(prompt, planRequested);
             return;
         }
-        sendPromptNow(prompt);
+        sendPromptNow(prompt, planRequested);
     }
 
-    private void sendPromptNow(String prompt) {
-        append(ConsoleEntry.Channel.USER, prompt);
+    private void sendPromptNow(String prompt, boolean planRequested) {
+        append(ConsoleEntry.Channel.USER, displayedPrompt(prompt, planRequested));
         warnIfHot();
-        paceThermalThenRun(() -> dispatchRpcTurn(prompt));
+        paceThermalThenRun(() -> dispatchRpcTurn(prompt, planRequested));
+    }
+
+    private boolean canRequestPlan() {
+        return agentMode == AgentMode.AGENT && accessProfile != AccessProfile.READ_ONLY;
+    }
+
+    private String displayedPrompt(String prompt, boolean planRequested) {
+        return planRequested ? "PLAN // " + prompt : prompt;
     }
 
     /**
@@ -632,7 +677,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         main.postDelayed(() -> paceThermalPoll(dispatch, deadlineUptimeMs), 5_000L);
     }
 
-    private void showLargeContextChoice(String prompt) {
+    private void showLargeContextChoice(String prompt, boolean planRequested) {
         if (contextWarningDialog != null) contextWarningDialog.dismiss();
         contextWarningDialog = new AlertDialog.Builder(this)
                 .setTitle(t("Большая сессия · ", "Large session · ")
@@ -649,16 +694,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         "Сжать сначала", "Compact first"
                 ), (dialog, which) -> {
                     pendingPromptAfterCompaction = prompt;
+                    pendingPlanAfterCompaction = planRequested;
                     deck.setComposerDispatchPending(true);
                     compactSession();
                 })
                 .setNeutralButton(t("Новая сессия", "New session"), (dialog, which) -> {
                     pendingPromptAfterNewSession = prompt;
+                    pendingPlanAfterNewSession = planRequested;
                     deck.setComposerDispatchPending(true);
                     newSession();
                 })
                 .setNegativeButton(t("Продолжить", "Continue"),
-                        (dialog, which) -> sendPromptNow(prompt))
+                        (dialog, which) -> sendPromptNow(prompt, planRequested))
                 .create();
         contextWarningDialog.setOnDismissListener(dialog -> contextWarningDialog = null);
         contextWarningDialog.show();
@@ -775,7 +822,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     @Override
     public void onCoreIdleTimeoutChanged(long minutes) {
         prefs.setCoreIdleTimeoutMinutes(minutes);
-        append(ConsoleEntry.Channel.SYSTEM, minutes == IdleShutdown.NEVER
+        append(ConsoleEntry.Channel.SYSTEM, minutes == IdleShutdown.ADAPTIVE
+                ? t(
+                        "Умный таймаут: 10 мин для малого контекста, 30 мин после заполнения 40%.",
+                        "Smart timeout: 10 min for a small context, 30 min after it reaches 40%."
+                )
+                : minutes == IdleShutdown.NEVER
                 ? t(
                         "Ядро будет жить до ручной остановки.",
                         "The core will live until stopped by hand."
@@ -1135,17 +1187,20 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     }
                     boolean wasCoreReady = prefs.isCoreReady();
                     boolean runtimeFound = RuntimeScripts.isReadyProbeOutput(result.stdout);
+                    runtimeUpdateAvailable = RuntimeScripts.canUpdateRuntimeFromProbe(result.stdout);
                     prefs.setCoreReady(runtimeFound);
                     JSONObject probe = RuntimeScripts.finalJsonObject(result.stdout);
                     if (probe != null) {
                         JSONObject packages = probe.optJSONObject("termuxPackages");
                         if (packages != null) prefs.setRuntimePackages(packages);
                         JSONObject server = probe.optJSONObject("server");
-                        serverReady = server != null && "READY".equals(server.optString("state"));
+                        serverReady = server != null
+                                && "READY".equals(server.optString("state"))
+                                && selectedModel.id.equals(server.optString("modelId"));
                     }
                     if (!startup) {
                         append(ConsoleEntry.Channel.TOOL, "Termux bridge online.");
-                    } else if (wasCoreReady && !runtimeFound) {
+                    } else if (wasCoreReady && !runtimeFound && !runtimeUpdateAvailable) {
                         append(ConsoleEntry.Channel.ERROR,
                                 t(
                                         "Pi runtime в Termux неполон. Нажмите INSTALL CORE; "
@@ -1156,7 +1211,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     }
                     // The probe is the last thing that has to answer before the deck may start
                     // anything by itself, so the launch warm-up hangs off its success.
-                    if (startup && runtimeFound) main.post(this::warmCoreOnLaunch);
+                    if (startup && (runtimeFound || runtimeUpdateAvailable)) {
+                        main.post(this::warmCoreOnLaunch);
+                    }
                 } else if (startup
                         && StartupPolicy.retriesStartupLinkProbe(startupAttempt)
                         && activityStarted) {
@@ -1190,6 +1247,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 setBusy(false, null);
                 if (result.isSuccess() && RuntimeScripts.isReadyProbeOutput(result.stdout)) {
                     prefs.setCoreReady(true);
+                    rememberInstalledRuntime(result);
                     setLinkConfirmed(true);
                     append(ConsoleEntry.Channel.SYSTEM, t(
                             "Pi runtime развёрнут и проверен.",
@@ -1324,7 +1382,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 setBusy(false, null);
                 boolean runtimeReady = runtimeState(result, "READY");
                 prefs.setCoreReady(runtimeReady);
-                if (runtimeReady) setLinkConfirmed(true);
+                if (runtimeReady) {
+                    rememberInstalledRuntime(result);
+                    setLinkConfirmed(true);
+                }
                 append(runtimeReady ? ConsoleEntry.Channel.SYSTEM : ConsoleEntry.Channel.ERROR,
                         runtimeReady
                                 ? t(
@@ -1335,7 +1396,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                         "Обновление Pi не завершилось.\n",
                                         "The Pi update did not finish.\n"
                                 ) + runtimeError(result));
-                if (runtimeReady && serverReady) main.post(this::restartBridge);
+                if (runtimeReady) {
+                    if (serverReady) main.post(this::startBridge);
+                    else if (warmAfterRuntimeUpdate || prefs.autostartCore() || composerHasText || queuedPrompt != null) {
+                        main.post(this::warmCore);
+                    }
+                }
+                warmAfterRuntimeUpdate = false;
             }
             case NEW_SESSION -> {
                 setBusy(false, null);
@@ -1474,6 +1541,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 canRunNow || canWarmNow,
                 !canRunNow && canWarmNow
         );
+        deck.setPlanAvailable(canRequestPlan());
+        deck.setPlanLedger(planLedger);
         deck.setContextUsage(
                 contextUsage,
                 bridgeReady && !busy && prefs.hasSession(),
@@ -1721,45 +1790,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             );
             return;
         }
-        if (!serverReady) {
+        if (!bridgeFault.isBlank() && !busy) {
             deck.setBootState(
-                    t("ГОТОВНОСТЬ // 1 ИЗ 2", "READY // 1 OF 2"),
-                    t("ЗАПУСТИТЬ ЛОКАЛЬНЫЙ ИИ", "START LOCAL AI"),
-                    selectedModel.title + t(
-                            " уже находится на телефоне. Нажмите один раз — PiDeck сам "
-                                    + "запустит модель и безопасное локальное подключение. "
-                                    + "Первый запуск обычно занимает до минуты.",
-                            " is already installed on this phone. Tap once and PiDeck will "
-                                    + "start both the model and its secure local connection. "
-                                    + "The first start usually takes under a minute."
-                    )
-                            + t(
-                            " Технические параметры доступны в разделе ЯДРО.",
-                            " Technical details remain available under CORE."
-                    ),
-                    busy
-                            ? t("ЗАПУСКАЮ…", "STARTING…")
-                            : t("ЗАПУСТИТЬ И ПРОДОЛЖИТЬ", "START AND CONTINUE"),
-                    busy ? null : this::warmCore,
-                    t("НАСТРОЙКИ", "SETTINGS"), this::openCoreRoot
-            );
-            return;
-        }
-        if (!bridgeReady) {
-            deck.setBootState(
-                    t("ГОТОВНОСТЬ // 2 ИЗ 2", "READY // 2 OF 2"),
-                    t("ЗАВЕРШИТЬ ПОДКЛЮЧЕНИЕ", "FINISH CONNECTING"),
-                    t(
-                            "Модель уже запущена. Осталось восстановить защищённый локальный канал; "
-                                    + "запросы не уходят с телефона. ",
-                            "The model is already running. Only the secure local channel remains; "
-                                    + "prompts never leave the phone. "
-                    )
-                            + (bridgeFault.isBlank()
-                            ? accessProfile.description(uiLanguage)
-                            : bridgeFault),
-                    busy ? t("ПОДКЛЮЧАЮ…", "CONNECTING…") : t("ПРОДОЛЖИТЬ", "CONTINUE"),
-                    busy ? null : this::warmCore,
+                    t("ПОДКЛЮЧЕНИЕ", "CONNECTION"),
+                    t("ВОССТАНОВИТЬ СВЯЗЬ", "RESTORE CONNECTION"),
+                    bridgeFault,
+                    t("ПОВТОРИТЬ", "RETRY"), this::warmCore,
                     t("НАСТРОЙКИ", "SETTINGS"), this::openCoreRoot
             );
             return;
@@ -1896,7 +1932,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 && nativeModels.isInstalled(selectedModel)
                 && serverReady
                 && bridgeReady
-                && bridgeConnected;
+                && bridgeConnected
+                && runtimeAssetsCurrent();
     }
 
     private void probeTermux() {
@@ -1937,6 +1974,17 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
     }
 
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && focusComposerOnWindowFocus && deck != null) {
+            focusComposerOnWindowFocus = false;
+            getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED);
+            main.post(deck::focusComposer);
+        }
+    }
+
     private void setLinkConfirmed(boolean confirmed) {
         linkConfirmed = confirmed;
         prefs.setTermuxLinkConfirmed(confirmed);
@@ -1960,6 +2008,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     /** The ignite ladder without the tap: load the model if it is down, otherwise raise the bridge. */
     private void warmCore() {
         if (busy || !canWarmCore()) return;
+        if (!ensureBundledRuntime(true)) return;
         if (!serverReady) {
             startServer();
         } else if (!bridgeReady) {
@@ -1968,6 +2017,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void warmCoreOnLaunch() {
+        if (runtimeUpdateAvailable && prefs.consentGranted() && linkConfirmed && !busy
+                && !runtimeAssetsCurrent() && !runtimeUpdateAttempted) {
+            ensureBundledRuntime(false);
+            return;
+        }
         if (!StartupPolicy.warmsOnLaunch(
                 prefs.autostartCore(),
                 canWarmCore(),
@@ -2024,7 +2078,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
         dispatchOperation(
                 OperationKind.INSTALL_RUNTIME,
-                new JSONObject(),
+                json("runtimeFingerprint", runtimeFingerprint),
                 "INSTALLING PI CORE",
                 operationId -> termux.runBash(
                         operationId, OperationKind.INSTALL_RUNTIME, installScript
@@ -2180,8 +2234,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (failed.kind == OperationKind.COMPACT_SESSION) {
             contextCompacting = false;
             pendingPromptAfterCompaction = null;
+            pendingPlanAfterCompaction = false;
         } else if (failed.kind == OperationKind.NEW_SESSION) {
             pendingPromptAfterNewSession = null;
+            pendingPlanAfterNewSession = false;
         }
         busy = false;
         busyPhase = "";
@@ -2209,6 +2265,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             ));
             return;
         }
+        if (!ensureBundledRuntime(true)) return;
         long expectedPeak = selectedModel.estimatedPeakBytes();
         if (StartupPolicy.asksOomRisk(
                 lowMemory,
@@ -2340,8 +2397,29 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
     }
 
+    private boolean runtimeAssetsCurrent() {
+        return runtimeFingerprint.equals(prefs.installedRuntimeFingerprint());
+    }
+
+    private void rememberInstalledRuntime(CommandResult result) {
+        OperationRecord record = operationStore.load(result.operationId);
+        String installed = record == null ? "" : record.request.optString("runtimeFingerprint", "");
+        // A result from an older APK cannot certify the current APK's bundle.
+        if (runtimeFingerprint.equals(installed)) prefs.setInstalledRuntimeFingerprint(installed);
+    }
+
+    private boolean ensureBundledRuntime(boolean warmAfter) {
+        if (runtimeAssetsCurrent()) return true;
+        if (busy || !prefs.consentGranted() || !termux.hasRunPermission()) return false;
+        warmAfterRuntimeUpdate |= warmAfter;
+        updateAgent();
+        return false;
+    }
+
     private void updateAgent() {
         if (busy) return;
+        runtimeUpdateAttempted = true;
+        bridgeReady = false;
         String updateScript;
         try {
             updateScript = RuntimeAssetBundle.updateRuntime(this);
@@ -2351,7 +2429,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
         dispatchOperation(
                 OperationKind.UPDATE_RUNTIME,
-                new JSONObject(),
+                json("runtimeFingerprint", runtimeFingerprint),
                 "UPDATING PI AGENT",
                 operationId -> termux.runBash(
                         operationId, OperationKind.UPDATE_RUNTIME, updateScript
@@ -2396,6 +2474,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (busy || !bridgeReady) {
             if (pendingPromptAfterCompaction != null) {
                 pendingPromptAfterCompaction = null;
+                pendingPlanAfterCompaction = false;
                 deck.setComposerDispatchPending(false);
             }
             toast(t(
@@ -2422,6 +2501,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         } catch (RuntimeException error) {
             contextCompacting = false;
             pendingPromptAfterCompaction = null;
+            pendingPlanAfterCompaction = false;
             deck.setComposerDispatchPending(false);
             append(ConsoleEntry.Channel.ERROR, readableException(error));
             return;
@@ -2583,7 +2663,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         NativeLlamaService.Snapshot nativeState = NativeLlamaService.snapshot(this);
         if (!nativeState.isStartingOrReady()) return;
         if (active) NativeLlamaService.beginInference(this, phase);
-        else NativeLlamaService.endInference(this);
+        else NativeLlamaService.endInference(this, contextUsage);
     }
 
     private void applyScreenSpeedPolicy() {
@@ -2972,7 +3052,14 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         state.smartCompaction = prefs.smartCompaction();
         state.language = uiLanguage;
 
-        for (ModelSpec model : modelCatalog.all()) state.models.add(modelRow(model));
+        java.util.List<String> primaryModels = java.util.List.of(
+                "lfm2.5-2.6b-qad", "k2-horizon-3.7b", "qwen3.8-4b-distill");
+        for (String id : primaryModels) {
+            modelCatalog.byId(id).ifPresent(model -> state.models.add(modelRow(model)));
+        }
+        for (ModelSpec model : modelCatalog.all()) {
+            if (!primaryModels.contains(model.id)) state.models.add(modelRow(model));
+        }
 
         String systemPrompt = prefs.systemPrompt();
         SystemPromptSettings.Mode systemPromptMode = prefs.systemPromptMode();
@@ -3317,6 +3404,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "FAST · без скрытого рассуждения · ≈19 ток/с",
                     "FAST · direct · ≈19 tok/s"
             );
+            case "qwen3.8-2b-distill" -> t(
+                    "Reasoning-кандидат · ≈15,8 ток/с · tools не пройдены",
+                    "Reasoning candidate · ≈15.8 tok/s · tools failed"
+            );
             case "qwen3.5-4b" -> t(
                     "DEEP вручную · reasoning ≤512 · ≈7 ток/с",
                     "Manual DEEP · reasoning up to 512 · ≈7 tok/s"
@@ -3329,6 +3420,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case "nanbeige4.2-3b" -> t(
                     "Agentic-кандидат · скорость не измерена",
                     "Agentic candidate · speed not measured"
+            );
+            case "granite-4.2-3b" -> t(
+                    "Tool-кандидат · ≈11,0 ток/с · loop не пройден",
+                    "Tool candidate · ≈11.0 tok/s · loop failed"
             );
             case "bonsai-27b" -> t("Не для диалога · ≈1 ток/с", "Not for chat · ≈1 tok/s");
             default -> t(
@@ -3350,6 +3445,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "The fastest profile for phones with limited available memory.";
             case "qwen3.5-2b" ->
                     "FAST: direct answers without hidden reasoning for everyday edits.";
+            case "qwen3.8-2b-distill" ->
+                    "A compact reasoning candidate derived from Qwen3.5 2B. On the SM-S918B "
+                            + "with stock b10092 it measured 15.82 tok/s at 192 tokens and "
+                            + "2,783 MiB peak RSS. Russian and suite-v2 Q01 passed, but Q04 "
+                            + "failed because the model printed code instead of calling read. "
+                            + "It remains manual-only.";
             case "qwen3.5-4b" ->
                     "A manual DEEP profile that is stronger on some difficult repairs, but runs "
                             + "at about 7 tok/s and is outside the automatic ladder. Reasoning is "
@@ -3363,6 +3464,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "Looped agentic model with a separate pinned Nanbeige runtime. The vendor "
                             + "lists English and Chinese; Russian, suite-v1/v2, and speed are "
                             + "not validated yet.";
+            case "granite-4.2-3b" ->
+                    "IBM's official reasoning/tool candidate. On the SM-S918B with stock b10092 "
+                            + "it measured 11.04 tok/s at 192 tokens and 4,612 MiB peak RSS. "
+                            + "Russian and suite-v2 Q01 passed, but the tool smoke made four "
+                            + "calls instead of one and did not finish successfully within "
+                            + "420 seconds. It remains manual-only.";
             case "bonsai-27b" ->
                     "27B in a 1-bit packing: it fits a flagship's memory but decodes at about "
                             + "1.2 tok/s. Hand-picked only.";
@@ -3522,6 +3629,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
         try {
             prefs.setSessionId(id, true);
+            planLedger = PlanLedger.empty();
         } catch (RuntimeException error) {
             toast(t(
                     "Эту сессию нельзя продолжить: ",
@@ -3637,6 +3745,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 return;
             }
             queuedPrompt = null;
+            queuedPromptPlanRequested = false;
             queuedWarmAttempts = 0;
             prefs.clearQueuedPrompt();
             deck.setQueueCount(0);
@@ -3645,6 +3754,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "Промпт из очереди не отправлен: ядро больше не готово принимать задачи.",
                             "The queued prompt was not sent because the core is no longer ready."
                     ));
+            refreshUi();
+            return;
+        }
+        if (queuedPromptPlanRequested && !canRequestPlan()) {
+            queuedPrompt = null;
+            queuedPromptPlanRequested = false;
+            queuedWarmAttempts = 0;
+            prefs.clearQueuedPrompt();
+            deck.setQueueCount(0);
+            append(ConsoleEntry.Channel.ERROR, t(
+                    "План из очереди не отправлен: режим или профиль доступа изменился.",
+                    "The queued plan was not sent because the mode or access profile changed."
+            ));
             refreshUi();
             return;
         }
@@ -3669,14 +3791,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
         String prompt = queuedPrompt;
+        boolean planRequested = queuedPromptPlanRequested;
         queuedPrompt = null;
+        queuedPromptPlanRequested = false;
         queuedWarmAttempts = 0;
         deck.setQueueCount(0);
         warnIfHot();
-        paceThermalThenRun(() -> dispatchRpcTurn(prompt));
+        paceThermalThenRun(() -> dispatchRpcTurn(prompt, planRequested));
     }
 
-    private void dispatchRpcTurn(String prompt) {
+    private void dispatchRpcTurn(String prompt, boolean planRequested) {
         String sessionId = prefs.ensureSessionId();
         OperationRecord operation;
         try {
@@ -3686,6 +3810,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             .put("sessionId", sessionId)
                             .put("accessProfile", accessProfile.wireName())
                             .put("agentMode", agentMode.wireName())
+                            .put("planRequested", planRequested)
             );
             operations.dispatched(operation.operationId);
             pendingRpcPrompt.begin(operation.operationId, prompt);
@@ -3715,6 +3840,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 JSONObject payload = new JSONObject();
                 payload.put("message", prompt);
                 payload.put("sessionId", sessionId);
+                payload.put("planRequested", planRequested);
                 rpc.command(operation.operationId, "PROMPT", payload);
                 runOnUiThread(() -> acknowledgeRpcPrompt(operation.operationId));
             } catch (Exception error) {
@@ -3729,6 +3855,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             requestExpiredUnknownRpcRecovery(this::startBridge);
             return;
         }
+        if (!ensureBundledRuntime(true)) return;
         bridgeFault = "";
         String sessionId = prefs.ensureSessionId();
         String systemPrompt = prefs.systemPrompt();
@@ -3919,6 +4046,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "Session cursor восстановлен из авторитетного состояния bridge.",
                             "The session cursor was restored from authoritative bridge state."
                     ));
+        }
+        if (state.has("planLedger")) {
+            applyPlanLedger(state.optJSONObject("planLedger"));
         }
         if (active != null) {
             String remoteField = active.kind == OperationKind.NEW_SESSION
@@ -4190,6 +4320,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 refreshUi();
             }
             case APPROVAL_REQUESTED -> showApproval(event);
+            case PLAN_STATE_CHANGED -> applyPlanLedger(
+                    event.payload.optJSONObject("planLedger")
+            );
             case APPROVAL_RESOLVED -> {
                 String approvalId = event.payload.optString("approvalId");
                 if (approvalId.equals(currentApprovalId)) {
@@ -4220,6 +4353,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         // Persist acknowledgement only after the event's UI mutation. A process death may replay
         // an event, but it cannot durably acknowledge a rejection before its preview was removed.
         prefs.setBridgeCursor(event.bridgeInstanceId, event.sequence);
+    }
+
+    private void applyPlanLedger(JSONObject value) {
+        planLedger = PlanLedger.parse(value);
+        prefs.setPlanLedger(planLedger);
+        deck.setPlanLedger(planLedger);
     }
 
     private void completeRpcOperation(BridgeEvent event) {
@@ -4267,10 +4406,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (record.kind == OperationKind.AGENT_TURN) {
             acknowledgeRpcPrompt(event.operationId);
         }
-        if (record.kind == OperationKind.AGENT_TURN
-                || record.kind == OperationKind.COMPACT_SESSION) {
-            setInferenceActive(false, "");
-        }
         setBusy(false, null);
         thermalWarned = false;
         // A turn that ended can no longer be waiting on a decision.
@@ -4294,10 +4429,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 smartCompactionAttemptTokens = -1L;
                 deck.setGenerationSpeed(null);
                 String pending = pendingPromptAfterNewSession;
+                boolean pendingPlan = pendingPlanAfterNewSession;
                 pendingPromptAfterNewSession = null;
-                if (pending != null) main.post(() -> sendPromptNow(pending));
+                pendingPlanAfterNewSession = false;
+                planLedger = PlanLedger.empty();
+                prefs.setPlanLedger(planLedger);
+                if (pending != null) main.post(() -> sendPromptNow(pending, pendingPlan));
             } else {
                 pendingPromptAfterNewSession = null;
+                pendingPlanAfterNewSession = false;
                 deck.setComposerDispatchPending(false);
                 append(ConsoleEntry.Channel.ERROR, error);
             }
@@ -4360,17 +4500,24 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                 )
                 );
                 String pending = pendingPromptAfterCompaction;
+                boolean pendingPlan = pendingPlanAfterCompaction;
                 pendingPromptAfterCompaction = null;
-                if (pending != null) main.post(() -> sendPromptNow(pending));
+                pendingPlanAfterCompaction = false;
+                if (pending != null) main.post(() -> sendPromptNow(pending, pendingPlan));
                 else deck.setComposerDispatchPending(false);
             } else {
                 pendingPromptAfterCompaction = null;
+                pendingPlanAfterCompaction = false;
                 deck.setComposerDispatchPending(false);
                 append(ConsoleEntry.Channel.ERROR, t(
                         "Историю сжать не удалось.\n",
                         "History compaction failed.\n"
                 ) + error);
             }
+        }
+        if (record.kind == OperationKind.AGENT_TURN
+                || record.kind == OperationKind.COMPACT_SESSION) {
+            setInferenceActive(false, "");
         }
         operations.markConsumed(event.operationId);
         if (record.kind == OperationKind.AGENT_TURN) {
@@ -4379,9 +4526,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void showApproval(BridgeEvent event) {
+        JSONObject decision = event.payload.optJSONObject("decision");
+        boolean planDecision = decision != null && "plan".equals(decision.optString("kind"));
         if (event.operationId == null
-                || !event.operationId.equals(operations.activeOperationId())
-                || accessProfile != AccessProfile.CONFIRM_CHANGES) {
+                || !event.operationId.equals(operations.activeOperationId())) {
             sendApproval(event, false);
             return;
         }
@@ -4389,7 +4537,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         String approvalId = event.payload.optString("approvalId");
         if (approvalId.isBlank()) return;
 
-        JSONObject decision = event.payload.optJSONObject("decision");
+        if (planDecision) {
+            if (!canRequestPlan()) {
+                sendApproval(event, false);
+                return;
+            }
+            showPlanDecision(event, approvalId, decision);
+            return;
+        }
+        if (accessProfile != AccessProfile.CONFIRM_CHANGES) {
+            sendApproval(event, false);
+            return;
+        }
         if (decision != null && "overwrite".equals(decision.optString("kind"))) {
             showOverwriteDecision(event, approvalId, decision);
             return;
@@ -4425,6 +4584,46 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             currentApprovalId = null;
         });
         approvalDialog.show();
+    }
+
+    private void showPlanDecision(
+            BridgeEvent event, String approvalId, JSONObject decision
+    ) {
+        currentApprovalId = approvalId;
+        PlanDecisionCardView.Decision model = new PlanDecisionCardView.Decision(
+                approvalId,
+                decision.optString("reason", "")
+        );
+        JSONArray preview = decision.optJSONArray("preview");
+        for (int index = 0; preview != null
+                && index < preview.length()
+                && model.steps.size() < PlanLedger.MAX_ITEMS; index++) {
+            String step = preview.optString(index, "").trim();
+            if (!step.isBlank()) model.steps.add(step);
+        }
+        if (model.steps.isEmpty()) {
+            currentApprovalId = null;
+            sendApproval(event, false);
+            return;
+        }
+        AtomicBoolean responded = new AtomicBoolean(false);
+        deck.addPlanDecision(model, (id, confirmed) -> {
+            if (!responded.compareAndSet(false, true)) return;
+            currentApprovalId = null;
+            sendApproval(event, confirmed);
+            append(ConsoleEntry.Channel.SYSTEM, confirmed
+                    ? t(
+                            "План подтверждён; начинаю исполнение.",
+                            "Plan approved; execution is starting."
+                    )
+                    : t(
+                            "План оставлен без исполнения.",
+                            "The plan was left unexecuted."
+                    ));
+            refreshUi();
+        });
+        prefs.saveTranscript(deck.entries());
+        refreshUi();
     }
 
     /**
@@ -4525,9 +4724,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (record != null && record.kind == OperationKind.COMPACT_SESSION) {
             contextCompacting = false;
             pendingPromptAfterCompaction = null;
+            pendingPlanAfterCompaction = false;
         }
         if (record != null && record.kind == OperationKind.NEW_SESSION) {
             pendingPromptAfterNewSession = null;
+            pendingPlanAfterNewSession = false;
         }
         setBusy(false, null);
         append(ConsoleEntry.Channel.ERROR,
@@ -4855,6 +5056,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private String traceVerb(String toolName) {
         String verb = toolName == null ? "tool" : toolName.trim();
         if (verb.startsWith("pideck_")) verb = verb.substring("pideck_".length());
+        if ("edit_text".equals(verb) || "replace_lines".equals(verb)) return "edit";
         return verb.isEmpty() ? "tool" : verb;
     }
 

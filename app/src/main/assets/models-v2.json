@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "2026.08.23.1",
+  "catalogVersion": "2026.09.07.1",
   "models": [
     {
       "id": "qwen3.5-0.8b",
@@ -43,7 +43,10 @@
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": [],
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.05"
+        ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "off",
         "speculative": {
@@ -52,11 +55,11 @@
         }
       },
       "sampling": {
-        "temperature": 0.7,
-        "topP": 0.8,
+        "temperature": 0.3,
+        "topP": 0.9,
         "topK": 20,
-        "minP": 0.0,
-        "presencePenalty": 1.5
+        "minP": 0.05,
+        "presencePenalty": 0.5
       },
       "agent": {
         "toolProtocol": "openai",
@@ -117,7 +120,10 @@
         "maximumTestedContext": 10240,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": [],
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.05"
+        ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "off",
         "speculative": {
@@ -126,11 +132,11 @@
         }
       },
       "sampling": {
-        "temperature": 0.7,
-        "topP": 0.8,
+        "temperature": 0.3,
+        "topP": 0.9,
         "topK": 20,
-        "minP": 0.0,
-        "presencePenalty": 1.5
+        "minP": 0.05,
+        "presencePenalty": 0.5
       },
       "agent": {
         "toolProtocol": "openai",
@@ -142,6 +148,83 @@
       "memory": {
         "minimumAvailableMiB": 3072,
         "measuredPeakRssMiB": 3041,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.8-2b-distill",
+      "title": "Qwen3.8 2B Distill",
+      "tier": "EDGE",
+      "status": "CANDIDATE",
+      "note": "Компактный reasoning-кандидат на базе Qwen3.5 2B. На SM-S918B со stock b10092: 15,82 ток/с @192 и peak RSS 2 783 МиБ; русский ответ и suite-v2 Q01 пройдены, но Q04 провален — модель напечатала код вместо вызова read. Только ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/empero-ai/Qwen3.8-2B-Distill-GGUF",
+        "verifiedAt": "2026-09-02T00:00:00Z"
+      },
+      "source": {
+        "repository": "empero-ai/Qwen3.8-2B-Distill-GGUF",
+        "revision": "f4f73582d0b149595450c719b9a7521a03894f9c",
+        "official": true,
+        "provenance": "publisher-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "empero-ai/Qwen3.8-2B-Distill",
+        "conversion": {
+          "performedBy": "empero-ai",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": "e37a2dc4acc68ad75a91e07e63168cb04cc06345",
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen3.8-2B-Q4_K_M.gguf",
+        "bytes": 1312164224,
+        "sha256": "4aa0fb13c431514262f259d420ecc95a8714df58ac2a2384514e20b93983f0ff"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 10240,
+        "maximumTestedContext": 10240,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "256"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.6,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": 2783,
         "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
       },
       "benchmark": {
@@ -191,7 +274,12 @@
         "maximumTestedContext": 10240,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": ["--repeat-penalty", "1.1"],
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.1",
+          "--reasoning-budget",
+          "256"
+        ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
         "speculative": {
@@ -265,7 +353,12 @@
         "maximumTestedContext": 10240,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": ["--repeat-penalty", "1.1", "--reasoning-budget", "256"],
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.1",
+          "--reasoning-budget",
+          "256"
+        ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
         "speculative": {
@@ -290,6 +383,172 @@
       "memory": {
         "minimumAvailableMiB": 3072,
         "measuredPeakRssMiB": null,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "k2-horizon-3.7b",
+      "title": "K2 Horizon 3.7B Q4_K_M",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Агентская модель IFM с отдельным движком и исправлением reasoning-парсера. На SM-S918B: медиана 9,23 ток/с @192. Веса GGUF сторонней конвертации; полный допуск ещё не пройден. Ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/IFM/K2-Horizon-3.7B",
+        "verifiedAt": "2026-09-07T00:00:00Z"
+      },
+      "source": {
+        "repository": "NANI-Nithin/K2-Horizon-3.7B-GGUF",
+        "revision": "6b8f11e53bd89304a715ba7b6cffb37589d90834",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "k2",
+        "upstreamModel": "IFM/K2-Horizon-3.7B",
+        "conversion": {
+          "performedBy": "NANI-Nithin",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "K2-Horizon-3.7B-Q4_K_M.gguf",
+        "bytes": 3156598464,
+        "sha256": "f8dce940ec3e45be3e884a203b0eb3dee4ba57eb23fc63d0e210cdade2ca48ec"
+      },
+      "runtime": {
+        "serverFlavor": "k2horizon",
+        "minimumLlamaCppVersion": "k2horizon-35999d1-p2",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "256",
+          "--reasoning-effort",
+          "low",
+          "--reasoning-format",
+          "deepseek",
+          "--poll",
+          "0",
+          "--poll-batch",
+          "0",
+          "-b",
+          "512",
+          "-ub",
+          "128"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 1.0,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "k2-horizon-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 6144,
+        "measuredPeakRssMiB": 5452,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.8-4b-distill",
+      "title": "Empero Qwen3.8 4B Distill",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Reasoning-модель Empero на базе Qwen3.5. На SM-S918B: 7,93–8,23 ток/с @192. Полный агентский допуск ещё не пройден; доступна для ручного выбора.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/empero-ai/Qwen3.8-4B-Distill-GGUF",
+        "verifiedAt": "2026-09-07T00:00:00Z"
+      },
+      "source": {
+        "repository": "empero-ai/Qwen3.8-4B-Distill-GGUF",
+        "revision": "391fc7d103e3942a408def3e4f51c2f85d464417",
+        "official": true,
+        "provenance": "publisher-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "empero-ai/Qwen3.8-4B-Distill",
+        "conversion": {
+          "performedBy": "empero-ai",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen3.8-4B-Q4_K_M.gguf",
+        "bytes": 2783446304,
+        "sha256": "dec96e8cf2e11b613bb46513dec485377f9ca5a351e71712ee0e244f287c6790"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "256"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.6,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 4096,
+        "measuredPeakRssMiB": 3200,
         "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
       },
       "benchmark": {
@@ -373,6 +632,83 @@
       }
     },
     {
+      "id": "granite-4.2-3b",
+      "title": "Granite 4.2 3B",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Официальный reasoning/tool-кандидат IBM. На SM-S918B со stock b10092: 11,04 ток/с @192 и peak RSS 4 612 МиБ; русский ответ и suite-v2 Q01 пройдены, но tool-smoke сделал 4 вызова вместо одного и не завершился успешно за 420 с. Только ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/ibm-granite/granite-4.2-3b-GGUF",
+        "verifiedAt": "2026-09-02T00:00:00Z"
+      },
+      "source": {
+        "repository": "ibm-granite/granite-4.2-3b-GGUF",
+        "revision": "47a3d9699d7539606c83943d717fcea7bd9f6a19",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "granite",
+        "upstreamModel": "ibm-granite/granite-4.2-3b",
+        "conversion": {
+          "performedBy": "ibm-granite",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": "b7e947307dd2efb3ad3b853b0e8a7e75f8ad4ac2",
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "granite-4.2-3b-Q4_K_M.gguf",
+        "bytes": 2244012160,
+        "sha256": "20e436143017578687f7f848225cc6c6038126c84149192229c7dff6e4e0f427"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "256"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 1.0,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "granite4.2-local",
+        "maxTokens": 2048,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 5632,
+        "measuredPeakRssMiB": 4612,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
       "id": "nanbeige4.2-3b",
       "title": "Nanbeige4.2 3B",
       "tier": "CORE",
@@ -413,7 +749,10 @@
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": ["--reasoning-budget", "1024"],
+        "serverArgs": [
+          "--reasoning-budget",
+          "1024"
+        ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
         "speculative": {
@@ -487,7 +826,10 @@
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": ["--reasoning-budget", "512"],
+        "serverArgs": [
+          "--reasoning-budget",
+          "512"
+        ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
         "speculative": {
@@ -561,7 +903,10 @@
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": [],
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.05"
+        ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "off",
         "speculative": {
@@ -570,11 +915,11 @@
         }
       },
       "sampling": {
-        "temperature": 0.7,
-        "topP": 0.8,
+        "temperature": 0.3,
+        "topP": 0.9,
         "topK": 20,
-        "minP": 0.0,
-        "presencePenalty": 1.5
+        "minP": 0.05,
+        "presencePenalty": 0.5
       },
       "agent": {
         "toolProtocol": "openai",
