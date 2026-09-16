@@ -73,8 +73,11 @@ public final class TraceFeedView extends LinearLayout {
         TextView verbView = style.monoTrace(
                 verb, isWriting(verb) ? style.palette.ok : style.palette.accentAlt
         );
+        verbView.setSingleLine(true);
+        verbView.setEllipsize(TextUtils.TruncateAt.END);
+        verbView.setMaxWidth(style.dp(100));
         row.addView(verbView, new LayoutParams(
-                style.dp(40 * style.textScale()), ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
         TextView argumentView = style.monoTrace(argument, style.palette.muted);
@@ -86,6 +89,9 @@ public final class TraceFeedView extends LinearLayout {
 
         if (detail != null && !detail.isEmpty()) {
             TextView detailView = style.monoTrace(detail, style.palette.traceIdle);
+            detailView.setSingleLine(true);
+            detailView.setEllipsize(TextUtils.TruncateAt.END);
+            detailView.setMaxWidth(style.dp(80));
             detailView.setGravity(Gravity.END);
             LayoutParams detailLp = new LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -105,6 +111,9 @@ public final class TraceFeedView extends LinearLayout {
         if (rowViews.isEmpty() || detail == null || detail.isEmpty()) return;
         LinearLayout row = (LinearLayout) rowViews.get(rowViews.size() - 1);
         TextView detailView = style.monoTrace(detail, style.palette.traceIdle);
+        detailView.setSingleLine(true);
+        detailView.setEllipsize(TextUtils.TruncateAt.END);
+        detailView.setMaxWidth(style.dp(80));
         detailView.setGravity(Gravity.END);
         if (row.getChildCount() > 2) row.removeViewAt(2);
         LayoutParams detailLp = new LayoutParams(

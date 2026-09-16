@@ -1297,9 +1297,8 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
     private View answerFooter(ConsoleEntry entry) {
         if (!entry.hasExactSpeed()) return actionChips(entry.text);
-        LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout footer = new LinearLayout(getContext());
+        footer.setOrientation(LinearLayout.VERTICAL);
         GenerationSpeed speed = GenerationSpeed.exact(
                 entry.tokensPerSecond, entry.outputTokens
         );
@@ -1308,11 +1307,12 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         );
         rate.setSingleLine(true);
         rate.setContentDescription(speed.contentDescription(language.locale, language));
-        row.addView(rate, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        ));
-        row.addView(actionChips(entry.text));
-        return row;
+        footer.addView(rate, wrap());
+
+        LinearLayout.LayoutParams actionsLp = matchWidth();
+        actionsLp.topMargin = style.dp(10);
+        footer.addView(actionChips(entry.text), actionsLp);
+        return footer;
     }
 
     private LinearLayout.LayoutParams chipsLp() {
@@ -1323,21 +1323,34 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
     /** The chip set follows what the turn actually touched. */
     private View actionChips(String answer) {
-        LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout rows = new LinearLayout(getContext());
+        rows.setOrientation(LinearLayout.VERTICAL);
         String written = lastWrittenPath;
         if (!written.isEmpty()) {
-            row.addView(style.chip(
+            LinearLayout fileRow = chipRow();
+            fileRow.addView(style.chip(
                     t("Открыть файл", "Open file"),
                     () -> listener.onOpenFile(written)
             ), chipLp());
+            rows.addView(fileRow);
         }
-        row.addView(style.chip(
+
+        LinearLayout shareRow = chipRow();
+        shareRow.addView(style.chip(
                 t("Копировать", "Copy"), () -> copyToClipboard(answer)
         ), chipLp());
-        row.addView(style.chip(
+        shareRow.addView(style.chip(
                 t("Отправить", "Share"), () -> share(answer)
         ), chipLp());
+        LinearLayout.LayoutParams shareLp = wrap();
+        if (!written.isEmpty()) shareLp.topMargin = style.dp(8);
+        rows.addView(shareRow, shareLp);
+        return rows;
+    }
+
+    private LinearLayout chipRow() {
+        LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
         return row;
     }
 
