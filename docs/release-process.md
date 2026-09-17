@@ -69,8 +69,8 @@ CI. A tag can be created using the owner's dedicated signing key:
 ```sh
 GNUPGHOME=/path/to/private/tag-keyring git -c gpg.format=openpgp \
   -c user.signingkey=E683F63AE7A8345F7B39EF9112A3798831C3741F \
-  tag -s v0.3.0-alpha14 -m 'PI//DECK 0.3.0-alpha14'
-git push origin v0.3.0-alpha14
+  tag -s v0.3.0-alpha15 -m 'PI//DECK 0.3.0-alpha15'
+git push origin v0.3.0-alpha15
 ```
 
 The tag workflow publishes:

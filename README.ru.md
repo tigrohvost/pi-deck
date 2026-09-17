@@ -9,6 +9,8 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
+**[Скачать APK последнего релиза](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha15/pi-deck.apk)**
+
 </div>
 
 Агент [Pi](https://github.com/earendil-works/pi) целиком живёт в телефоне.
@@ -24,10 +26,11 @@ root не нужен.
 
 ## Релиз и проверки на устройстве
 
-Текущая версия исходников — `0.3.0-alpha14` (`versionCode 22`): накопленные
-изменения runtime и автоматическая сборка APK с production-подписью. Прежние
-измерения alpha14 сохранены в [результатах проверок](docs/validation/alpha14);
-они не заменяют проверку нового подписанного CI APK на телефоне.
+Текущая версия исходников — `0.3.0-alpha15` (`versionCode 23`): исправления
+перекрытий на узких экранах, накопленные изменения runtime и автоматическая
+сборка APK с production-подписью. Прежние измерения alpha14 сохранены в
+[результатах проверок](docs/validation/alpha14); они не заменяют проверку нового
+подписанного CI APK на телефоне.
 
 Ранее сборка `0.3.0-alpha13` (`versionCode 21`, runtime contract 56) была
 проверена следующим образом. 26 августа 2026 года её точный debug APK прошёл handset-acceptance на

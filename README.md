@@ -9,6 +9,8 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
+**[Download the latest release APK](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha15/pi-deck.apk)**
+
 </div>
 
 [Pi](https://github.com/earendil-works/pi) lives entirely on the phone. Model
@@ -24,10 +26,11 @@ authenticated loopback RPC bridge, with no root required.
 
 ## Release and device validation
 
-The current source version is `0.3.0-alpha14` (`versionCode 22`). It includes
-the accumulated runtime changes and a production-signing CI pipeline. Historical
-alpha14 measurements are in [validation evidence](docs/validation/alpha14);
-these do not constitute device acceptance of the new production-signed CI APK.
+The current source version is `0.3.0-alpha15` (`versionCode 23`). It includes
+the narrow-layout overlap fixes, accumulated runtime changes, and the
+production-signing CI pipeline. Historical alpha14 measurements are in
+[validation evidence](docs/validation/alpha14); these do not constitute device
+acceptance of the new production-signed CI APK.
 
 The earlier `0.3.0-alpha13` (`versionCode 21`, runtime contract 56) build was
 validated as follows. On 2026-08-26 its exact debug APK passed handset acceptance on a Samsung
