@@ -67,11 +67,22 @@ tag verification key is committed; the private tag key stays outside Git and
 CI. A tag can be created using the owner's dedicated signing key:
 
 ```sh
-GNUPGHOME=/path/to/private/tag-keyring git -c gpg.format=openpgp \
-  -c user.signingkey=E683F63AE7A8345F7B39EF9112A3798831C3741F \
+GNUPGHOME="${XDG_DATA_HOME:-$HOME/.local/share}/pi-deck/release-tag-gnupg" \
+  git -c gpg.format=openpgp \
+  -c user.signingkey=15D57AAB416AC7C871D3EFAA1D9744520A6282C5 \
   tag -s v0.3.0-alpha15 -m 'PI//DECK 0.3.0-alpha15'
 git push origin v0.3.0-alpha15
 ```
+
+The active tag key is `15D57AAB416AC7C871D3EFAA1D9744520A6282C5`, created on
+2026-09-17 after the previous private tag keyring was lost. Its private keyring
+is kept in the persistent owner-only directory shown above, outside the
+repository. Back up that directory, including its revocation certificate, to
+owner-controlled secure storage; do not keep the only copy in `/tmp`.
+The previous public key `E683F63AE7A8345F7B39EF9112A3798831C3741F` remains in
+the verification bundle so historical tags can still be verified. This rotation
+does not change the APK signing keystore or certificate in GitHub Actions;
+production-signed APK upgrades retain signature compatibility.
 
 The tag workflow publishes:
 
