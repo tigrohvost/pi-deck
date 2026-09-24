@@ -44,6 +44,7 @@ SERVER_FLAVOR_BUILDS = {
     "stock": "b10092",
     "nanbeige42": "nanbeige42-c6640a1",
     "k2horizon": "k2horizon-35999d1-p2",
+    "prism": "prism-842b188",
 }
 
 

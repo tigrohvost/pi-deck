@@ -359,6 +359,7 @@ public final class NativeLlamaService extends Service {
     static String serverLibraryForFlavor(String flavor) {
         if ("stock".equals(flavor)) return "libpideck_llama_server.so";
         if ("nanbeige42".equals(flavor)) return "libpideck_nanbeige_server.so";
+        if ("prism".equals(flavor)) return "libpideck_prism_server.so";
         if ("k2horizon".equals(flavor)) return CpuProfile.supportsI8mm()
                 ? "libpideck_k2horizon_i8mm_server.so"
                 : "libpideck_k2horizon_server.so";

@@ -199,6 +199,26 @@ public class ModelCatalogTest {
     }
 
     @Test
+    public void bonsai2UsesItsPrismRuntimeAndExactLocalArtifact() {
+        ModelSpec model = catalog.byId("bonsai2-27b").orElseThrow();
+        assertEquals(5_946_648_928L, model.bytes);
+        assertEquals(
+                "53107f530aa52eb00912263ab1ee29bd199261c87cd7b4ad4ca1318c1fe33ee3",
+                model.sha256
+        );
+        assertEquals("prism-842b188", model.nativeRuntimeBuild());
+        assertEquals("libpideck_prism_server.so", model.nativeServerLibraryName());
+        assertEquals(model.nativeServerLibraryName(),
+                NativeLlamaService.serverLibraryForFlavor(model.serverFlavor));
+        assertFalse(ModelCatalog.isRecommendable(model));
+        List<String> args = model.nativeLlamaServerArguments(
+                "/private/bonsai2.gguf", edgeProfile(), 8080, "test-key"
+        );
+        assertEquals("off", args.get(args.indexOf("--reasoning") + 1));
+        assertEquals("0", args.get(args.indexOf("--reasoning-budget") + 1));
+    }
+
+    @Test
     public void catalogUsesPinnedArtifactsAndAllowlistedLicenses() {
         assertEquals(2, ModelCatalog.SCHEMA_VERSION);
         for (ModelSpec model : catalog.all()) {

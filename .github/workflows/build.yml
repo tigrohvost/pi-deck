@@ -32,6 +32,7 @@ jobs:
           ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.1.12297006" \
             PIDECK_NANBEIGE_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" \
             PIDECK_K2_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" \
+            PIDECK_PRISM_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" \
             ./tools/vendor_llama_android.sh
 
       - name: Test, lint and assemble debug plus unsigned release
@@ -111,6 +112,7 @@ jobs:
             app/build/reports
             app/build/test-results
             app/src/main/jniLibs/arm64-v8a/libpideck_nanbeige_server.so
+            app/src/main/jniLibs/arm64-v8a/libpideck_prism_server.so
           if-no-files-found: ignore
           retention-days: 1
 

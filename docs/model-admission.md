@@ -242,3 +242,32 @@ series in place, and it is what decides whether the pinned runtime can open the
 file at all. `runtime.minimumLlamaCppVersion` is the pinned `b10092` even though
 the vendor directs users at their own llama.cpp fork for the `Q1_0_g128`
 kernels — b10092 loads and decodes the file correctly, just slowly.
+
+## Bonsai 2 27B (`bonsai2-27b`)
+
+Added for an explicit local-device run on 2026-09-24 as a manual-only
+`CANDIDATE`. The official Apache-2.0 artifact is
+`prism-ml/Ternary-Bonsai-2-27B-gguf` at
+`8b7157531df3859ce2a415c60754e9152554e25d`, file
+`Ternary-Bonsai-2-27B-PTQ1_0.gguf`, 5,946,648,928 bytes, SHA-256
+`53107f530aa52eb00912263ab1ee29bd199261c87cd7b4ad4ca1318c1fe33ee3`.
+The downloaded file and the copy transferred to SM-S918B independently matched
+the publisher's LFS identity. The source and conversion description are in the
+[official model card](https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf).
+Conversion provenance remains `INCOMPLETE`.
+
+This checkpoint requires Prism's PTQ1_0 tensor type and Hadamard transforms;
+the catalog routes it to the isolated `prism-842b188` executable. See
+[`third_party/prism`](../third_party/prism/README.md) for the pinned build.
+The initial phone smoke loaded a 4,096-token context in about 125 seconds and
+returned the exact `BONSAI_OK` marker. The six-token completion measured
+0.385 tokens/s; prompt processing measured 0.162 tokens/s. This was one device
+smoke during app setup, not a controlled throughput benchmark. The profile
+disables thinking and bounds the prompt cache to 256 MiB. Tool conformance,
+long conversations and the full admission suites have not been validated.
+
+The locally signed, non-debuggable release APK also verified and imported the
+same file, started the packaged runtime under the app's foreground service,
+and completed the same exact `BONSAI_OK` request through the authenticated Pi
+bridge in Chat mode. The app displayed six output tokens at 1.0 tokens/s and
+returned to READY with 89 of 4,096 context tokens used.

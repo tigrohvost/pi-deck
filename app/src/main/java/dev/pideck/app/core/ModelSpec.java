@@ -25,7 +25,7 @@ public final class ModelSpec {
     private static final Set<String> STATUSES = Set.of(
             "DEFAULT", "SUPPORTED", "CANDIDATE", "EXPERIMENTAL", "DEPRECATED", "BLOCKED"
     );
-    private static final Set<String> SERVER_FLAVORS = Set.of("stock", "nanbeige42", "k2horizon");
+    private static final Set<String> SERVER_FLAVORS = Set.of("stock", "nanbeige42", "k2horizon", "prism");
     // LicenseRef-LFM-Open-1.0: LFM Open License v1.0, reviewed 2026-08-07 — Apache-2.0-derived,
     // full use below a $10M annual-revenue threshold; see docs/model-admission.md.
     private static final Set<String> LICENSES =
@@ -230,6 +230,7 @@ public final class ModelSpec {
         String expectedRuntimeBuild = switch (serverFlavor) {
             case "nanbeige42" -> "nanbeige42-c6640a1";
             case "k2horizon" -> "k2horizon-35999d1-p2";
+            case "prism" -> "prism-842b188";
             default -> "b10092";
         };
         if (!expectedRuntimeBuild.equals(minimumLlamaCppVersion)) {
@@ -363,6 +364,8 @@ public final class ModelSpec {
                 return "libpideck_nanbeige_server.so";
             case "k2horizon":
                 return "libpideck_k2horizon_server.so";
+            case "prism":
+                return "libpideck_prism_server.so";
             default:
                 throw new IllegalStateException("Unsupported native server flavor: " + serverFlavor);
         }
@@ -377,6 +380,8 @@ public final class ModelSpec {
                 return "nanbeige42-c6640a1";
             case "k2horizon":
                 return "k2horizon-35999d1-p2";
+            case "prism":
+                return "prism-842b188";
             default:
                 throw new IllegalStateException("Unsupported native server flavor: " + serverFlavor);
         }

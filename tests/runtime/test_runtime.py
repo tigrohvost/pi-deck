@@ -884,43 +884,46 @@ class RuntimeTestCase(unittest.TestCase):
             server_supervisor.SERVER_API_KEY.read_bytes(),
         )
 
-    def test_nanbeige_adoption_requires_its_pinned_sidecar(self) -> None:
-        model = tiny_model(b"GGUF")
-        model["runtime"]["serverFlavor"] = "nanbeige42"
-        model["runtime"]["minimumLlamaCppVersion"] = "nanbeige42-c6640a1"
-        install_catalog(model)
-        request = {
-            "schemaVersion": 1,
-            "operationId": operation_id(),
-            "modelId": model["id"],
-            "modelSha256": model["artifact"]["sha256"],
-            "owner": "android-native",
-            "runtimeBuild": "nanbeige42-c6640a1",
-            "port": 8080,
-            "apiKey": "A" * 43,
-            "pid": 4242,
-            "decodeThreads": 5,
-            "batchThreads": 8,
-            "decodeCpuSet": "3-7",
-            "batchCpuSet": "0-7",
-        }
-        with (
-            mock.patch.object(server_supervisor, "strict_health"),
-            mock.patch.object(server_supervisor, "_write_pi_models"),
-            mock.patch.object(server_supervisor, "_wake_lock"),
-        ):
-            result = server_supervisor.adopt_external_server(request)
-        self.assertEqual("READY", result["state"])
-        self.assertEqual(
-            "nanbeige42-c6640a1",
-            server_supervisor.read_server_status()["runtimeBuild"],
-        )
+    def test_fork_adoption_requires_its_pinned_sidecar(self) -> None:
+        for flavor, runtime_build in (("nanbeige42", "nanbeige42-c6640a1"),
+                                      ("prism", "prism-842b188")):
+            with self.subTest(flavor=flavor):
+                model = tiny_model(b"GGUF")
+                model["runtime"]["serverFlavor"] = flavor
+                model["runtime"]["minimumLlamaCppVersion"] = runtime_build
+                install_catalog(model)
+                request = {
+                    "schemaVersion": 1,
+                    "operationId": operation_id(),
+                    "modelId": model["id"],
+                    "modelSha256": model["artifact"]["sha256"],
+                    "owner": "android-native",
+                    "runtimeBuild": runtime_build,
+                    "port": 8080,
+                    "apiKey": "A" * 43,
+                    "pid": 4242,
+                    "decodeThreads": 5,
+                    "batchThreads": 8,
+                    "decodeCpuSet": "3-7",
+                    "batchCpuSet": "0-7",
+                }
+                with (
+                    mock.patch.object(server_supervisor, "strict_health"),
+                    mock.patch.object(server_supervisor, "_write_pi_models"),
+                    mock.patch.object(server_supervisor, "_wake_lock"),
+                ):
+                    result = server_supervisor.adopt_external_server(request)
+                self.assertEqual("READY", result["state"])
+                self.assertEqual(
+                    runtime_build,
+                    server_supervisor.read_server_status()["runtimeBuild"],
+                )
 
-        request["operationId"] = operation_id()
-        request["runtimeBuild"] = "b10092"
-        with self.assertRaises(common.PiDeckError) as raised:
-            server_supervisor.adopt_external_server(request)
-        self.assertEqual("WRONG_RUNTIME", raised.exception.code)
+                request["operationId"] = operation_id()
+                request["runtimeBuild"] = "b10092"
+                with self.assertRaises(common.PiDeckError) as raised:
+                    server_supervisor.adopt_external_server(request)
+                self.assertEqual("WRONG_RUNTIME", raised.exception.code)
 
     def test_k2_adoption_requires_its_pinned_sidecar(self) -> None:
         model = tiny_model(b"GGUF")

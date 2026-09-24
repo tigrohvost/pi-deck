@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "2026.09.07.1",
+  "catalogVersion": "2026-09-24-bonsai2",
   "models": [
     {
       "id": "qwen3.5-0.8b",
@@ -1005,6 +1005,89 @@
       "memory": {
         "minimumAvailableMiB": 5120,
         "measuredPeakRssMiB": 4091,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "bonsai2-27b",
+      "title": "Bonsai 2 27B",
+      "tier": "MAX",
+      "status": "CANDIDATE",
+      "note": "Ternary PTQ1_0, 5.54 GiB. Экспериментальный профиль для ручного запуска на флагмане; скорость и агентные сценарии не аттестованы.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf",
+        "verifiedAt": "2026-09-24T00:00:00Z"
+      },
+      "source": {
+        "repository": "prism-ml/Ternary-Bonsai-2-27B-gguf",
+        "revision": "8b7157531df3859ce2a415c60754e9152554e25d",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen35",
+        "upstreamModel": "Qwen/Qwen3.8-27B",
+        "conversion": {
+          "performedBy": "prism-ml",
+          "tool": "llama.cpp (PrismML-Eng fork)",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+        "bytes": 5946648928,
+        "sha256": "53107f530aa52eb00912263ab1ee29bd199261c87cd7b4ad4ca1318c1fe33ee3"
+      },
+      "runtime": {
+        "serverFlavor": "prism",
+        "minimumLlamaCppVersion": "prism-842b188",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 4096,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "-b",
+          "256",
+          "-ub",
+          "128",
+          "--reasoning-budget",
+          "0",
+          "--cache-ram",
+          "256"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "bonsai2-local",
+        "maxTokens": 1024,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 7680,
+        "measuredPeakRssMiB": null,
         "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
       },
       "benchmark": {

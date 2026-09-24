@@ -125,6 +125,7 @@ val verifyModelManifest by tasks.registering {
                 "stock" -> "b10092"
                 "nanbeige42" -> "nanbeige42-c6640a1"
                 "k2horizon" -> "k2horizon-35999d1-p2"
+                "prism" -> "prism-842b188"
                 else -> error("$id serverFlavor is not allowlisted")
             }
             require(runtime["minimumLlamaCppVersion"] == expectedRuntimeBuild) {
@@ -309,7 +310,7 @@ tasks.register("verifyNativeRuntime") {
         }
         val sidecars = root["sidecars"] as? List<*>
             ?: error("native runtime sidecars are missing")
-        require(sidecars.size == 2) { "Exactly two pinned native sidecars are required" }
+        require(sidecars.size == 3) { "Exactly three pinned native sidecars are required" }
         val nanbeige = sidecars[0] as? Map<*, *>
             ?: error("Nanbeige sidecar metadata must be an object")
         require(
@@ -338,6 +339,16 @@ tasks.register("verifyNativeRuntime") {
             "%02x".format(it.toInt() and 0xff)
         }
         require(k2Hash == k2["patchSha256"]) { "K2 parser patch is not pinned" }
+        val prism = sidecars[2] as? Map<*, *> ?: error("Prism sidecar metadata must be an object")
+        require(prism == mapOf(
+            "flavor" to "prism",
+            "build" to "prism-842b188",
+            "repository" to "https://github.com/PrismML-Eng/llama.cpp.git",
+            "commit" to "842b1880415d6f508f03b789e5ce70194def7bfd",
+            "sourceArchiveSha256" to "84ec38b7e7fb45a9f076e923e064e967e7c30b946b71b3b778444b05e8459c3c",
+            "ndkRevision" to "28.2.13676358",
+            "file" to "libpideck_prism_server.so",
+        )) { "Prism sidecar metadata is not exactly pinned" }
         val entries = root["files"] as? List<*> ?: error("native runtime files are missing")
         val expected = entries.associate { raw ->
             val item = raw as? Map<*, *> ?: error("native runtime entry must be an object")

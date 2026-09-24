@@ -49,6 +49,16 @@
         "patchSha256": "04fe290be17bf608e862471e555320f1b924896cf096fe3e1d4b9073dc7b0d0b",
         "sha256": "695d3cdc03d098a392dd1a33788cc4c3c7a8aa040381fc87456551885bef0069",
         "optimizedSha256": "202c2565a098dd91b1a00871631ce3e6b43f714dbc065bb7b8e40ee45ef41287"
+      },
+      {
+        "flavor": "prism",
+        "build": "prism-842b188",
+        "repository": "https://github.com/PrismML-Eng/llama.cpp.git",
+        "commit": "842b1880415d6f508f03b789e5ce70194def7bfd",
+        "sourceArchiveSha256": "84ec38b7e7fb45a9f076e923e064e967e7c30b946b71b3b778444b05e8459c3c",
+        "ndkRevision": "28.2.13676358",
+        "file": "libpideck_prism_server.so",
+        "sha256": "4f318551fb2ba961a0c2a263d40754fd47f63b232e8cf614fdcf9fa08b8c19c0"
       }
     ]
   },

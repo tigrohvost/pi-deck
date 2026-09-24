@@ -120,7 +120,7 @@
             "speculative"
           ],
           "properties": {
-            "serverFlavor": {"enum": ["stock", "nanbeige42", "k2horizon"]},
+            "serverFlavor": {"enum": ["stock", "nanbeige42", "k2horizon", "prism"]},
             "minimumLlamaCppVersion": {"type": "string", "minLength": 1},
             "recommendedContext": {"type": "integer", "minimum": 512},
             "maximumTestedContext": {"type": "integer", "minimum": 512},

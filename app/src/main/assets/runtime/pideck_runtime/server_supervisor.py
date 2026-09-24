@@ -62,6 +62,7 @@ EXTERNAL_RUNTIME_BUILDS = {
     "stock": "b10092",
     "nanbeige42": "nanbeige42-c6640a1",
     "k2horizon": "k2horizon-35999d1-p2",
+    "prism": "prism-842b188",
 }
 API_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
 CPU_SET_PATTERN = re.compile(r"^[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*$")
