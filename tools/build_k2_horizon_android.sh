@@ -48,7 +48,7 @@ if [[ "${cmake_version}" != "cmake version 3.22.1-g37088a8" \
 fi
 
 strip_tool="${ndk_root}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-host_cxx="${ndk_root}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
+host_cxx="${PIDECK_HOST_CXX:-${ndk_root}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++}"
 if [[ ! -x "${strip_tool}" || ! -x "${host_cxx}" ]]; then
     printf 'Android NDK host clang++ or llvm-strip is missing.\n' >&2
     exit 2

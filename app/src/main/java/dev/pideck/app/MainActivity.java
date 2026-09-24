@@ -40,8 +40,10 @@ import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
@@ -180,6 +182,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private JSONArray sessions = new JSONArray();
     private int sessionCount;
     private long sessionBytes;
+    private boolean sessionBytesPartial;
     private boolean sessionsRequested;
     private String sessionsFault = "";
     private Runnable watchdog;
@@ -1422,6 +1425,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     sessions = listed == null ? new JSONArray() : listed;
                     sessionCount = value.optInt("count", sessions.length());
                     sessionBytes = value.optLong("totalBytes", 0L);
+                    sessionBytesPartial = value.optBoolean("totalBytesPartial", false);
                     sessionsFault = "";
                 } else {
                     sessionsFault = runtimeError(result);
@@ -3546,7 +3550,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             String title = value.optString("title", "");
             if (title.isBlank()) title = t("Сессия ", "Session ") + shortId(id);
 
-            String meta = messagesLabel(value.optInt("messages", 0))
+            String meta = (value.optBoolean("messagesTruncated", false) ? "≥" : "")
+                    + messagesLabel(value.optInt("messages", 0))
                     + " · " + humanBytes(value.optLong("bytes", 0L))
                     + " · " + (age < 86_400_000L ? clockTime(updated) : calendarDate(updated));
 
@@ -3597,7 +3602,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
 
         state.footer = sessionCount + " " + sessionsLabel(sessionCount)
-                + " · " + humanBytes(sessionBytes);
+                + " · " + (sessionBytesPartial ? "≥" : "") + humanBytes(sessionBytes);
         if (sessionCount > 0) {
             state.archiveLabel = t("Архивировать старые", "Archive old sessions");
             state.onArchive = this::archiveSessions;
@@ -3926,7 +3931,51 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
                     @Override
                     public void onEvent(BridgeEvent event) {
-                        runOnUiThread(() -> handleBridgeEvent(event));
+                        if (!isTerminalBridgeEvent(event)) {
+                            runOnUiThread(() -> handleBridgeEvent(event, null));
+                            return;
+                        }
+                        // Drain earlier UI events before persisting the terminal result. Hold the
+                        // poller until the result and cursor are committed, preserving event order.
+                        CountDownLatch completed = new CountDownLatch(1);
+                        runOnUiThread(() -> executeRpcCompletion(() -> {
+                            RpcCompletion completion;
+                            try {
+                                completion = prepareRpcCompletion(event);
+                            } catch (RuntimeException error) {
+                                completed.countDown();
+                                return;
+                            }
+                            runOnUiThread(() -> {
+                                try {
+                                    handleBridgeEvent(event, completion);
+                                    executeRpcCompletion(() -> {
+                                        try {
+                                            if (completion != null) {
+                                                operations.markConsumed(event.operationId);
+                                            }
+                                        } catch (RuntimeException error) {
+                                            completed.countDown();
+                                            return;
+                                        }
+                                        runOnUiThread(() -> {
+                                            prefs.setBridgeCursor(
+                                                    event.bridgeInstanceId, event.sequence
+                                            );
+                                            completed.countDown();
+                                        });
+                                    }, completed);
+                                } catch (RuntimeException error) {
+                                    completed.countDown();
+                                    throw error;
+                                }
+                            });
+                        }, completed));
+                        try {
+                            completed.await();
+                        } catch (InterruptedException ignored) {
+                            Thread.currentThread().interrupt();
+                        }
                     }
 
                     @Override
@@ -4143,7 +4192,58 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         prefs.setBridgeCursor(instanceId, Math.max(0L, earliestReceived - 1L));
     }
 
-    private void handleBridgeEvent(BridgeEvent event) {
+    private static boolean isTerminalBridgeEvent(BridgeEvent event) {
+        return switch (event.type) {
+            case TURN_COMPLETED, TURN_FAILED, TURN_ABORTED, SESSION_CREATED,
+                    SESSION_COMPACTED, SESSION_COMPACTION_FAILED -> true;
+            default -> false;
+        };
+    }
+
+    private void executeRpcCompletion(Runnable work, CountDownLatch completed) {
+        try {
+            io.execute(work);
+        } catch (RejectedExecutionException ignored) {
+            completed.countDown();
+        }
+    }
+
+    private static final class RpcCompletion {
+        final OperationRecord record;
+        final boolean ownsUi;
+
+        RpcCompletion(OperationRecord record, boolean ownsUi) {
+            this.record = record;
+            this.ownsUi = ownsUi;
+        }
+    }
+
+    private RpcCompletion prepareRpcCompletion(BridgeEvent event) {
+        if (event.operationId == null) return null;
+        OperationRecord record = operationStore.load(event.operationId);
+        if (record == null) return null;
+        boolean success = event.type == BridgeEvent.Type.TURN_COMPLETED
+                || event.type == BridgeEvent.Type.SESSION_CREATED
+                || event.type == BridgeEvent.Type.SESSION_COMPACTED;
+        String error = event.payload.optString(
+                "error",
+                event.type == BridgeEvent.Type.TURN_ABORTED ? "Turn aborted" : "RPC turn failed"
+        );
+        CommandResult result = new CommandResult(
+                event.operationId, record.kind, event.payload.optString("answer"), "",
+                success ? 0 : 1, success ? 0 : 1, success ? "" : error,
+                event.type == BridgeEvent.Type.TURN_ABORTED
+                        ? OperationState.ABORTED
+                        : success ? OperationState.COMPLETED : OperationState.FAILED
+        );
+        try {
+            return new RpcCompletion(record, operations.onResult(result));
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private void handleBridgeEvent(BridgeEvent event, RpcCompletion completion) {
         observedBridgeInstance = event.bridgeInstanceId;
         if (event.operationId != null
                 && stallState != null
@@ -4345,14 +4445,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
             case TURN_COMPLETED, TURN_FAILED, TURN_ABORTED, SESSION_CREATED,
                     SESSION_COMPACTED, SESSION_COMPACTION_FAILED ->
-                    completeRpcOperation(event);
+                    completeRpcOperation(event, completion);
             default -> {
             }
         }
         if (refreshState) refreshUi();
         // Persist acknowledgement only after the event's UI mutation. A process death may replay
         // an event, but it cannot durably acknowledge a rejection before its preview was removed.
-        prefs.setBridgeCursor(event.bridgeInstanceId, event.sequence);
+        if (!isTerminalBridgeEvent(event)) {
+            prefs.setBridgeCursor(event.bridgeInstanceId, event.sequence);
+        }
     }
 
     private void applyPlanLedger(JSONObject value) {
@@ -4361,10 +4463,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         deck.setPlanLedger(planLedger);
     }
 
-    private void completeRpcOperation(BridgeEvent event) {
-        if (event.operationId == null) return;
-        OperationRecord record = operationStore.load(event.operationId);
-        if (record == null) return;
+    private void completeRpcOperation(BridgeEvent event, RpcCompletion completion) {
+        if (completion == null) return;
+        OperationRecord record = completion.record;
         boolean success = event.type == BridgeEvent.Type.TURN_COMPLETED
                 || event.type == BridgeEvent.Type.SESSION_CREATED
                 || event.type == BridgeEvent.Type.SESSION_COMPACTED;
@@ -4373,32 +4474,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 "error",
                 event.type == BridgeEvent.Type.TURN_ABORTED ? "Turn aborted" : "RPC turn failed"
         );
-        CommandResult result = new CommandResult(
-                event.operationId,
-                record.kind,
-                answer,
-                "",
-                success ? 0 : 1,
-                success ? 0 : 1,
-                success ? "" : error,
-                event.type == BridgeEvent.Type.TURN_ABORTED
-                        ? OperationState.ABORTED
-                        : success ? OperationState.COMPLETED : OperationState.FAILED
-        );
-        boolean ownsUi;
-        try {
-            ownsUi = operations.onResult(result);
-        } catch (RuntimeException ignored) {
-            return;
-        }
-        if (!ownsUi) {
+        if (!completion.ownsUi) {
             boolean recoverableSessionResult = record.kind == OperationKind.NEW_SESSION
                     && SessionContract.mayApplyRecoveredSessionResult(
                             record.uiConsumed,
                             operations.activeOperationId()
                     );
             if (!recoverableSessionResult) {
-                operations.markConsumed(event.operationId);
                 return;
             }
         }
@@ -4519,7 +4601,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 || record.kind == OperationKind.COMPACT_SESSION) {
             setInferenceActive(false, "");
         }
-        operations.markConsumed(event.operationId);
         if (record.kind == OperationKind.AGENT_TURN) {
             main.postDelayed(this::maybeSmartCompactSession, 750L);
         }

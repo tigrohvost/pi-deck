@@ -84,6 +84,7 @@ MAX_EVENT_BYTES = 256 * 1024
 MAX_EVENTS = 10_000
 MAX_JOURNAL_BYTES = 20 * 1024 * 1024
 MAX_JOURNAL_TAIL = 5_000
+MAX_EVENT_PAGE_BYTES = 512 * 1024
 MAX_AUDIT_BYTES = 5 * 1024 * 1024
 AUDIT_RETAIN_BYTES = 2 * 1024 * 1024
 MAX_PROMPT_BYTES = 64 * 1024
@@ -1183,7 +1184,7 @@ class EventJournal:
                 if terminal or self._append_count >= 10:
                     os.fsync(output.fileno())
                     self._append_count = 0
-            self._rotate_if_needed(operation_id)
+            self._rotate_if_needed()
             self._condition.notify_all()
             return event
 
@@ -1196,32 +1197,42 @@ class EventJournal:
                 return False, []
             earliest = self._events[0]["sequence"]
             gap = sequence < earliest - 1
-            events = [event for event in self._events if event["sequence"] > sequence]
+            events = []
+            page_bytes = 0
+            for event in self._events:
+                if event["sequence"] <= sequence:
+                    continue
+                encoded_bytes = len(json.dumps(event, ensure_ascii=False).encode("utf-8"))
+                if events and page_bytes + encoded_bytes > MAX_EVENT_PAGE_BYTES:
+                    break
+                events.append(event)
+                page_bytes += encoded_bytes
             return gap, events
 
-    def _rotate_if_needed(self, active_operation_id: str | None) -> None:
+    def _rotate_if_needed(self) -> None:
         try:
             journal_size = EVENT_JOURNAL.stat().st_size
         except OSError:
             journal_size = 0
         if len(self._events) <= MAX_EVENTS and journal_size <= MAX_JOURNAL_BYTES:
             return
-        retained: list[dict[str, Any]] = []
-        if active_operation_id is not None:
-            for event in self._events:
-                if event.get("operationId") == active_operation_id:
-                    retained.append(event)
-        tail = list(self._events)[-MAX_JOURNAL_TAIL:]
-        by_sequence = {int(event["sequence"]): event for event in retained + tail}
-        ordered = [by_sequence[key] for key in sorted(by_sequence)]
-        self._events = collections.deque(ordered)
-        content = b"".join(
-            json.dumps(
+        # Keep a contiguous tail so a slow client can detect a gap and reconcile.
+        # Retaining every event of a long turn would rewrite an over-limit file on
+        # every subsequent token.
+        ordered = []
+        retained_bytes = 0
+        for event in reversed(self._events):
+            encoded = json.dumps(
                 event, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-            ).encode("utf-8")
-            + b"\n"
-            for event in ordered
-        )
+            ).encode("utf-8") + b"\n"
+            if ordered and (len(ordered) >= MAX_JOURNAL_TAIL
+                            or retained_bytes + len(encoded) > MAX_JOURNAL_BYTES // 2):
+                break
+            ordered.append((event, encoded))
+            retained_bytes += len(encoded)
+        ordered.reverse()
+        self._events = collections.deque(event for event, _ in ordered)
+        content = b"".join(encoded for _, encoded in ordered)
         atomic_write_bytes(EVENT_JOURNAL, content, 0o600)
 
 

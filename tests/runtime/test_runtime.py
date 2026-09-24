@@ -3737,6 +3737,49 @@ class RuntimeTestCase(unittest.TestCase):
         )
         self.assertTrue(event["payload"]["truncated"])
 
+    def test_event_pages_fit_android_response_limit(self) -> None:
+        journal = bridge.EventJournal(operation_id())
+        for index in range(8):
+            journal.append("MODEL_OUTPUT_DELTA", "turn", "session", {
+                "delta": "x" * 150_000, "index": index,
+            })
+        cursor = 0
+        received = []
+        while cursor < journal.sequence:
+            gap, page = journal.after(cursor, 0)
+            self.assertFalse(gap)
+            self.assertLess(len(json.dumps({"events": page}).encode("utf-8")), 1024 * 1024)
+            received.extend(event["sequence"] for event in page)
+            cursor = page[-1]["sequence"]
+        self.assertEqual(list(range(1, 9)), received)
+
+    def test_rotation_bounds_one_long_operation_and_preserves_gap(self) -> None:
+        with (
+            mock.patch.object(bridge, "MAX_EVENTS", 4),
+            mock.patch.object(bridge, "MAX_JOURNAL_TAIL", 2),
+            mock.patch.object(bridge, "MAX_JOURNAL_BYTES", 100 * 1024 * 1024),
+        ):
+            journal = bridge.EventJournal(operation_id())
+            for index in range(10):
+                journal.append("MODEL_OUTPUT_DELTA", "long-turn", "session", {
+                    "delta": str(index),
+                })
+                self.assertLessEqual(len(journal._events), 4)
+            gap, page = journal.after(0, 0)
+            self.assertTrue(gap)
+            sequences = [event["sequence"] for event in page]
+            self.assertEqual(list(range(sequences[0], 11)), sequences)
+            self.assertEqual([9, 10], sequences[-2:])
+
+    def test_rotation_bounds_bytes_during_one_long_operation(self) -> None:
+        with mock.patch.object(bridge, "MAX_JOURNAL_BYTES", 4096):
+            journal = bridge.EventJournal(operation_id())
+            for _ in range(20):
+                journal.append("MODEL_OUTPUT_DELTA", "long-turn", "session", {
+                    "delta": "x" * 1000,
+                })
+                self.assertLessEqual(bridge.EVENT_JOURNAL.stat().st_size, 4096)
+
     def test_delta_journal_defers_fsync_until_terminal(self) -> None:
         journal = bridge.EventJournal(operation_id())
         with mock.patch.object(bridge.os, "fsync") as fsync:
@@ -3955,6 +3998,7 @@ class SessionListingTestCase(unittest.TestCase):
         self.assertEqual([], listing["sessions"])
         self.assertEqual(0, listing["count"])
         self.assertEqual(0, listing["totalBytes"])
+        self.assertFalse(listing["totalBytesPartial"])
 
     def test_listing_titles_a_session_from_its_first_user_message(self) -> None:
         identifier = str(uuid.uuid4())
@@ -4000,13 +4044,28 @@ class SessionListingTestCase(unittest.TestCase):
             entry.write_text(json.dumps({"role": "user", "content": f"n{index}"}), "utf-8")
             os.utime(entry, (1_700_000_000 + index, 1_700_000_000 + index))
 
-        listing = launcher.list_sessions()
+        with mock.patch.object(launcher, "_session_bytes", wraps=launcher._session_bytes) as sizes:
+            listing = launcher.list_sessions()
 
         self.assertEqual(launcher.MAX_LISTED_SESSIONS + 5, listing["count"])
+        self.assertEqual(launcher.MAX_LISTED_SESSIONS, sizes.call_count)
         self.assertEqual(launcher.MAX_LISTED_SESSIONS, len(listing["sessions"]))
+        self.assertTrue(listing["totalBytesPartial"])
+        self.assertEqual(
+            sum(session["bytes"] for session in listing["sessions"]),
+            listing["totalBytes"],
+        )
         self.assertEqual("session-068", listing["sessions"][0]["id"])
         updates = [session["updatedAtEpochMs"] for session in listing["sessions"]]
         self.assertEqual(sorted(updates, reverse=True), updates)
+
+    def test_large_transcript_reports_message_count_as_lower_bound(self) -> None:
+        transcript = common.BASE / "sessions" / "large.jsonl"
+        line = json.dumps({"role": "user", "content": "x" * 1000}) + "\n"
+        transcript.write_text(line * 300, encoding="utf-8")
+        session = launcher.list_sessions()["sessions"][0]
+        self.assertTrue(session["messagesTruncated"])
+        self.assertLess(session["messages"], 300)
 
     def test_directory_session_is_measured_and_summarised(self) -> None:
         folder = common.BASE / "sessions" / str(uuid.uuid4())

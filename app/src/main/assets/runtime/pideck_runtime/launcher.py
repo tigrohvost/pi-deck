@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 import json
 import os
 import re
@@ -384,16 +385,21 @@ def _session_transcript(entry: Path) -> Path | None:
     return max(candidates, key=lambda child: child.stat().st_size)
 
 
-def _session_summary(entry: Path) -> tuple[str, int]:
-    """First user message and message count, or empty when the format is not ours to read."""
+def _session_summary(entry: Path) -> tuple[str, int, bool]:
+    """First user message and a bounded message count with an explicit lower-bound flag."""
     transcript = _session_transcript(entry)
     if transcript is None:
-        return "", 0
+        return "", 0, False
     title = ""
     messages = 0
+    truncated = False
     try:
-        with transcript.open("r", encoding="utf-8", errors="replace") as handle:
-            for line in handle.read(MAX_SESSION_SCAN_BYTES).splitlines():
+        with transcript.open("rb") as handle:
+            content = handle.read(MAX_SESSION_SCAN_BYTES + 1)
+            truncated = len(content) > MAX_SESSION_SCAN_BYTES
+            if truncated:
+                content = content[:content.rfind(b"\n") + 1]
+            for line in content.decode("utf-8", errors="replace").splitlines():
                 line = line.strip()
                 if not line:
                     continue
@@ -420,8 +426,8 @@ def _session_summary(entry: Path) -> tuple[str, int]:
                 if isinstance(content, str) and content.strip():
                     title = bounded_text(content.strip(), 160)
     except OSError:
-        return title, messages
-    return title, messages
+        return title, messages, truncated
+    return title, messages, truncated
 
 
 def _session_bytes(entry: Path) -> int:
@@ -438,26 +444,35 @@ def list_sessions() -> dict[str, Any]:
     """What is on disk under ~/.pideck/sessions, newest first."""
     source = BASE / "sessions"
     if not source.is_dir():
-        return {"state": "READY", "sessions": [], "count": 0, "totalBytes": 0}
+        return {
+            "state": "READY", "sessions": [], "count": 0,
+            "totalBytes": 0, "totalBytesPartial": False,
+        }
 
     entries = []
-    total_bytes = 0
     for entry in source.iterdir():
         try:
-            entries.append((entry, entry.stat().st_mtime, _session_bytes(entry)))
+            entries.append((entry, entry.stat().st_mtime))
         except OSError:
             continue
-    total_bytes = sum(size for _, _, size in entries)
-    entries.sort(key=lambda item: item[1], reverse=True)
-
+    newest = heapq.nlargest(MAX_LISTED_SESSIONS, entries, key=lambda item: item[1])
     sessions = []
-    for entry, modified, size in entries[:MAX_LISTED_SESSIONS]:
-        title, messages = _session_summary(entry)
+    total_bytes = 0
+    total_bytes_partial = len(entries) > len(newest)
+    for entry, modified in newest:
+        try:
+            size = _session_bytes(entry)
+        except OSError:
+            total_bytes_partial = True
+            continue
+        total_bytes += size
+        title, messages, messages_truncated = _session_summary(entry)
         sessions.append(
             {
                 "id": entry.stem if entry.is_file() else entry.name,
                 "title": title,
                 "messages": messages,
+                "messagesTruncated": messages_truncated,
                 "bytes": size,
                 "updatedAtEpochMs": int(modified * 1000),
             }
@@ -467,6 +482,7 @@ def list_sessions() -> dict[str, Any]:
         "sessions": sessions,
         "count": len(entries),
         "totalBytes": total_bytes,
+        "totalBytesPartial": total_bytes_partial,
     }
 
 
