@@ -2,6 +2,8 @@ package dev.pideck.app.ui;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
@@ -12,7 +14,10 @@ import android.view.View;
 @SuppressLint("ViewConstructor")
 public final class ScanlineView extends View {
     private static final float[] VIGNETTE_STOPS = {0f, 0.5f, 1f};
-    private final Paint line = new Paint();
+    /** One 1-px line every four rows, exactly as the per-row loop used to draw it. */
+    static final int SCANLINE_PERIOD_PX = 4;
+
+    private final Paint lines = new Paint();
     private final Paint vignette = new Paint();
     private final Palette palette;
 
@@ -21,8 +26,18 @@ public final class ScanlineView extends View {
         this.palette = palette;
         setClickable(false);
         setFocusable(false);
-        line.setColor(palette.scanline);
-        line.setStrokeWidth(1f);
+        // The overlay sits above the whole conversation and is composited on every frame; a
+        // repeating 1x4 tile turns ~770 line commands into a single rectangle.
+        lines.setShader(new BitmapShader(
+                scanlineTile(palette.scanline), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT
+        ));
+    }
+
+    static Bitmap scanlineTile(int color) {
+        Bitmap tile = Bitmap.createBitmap(1, SCANLINE_PERIOD_PX, Bitmap.Config.ARGB_8888);
+        tile.eraseColor(Color.TRANSPARENT);
+        tile.setPixel(0, 0, color);
+        return tile;
     }
 
     @Override
@@ -37,9 +52,7 @@ public final class ScanlineView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        for (int y = 0; y < getHeight(); y += 4) {
-            canvas.drawLine(0, y, getWidth(), y, line);
-        }
+        canvas.drawRect(0, 0, getWidth(), getHeight(), lines);
         canvas.drawRect(0, 0, getWidth(), getHeight(), vignette);
     }
 }

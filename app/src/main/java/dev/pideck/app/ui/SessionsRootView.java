@@ -6,6 +6,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -30,15 +31,28 @@ public final class SessionsRootView extends ScrollView {
         /** Sessions older than a week are dimmed rather than hidden. */
         public final boolean stale;
         public final Runnable open;
+        /** Renames the session on this phone only. */
+        public final Runnable rename;
+        /** Moves an inactive session into the archive; null for the current one. */
+        public final Runnable archive;
 
         public SessionRow(
                 String title, String meta, boolean current, boolean stale, Runnable open
+        ) {
+            this(title, meta, current, stale, open, null, null);
+        }
+
+        public SessionRow(
+                String title, String meta, boolean current, boolean stale, Runnable open,
+                Runnable rename, Runnable archive
         ) {
             this.title = title;
             this.meta = meta;
             this.current = current;
             this.stale = stale;
             this.open = open;
+            this.rename = rename;
+            this.archive = archive;
         }
     }
 
@@ -162,7 +176,9 @@ public final class SessionsRootView extends ScrollView {
             for (SessionRow row : group.rows) {
                 value.append('|').append(row.title).append('|').append(row.meta)
                         .append('|').append(row.current).append('|').append(row.stale)
-                        .append('|').append(row.open != null);
+                        .append('|').append(row.open != null)
+                        .append('|').append(row.rename != null)
+                        .append('|').append(row.archive != null);
             }
         }
         return value.toString();
@@ -198,6 +214,17 @@ public final class SessionsRootView extends ScrollView {
         view.addView(row.current
                 ? style.monoAt(t("Сейчас", "Current"), 10f, style.palette.ok, true)
                 : style.monoTrace("›", style.palette.muted));
+        if (row.rename != null || row.archive != null) {
+            TextView more = style.monoAt("⋯", 16f, style.palette.muted, false);
+            more.setGravity(Gravity.CENTER);
+            more.setContentDescription(t("Действия с сессией", "Session actions"));
+            style.clickable(more, () -> showActions(more, row));
+            view.addView(more, new LinearLayout.LayoutParams(style.dp(48), style.dp(48)));
+            view.setOnLongClickListener(ignored -> {
+                showActions(more, row);
+                return true;
+            });
+        }
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -205,6 +232,19 @@ public final class SessionsRootView extends ScrollView {
         lp.bottomMargin = style.dp(8);
         view.setLayoutParams(lp);
         return view;
+    }
+
+    private void showActions(View anchor, SessionRow row) {
+        PopupMenu menu = new PopupMenu(getContext(), anchor);
+        if (row.rename != null) menu.getMenu().add(0, 1, 0, t("Переименовать", "Rename"));
+        if (row.archive != null) menu.getMenu().add(0, 2, 1, t("В архив", "Archive"));
+        menu.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == 1 && row.rename != null) row.rename.run();
+            else if (item.getItemId() == 2 && row.archive != null) row.archive.run();
+            else return false;
+            return true;
+        });
+        menu.show();
     }
 
     private String t(String russian, String english) {

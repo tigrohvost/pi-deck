@@ -20,6 +20,8 @@ import java.util.List;
 public final class OperationStore {
     static final int MAX_COMPLETED = 100;
     static final long MAX_COMPLETED_BYTES = 20L * 1024L * 1024L;
+    static final int PRUNE_TARGET = 80;
+    static final long PRUNE_TARGET_BYTES = 16L * 1024L * 1024L;
     static final int MAX_OUTPUT_BYTES = 256 * 1024;
     private static final int MAX_RECORD_BYTES = 1024 * 1024;
     private static final Object FILE_LOCK = new Object();
@@ -202,7 +204,19 @@ public final class OperationStore {
         }
     }
 
+    /**
+     * Pruning runs on the result/consume path, which is the UI thread. Parsing every retained
+     * record each time made consuming one result cost up to 100 JSON parses. Only terminal
+     * records are ever removed, so while the whole directory is within both bounds nothing can be
+     * due and nothing is parsed; once a bound is crossed the store is trimmed to a low-water mark,
+     * which leaves room for the next {@code MAX_COMPLETED - PRUNE_TARGET} results without a scan.
+     */
     private void prune() {
+        File[] files = directory.listFiles((dir, name) -> name.endsWith(".json"));
+        if (files == null) return;
+        long directoryBytes = 0L;
+        for (File file : files) directoryBytes += file.length();
+        if (files.length <= MAX_COMPLETED && directoryBytes <= MAX_COMPLETED_BYTES) return;
         List<OperationRecord> terminal = new ArrayList<>();
         long totalBytes = 0L;
         for (OperationRecord record : list()) {
@@ -212,7 +226,7 @@ public final class OperationStore {
         }
         terminal.sort(Comparator.comparingLong(item -> item.updatedAtMs));
         int index = 0;
-        while ((terminal.size() - index > MAX_COMPLETED || totalBytes > MAX_COMPLETED_BYTES)
+        while ((terminal.size() - index > PRUNE_TARGET || totalBytes > PRUNE_TARGET_BYTES)
                 && index < terminal.size()) {
             File target = fileFor(terminal.get(index++).operationId);
             long length = target.length();

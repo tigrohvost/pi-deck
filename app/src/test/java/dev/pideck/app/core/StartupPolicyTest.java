@@ -86,6 +86,59 @@ public class StartupPolicyTest {
     }
 
     @Test
+    public void autostartLoadsAStoppedCoreWithoutWaitingForTheLinkProbe() {
+        assertTrue(StartupPolicy.warmsBeforeLinkProbe(
+                true, true, true, "STOPPED", false, false, false, false
+        ));
+        assertTrue(StartupPolicy.warmsBeforeLinkProbe(
+                true, true, true, "FAILED", false, false, false, false
+        ));
+    }
+
+    @Test
+    public void theLinkProbeStillOwnsEveryUncertainLaunch() {
+        // No autostart, nothing confirmed, or an outdated bundle: the probe decides first.
+        assertFalse(StartupPolicy.warmsBeforeLinkProbe(
+                false, true, true, "STOPPED", false, false, false, false
+        ));
+        assertFalse(StartupPolicy.warmsBeforeLinkProbe(
+                true, false, true, "STOPPED", false, false, false, false
+        ));
+        assertFalse(StartupPolicy.warmsBeforeLinkProbe(
+                true, true, false, "STOPPED", false, false, false, false
+        ));
+        // A core that may still be running must never be cold-started blind.
+        assertFalse(StartupPolicy.warmsBeforeLinkProbe(
+                true, true, true, "READY", false, false, false, false
+        ));
+        assertFalse(StartupPolicy.warmsBeforeLinkProbe(
+                true, true, true, "STARTING", false, false, false, false
+        ));
+        assertFalse(StartupPolicy.warmsBeforeLinkProbe(
+                true, true, true, "STOPPED", true, false, false, false
+        ));
+        assertFalse(StartupPolicy.warmsBeforeLinkProbe(
+                true, true, true, "STOPPED", false, true, false, false
+        ));
+        // Work in flight and memory pressure keep their usual priority.
+        assertFalse(StartupPolicy.warmsBeforeLinkProbe(
+                true, true, true, "STOPPED", false, false, true, false
+        ));
+        assertFalse(StartupPolicy.warmsBeforeLinkProbe(
+                true, true, true, "STOPPED", false, false, false, true
+        ));
+    }
+
+    @Test
+    public void aRememberedLoadTimeSetsTheExpectation() {
+        assertEquals("Загружаю LFM2.5 · обычно ~21 с",
+                StartupPolicy.loadingLabel("LFM2.5", 20_520L, UiLanguage.RUSSIAN));
+        assertEquals("Loading LFM2.5 · usually ~3 s",
+                StartupPolicy.loadingLabel("LFM2.5", 3_030L, UiLanguage.ENGLISH));
+        assertEquals("Loading LFM2.5", StartupPolicy.loadingLabel("LFM2.5", 0L, UiLanguage.ENGLISH));
+    }
+
+    @Test
     public void typingWarmsAColdCoreWithoutRequiringAutostart() {
         assertTrue(StartupPolicy.warmsOnComposerIntent(
                 true, true, false, false, false, false

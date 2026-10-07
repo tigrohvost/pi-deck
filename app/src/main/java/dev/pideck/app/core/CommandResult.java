@@ -77,7 +77,7 @@ public final class CommandResult {
     public String usefulError() {
         if (!errorMessage.isBlank()) return errorMessage.trim();
         if (!stderr.isBlank()) return stderr.trim();
-        return "Команда завершилась с кодом " + exitCode;
+        return UiLanguage.text("Команда завершилась с кодом ", "The command exited with code ") + exitCode;
     }
 
     JSONObject toJson(int outputLimitBytes) throws JSONException {

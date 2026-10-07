@@ -24,7 +24,7 @@ public final class CommandResultReceiver extends BroadcastReceiver {
         if (result == null) {
             commandResult = new CommandResult(
                     operationId, kind, "", "", -1, 1,
-                    "Termux не вернул результат. Проверьте разрешение RUN_COMMAND."
+                    UiLanguage.text("Termux не вернул результат. Проверьте разрешение RUN_COMMAND.", "Termux returned no result. Check the RUN_COMMAND permission.")
             );
         } else {
             commandResult = new CommandResult(

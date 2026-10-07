@@ -6,6 +6,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Canvas;
+import android.graphics.Typeface;
 import android.graphics.Insets;
 import android.graphics.Paint;
 import android.os.Build;
@@ -17,6 +18,8 @@ import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
+import android.text.style.StyleSpan;
 import android.text.style.TypefaceSpan;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -27,7 +30,9 @@ import android.view.WindowInsets;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -74,8 +79,11 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
         void onTextScaleChosen(float scale);
 
-        /** «СТОП» in the execution row. */
+        /** «СТОП» in the execution row, or the send button while work runs. */
         void onStopTurn();
+
+        /** The queued prompt is taken back into the composer instead of waiting. */
+        void onQueuedPromptCancelled();
 
         /** «ОТКРЫТЬ ФАЙЛ» under an answer that wrote one. */
         void onOpenFile(String path);
@@ -175,6 +183,11 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private boolean composerWillWarm;
     private boolean planAvailable;
     private boolean planArmed;
+    private boolean stopAvailable;
+    private TextView newOutputButton;
+    private TextView statusNote;
+    /** The prompt of the turn in flight, until an answer arrives; offered for retry on failure. */
+    private String pendingTurnPrompt;
     private boolean planLedgerVisible;
     private int queuedPromptCount;
     private String contextLabelFull = "";
@@ -249,20 +262,29 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         );
         TextView brand = style.wordmark("π//DECK");
         brand.setText(brandText);
+        brand.setSingleLine(true);
         header.addView(brand, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+        // A long status (a model title, a load estimate) shortens itself; the wordmark never wraps.
+        header.addView(new View(context), new LinearLayout.LayoutParams(0, 0, 1f));
 
         coreStatusDot = new StatusDot(context, p.error);
         LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(
                 style.dp(6), style.dp(6)
         );
+        dotLp.leftMargin = style.dp(12);
         dotLp.rightMargin = style.dp(6);
         header.addView(coreStatusDot, dotLp);
         coreStatusLabel = style.monoAt(
                 t("Ядро не запущено", "Core is stopped"), 11f, p.error, true
         );
-        header.addView(coreStatusLabel);
+        coreStatusLabel.setSingleLine(true);
+        coreStatusLabel.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        header.addView(coreStatusLabel, statusLp);
         root.addView(header, matchWidth());
         root.addView(divider(), dividerLp());
 
@@ -441,13 +463,35 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
         bootLp.bottomMargin = style.dp(18);
-        console.addView(bootPanel, bootLp);
 
         streamScroll = new ScrollView(context);
         streamScroll.setFillViewport(true);
         streamScroll.setVerticalScrollBarEnabled(false);
         streamScroll.setClipToPadding(false);
-        console.addView(streamScroll, new LinearLayout.LayoutParams(
+        FrameLayout streamFrame = new FrameLayout(context);
+        streamFrame.addView(streamScroll, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        // Reading an earlier answer is not interrupted by new output; this offers the jump.
+        newOutputButton = style.chip(t("↓ Новое", "↓ New"), () -> {
+            hideNewOutput();
+            scrollToEnd();
+        });
+        newOutputButton.setContentDescription(t(
+                "Прокрутить к новому ответу", "Scroll to the new output"
+        ));
+        newOutputButton.setMinHeight(style.dp(48));
+        newOutputButton.setVisibility(GONE);
+        FrameLayout.LayoutParams newOutputLp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.END
+        );
+        newOutputLp.bottomMargin = style.dp(8);
+        streamFrame.addView(newOutputButton, newOutputLp);
+        streamScroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> {
+            if (isNearStreamEnd()) hideNewOutput();
+        });
+        console.addView(streamFrame, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ));
 
@@ -456,6 +500,9 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         streamScroll.addView(column, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ));
+        // The setup card scrolls with the stream: with the keyboard up it must never be squeezed
+        // until its own buttons lose their labels.
+        column.addView(bootPanel, bootLp);
 
         emptyState = buildEmptyState(context);
         column.addView(emptyState, new LinearLayout.LayoutParams(
@@ -468,15 +515,24 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
+        statusNote = style.monoMeta("", p.muted);
+        statusNote.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        statusNote.setVisibility(GONE);
+        LinearLayout.LayoutParams statusLp = matchWidth();
+        statusLp.bottomMargin = style.dp(12);
+        column.addView(statusNote, statusLp);
+
         executionRow = new ExecutionRowView(
                 context, style, listener::onStopTurn, this.language
         );
         LinearLayout.LayoutParams executionLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        executionLp.topMargin = style.dp(20);
-        executionLp.bottomMargin = style.dp(14);
-        column.addView(executionRow, executionLp);
+        executionLp.topMargin = style.dp(10);
+        executionLp.bottomMargin = style.dp(8);
+        // Pinned above the composer: during a long turn the phase, clock and Stop stay in view
+        // instead of scrolling away with the conversation.
+        console.addView(executionRow, executionLp);
         return console;
     }
 
@@ -568,7 +624,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
             updateSendAffordance();
         });
         LinearLayout.LayoutParams planLp = new LinearLayout.LayoutParams(
-                style.dp(54), style.dp(44)
+                style.dp(54), style.dp(DeckStyle.MIN_TOUCH_DP)
         );
         planLp.rightMargin = style.dp(9);
         row.addView(planButton, planLp);
@@ -581,7 +637,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         promptInput.setLineSpacing(0f, 1.4f);
         promptInput.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         promptInput.setPadding(style.dp(16), style.dp(13), style.dp(16), style.dp(13));
-        promptInput.setMinHeight(style.dp(44));
+        promptInput.setMinHeight(style.dp(DeckStyle.MIN_TOUCH_DP));
         promptInput.setMaxHeight(style.dp(128));
         promptInput.setSingleLine(false);
         promptInput.setInputType(
@@ -614,9 +670,9 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         sendButton.setGravity(Gravity.CENTER);
         sendButton.setBackground(style.round(p.panel, 22));
         sendButton.setContentDescription(t("Отправить сообщение", "Send message"));
-        style.clickable(sendButton, this::emitPrompt);
+        style.clickable(sendButton, this::onSendButton);
         sendButtonLayout = new LinearLayout.LayoutParams(
-                style.dp(44), style.dp(44)
+                style.dp(DeckStyle.MIN_TOUCH_DP), style.dp(DeckStyle.MIN_TOUCH_DP)
         );
         sendButtonLayout.leftMargin = style.dp(11);
         row.addView(sendButton, sendButtonLayout);
@@ -644,22 +700,54 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         return row;
     }
 
+    /** Whether the send button currently means Stop: work runs and nothing is typed. */
+    private boolean sendButtonStops() {
+        return executionRow.isRunning()
+                && stopAvailable
+                && promptInput.getText().toString().trim().isEmpty()
+                && !composerDispatchPending
+                && queuedPromptCount == 0;
+    }
+
+    private void onSendButton() {
+        if (sendButtonStops()) {
+            listener.onStopTurn();
+            return;
+        }
+        if (queuedPromptCount > 0 && !composerDispatchPending) {
+            listener.onQueuedPromptCancelled();
+            return;
+        }
+        emitPrompt();
+    }
+
+    /** Stop is offered only for an agent turn, a compaction or a model load. */
+    public void setStopAvailable(boolean available) {
+        stopAvailable = available;
+        executionRow.setStopAvailable(available);
+        updateSendAffordance();
+    }
+
     private void updateSendAffordance() {
         boolean hasText = !promptInput.getText().toString().trim().isEmpty();
         boolean running = executionRow.isRunning();
         boolean queueFull = queuedPromptCount > 0;
-        boolean armed = composerAvailable
+        boolean stops = sendButtonStops();
+        boolean armed = stops || (composerAvailable
                 && hasText
                 && !composerDispatchPending
-                && !queueFull;
-        if (composerDispatchPending) {
+                && !queueFull);
+        if (stops) {
+            sendButton.setText("■");
+            sendButton.setContentDescription(t("Остановить", "Stop"));
+        } else if (composerDispatchPending) {
             sendButton.setText("…");
             sendButton.setContentDescription(t("Сообщение отправляется", "Sending message"));
         } else if (queueFull) {
-            sendButton.setText(t("В очереди · 1", "Queued · 1"));
+            sendButton.setText(t("В очереди · ✕", "Queued · ✕"));
             sendButton.setContentDescription(t(
-                    "Сообщение надёжно сохранено в очереди",
-                    "The message is safely saved in the queue"
+                    "Сообщение в очереди. Нажмите, чтобы вернуть его в поле ввода",
+                    "Message queued. Tap to take it back into the composer"
             ));
         } else if (running && hasText) {
             sendButton.setText(t("В очередь", "Queue"));
@@ -674,18 +762,22 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         sendButton.setTextSize((wordLabel ? 11.5f : 17f) * style.textScale());
         int horizontalPadding = wordLabel ? style.dp(12) : 0;
         sendButton.setPadding(horizontalPadding, 0, horizontalPadding, 0);
-        sendButton.setMinWidth(wordLabel ? style.dp(92) : style.dp(44));
+        sendButton.setMinWidth(wordLabel ? style.dp(92) : style.dp(DeckStyle.MIN_TOUCH_DP));
         int desiredWidth = wordLabel
                 ? ViewGroup.LayoutParams.WRAP_CONTENT
-                : style.dp(44);
+                : style.dp(DeckStyle.MIN_TOUCH_DP);
         if (sendButtonLayout.width != desiredWidth) {
             sendButtonLayout.width = desiredWidth;
             sendButton.setLayoutParams(sendButtonLayout);
         }
-        sendButton.setBackground(style.round(armed ? p.accent : p.panel, 22));
+        // A queued prompt can always be taken back, so that state stays tappable.
+        boolean tappable = armed || (queueFull && !composerDispatchPending);
+        sendButton.setBackground(style.round(
+                stops ? p.errorText : armed ? p.accent : p.panel, 22
+        ));
         sendButton.setTextColor(armed ? p.background : p.muted);
-        sendButton.setEnabled(armed);
-        sendButton.setAlpha(armed ? 1f : 0.78f);
+        sendButton.setEnabled(tappable);
+        sendButton.setAlpha(tappable ? 1f : 0.78f);
 
         boolean inputEnabled = !composerDispatchPending && !queueFull;
         promptInput.setEnabled(inputEnabled);
@@ -1063,10 +1155,30 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         scrollToEnd();
     }
 
+    /** One replaceable, unsaved line for routine core progress; null or blank hides it. */
+    public void setStatusNote(String text) {
+        if (statusNote == null) return;
+        boolean visible = text != null && !text.isBlank();
+        statusNote.setText(visible ? text : "");
+        statusNote.setVisibility(visible ? VISIBLE : GONE);
+        if (visible && isNearStreamEnd()) scrollToEnd();
+    }
+
     public void addEntry(ConsoleEntry entry) {
+        if (entry.channel == ConsoleEntry.Channel.USER) setStatusNote(null);
+        boolean follow = entry.channel == ConsoleEntry.Channel.USER || isNearStreamEnd();
         renderEntry(entry, true);
         updateEmptyState();
-        scrollToEnd();
+        if (follow) scrollToEnd();
+        else showNewOutput();
+    }
+
+    private void showNewOutput() {
+        if (newOutputButton != null) newOutputButton.setVisibility(VISIBLE);
+    }
+
+    private void hideNewOutput() {
+        if (newOutputButton != null) newOutputButton.setVisibility(GONE);
     }
 
     /**
@@ -1211,10 +1323,20 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                             );
                         }
                     }
+                    pendingTurnPrompt = entry.text;
                     yield userBubble(entry.text);
                 }
-                case AGENT -> answerBlock(entry, true);
-                case ERROR -> noticeBlock(entry.text, p.error, p.errorText);
+                case AGENT -> {
+                    pendingTurnPrompt = null;
+                    yield answerBlock(entry, true);
+                }
+                case ERROR -> {
+                    View notice = noticeBlock(entry.text, p.error, p.errorText);
+                    // A live failure of the turn in flight offers the same prompt again.
+                    yield animate && pendingTurnPrompt != null
+                            ? withRetry(notice, pendingTurnPrompt)
+                            : notice;
+                }
                 default -> noticeBlock(entry.text, p.stroke, p.muted);
             };
             attachBlock(block, animate);
@@ -1247,6 +1369,41 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         }
     }
 
+    private View withRetry(View notice, String prompt) {
+        LinearLayout column = new LinearLayout(getContext());
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.addView(notice, matchWidth());
+        TextView retry = style.chip(t("Повторить запрос", "Retry the prompt"), () -> {
+            pendingTurnPrompt = null;
+            listener.onSend(prompt, false);
+        });
+        retry.setMinHeight(style.dp(48));
+        LinearLayout.LayoutParams lp = wrap();
+        lp.topMargin = style.dp(8);
+        column.addView(retry, lp);
+        return column;
+    }
+
+    /** Tap a sent prompt to edit it into the composer, send it again, or copy it. */
+    private void showPromptMenu(View anchor, String prompt) {
+        PopupMenu menu = new PopupMenu(getContext(), anchor);
+        menu.getMenu().add(0, 1, 0, t("Изменить и отправить", "Edit and resend"));
+        menu.getMenu().add(0, 2, 1, t("Повторить", "Send again"));
+        menu.getMenu().add(0, 3, 2, t("Копировать", "Copy"));
+        menu.setOnMenuItemClickListener(item -> {
+            switch (item.getItemId()) {
+                case 1 -> setPrompt(prompt);
+                case 2 -> listener.onSend(prompt, false);
+                case 3 -> copyToClipboard(prompt);
+                default -> {
+                    return false;
+                }
+            }
+            return true;
+        });
+        menu.show();
+    }
+
     private View userBubble(String text) {
         TextView bubble = style.body(text);
         bubble.setBackground(bubbleBackground());
@@ -1255,6 +1412,10 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 getResources().getDisplayMetrics().widthPixels * 0.82f - style.dpf(44)
         ));
         bubble.setTextIsSelectable(true);
+        bubble.setOnClickListener(view -> showPromptMenu(view, text));
+        bubble.setContentDescription(text + ". " + t(
+                "Нажмите, чтобы изменить или повторить", "Tap to edit or send again"
+        ));
 
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1275,24 +1436,106 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         return drawable;
     }
 
-    private LinearLayout answerBlock(String text, boolean withActions) {
-        return answerBlock(new ConsoleEntry(ConsoleEntry.Channel.AGENT, text), withActions);
+    /** A block whose first child is the plain TextView that streamed deltas append to. */
+    private LinearLayout streamingAnswerBlock() {
+        LinearLayout block = new LinearLayout(getContext());
+        block.setOrientation(LinearLayout.VERTICAL);
+        TextView answer = style.body("…");
+        answer.setTextIsSelectable(true);
+        block.addView(answer, matchWidth());
+        return block;
     }
 
     private LinearLayout answerBlock(ConsoleEntry entry, boolean withActions) {
-        String text = entry.text;
         LinearLayout block = new LinearLayout(getContext());
         block.setOrientation(LinearLayout.VERTICAL);
-        TextView answer = style.body("");
-        answer.setText(highlightPaths(text));
-        answer.setTextIsSelectable(true);
-        answer.setOnLongClickListener(view -> {
-            copyToClipboard(((TextView) view).getText().toString());
-            return true;
-        });
-        block.addView(answer, matchWidth());
+        block.addView(renderedAnswer(entry.text), matchWidth());
         if (withActions) block.addView(answerFooter(entry), chipsLp());
         return block;
+    }
+
+    /**
+     * Prose with inline spans and fenced code as scrollable monospace blocks with their own Copy.
+     * Long-press keeps Android's partial selection; the Copy chip below copies the whole answer.
+     */
+    private View renderedAnswer(String text) {
+        List<MarkdownBlocks.Block> parsed = MarkdownBlocks.parse(text);
+        if (parsed.size() == 1 && parsed.get(0).kind == MarkdownBlocks.Kind.TEXT) {
+            return proseView(parsed.get(0).text);
+        }
+        LinearLayout column = new LinearLayout(getContext());
+        column.setOrientation(LinearLayout.VERTICAL);
+        if (parsed.isEmpty()) {
+            column.addView(proseView(text), matchWidth());
+            return column;
+        }
+        for (int index = 0; index < parsed.size(); index++) {
+            MarkdownBlocks.Block item = parsed.get(index);
+            LinearLayout.LayoutParams lp = matchWidth();
+            if (index > 0) lp.topMargin = style.dp(10);
+            column.addView(item.kind == MarkdownBlocks.Kind.CODE
+                    ? codeBlock(item.language, item.text)
+                    : proseView(item.text), lp);
+        }
+        return column;
+    }
+
+    private TextView proseView(String markdown) {
+        MarkdownBlocks.Inline inline = MarkdownBlocks.inline(markdown);
+        SpannableString value = highlightPaths(inline.text);
+        for (MarkdownBlocks.Span span : inline.spans) {
+            switch (span.kind) {
+                case BOLD -> value.setSpan(new StyleSpan(Typeface.BOLD),
+                        span.start, span.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                case HEADING -> {
+                    value.setSpan(new StyleSpan(Typeface.BOLD),
+                            span.start, span.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    value.setSpan(new RelativeSizeSpan(1.12f),
+                            span.start, span.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+                case CODE -> {
+                    value.setSpan(new TypefaceSpan("monospace"),
+                            span.start, span.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    value.setSpan(new ForegroundColorSpan(p.accent),
+                            span.start, span.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+        }
+        TextView prose = style.body("");
+        prose.setText(value);
+        prose.setTextIsSelectable(true);
+        return prose;
+    }
+
+    private View codeBlock(String language, String code) {
+        LinearLayout box = new LinearLayout(getContext());
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setBackground(style.round(p.panel, 8));
+        box.setPadding(style.dp(12), style.dp(6), style.dp(12), style.dp(10));
+
+        LinearLayout header = new LinearLayout(getContext());
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView label = style.monoLabel(language.isEmpty() ? "code" : language, p.muted);
+        header.addView(label, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ));
+        TextView copy = style.inlineAction(t("Копировать", "Copy"), p.accent,
+                () -> copyToClipboard(code));
+        copy.setContentDescription(t("Копировать код", "Copy code"));
+        copy.setMinHeight(style.dp(48));
+        copy.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(copy);
+        box.addView(header, matchWidth());
+
+        TextView body = style.monoAt(code, 12.5f, p.text, false);
+        body.setHorizontallyScrolling(true);
+        body.setTextIsSelectable(true);
+        HorizontalScrollView scroller = new HorizontalScrollView(getContext());
+        scroller.setHorizontalScrollBarEnabled(false);
+        scroller.addView(body);
+        box.addView(scroller, matchWidth());
+        return box;
     }
 
     private View answerFooter(ConsoleEntry entry) {
@@ -1340,7 +1583,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 t("Копировать", "Copy"), () -> copyToClipboard(answer)
         ), chipLp());
         shareRow.addView(style.chip(
-                t("Отправить", "Share"), () -> share(answer)
+                t("Поделиться", "Share"), () -> share(answer)
         ), chipLp());
         LinearLayout.LayoutParams shareLp = wrap();
         if (!written.isEmpty()) shareLp.topMargin = style.dp(8);
@@ -1379,10 +1622,6 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         message.setBackground(style.stripedCard(p.panel, 8));
         message.setPadding(style.dp(15), style.dp(13), style.dp(15), style.dp(13));
         message.setTextIsSelectable(true);
-        message.setOnLongClickListener(view -> {
-            copyToClipboard(((TextView) view).getText().toString());
-            return true;
-        });
         row.addView(message, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ));
@@ -1430,7 +1669,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         streamingEntryTime = System.currentTimeMillis();
         streamingEntryIndex = entries.size();
         openTrace = null;
-        streamingAnswer = answerBlock("…", false);
+        streamingAnswer = streamingAnswerBlock();
         streamingMessage = (TextView) streamingAnswer.getChildAt(0);
         // A fade/translation while the first letters alter this block looks like display flicker.
         attachBlock(streamingAnswer, false);
@@ -1484,6 +1723,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
             );
         }
         if (follow) scrollToEnd();
+        else showNewOutput();
     }
 
     public String finishStreaming(String terminalAnswer) {
@@ -1507,15 +1747,19 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         if (streamingMessage == null) {
             addEntry(completedAnswer(value, System.currentTimeMillis(), exactSpeed));
         } else {
-            streamingMessage.setText(highlightPaths(value));
+            // Markdown is parsed once here, never per streamed token.
+            streamingAnswer.removeView(streamingMessage);
+            streamingAnswer.addView(renderedAnswer(value), 0, matchWidth());
             ConsoleEntry completed = completedAnswer(value, streamingEntryTime, exactSpeed);
             streamingAnswer.addView(answerFooter(completed), chipsLp());
             if (streamingEntryIndex >= 0 && streamingEntryIndex < entries.size()) {
                 entries.set(streamingEntryIndex, completed);
             }
         }
+        pendingTurnPrompt = null;
         clearStreamingState();
         if (follow) scrollToEnd();
+        else showNewOutput();
         return value;
     }
 
@@ -1606,7 +1850,10 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
     /** Make a configured fresh launch immediately ready for typing, even while the core warms. */
     public void focusComposer() {
-        if (activeTab() != TabBarView.TAB_CONSOLE || !promptInput.isEnabled()) return;
+        // Until setup is complete the keyboard would only cover the step that needs a tap.
+        if (activeTab() != TabBarView.TAB_CONSOLE || !promptInput.isEnabled() || !composerAvailable) {
+            return;
+        }
         promptInput.requestFocus();
         promptInput.postDelayed(() -> {
             if (!promptInput.hasFocus() || !hasWindowFocus() || !isAttachedToWindow()) return;

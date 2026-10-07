@@ -94,6 +94,9 @@ public final class TabBarView extends LinearLayout {
             int color = i == index ? style.palette.accent : style.palette.muted;
             captions[i].setTextColor(color);
             glyphs[i].setColor(color);
+            // Colour alone does not reach TalkBack; the selected state is announced.
+            View tab = (View) captions[i].getParent();
+            if (tab != null) tab.setSelected(i == index);
         }
     }
 

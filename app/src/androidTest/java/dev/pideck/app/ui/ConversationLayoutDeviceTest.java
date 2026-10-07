@@ -62,7 +62,7 @@ public final class ConversationLayoutDeviceTest {
             deckRef.set(deck);
             rateRef.set(findText(deck, rate));
             copyRef.set(findText(deck, "КОПИРОВАТЬ"));
-            shareRef.set(findText(deck, "ОТПРАВИТЬ"));
+            shareRef.set(findText(deck, "ПОДЕЛИТЬСЯ"));
         });
 
         DeckView deck = deckRef.get();
@@ -126,6 +126,39 @@ public final class ConversationLayoutDeviceTest {
         assertTrue(verbBounds.right <= argumentBounds.left);
         assertTrue(argumentBounds.right <= detailBounds.left);
         assertTrue(detailBounds.right <= trace.getWidth());
+    }
+
+    @Test
+    public void codeAnswersRenderAsBlocksWithTouchSizedActions() {
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Context context = instrumentation.getTargetContext();
+        AtomicReference<DeckView> deckRef = new AtomicReference<>();
+        AtomicReference<TextView> codeRef = new AtomicReference<>();
+        AtomicReference<TextView> proseRef = new AtomicReference<>();
+        AtomicReference<TextView> shareRef = new AtomicReference<>();
+
+        instrumentation.runOnMainSync(() -> {
+            DeckView deck = new DeckView(
+                    context, noOpListener(), Palette.deck(), MAX_TEXT_SCALE, UiLanguage.RUSSIAN
+            );
+            deck.hideBootPanel();
+            deck.setEntries(List.of(new ConsoleEntry(
+                    ConsoleEntry.Channel.AGENT,
+                    "Исправил **деление**:\n\n```python\ndef divide(a, b):\n    return a / b\n```",
+                    System.currentTimeMillis()
+            )));
+            measureAt360Dp(context, deck);
+            deckRef.set(deck);
+            codeRef.set(findText(deck, "def divide(a, b):\n    return a / b"));
+            proseRef.set(findText(deck, "Исправил деление:"));
+            shareRef.set(findText(deck, "ПОДЕЛИТЬСЯ"));
+        });
+
+        assertNotNull("fenced code was not rendered as its own block", codeRef.get());
+        assertNotNull("bold markers were left in the prose", proseRef.get());
+        assertNotNull(shareRef.get());
+        float density = context.getResources().getDisplayMetrics().density;
+        assertTrue(shareRef.get().getHeight() >= Math.round(48f * density) - 1);
     }
 
     private static void measureAt360Dp(Context context, View view) {

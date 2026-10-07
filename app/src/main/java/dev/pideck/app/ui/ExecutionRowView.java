@@ -29,6 +29,7 @@ public final class ExecutionRowView extends LinearLayout {
     private final TextView operation;
     private final TextView elapsed;
     private ObjectAnimator pulse;
+    private final View stopAction;
     private long startedAtUptimeMs;
     private boolean running;
     private final UiLanguage language;
@@ -65,6 +66,8 @@ public final class ExecutionRowView extends LinearLayout {
         head.addView(dot, dotLp);
 
         operation = style.monoMeta("", style.palette.text);
+        // Phase changes (reading, thinking, tool, writing) are announced politely by TalkBack.
+        operation.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         operation.setSingleLine(true);
         operation.setEllipsize(android.text.TextUtils.TruncateAt.END);
         head.addView(operation, new LayoutParams(
@@ -78,9 +81,11 @@ public final class ExecutionRowView extends LinearLayout {
         elapsedLp.leftMargin = style.dp(8);
         head.addView(elapsed, elapsedLp);
 
-        head.addView(style.inlineAction(
+        stopAction = style.inlineAction(
                 this.language.pick("Стоп", "Stop"), style.palette.errorText, onStop
-        ));
+        );
+        stopAction.setContentDescription(this.language.pick("Остановить", "Stop"));
+        head.addView(stopAction);
         addView(head, new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -130,13 +135,14 @@ public final class ExecutionRowView extends LinearLayout {
         return running;
     }
 
+    /** Stop is offered only for work that can actually be stopped. */
+    public void setStopAvailable(boolean available) {
+        stopAction.setVisibility(available ? VISIBLE : GONE);
+    }
+
     private void startPulse() {
-        if (pulse != null || !style.animationsEnabled()) return;
-        pulse = ObjectAnimator.ofFloat(dot, View.ALPHA, 0.35f, 1f);
-        pulse.setDuration(1_200);
-        pulse.setRepeatMode(ObjectAnimator.REVERSE);
-        pulse.setRepeatCount(ObjectAnimator.INFINITE);
-        pulse.start();
+        if (pulse != null) return;
+        pulse = style.boundedPulse(dot, 0.35f, 1_200L);
     }
 
     private void stopPulse() {

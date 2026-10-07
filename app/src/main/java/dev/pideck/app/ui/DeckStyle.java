@@ -1,5 +1,8 @@
 package dev.pideck.app.ui;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -183,13 +186,16 @@ public final class DeckStyle {
         return states;
     }
 
+    /** Android's minimum comfortable touch target; visuals may be smaller, the hit area is not. */
+    public static final int MIN_TOUCH_DP = 48;
+
     /** Primary button: accent fill, background-coloured text, 1 dp travel when pressed. */
     public TextView primaryButton(String label, Runnable action) {
         TextView view = monoButton(label, palette.background);
         view.setBackground(round(palette.accent, 5));
         view.setGravity(android.view.Gravity.CENTER);
         view.setPadding(dp(14), dp(15), dp(14), dp(15));
-        view.setMinHeight(dp(44));
+        view.setMinHeight(dp(MIN_TOUCH_DP));
         clickable(view, action);
         view.setOnTouchListener((target, event) -> {
             switch (event.getActionMasked()) {
@@ -221,33 +227,39 @@ public final class DeckStyle {
         ));
         view.setGravity(android.view.Gravity.CENTER);
         view.setPadding(dp(14), dp(14), dp(14), dp(14));
-        view.setMinHeight(dp(44));
+        view.setMinHeight(dp(MIN_TOUCH_DP));
         clickable(view, action);
         return view;
     }
 
-    /** Action chip above an answer: 20 dp capsule whose border lights up on press. */
+    /**
+     * Action chip above an answer: a compact capsule whose border lights up on press. The capsule
+     * is inset inside a 48 dp tall view, so it stays visually small while the hit area meets the
+     * touch-target minimum.
+     */
     public TextView chip(String label, Runnable action) {
         TextView view = monoLabel(label, palette.textSecondary);
-        view.setBackground(pressable(
+        int inset = dp(8);
+        view.setBackground(new android.graphics.drawable.InsetDrawable(pressable(
                 palette.background,
                 palette.cardFillHover,
                 palette.stroke,
                 20
-        ));
+        ), 0, inset, 0, inset));
         view.setGravity(android.view.Gravity.CENTER);
-        view.setPadding(dp(12), dp(8), dp(12), dp(8));
+        view.setPadding(dp(12), dp(8) + inset, dp(12), dp(8) + inset);
+        view.setMinHeight(dp(MIN_TOUCH_DP));
         clickable(view, action);
         return view;
     }
 
-    /** Inline text action such as «СТОП»: small type, but a 44 dp target. */
+    /** Inline text action such as «СТОП»: small type, but a 48 dp target. */
     public TextView inlineAction(String label, int color, Runnable action) {
         TextView view = monoLabel(label, color);
         view.setGravity(android.view.Gravity.CENTER);
         view.setPadding(dp(11), dp(13), dp(11), dp(13));
-        view.setMinHeight(dp(44));
-        view.setMinWidth(dp(44));
+        view.setMinHeight(dp(MIN_TOUCH_DP));
+        view.setMinWidth(dp(MIN_TOUCH_DP));
         clickable(view, action);
         return view;
     }
@@ -269,6 +281,31 @@ public final class DeckStyle {
                 1f
         );
         return scale > 0f;
+    }
+
+    /**
+     * Attention pulses settle after a few cycles. A view that animates forever keeps the whole
+     * window composing frames for minutes of local inference, stealing shared memory bandwidth and
+     * thermal headroom from the decode threads; the elapsed clock already proves liveness.
+     */
+    public static final int ATTENTION_PULSE_REPEATS = 4;
+
+    /** Starts a bounded alpha pulse that always comes to rest fully opaque; null when disabled. */
+    public ObjectAnimator boundedPulse(View target, float dimmest, long halfCycleMs) {
+        if (!animationsEnabled()) return null;
+        ObjectAnimator pulse = ObjectAnimator.ofFloat(target, View.ALPHA, dimmest, 1f);
+        pulse.setDuration(halfCycleMs);
+        pulse.setRepeatMode(ObjectAnimator.REVERSE);
+        // An even repeat count makes an odd number of runs, so the last run ends on 1f.
+        pulse.setRepeatCount(ATTENTION_PULSE_REPEATS);
+        pulse.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                target.setAlpha(1f);
+            }
+        });
+        pulse.start();
+        return pulse;
     }
 
     public int dp(float value) {

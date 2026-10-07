@@ -592,7 +592,7 @@ public final class CoreRootView extends ScrollView {
             );
             segment.setGravity(Gravity.CENTER);
             segment.setPadding(style.dp(8), style.dp(12), style.dp(8), style.dp(12));
-            segment.setMinHeight(style.dp(44));
+            segment.setMinHeight(style.dp(DeckStyle.MIN_TOUCH_DP));
             if (active) segment.setBackground(style.round(style.palette.accent, 5));
             Object value = values[index];
             if (!active) style.clickable(segment, () -> chosen.accept(value));

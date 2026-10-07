@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.os.SystemClock;
 import android.os.IBinder;
 import android.os.PowerManager;
 
@@ -67,13 +68,22 @@ public final class NativeLlamaService extends Service {
     private final Runnable idleShutdown = this::onIdleTimeout;
     private volatile boolean backgroundHint;
     private volatile boolean pressureStopRequested;
-    private volatile String lastPromotedText = "Локальное ядро";
+    private volatile String lastPromotedText = "PI//DECK";
     private volatile long latestContextTokens = -1L;
     private volatile int latestContextWindow;
 
     /** The measured fact behind the suffix: a backgrounded deck decodes at ~1.5 tok/s. */
+    static String notificationText(String base, boolean background, UiLanguage language) {
+        return background ? base + language.pick(" · фон: медленно", " · background: slow") : base;
+    }
+
+    /** The service is not an Activity, so it reads the deck's language on each label. */
+    private String t(String russian, String english) {
+        return new DeckPreferences(this).uiLanguage().pick(russian, english);
+    }
+
     static String notificationText(String base, boolean background) {
-        return background ? base + " · фон: медленно" : base;
+        return notificationText(base, background, UiLanguage.RUSSIAN);
     }
 
     public static final class Snapshot {
@@ -132,6 +142,20 @@ public final class NativeLlamaService extends Service {
     public static void stop(Context context) {
         Intent intent = new Intent(context, NativeLlamaService.class).setAction(ACTION_STOP);
         context.startService(intent);
+    }
+
+    /** The last cold-load duration of a model, so the next load can say what to expect. */
+    public static void recordLoadMillis(Context context, String modelId, long elapsedMs) {
+        if (modelId == null || modelId.isBlank() || elapsedMs <= 0L) return;
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putLong("load_ms_" + modelId, elapsedMs)
+                .apply();
+    }
+
+    public static long lastLoadMillis(Context context, String modelId) {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getLong("load_ms_" + modelId, 0L);
     }
 
     public static void markReady(Context context, String operationId) {
@@ -197,7 +221,7 @@ public final class NativeLlamaService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? "" : intent.getAction();
         if (ACTION_READY.equals(action)) {
-            promote("Локальная модель готова");
+            promote(t("Локальная модель готова", "Local model ready"));
             armIdleTimer();
             return START_NOT_STICKY;
         }
@@ -205,14 +229,14 @@ public final class NativeLlamaService extends Service {
             idleHandler.removeCallbacks(idleShutdown);
             acquireInferenceWakeLock();
             String phase = intent.getStringExtra(EXTRA_PHASE);
-            promote(phase == null || phase.isBlank() ? "Модель отвечает…" : safeLabel(phase));
+            promote(phase == null || phase.isBlank() ? t("Модель отвечает…", "Model is answering…") : safeLabel(phase));
             return START_NOT_STICKY;
         }
         if (ACTION_INFERENCE_IDLE.equals(action)) {
             latestContextTokens = intent.getLongExtra(EXTRA_CONTEXT_TOKENS, -1L);
             latestContextWindow = intent.getIntExtra(EXTRA_CONTEXT_WINDOW, 0);
             releaseInferenceWakeLock();
-            promote("Локальная модель готова");
+            promote(t("Локальная модель готова", "Local model ready"));
             armIdleTimer();
             return START_NOT_STICKY;
         }
@@ -228,7 +252,7 @@ public final class NativeLlamaService extends Service {
         }
         if (ACTION_STOP.equals(action)) {
             idleHandler.removeCallbacks(idleShutdown);
-            promote("Останавливаю локальное ядро…");
+            promote(t("Останавливаю локальное ядро…", "Stopping the local core…"));
             new Thread(this::stopAndExit, "pideck-native-llama-stop").start();
             return START_NOT_STICKY;
         }
@@ -246,7 +270,7 @@ public final class NativeLlamaService extends Service {
         String serverFlavor = intent.getStringExtra(EXTRA_SERVER_FLAVOR);
         String profile = intent.getStringExtra(EXTRA_PROFILE);
         ArrayList<String> arguments = intent.getStringArrayListExtra(EXTRA_ARGUMENTS);
-        promote("Загружаю " + safeLabel(modelId) + "…");
+        promote(t("Загружаю ", "Loading ") + safeLabel(modelId) + "…");
         writeState("STARTING", operationId, modelId, profile, -1L, "");
         new Thread(
                 () -> launch(
@@ -278,14 +302,14 @@ public final class NativeLlamaService extends Service {
                 active
         );
         if (action == MemoryPressurePolicy.Action.WARN_ACTIVE_TURN) {
-            promote("Мало памяти · текущая задача продолжается");
+            promote(t("Мало памяти · текущая задача продолжается", "Low memory · the current task continues"));
             return;
         }
         if (action != MemoryPressurePolicy.Action.STOP_IDLE_CORE || pressureStopRequested) return;
         pressureStopRequested = true;
         getSharedPreferences(PREFS, MODE_PRIVATE)
                 .edit().putBoolean("memory_stop", true).apply();
-        promote("Освобождаю память · ядро бездействует");
+        promote(t("Освобождаю память · ядро бездействует", "Freeing memory · the core is idle"));
         new Thread(this::stopAndExit, "pideck-native-llama-memory-stop").start();
     }
 
@@ -304,7 +328,7 @@ public final class NativeLlamaService extends Service {
     ) {
         if (operationId == null || modelId == null || modelPath == null
                 || arguments == null || arguments.isEmpty()) {
-            fail(operationId, modelId, profile, "Некорректная конфигурация native llama-server");
+            fail(operationId, modelId, profile, t("Некорректная конфигурация native llama-server", "Invalid native llama-server configuration"));
             return;
         }
         try {
@@ -313,7 +337,7 @@ public final class NativeLlamaService extends Service {
             File allowed = new File(getFilesDir(), "models").getCanonicalFile();
             if (!model.getPath().startsWith(allowed.getPath() + File.separator)
                     || !model.isFile()) {
-                throw new IOException("GGUF находится вне приватного model store");
+                throw new IOException(t("GGUF находится вне приватного model store", "The GGUF is outside the private model store"));
             }
             File libraryDir = new File(getApplicationInfo().nativeLibraryDir).getCanonicalFile();
             File executable = new File(
@@ -321,7 +345,7 @@ public final class NativeLlamaService extends Service {
                     serverLibraryForFlavor(serverFlavor)
             ).getCanonicalFile();
             if (!executable.isFile() || !executable.canExecute()) {
-                throw new IOException("Встроенный llama-server недоступен для запуска");
+                throw new IOException(t("Встроенный llama-server недоступен для запуска", "The bundled llama-server cannot be started"));
             }
 
             Process launched;
@@ -363,7 +387,7 @@ public final class NativeLlamaService extends Service {
         if ("k2horizon".equals(flavor)) return CpuProfile.supportsI8mm()
                 ? "libpideck_k2horizon_i8mm_server.so"
                 : "libpideck_k2horizon_server.so";
-        throw new IllegalArgumentException("Неизвестный native runtime: " + safeLabel(flavor));
+        throw new IllegalArgumentException("Unknown native runtime: " + safeLabel(flavor));
     }
 
     private void pumpLog(InputStream input) {
@@ -373,7 +397,7 @@ public final class NativeLlamaService extends Service {
         Thread pump = new Thread(() -> {
             try {
                 BoundedLogFile.copy(
-                        input,
+                        new ServerProgress.Tap(input, SystemClock::uptimeMillis),
                         log,
                         MAX_NATIVE_LOG_BYTES,
                         RETAIN_NATIVE_LOG_BYTES,
@@ -409,7 +433,7 @@ public final class NativeLlamaService extends Service {
                     operationId,
                     modelId,
                     profile,
-                    "llama-server завершился с кодом " + code + ": " + logTail()
+                    t("llama-server завершился с кодом ", "llama-server exited with code ") + code + ": " + logTail()
             );
         }
     }
@@ -436,7 +460,7 @@ public final class NativeLlamaService extends Service {
         );
         getSharedPreferences(PREFS, MODE_PRIVATE)
                 .edit().putBoolean("idle_stop", true).apply();
-        promote("Останавливаю ядро: бездействие " + effectiveMinutes + " мин");
+        promote(t("Останавливаю ядро: бездействие ", "Stopping the core: idle for ") + effectiveMinutes + t(" мин", " min"));
         new Thread(this::stopAndExit, "pideck-native-llama-idle-stop").start();
     }
 
@@ -511,10 +535,10 @@ public final class NativeLlamaService extends Service {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "Локальное AI-ядро",
+                t("Локальное AI-ядро", "Local AI core"),
                 NotificationManager.IMPORTANCE_LOW
         );
-        channel.setDescription("Модель работает локально на CPU телефона");
+        channel.setDescription(t("Модель работает локально на CPU телефона", "The model runs locally on the phone CPU"));
         getSystemService(NotificationManager.class).createNotificationChannel(channel);
     }
 
@@ -542,7 +566,7 @@ public final class NativeLlamaService extends Service {
 
     private void promote(String text) {
         lastPromotedText = text;
-        String shown = notificationText(text, backgroundHint);
+        String shown = notificationText(text, backgroundHint, new DeckPreferences(this).uiLanguage());
         Intent open = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent content = PendingIntent.getActivity(
@@ -556,14 +580,14 @@ public final class NativeLlamaService extends Service {
                 : new Notification.Builder(this);
         Notification notification = builder
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("PI//DECK · локальное ядро")
+                .setContentTitle(t("PI//DECK · локальное ядро", "PI//DECK · local core"))
                 .setContentText(shown)
                 .setContentIntent(content)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .addAction(new Notification.Action.Builder(
                         null,
-                        "Открыть деку",
+                        t("Открыть деку", "Open the deck"),
                         content
                 ).build())
                 .build();
@@ -580,20 +604,20 @@ public final class NativeLlamaService extends Service {
 
     private String logTail() {
         File log = new File(new File(getFilesDir(), "logs"), "native-llama-server.log");
-        if (!log.isFile()) return "диагностический лог пуст";
+        if (!log.isFile()) return t("диагностический лог пуст", "the diagnostic log is empty");
         try {
             byte[] raw = FilesCompat.tail(log, 2048);
             String value = new String(raw, StandardCharsets.UTF_8)
                     .replace('\0', ' ')
                     .trim();
-            return value.isEmpty() ? "диагностический лог пуст" : value;
+            return value.isEmpty() ? t("диагностический лог пуст", "the diagnostic log is empty") : value;
         } catch (IOException error) {
-            return "диагностический лог недоступен";
+            return t("диагностический лог недоступен", "the diagnostic log is unavailable");
         }
     }
 
     private static String safeLabel(String value) {
-        if (value == null || value.isBlank()) return "локальную модель";
+        if (value == null || value.isBlank()) return "GGUF";
         return value.length() <= 80 ? value : value.substring(0, 80);
     }
 

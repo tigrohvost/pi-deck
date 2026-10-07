@@ -54,7 +54,7 @@ public final class TraceFeedView extends LinearLayout {
         rowsLp.leftMargin = style.dp(14);
         addView(rows, rowsLp);
 
-        expander = style.monoTrace("", style.palette.traceIdle);
+        expander = style.monoTrace("", style.palette.muted);
         expander.setPadding(0, style.dp(9), 0, style.dp(9));
         expander.setVisibility(GONE);
         style.clickable(expander, () -> {
@@ -88,7 +88,7 @@ public final class TraceFeedView extends LinearLayout {
         row.addView(argumentView, argumentLp);
 
         if (detail != null && !detail.isEmpty()) {
-            TextView detailView = style.monoTrace(detail, style.palette.traceIdle);
+            TextView detailView = style.monoTrace(detail, style.palette.muted);
             detailView.setSingleLine(true);
             detailView.setEllipsize(TextUtils.TruncateAt.END);
             detailView.setMaxWidth(style.dp(80));
@@ -100,17 +100,38 @@ public final class TraceFeedView extends LinearLayout {
             row.addView(detailView, detailLp);
         }
 
+        // Tap a call to read its full argument and result; tap again to fold it back.
+        row.setMinimumHeight(style.dp(32));
+        style.clickable(row, () -> toggleRow(row));
+        row.setContentDescription(verb + " " + argument
+                + (detail == null || detail.isEmpty() ? "" : ", " + detail));
+
         rows.removeView(expander);
         rows.addView(row);
         rowViews.add(row);
         applyCollapse();
     }
 
+    static final int EXPANDED_MAX_LINES = 12;
+
+    private void toggleRow(LinearLayout row) {
+        if (row.getChildCount() < 2) return;
+        TextView argument = (TextView) row.getChildAt(1);
+        boolean open = argument.getMaxLines() == 1;
+        for (int index = 1; index < row.getChildCount(); index++) {
+            TextView column = (TextView) row.getChildAt(index);
+            column.setSingleLine(!open);
+            column.setMaxLines(open ? EXPANDED_MAX_LINES : 1);
+            column.setEllipsize(TextUtils.TruncateAt.END);
+            if (index > 1) column.setMaxWidth(open ? style.dp(140) : style.dp(80));
+        }
+    }
+
     /** Fills in the result column of the call that is still open. */
     public void completeLast(String detail) {
         if (rowViews.isEmpty() || detail == null || detail.isEmpty()) return;
         LinearLayout row = (LinearLayout) rowViews.get(rowViews.size() - 1);
-        TextView detailView = style.monoTrace(detail, style.palette.traceIdle);
+        TextView detailView = style.monoTrace(detail, style.palette.muted);
         detailView.setSingleLine(true);
         detailView.setEllipsize(TextUtils.TruncateAt.END);
         detailView.setMaxWidth(style.dp(80));
@@ -167,12 +188,8 @@ public final class TraceFeedView extends LinearLayout {
     }
 
     private void startExpanderPulse() {
-        if (expanderPulse != null || !style.animationsEnabled()) return;
-        expanderPulse = ObjectAnimator.ofFloat(expander, View.ALPHA, 0.2f, 1f);
-        expanderPulse.setDuration(1_800);
-        expanderPulse.setRepeatMode(ObjectAnimator.REVERSE);
-        expanderPulse.setRepeatCount(ObjectAnimator.INFINITE);
-        expanderPulse.start();
+        if (expanderPulse != null) return;
+        expanderPulse = style.boundedPulse(expander, 0.2f, 1_800L);
     }
 
     private void stopExpanderPulse() {

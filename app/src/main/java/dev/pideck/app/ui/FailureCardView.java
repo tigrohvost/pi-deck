@@ -146,7 +146,7 @@ public final class FailureCardView extends LinearLayout {
             secondaryView.setPadding(
                     style.dp(11), style.dp(14), style.dp(11), style.dp(4)
             );
-            secondaryView.setMinHeight(style.dp(44));
+            secondaryView.setMinHeight(style.dp(DeckStyle.MIN_TOUCH_DP));
             style.clickable(secondaryView, failure.secondary);
             body.addView(secondaryView, matchWidth());
         }

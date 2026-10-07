@@ -59,16 +59,16 @@ public final class TermuxBridge {
             String workdir
     ) {
         TermuxEnvironment environment = inspectEnvironment();
-        if (!environment.installed) throw new IllegalStateException("Termux не установлен");
+        if (!environment.installed) throw new IllegalStateException(UiLanguage.text("Termux не установлен", "Termux is not installed"));
         if (!environment.versionSupported) {
             throw new IllegalStateException(
-                    "Версия Termux " + environment.version + " ниже минимальной 0.118.0"
+                    UiLanguage.text("Версия Termux ", "Termux version ") + environment.version + UiLanguage.text(" ниже минимальной 0.118.0", " is below the minimum 0.118.0")
             );
         }
         if (environment.source == TermuxEnvironment.Source.UNKNOWN) {
-            throw new SecurityException("Подпись Termux отсутствует в compatibility allowlist");
+            throw new SecurityException(UiLanguage.text("Подпись Termux отсутствует в compatibility allowlist", "The Termux signature is not in the compatibility allowlist"));
         }
-        if (!hasRunPermission()) throw new SecurityException("Нет разрешения RUN_COMMAND");
+        if (!hasRunPermission()) throw new SecurityException(UiLanguage.text("Нет разрешения RUN_COMMAND", "RUN_COMMAND permission is missing"));
 
         Intent callback = new Intent(context, CommandResultReceiver.class)
                 .setAction("dev.pideck.app.COMMAND_RESULT")

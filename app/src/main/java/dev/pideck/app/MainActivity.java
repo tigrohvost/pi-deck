@@ -59,7 +59,11 @@ import dev.pideck.app.core.DeckPreferences;
 import dev.pideck.app.core.DiagnosticReport;
 import dev.pideck.app.core.GenerationSpeed;
 import dev.pideck.app.core.IdleShutdown;
+import dev.pideck.app.core.InferenceDisplayPolicy;
+import dev.pideck.app.core.ServerProgress;
 import dev.pideck.app.core.ThermalHeadroom;
+import dev.pideck.app.core.TranscriptStore;
+import dev.pideck.app.core.TurnPhase;
 import dev.pideck.app.core.ModelCatalog;
 import dev.pideck.app.core.ModelDownloadManager;
 import dev.pideck.app.core.ModelSpec;
@@ -97,6 +101,7 @@ import dev.pideck.app.ui.FailureCardView;
 import dev.pideck.app.ui.Palette;
 import dev.pideck.app.ui.PlanDecisionCardView;
 import dev.pideck.app.ui.SessionsRootView;
+import dev.pideck.app.ui.SessionsScreen;
 import dev.pideck.app.ui.TabBarView;
 
 public final class MainActivity extends Activity implements DeckView.Listener, CommandEvents.Listener {
@@ -125,6 +130,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private DeckView deck;
     private Palette palette;
     private DeckPreferences prefs;
+    private TranscriptStore transcript;
+    /** The running turn's single phase; null when no inference is active. */
+    private TurnPhase turnPhase;
     private OperationStore operationStore;
     private OperationCoordinator operations;
     private TermuxBridge termux;
@@ -236,10 +244,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             if (!inferenceActive || turnStartedAtUptimeMs <= 0L || firstOutputAtUptimeMs > 0L) {
                 return;
             }
-            long elapsedSeconds = Math.max(
-                    0L, (SystemClock.uptimeMillis() - turnStartedAtUptimeMs) / 1_000L
-            );
-            deck.setGenerationProgress(inferencePhase + " · " + formatTurnElapsed(elapsedSeconds));
+            long now = SystemClock.uptimeMillis();
+            long elapsedSeconds = Math.max(0L, (now - turnStartedAtUptimeMs) / 1_000L);
+            // The server's own log reports prefill and thinking progress; until it does (the
+            // first report needs ~3 s of work) the phase and elapsed time are all there is.
+            ServerProgress progress = ServerProgress.latestSince(turnStartedAtUptimeMs);
+            // A fully read prompt is no longer news: the phase (thinking, tool) says what follows.
+            if (progress != null && progress.promptComplete()) progress = null;
+            deck.setGenerationProgress(progress != null
+                    ? progress.label(now, uiLanguage) + " · " + formatTurnElapsed(elapsedSeconds)
+                    : inferencePhase + " · " + formatTurnElapsed(elapsedSeconds));
             main.postDelayed(this, 1_000L);
         }
     };
@@ -252,6 +266,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = new DeckPreferences(this);
+        transcript = new TranscriptStore(
+                new java.io.File(getFilesDir(), "transcript-v1.json"),
+                prefs::takeLegacyTranscript
+        );
         runtimeFingerprint = RuntimeAssetBundle.fingerprint(this);
         operationStore = new OperationStore(this);
         operations = new OperationCoordinator(operationStore);
@@ -267,6 +285,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         accessProfile = prefs.accessProfile();
         agentMode = prefs.agentMode();
         uiLanguage = prefs.uiLanguage();
+        UiLanguage.setActive(uiLanguage);
         bridgeTokenStore = new BridgeTokenStore(this);
         rpc = new RpcBridgeClient(bridgeTokenStore.getOrCreate());
         observedBridgeInstance = prefs.bridgeInstanceId();
@@ -312,7 +331,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         textScale = DeckStyle.normalizeScale(prefs.textScale());
         deck = new DeckView(this, this, palette, textScale, uiLanguage);
         setContentView(deck);
-        deck.setEntries(prefs.loadTranscript());
+        deck.setEntries(transcript.load());
         deck.setWorkspacePath(workspaceLabel());
         pendingComposerDraft = queuedPrompt == null ? prefs.composerDraft() : "";
         deck.restorePrompt(pendingComposerDraft);
@@ -343,9 +362,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     ));
                 } else if (active.kind == OperationKind.AGENT_TURN
                         || active.kind == OperationKind.COMPACT_SESSION) {
-                    setInferenceActive(true, t(
-                            "Задача продолжается…", "Task in progress…"
-                    ));
+                    turnPhase = TurnPhase.RESUMED;
+                    setInferenceActive(true, TurnPhase.RESUMED.progressLabel(uiLanguage, null));
                 }
             }
         }
@@ -439,7 +457,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         // after process restoration. A definitive rejection releases ownership and saves it.
         pendingComposerDraft = pendingRpcPrompt.isPending() ? "" : deck.prompt();
         prefs.setComposerDraft(pendingComposerDraft);
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
+        transcript.flush();
     }
 
     @Override
@@ -459,25 +478,36 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode != REQUEST_RUN_COMMAND) return;
         if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            toast("Транспорт Termux разрешён");
+            toast(t("Транспорт Termux разрешён", "Termux transport allowed"));
             refreshUi();
         } else {
             FailureCardView.Failure failure = new FailureCardView.Failure(
-                    "Разрешение отозвано",
-                    "Termux больше не пускает",
-                    "Android не выдал RUN_COMMAND, без которого дека не может запустить ни одной "
-                            + "команды в Termux. Разрешение выдаётся в сведениях о приложении, "
-                            + "в разделе дополнительных разрешений.",
+                    t("Разрешение отозвано", "Permission revoked"),
+                    t("Termux больше не пускает", "Termux no longer lets the deck in"),
+                    t(
+                            "Android не выдал RUN_COMMAND, без которого дека не может запустить ни одной "
+                                    + "команды в Termux. Разрешение выдаётся в сведениях о приложении, "
+                                    + "в разделе дополнительных разрешений.",
+                            "Android did not grant RUN_COMMAND, so the deck cannot run any "
+                                    + "command in Termux. The permission is in the app info screen, "
+                                    + "under additional permissions."
+                    ),
                     true
             );
-            failure.recovered("сессия и весь диалог сохранены", "файлы в рабочей папке не тронуты");
+            failure.recovered(
+                    t("сессия и весь диалог сохранены", "session and full conversation saved"),
+                    t("файлы в рабочей папке не тронуты", "files in the working folder untouched")
+            );
             failure.primary(
-                    "Повторить настройку",
+                    t("Повторить настройку", "Retry setup"),
                     () -> termux.requestRunPermission(this, REQUEST_RUN_COMMAND)
             );
-            failure.secondary("Открыть настройки приложения", termux::openAppSettings);
+            failure.secondary(
+                    t("Открыть настройки приложения", "Open app settings"),
+                    termux::openAppSettings
+            );
             deck.addFailure(failure);
-            prefs.saveTranscript(deck.entries());
+            transcript.save(deck.entries());
             refreshUi();
         }
     }
@@ -494,7 +524,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         String modelId = pendingModelDocumentId;
         pendingModelDocumentId = null;
         if (resultCode != RESULT_OK || data == null || data.getData() == null) {
-            toast("Выбор GGUF отменён");
+            toast(t("Выбор GGUF отменён", "GGUF selection cancelled"));
             return;
         }
         ModelSpec model = modelCatalog.byId(modelId).orElse(selectedModel);
@@ -518,16 +548,21 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         switch (attached.failure) {
             case NONE -> {
                 append(ConsoleEntry.Channel.SYSTEM,
-                        model.title + " · доступ к существующему GGUF восстановлен. "
-                                + "Проверяю размер и SHA‑256.");
+                        model.title + t(" · доступ к существующему GGUF восстановлен. "
+                                        + "Проверяю размер и SHA‑256.",
+                                " · access to the existing GGUF restored. "
+                                        + "Checking size and SHA‑256."));
                 verifyModel(model);
             }
             case SIZE_MISMATCH -> reportModelSizeMismatch(model, attached.actualBytes);
             case UNREADABLE -> reportModelAccessFailure(
-                    model, "Android не сообщил размер выбранного файла"
+                    model, t(
+                            "Android не сообщил размер выбранного файла",
+                            "Android did not report the selected file's size"
+                    )
             );
             case NOT_A_DOCUMENT -> reportModelAccessFailure(
-                    model, "Android не выдал document URI"
+                    model, t("Android не выдал document URI", "Android did not return a document URI")
             );
         }
     }
@@ -888,9 +923,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             ));
             return;
         }
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
         prefs.setUiLanguage(target);
         uiLanguage = target;
+        UiLanguage.setActive(target);
         recreate();
     }
 
@@ -924,12 +960,47 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         "Телефон нагрелся — скорость упала.",
                         "The phone is hot — generation has slowed down."
                 ) + clock);
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
+    }
+
+    /** Back from CORE or SESSIONS returns to the conversation instead of closing the deck. */
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (deck != null && deck.activeTab() != TabBarView.TAB_CONSOLE) {
+            onTabSelected(TabBarView.TAB_CONSOLE);
+            return;
+        }
+        super.onBackPressed();
     }
 
     @Override
     public void onStopTurn() {
         abortAgent();
+    }
+
+    @Override
+    public void onQueuedPromptCancelled() {
+        if (queuedPrompt == null || contextWarningDialog != null) return;
+        String text = queuedPrompt;
+        boolean plan = queuedPromptPlanRequested;
+        queuedPrompt = null;
+        queuedPromptPlanRequested = false;
+        queuedWarmAttempts = 0;
+        prefs.clearQueuedPrompt();
+        deck.setQueueCount(0);
+        // The text goes back to the composer for editing; nothing is sent until Send.
+        deck.setPrompt(plan ? "/plan " + text : text);
+        toast(t("Запрос убран из очереди", "Removed from the queue"));
+        refreshUi();
+    }
+
+    /** Work that the Stop control can actually stop. */
+    private static boolean isStoppable(OperationRecord active) {
+        return active != null && !active.state.isTerminal()
+                && (active.kind == OperationKind.AGENT_TURN
+                || active.kind == OperationKind.COMPACT_SESSION
+                || active.kind == OperationKind.START_SERVER);
     }
 
     /**
@@ -967,7 +1038,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
         prefs.setTextScale(DeckStyle.normalizeScale(scale));
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
         recreate();
     }
 
@@ -995,7 +1066,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void editSystemPrompt() {
         if (busy) {
-            toast("Дождитесь завершения текущей операции");
+            toast(t("Дождитесь завершения текущей операции", "Wait for the current operation to finish"));
             return;
         }
 
@@ -1005,19 +1076,24 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(padding, dialogStyle.dp(6), padding, 0);
 
-        TextView explanation = dialogStyle.bodySecondary(
+        TextView explanation = dialogStyle.bodySecondary(t(
                 "«Дополнить» сохраняет встроенные инструкции и инструменты Pi. "
-                        + "«Заменить полностью» убирает встроенный системный промпт."
-        );
+                        + "«Заменить полностью» убирает встроенный системный промпт.",
+                "“Append” keeps Pi's built-in instructions and tools. "
+                        + "“Replace entirely” removes the built-in system prompt."
+        ));
         content.addView(explanation);
 
         RadioGroup modes = new RadioGroup(this);
         modes.setOrientation(RadioGroup.VERTICAL);
         RadioButton appendMode = new RadioButton(this);
-        appendMode.setText("Дополнить · рекомендуется");
+        appendMode.setText(t("Дополнить · рекомендуется", "Append · recommended"));
         appendMode.setTextColor(palette.text);
         RadioButton replaceMode = new RadioButton(this);
-        replaceMode.setText("Заменить полностью · расширенный режим");
+        replaceMode.setText(t(
+                "Заменить полностью · расширенный режим",
+                "Replace entirely · advanced mode"
+        ));
         replaceMode.setTextColor(palette.warn);
         modes.addView(appendMode);
         modes.addView(replaceMode);
@@ -1035,7 +1111,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         EditText editor = new EditText(this);
         editor.setText(prefs.systemPrompt());
         editor.setSelection(editor.length());
-        editor.setHint("Например: отвечай по-русски, сначала проверяй факты…");
+        editor.setHint(t(
+                "Например: отвечай по-русски, сначала проверяй факты…",
+                "For example: answer in English, check facts first…"
+        ));
         editor.setHintTextColor(palette.muted);
         editor.setTextColor(palette.text);
         editor.setGravity(Gravity.TOP | Gravity.START);
@@ -1088,11 +1167,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         });
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Системный промпт агента")
+                .setTitle(t("Системный промпт агента", "Agent system prompt"))
                 .setView(content)
-                .setNegativeButton("Отмена", null)
-                .setNeutralButton("По умолчанию", null)
-                .setPositiveButton("Сохранить", null)
+                .setNegativeButton(t("Отмена", "Cancel"), null)
+                .setNeutralButton(t("По умолчанию", "Default"), null)
+                .setPositiveButton(t("Сохранить", "Save"), null)
                 .create();
         dialog.setOnShowListener(ignored -> {
             if (dialog.getWindow() != null) {
@@ -1121,7 +1200,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (previous.equals(normalized)
                         && (normalized.isEmpty() || previousMode == mode)) {
                     dialog.dismiss();
-                    toast("Системный промпт не изменился");
+                    toast(t("Системный промпт не изменился", "System prompt unchanged"));
                     return;
                 }
                 prefs.setSystemPrompt(mode, normalized);
@@ -1132,10 +1211,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 append(
                         ConsoleEntry.Channel.SYSTEM,
                         normalized.isEmpty()
-                                ? "Восстановлен встроенный системный промпт Pi."
+                                ? t("Восстановлен встроенный системный промпт Pi.",
+                                        "Pi's built-in system prompt restored.")
                                 : mode == SystemPromptSettings.Mode.APPEND
-                                ? "Дополнение к системному промпту сохранено."
-                                : "Включена полная замена системного промпта."
+                                ? t("Дополнение к системному промпту сохранено.",
+                                        "System prompt addition saved.")
+                                : t("Включена полная замена системного промпта.",
+                                        "Full system prompt replacement enabled.")
                 );
                 refreshUi();
                 if (serverReady) main.post(MainActivity.this::startBridge);
@@ -1146,7 +1228,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void updateSystemPromptCounter(TextView counter, String value) {
         int bytes = SystemPromptSettings.byteCount(value);
-        counter.setText(bytes + " / " + SystemPromptSettings.MAX_BYTES + " байт");
+        counter.setText(bytes + " / " + SystemPromptSettings.MAX_BYTES + t(" байт", " bytes"));
         counter.setTextColor(bytes > SystemPromptSettings.MAX_BYTES
                 ? palette.errorText
                 : palette.muted);
@@ -1157,9 +1239,18 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         else termux.openTermuxPage();
     }
 
+    /**
+     * Routine progress of the core itself (link up, model loaded, bridge ready). It is shown as
+     * one replaceable status line, not stored, and never pushes conversation out of the
+     * 60-entry transcript.
+     */
+    private void appendStatus(String text) {
+        deck.setStatusNote(text);
+    }
+
     private void clearConsole() {
         deck.clearEntries();
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
     }
 
     @Override
@@ -1202,7 +1293,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                 && selectedModel.id.equals(server.optString("modelId"));
                     }
                     if (!startup) {
-                        append(ConsoleEntry.Channel.TOOL, "Termux bridge online.");
+                        appendStatus(t("Termux на связи.", "Termux link online."));
                     } else if (wasCoreReady && !runtimeFound && !runtimeUpdateAvailable) {
                         append(ConsoleEntry.Channel.ERROR,
                                 t(
@@ -1300,13 +1391,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (runtimeState(result, "READY")) {
                     serverReady = operationModel != null
                             && operationModel.id.equals(selectedModel.id);
-                    append(ConsoleEntry.Channel.TOOL,
-                            (operationModel == null ? "GGUF" : operationModel.title)
-                                    + t(
-                                            " работает под UID PiDeck и доступна на loopback.",
-                                            " is running under the PiDeck UID and is available on loopback."
-                                    ));
+                    appendStatus((operationModel == null ? "GGUF" : operationModel.title)
+                            + t(" загружена.", " is loaded."));
                     if (serverReady) main.post(this::startBridge);
+                } else if (runtimeError(result).contains(NativeLlamaController.LOAD_CANCELLED)) {
+                    serverReady = false;
+                    append(ConsoleEntry.Channel.SYSTEM, t(
+                            "Загрузка модели отменена.", "The model load was cancelled."
+                    ));
+                    // A queued prompt would otherwise re-ignite the load the user just stopped.
+                    onQueuedPromptCancelled();
                 } else {
                     serverReady = false;
                     append(ConsoleEntry.Channel.ERROR,
@@ -1324,9 +1418,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     bridgeReady = true;
                     bridgeConnected = true;
                     bridgeFault = "";
-                    append(ConsoleEntry.Channel.SYSTEM,
-                            "Pi RPC bridge online // " + accessProfile.label
-                                    + " // authenticated localhost.");
+                    appendStatus(t("Pi готов · ", "Pi is ready · ") + accessProfile.label);
                 } else {
                     bridgeReady = false;
                     bridgeConnected = false;
@@ -1412,7 +1504,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (result.isSuccess()) {
                     prefs.setHasSession(false);
                     append(ConsoleEntry.Channel.SYSTEM,
-                            "Открыта новая ветка. Предыдущая сессия перемещена в ~/.pideck/session-archive.");
+                            t("Открыта новая ветка. Предыдущая сессия перемещена в ~/.pideck/session-archive.",
+                                    "New branch opened. The previous session was moved to "
+                                            + "~/.pideck/session-archive."));
                 } else {
                     append(ConsoleEntry.Channel.ERROR, result.usefulError());
                 }
@@ -1437,20 +1531,36 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (runtimeState(result, "READY") && value != null) {
                     int moved = value.optInt("archivedEntries", 0);
                     append(ConsoleEntry.Channel.SYSTEM, moved == 0
-                            ? "Архивировать нечего: ~/.pideck/sessions пуст."
-                            : "Перенесено в ~/.pideck/session-archive: "
+                            ? t("Архивировать нечего: ~/.pideck/sessions пуст.",
+                                    "Nothing to archive: ~/.pideck/sessions is empty.")
+                            : t("Перенесено в ~/.pideck/session-archive: ",
+                                    "Moved to ~/.pideck/session-archive: ")
                             + moved + " " + sessionsLabel(moved) + ".");
                     main.post(() -> listSessions(true));
                 } else {
                     append(ConsoleEntry.Channel.ERROR,
-                            "Архивация сессий не завершилась.\n" + runtimeError(result));
+                            t("Архивация сессий не завершилась.\n", "Session archiving did not finish.\n")
+                                    + runtimeError(result));
+                }
+            }
+            case ARCHIVE_SESSION -> {
+                setBusy(false, null);
+                if (runtimeState(result, "READY")) {
+                    appendStatus(t("Сессия перенесена в ~/.pideck/session-archive.",
+                            "The session was moved to ~/.pideck/session-archive."));
+                    main.post(() -> listSessions(true));
+                } else {
+                    append(ConsoleEntry.Channel.ERROR, t(
+                            "Сессию не удалось архивировать.\n", "Could not archive the session.\n"
+                    ) + runtimeError(result));
                 }
             }
             case ABORT_AGENT -> {
-                append(result.isSuccess() ? ConsoleEntry.Channel.SYSTEM : ConsoleEntry.Channel.ERROR,
-                        result.isSuccess()
-                                ? "Структурированная команда abort принята RPC bridge."
-                                : runtimeError(result));
+                if (result.isSuccess()) {
+                    appendStatus(t("Остановка принята.", "Stop accepted."));
+                } else {
+                    append(ConsoleEntry.Channel.ERROR, runtimeError(result));
+                }
             }
             case AGENT_TURN -> handleAgentResult(result);
             default -> {
@@ -1469,8 +1579,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             setLinkConfirmed(true);
             serverReady = false;
             append(ConsoleEntry.Channel.ERROR,
-                    "Pi CLI отсутствует в Termux. Нажмите INSTALL CORE; "
-                            + "модель уже загружена и повторно скачиваться не будет.");
+                    t("Pi CLI отсутствует в Termux. Нажмите INSTALL CORE; "
+                                    + "модель уже загружена и повторно скачиваться не будет.",
+                            "Pi CLI is missing in Termux. Tap INSTALL CORE; "
+                                    + "the model is already downloaded and will not be fetched again."));
             return;
         }
 
@@ -1489,18 +1601,21 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 deck.addTrace(
                         traceVerb(trace.verb),
                         traceArgument(trace.argument),
-                        trace.error ? "ошибка" : ""
+                        trace.error ? t("ошибка", "error") : ""
                 );
             }
-            prefs.saveTranscript(deck.entries());
+            transcript.save(deck.entries());
             String answer = parsed.answer;
             if (answer.isBlank() && !parsed.recognized) answer = clean(result.stdout).trim();
             if (answer.isBlank()) answer = clean(result.stderr).trim();
-            if (answer.isBlank()) answer = "Задача завершена без текстового ответа.";
+            if (answer.isBlank()) answer = t(
+                    "Задача завершена без текстового ответа.",
+                    "The task finished without a text answer."
+            );
             append(ConsoleEntry.Channel.AGENT, answer);
         } else {
             append(ConsoleEntry.Channel.ERROR,
-                    "Pi прервал задачу.\n" + clean(result.usefulError()));
+                    t("Pi прервал задачу.\n", "Pi stopped the task.\n") + clean(result.usefulError()));
         }
     }
 
@@ -1525,10 +1640,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         boolean installed = termuxEnvironment.installed;
         boolean permission = termux.hasRunPermission();
         boolean core = prefs.isCoreReady();
-        ModelDownloadManager.State modelState = modelDownloads.state(selectedModel);
-        boolean incomingAvailable = modelDownloads.isDownloaded(selectedModel);
-        boolean verified = prefs.isModelVerified(selectedModel);
         boolean privateReady = nativeModels.isInstalled(selectedModel);
+        // The incoming download only shapes the setup card until the private copy exists. Once it
+        // does, skipping it keeps DownloadManager IPC and file stats off every heartbeat that runs
+        // during inference; the CORE tab still renders full download state for every model.
+        ModelDownloadManager.State modelState = privateReady
+                ? null : modelDownloads.state(selectedModel);
+        boolean incomingAvailable = modelState != null
+                && ModelDownloadManager.isDownloaded(modelState);
+        boolean verified = prefs.isModelVerified(selectedModel);
 
         DeckView.CoreStatus status = coreStatus();
         deck.setCoreStatus(
@@ -1853,7 +1973,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             long silent = armed.silentForMs(now);
             stallState = null;
             operations.timeout(operationId);
-            setBusy(true, "Ответа нет");
+            setBusy(true, t("Ответа нет", "No response"));
             reportWatchdog(operationId, armed.kind(), silent, verdict);
             if (armed.kind() == OperationKind.AGENT_TURN
                     || armed.kind() == OperationKind.NEW_SESSION
@@ -1889,32 +2009,43 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             StallWatchdog.Verdict verdict
     ) {
         String description = verdict == StallWatchdog.Verdict.EXPIRED
-                ? "Операция идёт дольше общего предела " + (kind.timeoutMs() / 60_000L) + " мин. "
-                        + "Так бывает, когда Android выгружает Termux ради экономии батареи. Часть "
-                        + "изменений могла быть уже применена — проверьте рабочую папку перед повтором."
-                : "Событий не было " + Math.max(1L, waited / 60_000L) + " мин. Так бывает, когда Android "
-                        + "выгружает его ради экономии батареи. Часть изменений могла быть уже "
-                        + "применена — проверьте рабочую папку перед повтором.";
+                ? t("Операция идёт дольше общего предела ",
+                        "The operation has run past the overall limit of ")
+                        + (kind.timeoutMs() / 60_000L)
+                        + t(" мин. "
+                                + "Так бывает, когда Android выгружает Termux ради экономии батареи. Часть "
+                                + "изменений могла быть уже применена — проверьте рабочую папку перед повтором.",
+                        " min. "
+                                + "This happens when Android unloads Termux to save battery. Some "
+                                + "changes may already be applied — check the working folder before retrying.")
+                : t("Событий не было ", "No events for ")
+                        + Math.max(1L, waited / 60_000L)
+                        + t(" мин. Так бывает, когда Android "
+                                + "выгружает его ради экономии батареи. Часть изменений могла быть уже "
+                                + "применена — проверьте рабочую папку перед повтором.",
+                        " min. This happens when Android "
+                                + "unloads Termux to save battery. Some changes may already be "
+                                + "applied — check the working folder before retrying.");
         FailureCardView.Failure failure = new FailureCardView.Failure(
-                "Связь потеряна",
-                "Команда идёт слишком долго",
+                t("Связь потеряна", "Connection lost"),
+                t("Команда идёт слишком долго", "The command is taking too long"),
                 description,
                 false
         );
         failure.recovered(
-                "вывод, который уже пришёл, сохранён",
-                "сессия и весь диалог сохранены",
-                "запрос не повторялся автоматически"
+                t("вывод, который уже пришёл, сохранён", "output received so far saved"),
+                t("сессия и весь диалог сохранены", "session and full conversation saved"),
+                t("запрос не повторялся автоматически", "request not retried automatically")
         );
-        failure.primary("Ждать ещё", () -> {
-            append(ConsoleEntry.Channel.SYSTEM, "Жду ещё; операция " + operationId + ".");
+        failure.primary(t("Ждать ещё", "Keep waiting"), () -> {
+            appendStatus(t("Жду ещё; операция ", "Still waiting; operation ") + operationId + ".");
             armWatchdog(operationId, kind);
         });
         if (kind == OperationKind.AGENT_TURN) {
-            failure.secondary("Прервать задачу", this::abortAgent);
+            failure.secondary(t("Прервать задачу", "Abort task"), this::abortAgent);
         }
         deck.addFailure(failure);
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
     }
 
     private void cancelWatchdog(OperationId completedOperationId) {
@@ -1965,6 +2096,22 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 termux.isInstalled(),
                 termux.hasRunPermission()
         )) return;
+        if (startupProbeAttempts == 0 && StartupPolicy.warmsBeforeLinkProbe(
+                prefs.autostartCore(),
+                canWarmCore(),
+                runtimeAssetsCurrent(),
+                NativeLlamaService.snapshot(this).state,
+                serverReady,
+                bridgeReady || bridgeConnected,
+                busy,
+                lowMemory
+        )) {
+            // The model load is the long pole of a cold launch; start it now. Server adoption and
+            // bridge start re-verify the Termux link before Pi receives anything.
+            startupProbeAttempts = StartupPolicy.MAX_STARTUP_LINK_PROBES;
+            warmCoreOnLaunch();
+            return;
+        }
         startupProbeAttempts++;
         startupProbeInFlight = true;
         refreshUi();
@@ -2036,7 +2183,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         )) {
             return;
         }
-        append(ConsoleEntry.Channel.SYSTEM, serverReady
+        appendStatus(serverReady
                 ? t("Сервер уже работает; поднимаю Pi RPC bridge.",
                         "The server is already running; raising the Pi RPC bridge.")
                 : t("Автозапуск: гружу " + selectedModel.title + ".",
@@ -2305,15 +2452,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void startServerConfirmed() {
         if (busy) return;
-        append(ConsoleEntry.Channel.SYSTEM,
-                t(
-                        "Переношу inference под UID PiDeck и загружаю ",
-                        "Moving inference under the PiDeck UID and loading "
-                ) + selectedModel.title
-                        + t(
-                                " через оптимизированный Arm backend.",
-                                " through the optimized Arm backend."
-                        ));
+        appendStatus(t("Загружаю ", "Loading ") + selectedModel.title + "…");
         if (bridgeReady || bridgeConnected) {
             dispatchOperation(
                     OperationKind.STOP_BRIDGE,
@@ -2348,7 +2487,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         dispatchOperation(
                 OperationKind.START_SERVER,
                 requestMetadata(selectedModel.id, false),
-                "LOADING " + selectedModel.title,
+                StartupPolicy.loadingLabel(
+                        selectedModel.title,
+                        NativeLlamaService.lastLoadMillis(this, selectedModel.id),
+                        uiLanguage
+                ),
                 operationId -> NativeLlamaController.start(
                         this,
                         operationId,
@@ -2497,10 +2640,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             );
             operations.dispatched(operation.operationId);
             contextCompacting = true;
-            setBusy(true, t("Сжимаю историю", "Compacting history"));
-            setInferenceActive(true, t(
-                    "Сжимаю историю сессии…", "Compacting session history…"
-            ));
+            enterPhase(TurnPhase.COMPACTING, null);
             armWatchdog(operation.operationId, OperationKind.COMPACT_SESSION);
         } catch (RuntimeException error) {
             contextCompacting = false;
@@ -2561,8 +2701,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void abortAgent() {
         OperationRecord active = operations.active();
-        if (active == null || active.kind != OperationKind.AGENT_TURN) {
-            toast(t("Нет активного Pi turn", "There is no active Pi turn"));
+        if (active != null && active.kind == OperationKind.START_SERVER
+                && !active.state.isTerminal()) {
+            // The model load is app-owned: stop the half-loaded server directly.
+            NativeLlamaController.cancelStart(this, active.operationId);
+            setBusy(true, t("Отменяю загрузку модели", "Cancelling the model load"));
+            return;
+        }
+        if (active == null || (active.kind != OperationKind.AGENT_TURN
+                && active.kind != OperationKind.COMPACT_SESSION)) {
+            toast(t("Сейчас нечего останавливать", "Nothing to stop right now"));
             return;
         }
         try {
@@ -2572,7 +2720,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     json("targetOperationId", active.operationId.toString())
             );
             operations.dispatched(control.operationId);
-            setBusy(true, "PI AGENT // ABORTING");
+            setBusy(true, active.kind == OperationKind.COMPACT_SESSION
+                    ? t("Отменяю сжатие", "Cancelling compaction")
+                    : t("Останавливаю ответ", "Stopping the answer"));
             io.execute(() -> {
                 try {
                     rpc.command(
@@ -2656,8 +2806,25 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         return String.format(Locale.ROOT, "%02d:%02d", minutes, remainder);
     }
 
+    /**
+     * Moves the running turn to one phase and derives every label from it: the busy row and the
+     * pre-output progress ticker can no longer disagree or be reset by a state refresh.
+     */
+    private void enterPhase(TurnPhase phase, String detail) {
+        turnPhase = phase;
+        String label = phase.label(uiLanguage, detail);
+        String progress = phase.progressLabel(uiLanguage, detail);
+        if (phase == TurnPhase.PREPARING) {
+            label = contextPhaseLabel(label);
+            progress = contextPhaseLabel(progress);
+        }
+        setBusy(true, label);
+        setInferenceActive(true, progress);
+    }
+
     private void setInferenceActive(boolean active, String phase) {
         inferenceActive = active;
+        if (!active) turnPhase = null;
         inferencePhase = active ? (phase == null ? "" : phase) : "";
         main.removeCallbacks(inferenceProgressTicker);
         if (active && turnStartedAtUptimeMs > 0L && firstOutputAtUptimeMs == 0L) {
@@ -2671,25 +2838,35 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void applyScreenSpeedPolicy() {
-        if (inferenceActive && prefs.maximumSpeed()) {
+        if (InferenceDisplayPolicy.keepsScreenOn(inferenceActive, prefs.maximumSpeed())) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         } else {
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+        WindowManager.LayoutParams attributes = getWindow().getAttributes();
+        float refresh = InferenceDisplayPolicy.preferredRefreshRate(inferenceActive);
+        if (attributes.preferredRefreshRate != refresh) {
+            attributes.preferredRefreshRate = refresh;
+            getWindow().setAttributes(attributes);
         }
     }
 
     private void installPrivateModel(ModelSpec model) {
         if (busy) return;
         if (!prefs.isModelVerified(model) || !modelDownloads.isDownloaded(model)) {
-            toast("Сначала нужна Android SHA-256 проверка incoming-файла");
+            toast(t(
+                    "Сначала нужна Android SHA-256 проверка incoming-файла",
+                    "The incoming file needs Android SHA-256 verification first"
+            ));
             return;
         }
         long available = Math.min(freeStorage, nativeModels.usableSpace());
         long required = ModelCatalog.requiredStorageForPrivateInstall(model);
         if (available < required) {
             append(ConsoleEntry.Channel.ERROR,
-                    "Для приватной копии нужно ещё " + humanBytes(required)
-                            + "; доступно " + humanBytes(available) + ".");
+                    t("Для приватной копии нужно ещё ", "The private copy needs another ")
+                            + humanBytes(required)
+                            + t("; доступно ", "; available ") + humanBytes(available) + ".");
             return;
         }
         dispatchOperation(
@@ -2761,19 +2938,20 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         verificationFault = "";
                         append(ConsoleEntry.Channel.SYSTEM,
                                 model.title + " · Android SHA‑256 verified. "
-                                        + "Перед запуском PiDeck создаст приватную копию.");
+                                        + t("Перед запуском PiDeck создаст приватную копию.",
+                                                "PiDeck will make a private copy before launch."));
                         main.post(() -> installPrivateModel(model));
                     } else if (result.failure
                             == ModelDownloadManager.VerificationFailure.ACCESS_DENIED
                             || result.failure == ModelDownloadManager.VerificationFailure.MISSING
                             || result.failure == ModelDownloadManager.VerificationFailure.IO) {
                         verificationFault = result.error.isBlank()
-                                ? "Android не открыл источник модели"
+                                ? t("Android не открыл источник модели", "Android could not open the model source")
                                 : result.error;
                         reportModelAccessFailure(model, verificationFault);
                     } else {
                         verificationFault = result.error.isBlank()
-                                ? "SHA‑256 не совпал ("
+                                ? t("SHA‑256 не совпал (", "SHA‑256 mismatch (")
                                         + result.actualHash.substring(
                                                 0,
                                                 Math.min(12, result.actualHash.length())
@@ -2783,24 +2961,30 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         boolean externalDocument = modelDownloads.hasExternalDocument(model);
                         boolean removed = modelDownloads.delete(model);
                         FailureCardView.Failure failure = new FailureCardView.Failure(
-                                "Файл повреждён",
-                                "Файл модели повреждён",
-                                model.title + " не сошлась с закреплённым SHA-256: "
+                                t("Файл повреждён", "File corrupted"),
+                                t("Файл модели повреждён", "The model file is corrupted"),
+                                model.title + t(" не сошлась с закреплённым SHA-256: ",
+                                                " does not match the pinned SHA-256: ")
                                         + verificationFault
-                                        + " Так бывает при обрыве загрузки или подмене зеркала.",
+                                        + t(" Так бывает при обрыве загрузки или подмене зеркала.",
+                                                " This happens when a download breaks off or a mirror is tampered with."),
                                 true
                         );
                         failure.recovered(
                                 externalDocument
-                                        ? "выбранный через проводник файл не удалён"
+                                        ? t("выбранный через проводник файл не удалён",
+                                                "file picked in the file manager not deleted")
                                         : removed
-                                        ? "битый файл удалён, место освобождено"
-                                        : "битый файл помечен непроверенным",
-                                "модели и сессии на диске не тронуты"
+                                        ? t("битый файл удалён, место освобождено",
+                                                "broken file deleted, space freed")
+                                        : t("битый файл помечен непроверенным",
+                                                "broken file marked unverified"),
+                                t("модели и сессии на диске не тронуты",
+                                        "models and sessions on disk untouched")
                         );
-                        failure.primary("Скачать заново", () -> confirmDownload(model));
+                        failure.primary(t("Скачать заново", "Re-download"), () -> confirmDownload(model));
                         deck.addFailure(failure);
-                        prefs.saveTranscript(deck.entries());
+                        transcript.save(deck.entries());
                     }
                     refreshUi();
                 });
@@ -2837,7 +3021,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             startActivityForResult(picker, REQUEST_MODEL_DOCUMENT);
         } catch (RuntimeException error) {
             pendingModelDocumentId = null;
-            reportModelAccessFailure(model, "системный проводник недоступен");
+            reportModelAccessFailure(
+                    model, t("системный проводник недоступен", "system file picker unavailable")
+            );
         }
     }
 
@@ -2856,55 +3042,60 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
      */
     private void reportModelSizeMismatch(ModelSpec model, long actualBytes) {
         FailureCardView.Failure failure = new FailureCardView.Failure(
-                "ФАЙЛ НЕ ПОДХОДИТ",
-                "Это не " + model.title,
-                "Ожидается " + model.humanSize()
-                        + ", выбрано " + ModelSpec.humanBytes(actualBytes)
-                        + ". Размер закреплён в манифесте, поэтому файл не принят до SHA-256.",
+                t("ФАЙЛ НЕ ПОДХОДИТ", "WRONG FILE"),
+                t("Это не ", "This is not ") + model.title,
+                t("Ожидается ", "Expected ") + model.humanSize()
+                        + t(", выбрано ", ", selected ") + ModelSpec.humanBytes(actualBytes)
+                        + t(". Размер закреплён в манифесте, поэтому файл не принят до SHA-256.",
+                                ". The size is pinned in the manifest, so the file was rejected "
+                                        + "before the SHA-256 check."),
                 true
         );
         failure.recovered(
-                "ничего не скачано и не удалено",
-                "выбранный файл оставлен без изменений"
+                t("ничего не скачано и не удалено", "nothing downloaded or deleted"),
+                t("выбранный файл оставлен без изменений", "selected file left unchanged")
         );
         failure.primary(
-                "Выбрать другой файл",
+                t("Выбрать другой файл", "Choose another file"),
                 () -> requestModelDocument(model, PIDECK_FOLDER)
         );
-        failure.secondary("Скачать", () -> confirmDownload(model));
+        failure.secondary(t("Скачать", "Download"), () -> confirmDownload(model));
         deck.addFailure(failure);
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
         refreshUi();
     }
 
     private void reportModelAccessFailure(ModelSpec model, String detail) {
         String explanation = detail == null || detail.isBlank()
-                ? "Android не выдал приложению доступ к общей копии GGUF."
+                ? t("Android не выдал приложению доступ к общей копии GGUF.",
+                        "Android did not give the app access to the shared GGUF copy.")
                 : detail;
         FailureCardView.Failure failure = new FailureCardView.Failure(
-                "НУЖЕН ДОСТУП",
-                "Модель видна, но закрыта Android",
-                explanation + " Это бывает после переустановки: пакет тот же, "
-                        + "но Linux UID приложения уже другой. Файл не повреждён и не удалён.",
+                t("НУЖЕН ДОСТУП", "ACCESS NEEDED"),
+                t("Модель видна, но закрыта Android", "The model is visible but Android blocks it"),
+                explanation + t(" Это бывает после переустановки: пакет тот же, "
+                                + "но Linux UID приложения уже другой. Файл не повреждён и не удалён.",
+                        " This happens after a reinstall: the package is the same, "
+                                + "but the app's Linux UID has changed. The file is not damaged or deleted."),
                 true
         );
         failure.recovered(
-                "общая GGUF оставлена без изменений",
-                "приватные модели, Pi и сессии не тронуты"
+                t("общая GGUF оставлена без изменений", "shared GGUF left unchanged"),
+                t("приватные модели, Pi и сессии не тронуты", "private models, Pi and sessions untouched")
         );
         failure.primary(
-                "Выбрать существующий GGUF",
+                t("Выбрать существующий GGUF", "Choose existing GGUF"),
                 () -> requestModelDocument(model, INCOMING_FOLDER)
         );
-        failure.secondary("Скачать новую копию", () -> confirmDownload(model));
+        failure.secondary(t("Скачать новую копию", "Download a new copy"), () -> confirmDownload(model));
         deck.addFailure(failure);
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
         refreshUi();
     }
 
     private void confirmDownload(ModelSpec model) {
         if (busy) {
-            toast("Дождитесь завершения текущей операции");
+            toast(t("Дождитесь завершения текущей операции", "Wait for the current operation to finish"));
             return;
         }
         // The current target is dropped before the transfer starts, so its bytes count as free.
@@ -2914,19 +3105,27 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
         String networkNote = isMetered()
-                ? "\n\nСеть сейчас тарифицируемая. Размер: " + model.humanSize()
-                + ". Продолжение требует отдельного согласия."
-                : "\n\nWi‑Fi/нетарифицируемая сеть обнаружена.";
+                ? t("\n\nСеть сейчас тарифицируемая. Размер: ",
+                        "\n\nThe network is metered right now. Size: ")
+                + model.humanSize()
+                + t(". Продолжение требует отдельного согласия.",
+                        ". Continuing needs separate consent.")
+                : t("\n\nWi‑Fi/нетарифицируемая сеть обнаружена.",
+                        "\n\nWi‑Fi/unmetered network detected.");
         boolean allowMetered = isMetered();
         new AlertDialog.Builder(this)
-                .setTitle("Загрузить " + model.title + "?")
+                .setTitle(t("Загрузить ", "Download ") + model.title + "?")
                 .setMessage(model.humanSize() + " · " + model.repo
-                        + "\nIncoming будет сохранён в Download/PiDeck/incoming, "
-                        + "затем проверен и скопирован в приватный PiDeck store."
+                        + t("\nIncoming будет сохранён в Download/PiDeck/incoming, "
+                                + "затем проверен и скопирован в приватный PiDeck store.",
+                        "\nThe incoming file will be saved to Download/PiDeck/incoming, "
+                                + "then verified and copied into the private PiDeck store.")
                         + networkNote)
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(t("Отмена", "Cancel"), null)
                 .setPositiveButton(
-                        allowMetered ? "По мобильной сети" : "Загрузить",
+                        allowMetered
+                                ? t("По мобильной сети", "Over mobile data")
+                                : t("Загрузить", "Download"),
                         (dialog, which) -> {
                     selectedModel = model;
                     modelSelectionRequired = false;
@@ -2937,7 +3136,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     try {
                         modelDownloads.start(model, allowMetered);
                         append(ConsoleEntry.Channel.SYSTEM,
-                                "Hugging Face download запущен: " + model.title + " · " + model.humanSize());
+                                t("Hugging Face download запущен: ", "Hugging Face download started: ")
+                                        + model.title + " · " + model.humanSize());
                     } catch (RuntimeException error) {
                         append(ConsoleEntry.Channel.ERROR, "DownloadManager: " + readableException(error));
                     }
@@ -2952,28 +3152,32 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
      */
     private void reportNoRoomFor(ModelSpec model, long available) {
         FailureCardView.Failure failure = new FailureCardView.Failure(
-                "Не хватает места",
-                "Не хватит места на " + model.tier,
-                model.title + " просит " + humanBytes(
+                t("Не хватает места", "Not enough space"),
+                t("Не хватит места на ", "Not enough space for ") + model.tier,
+                model.title + t(" просит ", " needs ") + humanBytes(
                         ModelCatalog.requiredStorageForFreshInstall(model)
-                ) + " вместе с приватной копией; свободно " + humanBytes(available) + ".",
+                ) + t(" вместе с приватной копией; свободно ", " including the private copy; free ")
+                        + humanBytes(available) + ".",
                 false
         );
-        failure.recovered("загрузка не начата", "уже скачанные модели не тронуты");
+        failure.recovered(
+                t("загрузка не начата", "download not started"),
+                t("уже скачанные модели не тронуты", "already downloaded models untouched")
+        );
         ModelSpec fallback = largestModelThatFits(available, model);
         if (fallback == null) {
-            failure.primary("Проверить место снова", () -> {
+            failure.primary(t("Проверить место снова", "Check space again"), () -> {
                 updateCapacity();
                 refreshUi();
             });
         } else {
             failure.primary(
-                    "Взять " + fallback.tier + " · " + fallback.humanSize(),
+                    t("Взять ", "Use ") + fallback.tier + " · " + fallback.humanSize(),
                     () -> confirmDownload(fallback)
             );
         }
         deck.addFailure(failure);
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
     }
 
     private ModelSpec largestModelThatFits(long available, ModelSpec rejected) {
@@ -2990,7 +3194,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void chooseModel(ModelSpec model) {
         if (busy) {
-            toast("Дождитесь завершения текущей операции");
+            toast(t("Дождитесь завершения текущей операции", "Wait for the current operation to finish"));
             return;
         }
         if (!nativeModels.isInstalled(model) && !modelDownloads.isDownloaded(model)) {
@@ -3008,30 +3212,34 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             verifyModel(model);
         }
         append(ConsoleEntry.Channel.SYSTEM,
-                "Активный профиль → " + model.title + ". Перезапустите LLM-ядро.");
+                t("Активный профиль → ", "Active profile → ") + model.title
+                        + t(". Перезапустите LLM-ядро.", ". Restart the LLM core."));
         refreshUi();
     }
 
     private void confirmDeleteModel(ModelSpec model) {
         if (busy) {
-            toast("Дождитесь завершения текущей операции");
+            toast(t("Дождитесь завершения текущей операции", "Wait for the current operation to finish"));
             return;
         }
         new AlertDialog.Builder(this)
-                .setTitle("Удалить incoming source?")
-                .setMessage("Будет удалена только общая копия "
+                .setTitle(t("Удалить incoming source?", "Delete the incoming source?"))
+                .setMessage(t("Будет удалена только общая копия ", "Only the shared copy ")
                         + modelDownloads.fileFor(model).getAbsolutePath()
-                        + ". Приватная read-only GGUF, Pi и проекты останутся.")
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Удалить", (dialog, which) -> {
+                        + t(". Приватная read-only GGUF, Pi и проекты останутся.",
+                                " will be deleted. The private read-only GGUF, Pi and projects stay."))
+                .setNegativeButton(t("Отмена", "Cancel"), null)
+                .setPositiveButton(t("Удалить", "Delete"), (dialog, which) -> {
                     prefs.setModelVerified(model, false);
                     boolean deleted = modelDownloads.delete(model);
                     if (deleted) {
                         append(ConsoleEntry.Channel.SYSTEM,
-                                "Shared incoming source для " + model.title + " удалён.");
+                                t("Shared incoming source для ", "Shared incoming source for ") + model.title
+                                        + t(" удалён.", " deleted."));
                     } else {
                         append(ConsoleEntry.Channel.ERROR,
-                                "Android не разрешил удалить " + model.fileName + ".");
+                                t("Android не разрешил удалить ", "Android did not allow deleting ")
+                                        + model.fileName + ".");
                     }
                     refreshUi();
                 })
@@ -3517,9 +3725,46 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
     }
 
+    private void renameSession(String id, String currentTitle) {
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true);
+        input.setText(currentTitle);
+        input.setSelectAllOnFocus(true);
+        new AlertDialog.Builder(this)
+                .setTitle(t("Название сессии", "Session name"))
+                .setMessage(t(
+                        "Название хранится только на этом телефоне.",
+                        "The name is kept on this phone only."
+                ))
+                .setView(input)
+                .setNegativeButton(t("Отмена", "Cancel"), null)
+                .setPositiveButton(t("Сохранить", "Save"), (dialog, which) -> {
+                    prefs.setSessionAlias(id, input.getText().toString());
+                    renderSessionsRoot();
+                })
+                .show();
+    }
+
+    private void archiveSession(String id) {
+        if (busy) {
+            toast(t("Дождитесь завершения текущей операции", "Wait for the current operation to finish"));
+            return;
+        }
+        JSONObject request = json("sessionId", id);
+        dispatchOperation(
+                OperationKind.ARCHIVE_SESSION,
+                request,
+                t("Переношу сессию в архив", "Archiving the session"),
+                operationId -> termux.runRuntime(
+                        operationId, OperationKind.ARCHIVE_SESSION, "archive-session",
+                        request.toString()
+                )
+        );
+    }
+
     private void archiveSessions() {
         if (busy) {
-            toast("Дождитесь завершения текущей операции");
+            toast(t("Дождитесь завершения текущей операции", "Wait for the current operation to finish"));
             return;
         }
         dispatchOperation(
@@ -3533,95 +3778,63 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void renderSessionsRoot() {
-        SessionsRootView.State state = new SessionsRootView.State();
-        state.onNewSession = bridgeReady && !busy ? this::newSession : null;
+        SessionsScreen.Input input = new SessionsScreen.Input();
+        input.sessions = sessions;
+        input.activeSession = prefs.sessionId();
+        input.nowMs = System.currentTimeMillis();
+        input.canStartNew = bridgeReady && !busy;
+        input.fault = sessionsFault;
+        input.requested = sessionsRequested;
+        input.count = sessionCount;
+        input.bytes = sessionBytes;
+        input.bytesPartial = sessionBytesPartial;
+        input.aliases = prefs::sessionAlias;
+        input.language = uiLanguage;
+        deck.renderSessions(SessionsScreen.build(input, new SessionsScreen.Actions() {
+            @Override
+            public void resume(String id) {
+                resumeSession(id);
+            }
 
-        String activeSession = prefs.sessionId();
-        long now = System.currentTimeMillis();
-        SessionsRootView.Group today = new SessionsRootView.Group(t("Сегодня", "Today"));
-        SessionsRootView.Group earlier = new SessionsRootView.Group(t("Раньше", "Earlier"));
-        for (int index = 0; index < sessions.length(); index++) {
-            JSONObject value = sessions.optJSONObject(index);
-            if (value == null) continue;
-            String id = value.optString("id", "");
-            long updated = value.optLong("updatedAtEpochMs", 0L);
-            long age = now - updated;
-            boolean current = !id.isEmpty() && id.equals(activeSession);
-            String title = value.optString("title", "");
-            if (title.isBlank()) title = t("Сессия ", "Session ") + shortId(id);
+            @Override
+            public void rename(String id, String currentTitle) {
+                renameSession(id, currentTitle);
+            }
 
-            String meta = (value.optBoolean("messagesTruncated", false) ? "≥" : "")
-                    + messagesLabel(value.optInt("messages", 0))
-                    + " · " + humanBytes(value.optLong("bytes", 0L))
-                    + " · " + (age < 86_400_000L ? clockTime(updated) : calendarDate(updated));
+            @Override
+            public void archive(String id) {
+                archiveSession(id);
+            }
 
-            SessionsRootView.SessionRow row = new SessionsRootView.SessionRow(
-                    title,
-                    meta,
-                    current,
-                    age > 7L * 86_400_000L,
-                    current || !isResumable(id) ? null : () -> resumeSession(id)
-            );
-            (age < 86_400_000L ? today : earlier).rows.add(row);
-        }
-        if (!today.rows.isEmpty()) state.groups.add(today);
-        if (!earlier.rows.isEmpty()) state.groups.add(earlier);
+            @Override
+            public void archiveAll() {
+                archiveSessions();
+            }
 
-        if (!sessionsFault.isBlank()) {
-            state.emptyNote = sessionsFault.contains("UNKNOWN_COMMAND")
-                    && sessionsFault.contains("list-sessions")
-                    ? t(
-                            "Установленный Pi runtime нужно обновить. Откройте Ядро → "
-                                    + "Обновить Pi, затем вернитесь в Сессии.",
-                            "The installed Pi runtime needs an update. Open Core → "
-                                    + "Update Pi, then return to Sessions."
-                    )
-                    : t(
-                            "Список сессий прочитать не удалось: ",
-                            "Could not read the session list: "
-                    ) + sessionsFault;
-        } else if (state.groups.isEmpty()) {
-            state.emptyNote = sessionsRequested
-                    ? t(
-                            "В ~/.pideck/sessions пока пусто — первая сессия появится после "
-                                    + "первого разговора.",
-                            "~/.pideck/sessions is empty — the first session will appear "
-                                    + "after your first conversation."
-                    )
-                    : t(
-                            "Список читается из Termux при открытии этого экрана.",
-                            "The list is loaded from Termux when this screen opens."
-                    );
-        } else {
-            state.emptyNote = t(
-                    "Тап по сессии переключает на неё Pi. Локальный транскрипт при "
-                            + "этом не подменяется: дека не переписывает то, что вы уже видели.",
-                    "Tap a session to switch Pi to it. The local transcript is not replaced: "
-                            + "the deck does not rewrite what you have already seen."
-            );
-        }
-
-        state.footer = sessionCount + " " + sessionsLabel(sessionCount)
-                + " · " + (sessionBytesPartial ? "≥" : "") + humanBytes(sessionBytes);
-        if (sessionCount > 0) {
-            state.archiveLabel = t("Архивировать старые", "Archive old sessions");
-            state.onArchive = this::archiveSessions;
-        }
-        deck.renderSessions(state);
+            @Override
+            public void newSession() {
+                MainActivity.this.newSession();
+            }
+        }));
     }
 
     /**
      * The bridge keys a session by the UUID the deck handed it, so a listing entry can only be
      * resumed when its name is still one of those.
      */
-    private boolean isResumable(String id) {
-        if (id == null || id.isBlank()) return false;
-        try {
-            SessionId.parse(id);
-            return true;
-        } catch (RuntimeException ignored) {
-            return false;
+    private JSONArray recentMessages(String id) {
+        for (int index = 0; index < sessions.length(); index++) {
+            JSONObject value = sessions.optJSONObject(index);
+            if (value != null && id.equals(value.optString("id"))) {
+                JSONArray recent = value.optJSONArray("recent");
+                return recent == null ? new JSONArray() : recent;
+            }
         }
+        return new JSONArray();
+    }
+
+    private boolean isResumable(String id) {
+        return SessionsScreen.isResumable(id);
     }
 
     private void resumeSession(String id) {
@@ -3643,14 +3856,21 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             return;
         }
         onTabSelected(TabBarView.TAB_CONSOLE);
+        JSONArray recent = recentMessages(id);
         append(ConsoleEntry.Channel.SYSTEM,
                 t("Продолжаю сессию ", "Resuming session ") + shortId(id)
-                        + t(
-                                ". Прошлые сообщения остались в Pi; "
-                                        + "в консоли они не воспроизводятся.",
-                                ". Earlier messages remain in Pi and are not replayed "
-                                        + "in the console."
-                        ));
+                        + (recent.length() == 0
+                        ? t(". Её история остаётся в Pi.", ". Its history stays in Pi.")
+                        : t(". Последние сообщения:", ". Latest messages:")));
+        // The tail is shown, not replayed: Pi already holds the session and sends nothing again.
+        for (int index = 0; index < recent.length(); index++) {
+            JSONObject message = recent.optJSONObject(index);
+            if (message == null) continue;
+            String text = message.optString("text", "");
+            if (text.isBlank()) continue;
+            append("user".equals(message.optString("role"))
+                    ? ConsoleEntry.Channel.USER : ConsoleEntry.Channel.AGENT, text);
+        }
         if (serverReady) main.post(this::restartBridge);
     }
 
@@ -3660,28 +3880,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private String messagesLabel(int count) {
-        if (uiLanguage == UiLanguage.ENGLISH) {
-            return count + (count == 1 ? " message" : " messages");
-        }
-        String noun = plural(count, "сообщение", "сообщения", "сообщений");
-        return count + " " + noun;
+        return SessionsScreen.messagesLabel(count, uiLanguage);
     }
 
     private String sessionsLabel(int count) {
-        if (uiLanguage == UiLanguage.ENGLISH) {
-            return count == 1 ? "session" : "sessions";
-        }
-        return plural(count, "сессия", "сессии", "сессий");
-    }
-
-    private String plural(int count, String one, String few, String many) {
-        int mod100 = count % 100;
-        if (mod100 >= 11 && mod100 <= 14) return many;
-        return switch (count % 10) {
-            case 1 -> one;
-            case 2, 3, 4 -> few;
-            default -> many;
-        };
+        return SessionsScreen.sessionsLabel(count, uiLanguage);
     }
 
     private String clockTime(long epochMs) {
@@ -3709,7 +3912,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
         if (palette.id.equals(schemeId)) return;
         prefs.setColorScheme(Palette.forId(schemeId).id);
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
         recreate();
     }
 
@@ -3727,6 +3930,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         busy = value;
         busyPhase = value && label != null ? label : "";
         deck.setBusy(value, label);
+        deck.setStopAvailable(value && isStoppable(operations.active()));
         refreshUi();
         if (!value
                 && pendingPromptAfterCompaction == null
@@ -3831,10 +4035,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             streamedCharacters = 0L;
             lastRateUpdateUptimeMs = turnStartedAtUptimeMs;
             deck.setGenerationSpeed(null);
-            setBusy(true, contextPhaseLabel(t("Готовлю контекст", "Preparing context")));
-            setInferenceActive(true, contextPhaseLabel(t(
-                    "Готовлю контекст", "Preparing context"
-            )));
+            enterPhase(TurnPhase.PREPARING, null);
             armWatchdog(operation.operationId, OperationKind.AGENT_TURN);
         } catch (JSONException | RuntimeException error) {
             append(ConsoleEntry.Channel.ERROR, safeException(error));
@@ -4090,11 +4291,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
         if (remoteSession != null) {
             prefs.setSessionId(remoteSession, false);
-            append(ConsoleEntry.Channel.SYSTEM,
-                    t(
-                            "Session cursor восстановлен из авторитетного состояния bridge.",
-                            "The session cursor was restored from authoritative bridge state."
-                    ));
+            appendStatus(t(
+                    "Курсор сессии восстановлен из состояния bridge.",
+                    "The session cursor was restored from bridge state."
+            ));
         }
         if (state.has("planLedger")) {
             applyPlanLedger(state.optJSONObject("planLedger"));
@@ -4120,8 +4320,12 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         ? t("Сжимаю историю", "Compacting history")
                         : contextCompacting
                         ? t("Сжимаю историю", "Compacting history")
+                        : !inferencePhase.isBlank()
+                        // A periodic state refresh must not overwrite the live tool or phase.
+                        ? inferencePhase
                         : t("Задача продолжается", "Task in progress");
                 deck.setBusy(true, phase);
+                deck.setStopAvailable(isStoppable(active));
                 if (active.kind == OperationKind.AGENT_TURN
                         || active.kind == OperationKind.COMPACT_SESSION) {
                     setInferenceActive(true, phase);
@@ -4188,7 +4392,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         "The bridge reported EVENT_GAP; a full state reconciliation ran. "
                                 + "The prompt was not retried automatically."
                 ));
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
         prefs.setBridgeCursor(instanceId, Math.max(0L, earliestReceived - 1L));
     }
 
@@ -4289,19 +4493,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (event.operationId != null
                         && event.operationId.equals(operations.activeOperationId())) {
                     acknowledgeRpcPrompt(event.operationId);
-                    setBusy(true, contextPhaseLabel(t(
-                            "Готовлю контекст", "Preparing context"
-                    )));
-                    setInferenceActive(true, contextPhaseLabel(t(
-                            "Готовлю контекст", "Preparing context"
-                    )));
+                    enterPhase(TurnPhase.PREPARING, null);
                 }
             }
             case TURN_STARTED, MODEL_THINKING_STARTED -> {
                 if (event.operationId != null
                         && event.operationId.equals(operations.activeOperationId())) {
-                    setBusy(true, t("Модель думает", "Model is thinking"));
-                    setInferenceActive(true, t("Модель думает…", "Model is thinking…"));
+                    enterPhase(TurnPhase.THINKING, null);
                 }
             }
             case MODEL_OUTPUT_DELTA -> {
@@ -4310,8 +4508,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     String delta = event.payload.optString("delta");
                     if (firstOutputAtUptimeMs == 0L) {
                         firstOutputAtUptimeMs = SystemClock.uptimeMillis();
-                        setBusy(true, t("Печатает ответ", "Writing answer"));
-                        setInferenceActive(true, t("Печатает ответ…", "Writing answer…"));
+                        enterPhase(TurnPhase.WRITING, null);
                     }
                     streamedCharacters += delta.length();
                     updateStreamingRate();
@@ -4322,7 +4519,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (event.operationId != null
                         && event.operationId.equals(operations.activeOperationId())) {
                     deck.discardStreaming();
-                    prefs.saveTranscript(deck.entries());
+                    transcript.save(deck.entries());
                     firstOutputAtUptimeMs = 0L;
                     streamedCharacters = 0L;
                     lastRateUpdateUptimeMs = SystemClock.uptimeMillis();
@@ -4330,7 +4527,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     if (event.payload.optBoolean("willRetry", false)) {
                         String retryState = "live_tool_required".equals(
                                 event.payload.optString("reason"))
-                                ? "Получаю актуальные данные"
+                                ? t("Получаю актуальные данные", "Fetching current data")
                                 : t("Задача продолжается", "Task in progress");
                         if ("live_tool_required".equals(event.payload.optString("reason"))) {
                             retryState = t(
@@ -4338,11 +4535,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                                     "Fetching current data"
                             );
                         }
-                        setBusy(true, retryState);
-                        setInferenceActive(true, retryState + "…");
+                        enterPhase(TurnPhase.RETRYING, retryState);
                     } else {
-                        setBusy(true, t("Ответ отклонён", "Answer rejected"));
-                        setInferenceActive(true, t("Ответ отклонён", "Answer rejected"));
+                        enterPhase(TurnPhase.REJECTED, null);
                     }
                 }
             }
@@ -4357,10 +4552,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     String verb = traceVerb(event.payload.optString("toolName", "tool"));
                     String argument = traceArgument(event.payload.optString("args", ""));
                     deck.addTrace(verb, argument, "");
-                    prefs.saveTranscript(deck.entries());
+                    transcript.save(deck.entries());
                     // The row is what makes a long turn legible, so it moves on every event.
+                    turnPhase = TurnPhase.TOOL;
                     deck.setExecutionLabel(verb + " " + argument);
-                    setInferenceActive(true, verb + " " + argument);
+                    setInferenceActive(true, TurnPhase.TOOL.progressLabel(uiLanguage, verb + " " + argument));
                 }
             }
             case TOOL_CALL_COMPLETED -> {
@@ -4386,10 +4582,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
             case CONTEXT_COMPACTION_STARTED -> {
                 contextCompacting = true;
-                setBusy(true, t("Сжимаю историю", "Compacting history"));
-                setInferenceActive(true, t(
-                        "Сжимаю историю сессии…", "Compacting session history…"
-                ));
+                enterPhase(TurnPhase.COMPACTING, null);
             }
             case CONTEXT_COMPACTION_FINISHED -> {
                 contextCompacting = false;
@@ -4501,11 +4694,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 } catch (RuntimeException ignored) {
                     prefs.startNewSession();
                 }
-                append(ConsoleEntry.Channel.SYSTEM,
-                        t(
-                                "Открыта новая Pi RPC session без скрытого replay.",
-                                "A new Pi RPC session opened without hidden replay."
-                        ));
+                appendStatus(t("Открыта новая сессия.", "A new session is open."));
                 contextUsage = SessionContextUsage.empty(selectedModel.recommendedContext);
                 smartCompactionAttemptSession = null;
                 smartCompactionAttemptTokens = -1L;
@@ -4528,7 +4717,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             if (event.type == BridgeEvent.Type.TURN_COMPLETED) {
                 prefs.setHasSession(true);
                 deck.finishStreaming(answer, exactSpeed);
-                prefs.saveTranscript(deck.entries());
+                transcript.save(deck.entries());
             } else if (event.type == BridgeEvent.Type.TURN_ABORTED) {
                 deck.discardStreaming();
                 append(ConsoleEntry.Channel.SYSTEM, t(
@@ -4703,7 +4892,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     ));
             refreshUi();
         });
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
         refreshUi();
     }
 
@@ -4748,7 +4937,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     + t(" без изменений.", " unchanged."));
             refreshUi();
         });
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
         refreshUi();
     }
 
@@ -5168,7 +5357,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         String normalized = text == null ? "" : text.trim();
         if (normalized.isBlank()) return;
         deck.addEntry(new ConsoleEntry(channel, normalized));
-        prefs.saveTranscript(deck.entries());
+        transcript.save(deck.entries());
     }
 
     private void updateCapacity() {
@@ -5255,7 +5444,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private String readableException(RuntimeException error) {
         if (error instanceof SecurityException) {
-            return "Нет канала RUN_COMMAND. Выдайте дополнительное разрешение PI//DECK и включите allow-external-apps в Termux.";
+            return t(
+                    "Нет канала RUN_COMMAND. Выдайте дополнительное разрешение PI//DECK и включите allow-external-apps в Termux.",
+                    "No RUN_COMMAND channel. Grant PI//DECK the additional permission and enable "
+                            + "allow-external-apps in Termux."
+            );
         }
         return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
     }

@@ -323,8 +323,11 @@ public final class ModelDownloadManager {
     }
 
     public boolean isDownloaded(ModelSpec model) {
-        Phase phase = state(model).phase;
-        return phase == Phase.COMPLETE || phase == Phase.VERIFY_REQUIRED;
+        return isDownloaded(state(model));
+    }
+
+    public static boolean isDownloaded(State state) {
+        return state.phase == Phase.COMPLETE || state.phase == Phase.VERIFY_REQUIRED;
     }
 
     /**
@@ -431,7 +434,7 @@ public final class ModelDownloadManager {
             try {
                 InputStream input = resolver.openInputStream(Uri.parse(external));
                 if (input != null) return input;
-                throw new FileNotFoundException("Android не открыл выбранный GGUF");
+                throw new FileNotFoundException(UiLanguage.text("Android не открыл выбранный GGUF", "Android did not open the selected GGUF"));
             } catch (SecurityException error) {
                 throw accessDenied(error);
             }
@@ -465,13 +468,13 @@ public final class ModelDownloadManager {
             long downloadId = prefs.downloadId(model.id);
             if (state(model).isActive()) {
                 listener.onComplete(VerifyResult.failure(
-                        VerificationFailure.IO, "", "загрузка ещё идёт"
+                        VerificationFailure.IO, "", UiLanguage.text("загрузка ещё идёт", "the download is still running")
                 ));
                 return;
             }
             if (!file.isFile() && downloadId < 0 && !hasExternalDocument(model)) {
                 listener.onComplete(VerifyResult.failure(
-                        VerificationFailure.MISSING, "", "GGUF-файл не найден"
+                        VerificationFailure.MISSING, "", UiLanguage.text("GGUF-файл не найден", "the GGUF file was not found")
                 ));
                 return;
             }
@@ -500,8 +503,8 @@ public final class ModelDownloadManager {
                     listener.onComplete(VerifyResult.failure(
                             VerificationFailure.INCOMPLETE,
                             "",
-                            "файл неполный: " + read / 1_048_576L
-                                    + " MB из " + model.bytes / 1_048_576L + " MB"
+                            UiLanguage.text("файл неполный: ", "the file is incomplete: ") + read / 1_048_576L
+                                    + UiLanguage.text(" MB из ", " MB of ") + model.bytes / 1_048_576L + " MB"
                     ));
                     return;
                 }
@@ -587,11 +590,11 @@ public final class ModelDownloadManager {
                 null
         )) {
             if (cursor == null || !cursor.moveToFirst()) {
-                throw new IOException("Android не вернул метаданные выбранного GGUF");
+                throw new IOException(UiLanguage.text("Android не вернул метаданные выбранного GGUF", "Android returned no metadata for the selected GGUF"));
             }
             int sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE);
             if (sizeIndex < 0 || cursor.isNull(sizeIndex)) {
-                throw new IOException("Android не сообщил размер выбранного GGUF");
+                throw new IOException(UiLanguage.text("Android не сообщил размер выбранного GGUF", "Android did not report the size of the selected GGUF"));
             }
             return cursor.getLong(sizeIndex);
         } catch (SecurityException error) {
@@ -619,8 +622,8 @@ public final class ModelDownloadManager {
 
     private static IOException accessDenied(Throwable cause) {
         return new IOException(
-                "Android потерял доступ к общей копии после переустановки; "
-                        + "выберите существующий GGUF через системный проводник",
+                UiLanguage.text("Android потерял доступ к общей копии после переустановки; ", "Android lost access to the shared copy after a reinstall; ")
+                        + UiLanguage.text("выберите существующий GGUF через системный проводник", "pick the existing GGUF in the system file picker"),
                 cause
         );
     }
@@ -631,13 +634,13 @@ public final class ModelDownloadManager {
 
     public static String failureLabel(int reason) {
         return switch (reason) {
-            case DownloadManager.ERROR_INSUFFICIENT_SPACE -> "недостаточно места";
-            case DownloadManager.ERROR_CANNOT_RESUME -> "сервер не разрешил продолжение";
-            case DownloadManager.ERROR_DEVICE_NOT_FOUND -> "хранилище недоступно";
-            case DownloadManager.ERROR_HTTP_DATA_ERROR -> "ошибка HTTP";
-            case DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "слишком много перенаправлений";
-            case DownloadManager.ERROR_FILE_ALREADY_EXISTS -> "файл уже существует";
-            default -> String.format(Locale.US, "код %d", reason);
+            case DownloadManager.ERROR_INSUFFICIENT_SPACE -> UiLanguage.text("недостаточно места", "not enough space");
+            case DownloadManager.ERROR_CANNOT_RESUME -> UiLanguage.text("сервер не разрешил продолжение", "the server refused to resume");
+            case DownloadManager.ERROR_DEVICE_NOT_FOUND -> UiLanguage.text("хранилище недоступно", "storage is unavailable");
+            case DownloadManager.ERROR_HTTP_DATA_ERROR -> UiLanguage.text("ошибка HTTP", "HTTP error");
+            case DownloadManager.ERROR_TOO_MANY_REDIRECTS -> UiLanguage.text("слишком много перенаправлений", "too many redirects");
+            case DownloadManager.ERROR_FILE_ALREADY_EXISTS -> UiLanguage.text("файл уже существует", "the file already exists");
+            default -> String.format(Locale.US, UiLanguage.text("код %d", "code %d"), reason);
         };
     }
 

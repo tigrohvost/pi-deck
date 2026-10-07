@@ -86,6 +86,29 @@ public final class StartupPolicy {
     }
 
     /**
+     * The launch link probe is a Termux round trip that answers only facts the deck already
+     * persisted: a confirmed link, an installed runtime of this APK's bundle, and a stopped core.
+     * When autostart would load the model anyway, the load starts at once instead of after the
+     * probe. The following server-adopt and bridge-start steps re-verify Termux before Pi runs, so
+     * a link that broke since the last launch still fails visibly, only after the model loaded.
+     * A core that may still be running is never cold-started blind: the probe owns that case.
+     */
+    public static boolean warmsBeforeLinkProbe(
+            boolean autostart,
+            boolean canWarm,
+            boolean runtimeCurrent,
+            String nativeState,
+            boolean serverReady,
+            boolean bridgeLive,
+            boolean busy,
+            boolean lowMemory
+    ) {
+        if (!autostart || !canWarm || !runtimeCurrent || busy || lowMemory) return false;
+        if (serverReady || bridgeLive) return false;
+        return "STOPPED".equals(nativeState) || "FAILED".equals(nativeState);
+    }
+
+    /**
      * Non-empty composer text is a stronger intent signal than merely opening the Activity.
      * Start the expensive model while the user is still typing, but retain the launch policy's
      * memory guard. Finishing a bridge for an already loaded model remains cheap under pressure.
@@ -160,6 +183,17 @@ public final class StartupPolicy {
                 && !busy
                 && termuxInstalled
                 && runCommandGranted;
+    }
+
+    /**
+     * The execution label while a model loads. A remembered duration of the previous load turns a
+     * silent 20-30 s wait into an expectation the elapsed clock can be read against.
+     */
+    public static String loadingLabel(String modelTitle, long typicalLoadMs, UiLanguage language) {
+        String base = language.pick("Загружаю ", "Loading ") + modelTitle;
+        if (typicalLoadMs < 1_000L) return base;
+        long seconds = Math.round(typicalLoadMs / 1_000d);
+        return base + language.pick(" · обычно ~" + seconds + " с", " · usually ~" + seconds + " s");
     }
 
     /** One bounded retry absorbs Termux's cold receiver startup without hiding a real failure. */

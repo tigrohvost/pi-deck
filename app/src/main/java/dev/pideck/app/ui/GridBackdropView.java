@@ -24,6 +24,9 @@ public final class GridBackdropView extends View {
         density = getResources().getDisplayMetrics().density;
         grid.setStrokeWidth(Math.max(1f, density * 0.4f));
         glow.setStyle(Paint.Style.FILL);
+        // Static art behind a streaming conversation: render it once into a GPU layer instead of
+        // replaying ~200 grid lines and two gradients on every frame the text above changes.
+        setLayerType(LAYER_TYPE_HARDWARE, null);
     }
 
     @Override

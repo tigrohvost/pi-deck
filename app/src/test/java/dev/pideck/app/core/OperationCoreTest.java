@@ -41,6 +41,29 @@ public class OperationCoreTest {
     }
 
     @Test
+    public void retentionTrimsToALowWaterMarkAndThenLeavesRoomWithoutScanning() {
+        for (int i = 0; i < OperationStore.MAX_COMPLETED + 1; i++) {
+            OperationRecord record = store.create(OperationKind.PROBE_RUNTIME, new JSONObject());
+            store.transition(record.operationId, OperationState.DISPATCHED);
+            store.recordResult(new CommandResult(
+                    record.operationId, OperationKind.PROBE_RUNTIME, "ok", "", 0, 0, ""
+            ));
+        }
+        assertEquals(OperationStore.PRUNE_TARGET, store.list().size());
+
+        OperationRecord active = store.create(OperationKind.PROBE_RUNTIME, new JSONObject());
+        store.transition(active.operationId, OperationState.DISPATCHED);
+        store.recordResult(new CommandResult(
+                active.operationId, OperationKind.PROBE_RUNTIME, "ok", "", 0, 0, ""
+        ));
+        assertEquals(
+                "a result below the high-water mark deleted history",
+                OperationStore.PRUNE_TARGET + 1,
+                store.list().size()
+        );
+    }
+
+    @Test
     public void operationIdRoundTripsOnlyAsCanonicalUuid4() {
         OperationId created = OperationId.create();
         assertEquals(created, OperationId.parse(created.toString()));

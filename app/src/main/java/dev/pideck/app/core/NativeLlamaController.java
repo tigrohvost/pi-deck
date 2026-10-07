@@ -29,6 +29,8 @@ public final class NativeLlamaController {
     private static final int PORT = 8080;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static final Set<String> ACTIVE = ConcurrentHashMap.newKeySet();
+    private static final Set<String> CANCELLED = ConcurrentHashMap.newKeySet();
+    public static final String LOAD_CANCELLED = "Загрузка модели отменена · Model load cancelled";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
     private NativeLlamaController() {
@@ -89,6 +91,16 @@ public final class NativeLlamaController {
         monitorAndAdopt(app, operationId, model, apiKey, profile);
     }
 
+    /**
+     * Abandons a model load the user no longer wants. The service stops the half-loaded server at
+     * once; the monitor then reports the operation as cancelled instead of waiting out its 240 s
+     * startup deadline against a process that is gone.
+     */
+    public static void cancelStart(Context context, OperationId operationId) {
+        CANCELLED.add(operationId.toString());
+        NativeLlamaService.stop(context);
+    }
+
     public static void stopThen(Context context, Runnable continuation) {
         Context app = context.getApplicationContext();
         NativeLlamaService.stop(app);
@@ -117,8 +129,9 @@ public final class NativeLlamaController {
             try {
                 long startedAt = System.nanoTime();
                 long deadline = System.nanoTime() + 240_000_000_000L;
-                String lastError = "llama-server ещё загружает модель";
+                String lastError = UiLanguage.text("llama-server ещё загружает модель", "llama-server is still loading the model");
                 while (System.nanoTime() < deadline) {
+                    if (CANCELLED.remove(key)) throw new IOException(LOAD_CANCELLED);
                     NativeLlamaService.Snapshot service = NativeLlamaService.snapshot(context);
                     boolean sameOperation = key.equals(service.operationId);
                     long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
@@ -140,6 +153,7 @@ public final class NativeLlamaController {
                     }
                     try {
                         strictHealth(model.id, apiKey);
+                        NativeLlamaService.recordLoadMillis(context, model.id, elapsedMs);
                         NativeLlamaService.markReady(context, key);
                         dispatchAdoption(
                                 context,

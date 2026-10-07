@@ -14,9 +14,6 @@ import java.util.List;
 import dev.pideck.app.ui.ConsoleEntry;
 
 public final class DeckPreferences {
-    static final int MAX_TRANSCRIPT_ENTRIES = 60;
-    static final int MAX_TRANSCRIPT_BYTES = 256 * 1024;
-    static final int MAX_TRANSCRIPT_ENTRY_BYTES = 32 * 1024;
     private static final String NAME = "pi_deck";
     private static final String KEY_MODEL = "selected_model";
     private static final String KEY_CORE_READY = "core_ready";
@@ -50,10 +47,14 @@ public final class DeckPreferences {
     private static final String KEY_PLAN_LEDGER = "plan_ledger_v1";
     private static final int MAX_PROMPT_BYTES = 64 * 1024;
 
+    private static final String CURSOR_NAME = "pi_deck_bridge_cursor";
+
     private final SharedPreferences prefs;
+    private final SharedPreferences cursor;
 
     public DeckPreferences(Context context) {
         prefs = context.getSharedPreferences(NAME, Context.MODE_PRIVATE);
+        cursor = context.getSharedPreferences(CURSOR_NAME, Context.MODE_PRIVATE);
     }
 
     public String selectedModelId() {
@@ -442,23 +443,44 @@ public final class DeckPreferences {
         return id;
     }
 
+    /**
+     * The bridge event cursor advances on every streamed event. It lives in its own tiny file so
+     * each acknowledgement rewrites a few bytes instead of every other deck preference.
+     */
     public String bridgeInstanceId() {
-        return prefs.getString(KEY_BRIDGE_INSTANCE, null);
+        String value = cursor.getString(KEY_BRIDGE_INSTANCE, null);
+        return value != null ? value : prefs.getString(KEY_BRIDGE_INSTANCE, null);
     }
 
     public long bridgeSequence() {
+        if (cursor.contains(KEY_BRIDGE_SEQUENCE)) return cursor.getLong(KEY_BRIDGE_SEQUENCE, 0L);
         return prefs.getLong(KEY_BRIDGE_SEQUENCE, 0L);
     }
 
     public void setBridgeCursor(String instanceId, long sequence) {
-        prefs.edit()
+        cursor.edit()
                 .putString(KEY_BRIDGE_INSTANCE, instanceId)
                 .putLong(KEY_BRIDGE_SEQUENCE, Math.max(0L, sequence))
                 .apply();
     }
 
     public void clearBridgeCursor() {
+        cursor.edit().remove(KEY_BRIDGE_INSTANCE).remove(KEY_BRIDGE_SEQUENCE).apply();
         prefs.edit().remove(KEY_BRIDGE_INSTANCE).remove(KEY_BRIDGE_SEQUENCE).apply();
+    }
+
+    /** A name the user gave a saved session on this phone; empty when none. */
+    public String sessionAlias(String sessionId) {
+        return prefs.getString("session_alias_" + sessionId, "");
+    }
+
+    public void setSessionAlias(String sessionId, String alias) {
+        String value = alias == null ? "" : alias.strip();
+        if (value.length() > 80) value = value.substring(0, 80);
+        SharedPreferences.Editor editor = prefs.edit();
+        if (value.isEmpty()) editor.remove("session_alias_" + sessionId);
+        else editor.putString("session_alias_" + sessionId, value);
+        editor.apply();
     }
 
     public long downloadId(String modelId) {
@@ -527,56 +549,14 @@ public final class DeckPreferences {
         editor.apply();
     }
 
-    public List<ConsoleEntry> loadTranscript() {
-        ArrayList<ConsoleEntry> result = new ArrayList<>();
-        String raw = prefs.getString(KEY_TRANSCRIPT, "[]");
-        try {
-            JSONArray array = new JSONArray(raw);
-            for (int i = 0; i < array.length(); i++) {
-                JSONObject item = array.getJSONObject(i);
-                result.add(new ConsoleEntry(
-                        ConsoleEntry.Channel.valueOf(item.getString("channel")),
-                        item.getString("text"),
-                        item.optLong("time", System.currentTimeMillis()),
-                        item.optString("verb", ""),
-                        item.optString("detail", ""),
-                        item.optDouble("tokensPerSecond", Double.NaN),
-                        item.optLong("outputTokens", -1L)
-                ));
-            }
-        } catch (JSONException | IllegalArgumentException ignored) {
-            prefs.edit().remove(KEY_TRANSCRIPT).apply();
-        }
-        return result;
-    }
-
-    public void saveTranscript(List<ConsoleEntry> entries) {
-        JSONArray array = new JSONArray();
-        int start = Math.max(0, entries.size() - MAX_TRANSCRIPT_ENTRIES);
-        ArrayList<JSONObject> bounded = new ArrayList<>();
-        int totalBytes = 2;
-        for (int i = entries.size() - 1; i >= start; i--) {
-            ConsoleEntry entry = entries.get(i);
-            try {
-                JSONObject item = new JSONObject();
-                item.put("channel", entry.channel.name());
-                item.put("text", truncateUtf8(entry.text, MAX_TRANSCRIPT_ENTRY_BYTES));
-                item.put("time", entry.time);
-                if (!entry.verb.isEmpty()) item.put("verb", truncateUtf8(entry.verb, 64));
-                if (!entry.detail.isEmpty()) item.put("detail", truncateUtf8(entry.detail, 256));
-                if (entry.hasExactSpeed()) {
-                    item.put("tokensPerSecond", entry.tokensPerSecond);
-                    item.put("outputTokens", entry.outputTokens);
-                }
-                int itemBytes = item.toString().getBytes(StandardCharsets.UTF_8).length + 1;
-                if (!bounded.isEmpty() && totalBytes + itemBytes > MAX_TRANSCRIPT_BYTES) break;
-                bounded.add(item);
-                totalBytes += itemBytes;
-            } catch (JSONException ignored) {
-            }
-        }
-        for (int i = bounded.size() - 1; i >= 0; i--) array.put(bounded.get(i));
-        prefs.edit().putString(KEY_TRANSCRIPT, array.toString()).apply();
+    /**
+     * Returns a transcript stored by a build that kept it in this file and forgets it, so
+     * {@link TranscriptStore} can migrate it once. Null when there is none.
+     */
+    public String takeLegacyTranscript() {
+        String raw = prefs.getString(KEY_TRANSCRIPT, null);
+        if (raw != null) prefs.edit().remove(KEY_TRANSCRIPT).apply();
+        return raw;
     }
 
     static String truncateUtf8(String value, int maxBytes) {

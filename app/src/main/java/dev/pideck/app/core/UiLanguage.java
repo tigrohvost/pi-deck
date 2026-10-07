@@ -24,6 +24,25 @@ public enum UiLanguage {
         this.locale = locale;
     }
 
+    /**
+     * The deck's current language for messages built far from any view (core errors, store and
+     * download failures). The Activity sets it; it defaults to Russian like the preference does.
+     */
+    private static volatile UiLanguage active = RUSSIAN;
+
+    public static void setActive(UiLanguage language) {
+        active = language == null ? RUSSIAN : language;
+    }
+
+    public static UiLanguage active() {
+        return active;
+    }
+
+    /** {@link #pick} in the active language. */
+    public static String text(String russian, String english) {
+        return active.pick(russian, english);
+    }
+
     public String pick(String russian, String english) {
         return this == ENGLISH ? english : russian;
     }

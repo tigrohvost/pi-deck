@@ -48,13 +48,13 @@ public final class SystemPromptSettings {
                 ? ""
                 : value.replace("\r\n", "\n").replace('\r', '\n');
         if (normalized.indexOf('\0') >= 0) {
-            throw new IllegalArgumentException("Системный промпт содержит недопустимый NUL");
+            throw new IllegalArgumentException(UiLanguage.text("Системный промпт содержит недопустимый NUL", "The system prompt contains a forbidden NUL"));
         }
         if (normalized.isBlank()) return "";
         int bytes = byteCount(normalized);
         if (bytes > MAX_BYTES) {
             throw new IllegalArgumentException(
-                    "Системный промпт занимает " + bytes + " байт; максимум " + MAX_BYTES
+                    UiLanguage.text("Системный промпт занимает ", "The system prompt takes ") + bytes + UiLanguage.text(" байт; максимум ", " bytes; the maximum is ") + MAX_BYTES
             );
         }
         return normalized;

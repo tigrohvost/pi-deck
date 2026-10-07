@@ -68,13 +68,13 @@ public final class NativeModelStore {
     ) {
         File directory = fileFor(model).getParentFile();
         if (directory == null || (!directory.isDirectory() && !directory.mkdirs())) {
-            listener.onComplete(false, "не удалось создать приватную папку модели");
+            listener.onComplete(false, UiLanguage.text("не удалось создать приватную папку модели", "could not create the private model folder"));
             return;
         }
         File destination = fileFor(model);
         File partial = new File(directory, model.fileName + ".partial");
         if (partial.exists() && !partial.delete()) {
-            listener.onComplete(false, "не удалось заменить незавершённую приватную копию");
+            listener.onComplete(false, UiLanguage.text("не удалось заменить незавершённую приватную копию", "could not replace an unfinished private copy"));
             return;
         }
 
@@ -101,12 +101,12 @@ public final class NativeModelStore {
             }
             if (copied != model.bytes) {
                 throw new IOException(
-                        "приватная копия неполная: " + copied + " из " + model.bytes + " байт"
+                        UiLanguage.text("приватная копия неполная: ", "the private copy is incomplete: ") + copied + UiLanguage.text(" из ", " of ") + model.bytes + UiLanguage.text(" байт", " bytes")
                 );
             }
             String actual = hex(digest.digest());
             if (!model.sha256.equalsIgnoreCase(actual)) {
-                throw new IOException("SHA-256 приватной копии не совпал");
+                throw new IOException(UiLanguage.text("SHA-256 приватной копии не совпал", "the private copy's SHA-256 did not match"));
             }
             try {
                 Files.move(
@@ -116,13 +116,13 @@ public final class NativeModelStore {
                         StandardCopyOption.REPLACE_EXISTING
                 );
             } catch (AtomicMoveNotSupportedException error) {
-                throw new IOException("хранилище не поддерживает atomic rename", error);
+                throw new IOException(UiLanguage.text("хранилище не поддерживает atomic rename", "storage does not support atomic rename"), error);
             }
             try {
                 Os.chmod(destination.getAbsolutePath(), 0400);
             } catch (ErrnoException error) {
                 throw new IOException(
-                        "не удалось сделать GGUF доступной только приложению",
+                        UiLanguage.text("не удалось сделать GGUF доступной только приложению", "could not make the GGUF private to the app"),
                         error
                 );
             }
@@ -147,7 +147,7 @@ public final class NativeModelStore {
             );
             Os.fsync(descriptor);
         } catch (ErrnoException error) {
-            throw new IOException("не удалось синхронизировать каталог модели", error);
+            throw new IOException(UiLanguage.text("не удалось синхронизировать каталог модели", "could not sync the model folder"), error);
         } finally {
             if (descriptor != null) {
                 try {
