@@ -3707,10 +3707,17 @@ def _bridge_launch_matches(
     token_sha256: str,
     system_prompt: dict[str, Any],
     compaction: dict[str, int | bool],
+    server_key_sha256: str | None = None,
 ) -> bool:
-    """Requires a restart when Pi's loaded model/context contract can be stale."""
+    """Requires a restart when Pi's loaded model/context contract can be stale.
+
+    Pi reads the server's per-start API key once from models.json. A bridge that survived an
+    app restart (and so a model reload with a new key) must therefore not be reused even when
+    everything else matches, or every request fails with 401.
+    """
     return (
-        existing.get("modelId") == model_id
+        (server_key_sha256 is None or existing.get("serverKeySha256") == server_key_sha256)
+        and existing.get("modelId") == model_id
         and existing.get("accessProfile") == profile
         and int(existing.get("autonomousUntilMs", 0)) == autonomous_until
         and existing.get("agentMode", "agent") == agent_mode
@@ -3829,6 +3836,7 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
         server_port = int(server["port"])
         server_key = SERVER_API_KEY.read_text(encoding="ascii").strip()
         strict_health(server_port, model_id, server_key)
+        server_key_sha256 = hashlib.sha256(server_key.encode("ascii")).hexdigest()
     except (KeyError, TypeError, ValueError, OSError, PiDeckError) as error:
         raise PiDeckError(
             "SERVER_NOT_READY",
@@ -3853,6 +3861,7 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
         else:
             if process_alive(existing):
                 launch = {
+                    "server_key_sha256": server_key_sha256,
                     "model_id": model_id,
                     "profile": profile,
                     "agent_mode": agent_mode,
@@ -3957,6 +3966,7 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
             "sessionId": session_id,
             "port": port,
             "tokenSha256": token_sha256,
+            "serverKeySha256": server_key_sha256,
             "piContextContractVersion": PI_CONTEXT_CONTRACT_VERSION,
             "compactionSettings": compaction,
             "systemPromptMode": system_prompt["systemPromptMode"],

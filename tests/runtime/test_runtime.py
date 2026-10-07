@@ -2906,7 +2906,9 @@ class RuntimeTestCase(unittest.TestCase):
             self.assertEqual([], failures)
             self.assertEqual(1, maximum_active)
 
-    def _grant_renewal_bootstrap(self, endpoint_answers: bool) -> tuple[dict, Path, Path, mock.Mock, mock.Mock]:
+    def _grant_renewal_bootstrap(
+        self, endpoint_answers: bool, server_key_sha256: str | None = None, same_grant: bool = False,
+    ) -> tuple[dict, Path, Path, mock.Mock, mock.Mock]:
         root = Path(tempfile.mkdtemp(prefix="pideck-grant-renewal-"))
         self.addCleanup(shutil.rmtree, root, True)
         model = tiny_model(b"GGUF")
@@ -2914,7 +2916,7 @@ class RuntimeTestCase(unittest.TestCase):
         token_sha256 = hashlib.sha256(bridge.validated_token(token)).hexdigest()
         system_prompt, _content = bridge.parse_system_prompt_request({})
         old_until = int(time.time() * 1000) + 60_000
-        new_until = old_until + 600_000
+        new_until = old_until if same_grant else old_until + 600_000
         existing = {
             "pid": 4242,
             "modelId": model["id"],
@@ -2924,6 +2926,8 @@ class RuntimeTestCase(unittest.TestCase):
             "sessionId": None,
             "port": 8787,
             "tokenSha256": token_sha256,
+            "serverKeySha256": server_key_sha256
+            or hashlib.sha256(b"server-secret").hexdigest(),
             "piContextContractVersion": model_store.PI_CONTEXT_CONTRACT_VERSION,
             "compactionSettings": {},
             "systemPromptMode": system_prompt["systemPromptMode"],
@@ -2942,6 +2946,8 @@ class RuntimeTestCase(unittest.TestCase):
         def endpoint(_port, _token, path, body=None):
             if path == "/v1/grant" and endpoint_answers:
                 return {"ok": True, "autonomousUntilMs": body["autonomousUntilMs"]}
+            if path == "/v1/health" and endpoint_answers:
+                return {"ok": True, "status": "ok"}
             return None
 
         with (
@@ -2990,6 +2996,23 @@ class RuntimeTestCase(unittest.TestCase):
         popen.assert_not_called()
         self.assertEqual(result["newUntil"], common.read_json(metadata)["autonomousUntilMs"])
         self.assertEqual(result["newUntil"], common.read_json(config)["autonomousUntilMs"])
+
+    def test_a_bridge_holding_an_old_server_key_is_never_reused(self) -> None:
+        # The app was reinstalled: the model reloaded with a new per-start key while the Termux
+        # bridge survived. Everything else matches, yet its Pi would answer every turn with 401.
+        result, _metadata, _config, terminate, _popen = self._grant_renewal_bootstrap(
+            True, server_key_sha256="0" * 64, same_grant=True,
+        )
+        terminate.assert_called_once()
+        self.assertEqual("BRIDGE_BUSY", result["error"])
+
+    def test_a_matching_bridge_with_the_current_server_key_is_reused(self) -> None:
+        result, _metadata, _config, terminate, popen = self._grant_renewal_bootstrap(
+            True, same_grant=True,
+        )
+        self.assertTrue(result["idempotent"])
+        terminate.assert_not_called()
+        popen.assert_not_called()
 
     def test_refused_grant_renewal_falls_back_to_exact_restart(self) -> None:
         result, metadata, _config, terminate, popen = self._grant_renewal_bootstrap(False)
