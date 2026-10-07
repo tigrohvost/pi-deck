@@ -77,8 +77,10 @@ as a production release.
   0.8B. QAD uses native reasoning capped at 256 tokens, while Pi receives only
   the currently active model contract;
 - manually selected Qwen3.5 4B keeps adaptive FAST/DEEP behavior with a
-  512-token reasoning cap. A session keeps one append-only tool schema, so a
-  new prompt reuses the llama.cpp prefix instead of replaying the conversation;
+  512-token reasoning cap. A session starts with the profile's full core tool
+  schema and only appends to it, so a new prompt reuses the llama.cpp prefix
+  instead of replaying the conversation; on b10092 the first request of a new
+  session also reuses the previous session's identical system+tools prefix;
 - a short direct live-data question exposes exactly one bounded web or weather
   tool and caps both provider rounds at 256 tokens; multi-step research stays
   on the ordinary agent route;
@@ -245,6 +247,7 @@ CycloneDX SBOM containing both native runtimes.
 - [Model admission](docs/model-admission.md)
 - [Compatibility matrix](docs/compatibility-matrix.md)
 - [ADB performance evidence](docs/performance.md)
+- [October 2026 speed and UI work](docs/optimization-2026-10.md)
 - [Release process](docs/release-process.md)
 - [Architecture decisions](docs/adr/README.md)
 
