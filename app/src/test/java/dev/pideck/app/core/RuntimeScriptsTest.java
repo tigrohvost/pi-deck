@@ -92,7 +92,7 @@ public class RuntimeScriptsTest {
         String ready = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
-                 "runtimeContractVersion":57,
+                 "runtimeContractVersion":58,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
                  "pythonVersion":"3.13","llamaVersion":"b10092"}
                 """.replace("\n ", "");
@@ -102,10 +102,10 @@ public class RuntimeScriptsTest {
                 ready.replace("\"state\":\"READY\"", "\"state\":\"NOT_READY\"")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":57", "\"runtimeContractVersion\":56")
+                ready.replace("\"runtimeContractVersion\":58", "\"runtimeContractVersion\":57")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":57,", "")
+                ready.replace("\"runtimeContractVersion\":58,", "")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 "noise {\"schemaVersion\":1,\"ok\":true,\"state\":\"READY\"}"
@@ -117,7 +117,7 @@ public class RuntimeScriptsTest {
         String previous = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
-                 "runtimeContractVersion":56,"versionsCompatible":true,
+                 "runtimeContractVersion":57,"versionsCompatible":true,
                  "nodeVersion":"v26.4.0","pythonVersion":"Python 3.14.6"}
                 """.replace("\n ", " ");
         assertFalse(RuntimeScripts.isReadyProbeOutput(previous));
@@ -263,6 +263,52 @@ public class RuntimeScriptsTest {
                         StandardCharsets.UTF_8
                 )
         );
+    }
+
+    /** The exact AGENTS.default.md v2 that earlier APKs installed into user workspaces. */
+    private static final String SHIPPED_AGENTS_V2 = "<!-- PI//DECK default workspace instructions v2; user AGENTS.md is never overwritten. -->\n"
+                + "\n"
+                + "# PI//DECK phone workspace\n"
+                + "\n"
+                + "You are Pi running locally on this Android phone through Termux.\n"
+                + "\n"
+                + "- Work inside this workspace unless the user explicitly asks for another local path.\n"
+                + "- The active PI//DECK access profile determines which tools are available.\n"
+                + "- Local inference does not imply network isolation: approved shell commands may access the network.\n"
+                + "- Shared phone files are under `~/storage/shared`; downloads are under `~/storage/downloads`.\n"
+                + "- Preserve existing phone files. Before overwriting or deleting user data, explain the exact target.\n"
+                + "- Prefer small, runnable changes and verify them locally before reporting completion.\n";
+
+    @Test
+    public void anUneditedShippedTemplateFollowsTheNewDefault() throws Exception {
+        assertEquals(
+                RuntimeAssetBundle.SHIPPED_AGENTS_V2_SHA256,
+                sha256Hex(SHIPPED_AGENTS_V2.getBytes(StandardCharsets.UTF_8))
+        );
+        Path base = temporary.newFolder("pideck-upgrade").toPath();
+        Path runtime = Files.createDirectories(base.resolve("runtime"));
+        Path workspace = Files.createDirectories(base.resolve("workspace"));
+        Files.write(runtime.resolve("AGENTS.default.md"), "template-v3\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(workspace.resolve("AGENTS.md"), SHIPPED_AGENTS_V2.getBytes(StandardCharsets.UTF_8));
+        runWorkspaceInstructions(base);
+        assertEquals(
+                "template-v3\n",
+                new String(Files.readAllBytes(workspace.resolve("AGENTS.md")), StandardCharsets.UTF_8)
+        );
+
+        // One edited byte makes the file the user's, and it is never touched again.
+        byte[] edited = (SHIPPED_AGENTS_V2 + "- my rule\n").getBytes(StandardCharsets.UTF_8);
+        Files.write(workspace.resolve("AGENTS.md"), edited);
+        runWorkspaceInstructions(base);
+        assertArrayEquals(edited, Files.readAllBytes(workspace.resolve("AGENTS.md")));
+    }
+
+    private static String sha256Hex(byte[] value) throws Exception {
+        StringBuilder hex = new StringBuilder();
+        for (byte item : java.security.MessageDigest.getInstance("SHA-256").digest(value)) {
+            hex.append(String.format("%02x", item));
+        }
+        return hex.toString();
     }
 
     @Test

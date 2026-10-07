@@ -959,7 +959,7 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 	let repeatedCalls = new Map<string, number>();
 	let directLookupTool: "web_research" | "weather" | undefined;
 	let directLookupCalls = 0;
-	/** Provider-visible schema for this session; append-only so the KV prefix survives. */
+	/** Provider-visible schema: the profile core from session_start, then append-only. */
 	let sessionTools: string[] = [];
 	/** Task allowlist enforced in depth; undefined means the whole session schema is usable. */
 	let taskAllowedTools: Set<string> | undefined;
@@ -1022,7 +1022,10 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		taskAllowedTools = restricted
 			? new Set([...task, ...additions].filter((name) => allowed.has(name)))
 			: undefined;
-		extendSessionTools([...task, ...additions]);
+		// The profile core leads every session schema even when the first task is narrow: a
+		// later ordinary task then appends nothing, and every session shares one system+tools
+		// prefix that llama.cpp can reuse. Narrow tasks are enforced by the tool_call guard.
+		extendSessionTools([...core, ...task, ...additions]);
 		return [...sessionTools];
 	}
 
@@ -1103,10 +1106,12 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		taskTerminal = false;
 		directLookupTool = undefined;
 		directLookupCalls = 0;
-		sessionTools = [];
 		taskAllowedTools = undefined;
 		deliveredRepoRules.clear();
-		pi.setActiveTools([]);
+		// Fixed per profile from the first request, so a tool-free or narrow first task cannot
+		// make the next task rewrite the schema (and with it the whole cached prefix).
+		sessionTools = mode === "chat" ? [] : coreTools(profile).filter((name) => allowed.has(name));
+		pi.setActiveTools(sessionTools);
 	});
 
 	pi.on("input", (event) => {

@@ -777,7 +777,8 @@ export default function pideckHashlineEdit(pi: ExtensionAPI) {
 		label: "replace lines (approval required)",
 		description:
 			"Replace whole lines from an exact authoritative read snapshot, after Android approval "
-			+ "when the selected profile requires it.",
+			+ "when the selected profile requires it. Use complete line:hash anchors exactly as read; "
+			+ "never invent or shorten them.",
 		parameters: Type.Object({
 			path: Type.String({
 				description: "File to edit, relative to the workspace unless absolute",

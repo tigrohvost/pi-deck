@@ -85,23 +85,42 @@ export function promptContract(
 	return JSON.stringify(Object.fromEntries(entries));
 }
 
+/** Pi sends its system prompt first, as `system` or (reasoning models) `developer`. */
+function isSystemMessage(message: unknown): boolean {
+	if (typeof message !== "object" || message === null || Array.isArray(message)) return false;
+	const role = (message as { role?: unknown }).role;
+	return role === "system" || role === "developer";
+}
+
 export default function pideckLocalCache(pi: ExtensionAPI) {
 	const stableToolChoicePrefix = process.env.PIDECK_STABLE_TOOL_CHOICE_PREFIX === "1";
-	// llama-server owns one slot across Pi sessions. Reusing a prefix from the
-	// previous session is unsafe for hybrid recurrent models: their state cannot
-	// be rolled back like a pure attention KV cache. The same applies when a new
-	// task or an explicit tool load rewrites the early request contract: a
-	// low-similarity LCP can leave llama.cpp at 100% prefill without producing a
-	// token. Ordinary tool results keep their schema stable, and the tool router
-	// keeps the schema append-only across prompts. Reuse is therefore allowed only
-	// when the complete previous message list is an exact prefix and every
-	// prompt-shaping request field is unchanged; sampling limits such as max_tokens
-	// may differ freely.
+	const crossSessionPrefix = process.env.PIDECK_CROSS_SESSION_PREFIX === "1";
+	// llama-server owns one slot across Pi sessions. Hybrid recurrent state cannot be
+	// rolled back like a pure attention KV cache, and when a new task or an explicit
+	// tool load rewrites the early request contract a low-similarity LCP can leave
+	// llama.cpp at 100% prefill without producing a token. Ordinary tool results keep
+	// their schema stable, and the tool router keeps the schema fixed per profile.
+	// Reuse is therefore allowed only when the complete previous message list is an
+	// exact prefix and every prompt-shaping request field is unchanged; sampling
+	// limits such as max_tokens may differ freely.
+	//
+	// One deliberate exception crosses session_start: the pinned server checkpoints the
+	// recurrent state where the first user message begins, i.e. exactly after the
+	// system+tools prefix, and keeps that checkpoint while later turns grow. A new
+	// session whose system message and request contract are byte-identical to the
+	// previous request can restore it instead of prefilling ~2k prefix tokens again;
+	// if the checkpoint is gone the server falls back to a full prefill on its own.
 	let previousMessages: string[] | undefined;
 	let previousContract: string | undefined;
+	let previousSystem: string | undefined;
+	let sessionStarted = false;
 	pi.on("session_start", () => {
 		previousMessages = undefined;
-		previousContract = undefined;
+		sessionStarted = true;
+		if (!crossSessionPrefix) {
+			previousContract = undefined;
+			previousSystem = undefined;
+		}
 	});
 
 	pi.on("before_provider_request", (event) => {
@@ -126,11 +145,22 @@ export default function pideckLocalCache(pi: ExtensionAPI) {
 			&& messageSignatures !== undefined
 			&& messageSignatures.length >= previousMessages.length
 			&& previousMessages.every((message, index) => messageSignatures?.[index] === message);
-		const cachePrompt = messagesExtendPrevious
-			&& previousContract !== undefined
-			&& contract === previousContract;
+		const sameContract = previousContract !== undefined && contract === previousContract;
+		const leadingSystem = messages !== undefined && isSystemMessage(messages[0])
+			? messageSignatures?.[0]
+			: undefined;
+		const sharesSessionPrefix = crossSessionPrefix
+			&& sessionStarted
+			&& previousMessages === undefined
+			&& sameContract
+			&& leadingSystem !== undefined
+			&& leadingSystem === previousSystem
+			&& (messageSignatures?.length ?? 0) >= 2;
+		const cachePrompt = (messagesExtendPrevious && sameContract) || sharesSessionPrefix;
 		previousMessages = messageSignatures;
 		previousContract = contract;
+		previousSystem = leadingSystem;
+		sessionStarted = false;
 		return {
 			...payload,
 			cache_prompt: cachePrompt,

@@ -25,6 +25,13 @@ const RETAINED_RESULTS = 48;
 const PRUNE_MIN_SAVED_BYTES = 4 * 1024;
 const PRUNE_MAX_RESULTS = 24;
 const NO_MATCH_MIN_AGE_MESSAGES = 6;
+/**
+ * Pruning rewrites an old prefix, which costs one full re-prefill of the conversation on a
+ * recurrent model. That only pays off when the window is actually filling up.
+ */
+const PRUNE_PRESSURE_RATIO = 0.7;
+/** Conservative bytes-per-token for mixed Cyrillic/code text when Pi has no usage yet. */
+const ESTIMATED_BYTES_PER_TOKEN = 3;
 
 function utf8Slice(value: string, start: number, end?: number): string {
 	return Buffer.from(value, "utf8").subarray(start, end).toString("utf8");
@@ -206,8 +213,35 @@ export function pruneSupersededContext(messages: readonly unknown[]): unknown[] 
 	});
 }
 
+export type ContextPressureUsage = { tokens: number | null; contextWindow: number } | undefined;
+
+/** True when the provider context is full enough that pruning is worth a cache miss. */
+export function underContextPressure(usage: ContextPressureUsage, messages: readonly unknown[]): boolean {
+	const window = usage?.contextWindow;
+	// Without a known window keep the previous behavior: pruning is always allowed.
+	if (typeof window !== "number" || !Number.isFinite(window) || window <= 0) return true;
+	let tokens = usage?.tokens;
+	if (typeof tokens !== "number" || !Number.isFinite(tokens)) {
+		let bytes = 0;
+		try {
+			bytes = Buffer.byteLength(JSON.stringify(messages) ?? "", "utf8");
+		} catch {
+			return true;
+		}
+		tokens = bytes / ESTIMATED_BYTES_PER_TOKEN;
+	}
+	return tokens >= window * PRUNE_PRESSURE_RATIO;
+}
+
 export default function (pi: ExtensionAPI) {
-	pi.on("context", (event) => {
+	pi.on("context", (event, context) => {
+		let usage: ContextPressureUsage;
+		try {
+			usage = context?.getContextUsage?.();
+		} catch {
+			usage = undefined;
+		}
+		if (!underContextPressure(usage, event.messages)) return undefined;
 		const messages = pruneSupersededContext(event.messages);
 		return messages === event.messages
 			? undefined

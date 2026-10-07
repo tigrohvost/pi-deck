@@ -16,6 +16,7 @@ from typing import Any
 from . import RUNTIME_CONTRACT_VERSION, RUNTIME_VERSION
 from .bridge import (
     ADAPTIVE_THINKING_EXTENSION,
+    BRIDGE_CONFIG,
     AGENT_BASE_PROMPT,
     CODE_NAV_EXTENSION,
     LOCAL_CACHE_EXTENSION,
@@ -57,6 +58,7 @@ from .common import (
 from .model_store import (
     adaptive_thinking_enabled,
     stable_tool_choice_prefix,
+    cross_session_prefix,
     ensure_pi_compaction_settings,
     install_private,
     model_by_id,
@@ -240,6 +242,9 @@ def agent_once(request: dict[str, Any]) -> dict[str, Any]:
     )
     environment["PIDECK_STABLE_TOOL_CHOICE_PREFIX"] = (
         "1" if stable_tool_choice_prefix(model) else "0"
+    )
+    environment["PIDECK_CROSS_SESSION_PREFIX"] = (
+        "1" if cross_session_prefix(model) else "0"
     )
     environment["PIDECK_HASHLINE_APPROVAL"] = (
         "none" if profile == "autonomous" else "required"
@@ -440,6 +445,94 @@ def _session_bytes(entry: Path) -> int:
     return total
 
 
+MAX_RECENT_SESSIONS = 12
+MAX_RECENT_MESSAGES = 4
+MAX_RECENT_SCAN_BYTES = 128 * 1024
+MAX_RECENT_MESSAGE_CHARS = 1024
+
+
+def _message_role_and_text(value: dict[str, Any]) -> tuple[str | None, str]:
+    """Role and visible text of one Pi transcript line; tool calls and thinking are skipped."""
+    message = value.get("message") if isinstance(value.get("message"), dict) else value
+    role = message.get("role")
+    content = message.get("content")
+    if isinstance(content, list):
+        text = "\n".join(
+            part.get("text", "")
+            for part in content
+            if isinstance(part, dict) and part.get("type") == "text"
+            and isinstance(part.get("text"), str)
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        text = ""
+    return (role if isinstance(role, str) else None), text.strip()
+
+
+def _session_recent(entry: Path) -> list[dict[str, str]]:
+    """The last few user/assistant texts, read from the transcript tail only.
+
+    A resumed session shows them in the console, so switching back to an old conversation does
+    not leave the user facing an empty screen while Pi holds the history.
+    """
+    transcript = _session_transcript(entry)
+    if transcript is None:
+        return []
+    try:
+        with transcript.open("rb") as handle:
+            size = handle.seek(0, os.SEEK_END)
+            start = max(0, size - MAX_RECENT_SCAN_BYTES)
+            handle.seek(start)
+            content = handle.read(MAX_RECENT_SCAN_BYTES)
+    except OSError:
+        return []
+    if start > 0:
+        content = content[content.find(b"\n") + 1:]
+    recent: list[dict[str, str]] = []
+    for line in content.decode("utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        role, text = _message_role_and_text(value)
+        if role in {"user", "assistant"} and text:
+            recent.append({"role": role, "text": bounded_text(text, MAX_RECENT_MESSAGE_CHARS)})
+    return recent[-MAX_RECENT_MESSAGES:]
+
+
+def archive_session(request: dict[str, Any]) -> dict[str, Any]:
+    """Moves one inactive session into the archive; nothing is deleted."""
+    session_id = require_session_id(request)
+    source = BASE / "sessions"
+    if BRIDGE_CONFIG.is_file():
+        try:
+            if read_json(BRIDGE_CONFIG).get("sessionId") == session_id:
+                raise PiDeckError("SESSION_ACTIVE", "The active Pi session cannot be archived")
+        except PiDeckError as error:
+            if error.code == "SESSION_ACTIVE":
+                raise
+    matches = [
+        entry for entry in (source.iterdir() if source.is_dir() else [])
+        if (entry.stem if entry.is_file() else entry.name) == session_id
+    ]
+    if not matches:
+        raise PiDeckError("SESSION_NOT_FOUND", "No saved session has this id")
+    archive = BASE / "session-archive" / (
+        time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:12]
+    )
+    archive.mkdir(parents=True, exist_ok=False)
+    os.chmod(archive, 0o700)
+    for entry in matches:
+        entry.rename(archive / entry.name)
+    return {"state": "READY", "archivedEntries": len(matches), "archive": str(archive)}
+
+
 def list_sessions() -> dict[str, Any]:
     """What is on disk under ~/.pideck/sessions, newest first."""
     source = BASE / "sessions"
@@ -475,6 +568,7 @@ def list_sessions() -> dict[str, Any]:
                 "messagesTruncated": messages_truncated,
                 "bytes": size,
                 "updatedAtEpochMs": int(modified * 1000),
+                "recent": _session_recent(entry) if len(sessions) < MAX_RECENT_SESSIONS else [],
             }
         )
     return {
@@ -484,6 +578,46 @@ def list_sessions() -> dict[str, Any]:
         "totalBytes": total_bytes,
         "totalBytesPartial": total_bytes_partial,
     }
+
+
+PI_PACKAGE_NAME = "@earendil-works/pi-coding-agent"
+_PACKAGE_VERSION = re.compile(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?")
+
+
+def installed_pi_version(binary: Path) -> str | None:
+    """Reads the linked Pi version from its package manifest.
+
+    `pi --version` starts Node and loads the whole CLI module graph, which is the slowest step
+    of the launch probe on a phone. The installer already ran the binary before linking it, so
+    the probe only needs to know which verified package the link points at.
+    """
+    try:
+        entry = binary.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    if not entry.is_file():
+        return None
+    for parent in entry.parents:
+        manifest = parent / "package.json"
+        if manifest.is_file():
+            try:
+                raw = manifest.read_bytes()
+                if len(raw) > 256 * 1024:
+                    return None
+                data = json.loads(raw.decode("utf-8"))
+            except (OSError, UnicodeError, ValueError):
+                return None
+            version = data.get("version") if isinstance(data, dict) else None
+            if (
+                data.get("name") != PI_PACKAGE_NAME
+                or not isinstance(version, str)
+                or _PACKAGE_VERSION.fullmatch(version) is None
+            ):
+                return None
+            return version
+        if parent.name == "node_modules":
+            return None
+    return None
 
 
 def probe() -> dict[str, Any]:
@@ -524,7 +658,8 @@ def probe() -> dict[str, Any]:
             BASE / "pi",
         )
     )
-    pi_version = version([str(BASE / "runtime" / "bin" / "pi"), "--version"])
+    pi_binary = BASE / "runtime" / "bin" / "pi"
+    pi_version = installed_pi_version(pi_binary) or version([str(pi_binary), "--version"])
     node_version = version([str(PREFIX / "bin" / "node"), "--version"])
     python_version = version([sys.executable, "--version"])
     # Inference is owned by the Android foreground service. The exact native
@@ -705,6 +840,8 @@ def dispatch(command: str) -> dict[str, Any]:
         return result_ok(**archive_sessions())
     if command == "list-sessions":
         return result_ok(**list_sessions())
+    if command == "archive-session":
+        return result_ok(**archive_session(read_stdin_json()))
     if command == "reconcile":
         return result_ok(**reconcile())
     raise PiDeckError("UNKNOWN_COMMAND", f"Unknown runtime command: {command}")

@@ -256,6 +256,10 @@ public final class RuntimeAssetBundle {
         return value;
     }
 
+    /** SHA-256 of the only earlier AGENTS.default.md (v2); an unedited copy is upgraded. */
+    static final String SHIPPED_AGENTS_V2_SHA256 =
+            "f9f87851d06a895ea681c947bf647f3bf9315d564c0528822f7b37b90a6639c8";
+
     static String workspaceInstructionsScript() {
         return """
                 cp "$RUNTIME/AGENTS.default.md" "$BASE/workspace/AGENTS.default.md.tmp"
@@ -265,13 +269,21 @@ public final class RuntimeAssetBundle {
                   cp "$BASE/workspace/AGENTS.default.md" "$BASE/workspace/AGENTS.md"
                   chmod 600 "$BASE/workspace/AGENTS.md"
                   printf 'PIDECK_AGENTS_CREATED\\n'
+                elif [ "$(sha256sum "$BASE/workspace/AGENTS.md" | cut -d ' ' -f 1)" \
+                     = "@SHIPPED_AGENTS_V2_SHA256@" ]; then
+                  # Byte-identical to a template this APK shipped earlier: the user never
+                  # edited it, so it follows the current template instead of going stale.
+                  cp "$BASE/workspace/AGENTS.default.md" "$BASE/workspace/AGENTS.md.tmp"
+                  chmod 600 "$BASE/workspace/AGENTS.md.tmp"
+                  mv -f "$BASE/workspace/AGENTS.md.tmp" "$BASE/workspace/AGENTS.md"
+                  printf 'PIDECK_AGENTS_UPGRADED\\n'
                 else
                   printf 'PIDECK_AGENTS_PRESERVED\\n'
                   if ! cmp -s "$BASE/workspace/AGENTS.md" "$BASE/workspace/AGENTS.default.md"; then
                     printf 'PIDECK_AGENTS_TEMPLATE_AVAILABLE: diff -u AGENTS.md AGENTS.default.md\\n'
                   fi
                 fi
-                """;
+                """.replace("@SHIPPED_AGENTS_V2_SHA256@", SHIPPED_AGENTS_V2_SHA256);
     }
 
     public static String fingerprint(Context context) {

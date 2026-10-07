@@ -171,6 +171,25 @@ def stable_tool_choice_prefix(model: dict[str, Any]) -> bool:
     )
 
 
+CROSS_SESSION_PREFIX_RUNTIMES = frozenset({("stock", "b10092")})
+
+
+def cross_session_prefix(model: dict[str, Any]) -> bool:
+    """Runtimes whose server checkpoints recurrent state at the first user message.
+
+    llama.cpp b10092 breaks prompt processing where the first user message begins and
+    keeps that checkpoint through later turns, so a new session with a byte-identical
+    system+tools prefix can restore it. Other pinned servers stay session-local until
+    their checkpoint placement is verified.
+    """
+    runtime = model.get("runtime") if isinstance(model, dict) else None
+    if not isinstance(runtime, dict):
+        return False
+    return (
+        runtime.get("serverFlavor"), runtime.get("minimumLlamaCppVersion")
+    ) in CROSS_SESSION_PREFIX_RUNTIMES
+
+
 def _project_settings_state(value: os.stat_result) -> tuple[int, int, int, int, int]:
     return (
         value.st_dev,

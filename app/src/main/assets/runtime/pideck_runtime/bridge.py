@@ -49,6 +49,7 @@ from .model_store import (
     PI_CONTEXT_CONTRACT_VERSION,
     adaptive_thinking_enabled,
     stable_tool_choice_prefix,
+    cross_session_prefix,
     ensure_pi_compaction_settings,
     model_by_id,
 )
@@ -1374,6 +1375,9 @@ class PiRpcChild:
         environment["PIDECK_STABLE_TOOL_CHOICE_PREFIX"] = (
             "1" if stable_tool_choice_prefix(model) else "0"
         )
+        environment["PIDECK_CROSS_SESSION_PREFIX"] = (
+            "1" if cross_session_prefix(model) else "0"
+        )
         environment.update(system_prompt_environment(config, SYSTEM_PROMPT_FILE))
         # The anchored-edit tool is one tool across two profiles that disagree about
         # approval, so the profile decides here rather than the extension guessing. Any
@@ -1857,6 +1861,8 @@ class PiDeckBridge:
         require_uuid4({"target": target}, "target")
         if self.active_operation_id != target:
             raise PiDeckError("TARGET_NOT_ACTIVE", "Abort target is not the active turn")
+        if self.active_operation_kind == "compact":
+            return self._cancel_compaction(control_operation_id, target)
         if self.active_operation_kind != "prompt":
             raise PiDeckError("TARGET_NOT_ACTIVE", "Target is not an agent turn")
         if self.abort_requested:
@@ -1879,6 +1885,36 @@ class PiDeckBridge:
                 name="pideck-abort-fallback",
                 daemon=True,
             ).start()
+        return {
+            "accepted": True,
+            "operationId": control_operation_id,
+            "targetOperationId": target,
+            "idempotent": False,
+        }
+
+    def _cancel_compaction(self, control_operation_id: str, target: str) -> dict[str, Any]:
+        """Stops a multi-minute compaction the user no longer wants.
+
+        Pi 0.82.1 has no RPC command that aborts compaction, so the exact Pi child is stopped.
+        Compaction appends its entry to the session only after it succeeds, so the durable
+        history stays as it was; the next command starts Pi again on the same session.
+        """
+        if not self.child.stop():
+            raise PiDeckError(
+                "ABORT_UNCONFIRMED", "Exact Pi process exit could not be confirmed"
+            )
+        self.journal.append(
+            "SESSION_COMPACTION_FAILED",
+            target,
+            self.session_id,
+            {"error": "Compaction cancelled by the user", "cancelled": True},
+            terminal=True,
+        )
+        self._checkpoint_session("SESSION_COMPACTION_FAILED", target)
+        self.active_operation_id = None
+        self.active_operation_kind = None
+        self.compacting = False
+        self.compaction_reason = None
         return {
             "accepted": True,
             "operationId": control_operation_id,
@@ -3147,6 +3183,26 @@ class PiDeckBridge:
                 {"code": "PROTOCOL_ERROR", "message": bounded_text(message, 2048)},
             )
 
+    def renew_grant(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Extends the AUTONOMOUS window in place.
+
+        Only the bridge enforces the window (at PROMPT); Pi never reads it. Renewing it must
+        therefore not restart Pi, which would cost a Node cold start plus a full history
+        prefill. The profile itself is part of Pi's tool contract and cannot change here.
+        """
+        if request.get("schemaVersion") != 1:
+            raise PiDeckError("UNSUPPORTED_SCHEMA", "Unsupported grant schema")
+        with self._lock:
+            profile = self.config.get("accessProfile")
+            if profile != "autonomous" or request.get("accessProfile") != profile:
+                raise PiDeckError(
+                    "GRANT_PROFILE_MISMATCH",
+                    "Only a running AUTONOMOUS bridge can renew its grant in place",
+                )
+            until = autonomous_until_ms(profile, request.get("autonomousUntilMs"))
+            self.config["autonomousUntilMs"] = until
+        return {"autonomousUntilMs": until}
+
     def state(self) -> dict[str, Any]:
         # The external/native owner path performs authenticated HTTP health I/O. It may
         # take seconds while llama.cpp is busy, so never hold the Pi stdout/turn lock here.
@@ -3421,6 +3477,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
                     {"schemaVersion": 1, "ok": True, **response},
                 )
                 return
+            if parsed.path == "/v1/grant":
+                response = self.server.bridge.renew_grant(self._body())
+                self._json(
+                    HTTPStatus.OK,
+                    {"schemaVersion": 1, "ok": True, **response},
+                )
+                return
             if parsed.path == "/v1/benchmark/prepare":
                 snapshot = self.server.bridge.prepare_benchmark(self._body())
                 self._json(
@@ -3664,6 +3727,62 @@ def _bridge_launch_matches(
     )
 
 
+def _bridge_endpoint(
+    port: int, token: str, path: str, body: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
+    """One authenticated loopback request to the managed bridge; None unless it answers ok."""
+    import urllib.request
+
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    headers = {"X-PiDeck-Token": token}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    http_request = urllib.request.Request(
+        f"http://127.0.0.1:{port}{path}",
+        data=data,
+        headers=headers,
+        method="GET" if data is None else "POST",
+    )
+    try:
+        with urllib.request.urlopen(http_request, timeout=1) as response:
+            value = json.loads(response.read(64 * 1024).decode("utf-8"))
+    except Exception:
+        return None
+    return value if isinstance(value, dict) and value.get("ok") is True else None
+
+
+def _renew_bridge_grant(
+    existing: dict[str, Any], port: int, token: str, autonomous_until: int
+) -> dict[str, Any] | None:
+    """Moves a live AUTONOMOUS bridge to a new grant window without restarting Pi.
+
+    Returns None when the live bridge did not accept it; the caller then falls back to the
+    ordinary exact restart, so a renewal can never leave a stale window in force.
+    """
+    response = _bridge_endpoint(
+        port,
+        token,
+        "/v1/grant",
+        {
+            "schemaVersion": 1,
+            "accessProfile": "autonomous",
+            "autonomousUntilMs": autonomous_until,
+        },
+    )
+    if response is None or response.get("autonomousUntilMs") != autonomous_until:
+        return None
+    try:
+        if read_json(BRIDGE_METADATA) != existing:
+            return None
+        atomic_write_json(BRIDGE_METADATA, {**existing, "autonomousUntilMs": autonomous_until})
+        config = read_json(BRIDGE_CONFIG)
+        config["autonomousUntilMs"] = autonomous_until
+        atomic_write_json(BRIDGE_CONFIG, config, 0o600)
+    except (OSError, PiDeckError):
+        return None
+    return {"state": "READY", "port": port, "idempotent": True, "grantRenewed": True}
+
+
 def bootstrap_bridge(request: dict[str, Any]) -> dict[str, Any]:
     with exclusive_file_lock(BRIDGE_LIFECYCLE_LOCK):
         return _bootstrap_bridge_locked(request)
@@ -3730,36 +3849,37 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
                 )
         else:
             if process_alive(existing):
+                launch = {
+                    "model_id": model_id,
+                    "profile": profile,
+                    "agent_mode": agent_mode,
+                    "session_id": session_id,
+                    "port": port,
+                    "token_sha256": token_sha256,
+                    "system_prompt": system_prompt,
+                    "compaction": compaction,
+                }
                 same = _bridge_launch_matches(
-                    existing,
-                    model_id=model_id,
-                    profile=profile,
-                    autonomous_until=autonomous_until,
-                    agent_mode=agent_mode,
-                    session_id=session_id,
-                    port=port,
-                    token_sha256=token_sha256,
-                    system_prompt=system_prompt,
-                    compaction=compaction,
+                    existing, autonomous_until=autonomous_until, **launch
                 )
                 if same:
-                    try:
-                        import urllib.request
-
-                        health_request = urllib.request.Request(
-                            f"http://127.0.0.1:{port}/v1/health",
-                            headers={"X-PiDeck-Token": token},
-                        )
-                        with urllib.request.urlopen(health_request, timeout=1) as response:
-                            health = json.loads(response.read(64 * 1024).decode("utf-8"))
-                        if health.get("ok") is True and health.get("status") == "ok":
-                            return {
-                                "state": "READY",
-                                "port": port,
-                                "idempotent": True,
-                            }
-                    except Exception:
-                        pass
+                    health = _bridge_endpoint(port, token, "/v1/health")
+                    if health is not None and health.get("status") == "ok":
+                        return {
+                            "state": "READY",
+                            "port": port,
+                            "idempotent": True,
+                        }
+                elif profile == "autonomous" and _bridge_launch_matches(
+                    existing,
+                    autonomous_until=int(existing.get("autonomousUntilMs", 0)),
+                    **launch,
+                ):
+                    renewed = _renew_bridge_grant(
+                        existing, port, token, autonomous_until
+                    )
+                    if renewed is not None:
+                        return renewed
                 if not terminate_exact(existing):
                     raise PiDeckError("BRIDGE_BUSY", "Could not stop previous managed bridge")
             else:

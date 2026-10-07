@@ -179,6 +179,43 @@ class AutonomousGrantTest(unittest.TestCase):
         with self.assertRaises(common.PiDeckError):
             bridge.autonomous_until_ms("autonomous", expires + 1, now_ms=now)
 
+    def test_live_bridge_renews_autonomous_grant_in_place(self) -> None:
+        value = fake_bridge()
+        value.config["accessProfile"] = "autonomous"
+        value.config["autonomousUntilMs"] = 1
+        renewed = int(time.time() * 1000) + bridge.MAX_AUTONOMOUS_GRANT_MS - 60_000
+        result = value.renew_grant({
+            "schemaVersion": 1,
+            "accessProfile": "autonomous",
+            "autonomousUntilMs": renewed,
+        })
+        self.assertEqual({"autonomousUntilMs": renewed}, result)
+        self.assertEqual(renewed, value.config["autonomousUntilMs"])
+        self.assertTrue(bridge.autonomous_prompt_allowed(value.config))
+        self.assertEqual([], value.child.sent, "renewal must not touch Pi")
+
+        for request in (
+            {"schemaVersion": 1, "accessProfile": "confirm_changes",
+             "autonomousUntilMs": renewed},
+            {"schemaVersion": 1, "accessProfile": "autonomous",
+             "autonomousUntilMs": renewed + bridge.MAX_AUTONOMOUS_GRANT_MS},
+            {"schemaVersion": 1, "accessProfile": "autonomous", "autonomousUntilMs": 5},
+            {"schemaVersion": 2, "accessProfile": "autonomous",
+             "autonomousUntilMs": renewed},
+        ):
+            with self.assertRaises(common.PiDeckError):
+                value.renew_grant(request)
+        self.assertEqual(renewed, value.config["autonomousUntilMs"])
+
+        confirm = fake_bridge()
+        with self.assertRaises(common.PiDeckError) as raised:
+            confirm.renew_grant({
+                "schemaVersion": 1,
+                "accessProfile": "autonomous",
+                "autonomousUntilMs": renewed,
+            })
+        self.assertEqual("GRANT_PROFILE_MISMATCH", raised.exception.code)
+
     def test_expired_bridge_rejects_new_prompts(self) -> None:
         config = {
             "accessProfile": "autonomous",
@@ -351,6 +388,36 @@ class RuntimeTestCase(unittest.TestCase):
             ready = launcher.probe()
         self.assertTrue(ready["layoutReady"])
         self.assertEqual("READY", ready["state"])
+
+    def test_probe_reads_linked_pi_version_without_starting_node(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pideck-pi-link-") as directory:
+            root = Path(directory)
+            package = root / "pi" / "0.82.1" / "node_modules" / "@earendil-works" / "pi-coding-agent"
+            (package / "dist").mkdir(parents=True)
+            (package / "dist" / "cli.js").write_text("#!/usr/bin/env node\n", encoding="utf-8")
+            manifest = package / "package.json"
+            manifest.write_text(json.dumps(
+                {"name": "@earendil-works/pi-coding-agent", "version": "0.82.1"}
+            ), encoding="utf-8")
+            dot_bin = package.parents[1] / ".bin"
+            dot_bin.mkdir()
+            (dot_bin / "pi").symlink_to("../@earendil-works/pi-coding-agent/dist/cli.js")
+            link = root / "bin" / "pi"
+            link.parent.mkdir()
+            link.symlink_to(dot_bin / "pi")
+            self.assertEqual("0.82.1", launcher.installed_pi_version(link))
+
+            manifest.write_text(json.dumps(
+                {"name": "someone-else", "version": "0.82.1"}
+            ), encoding="utf-8")
+            self.assertIsNone(launcher.installed_pi_version(link))
+            manifest.write_text('{"name": "@earendil-works/pi-coding-agent"}', encoding="utf-8")
+            self.assertIsNone(launcher.installed_pi_version(link))
+            manifest.write_text("not json", encoding="utf-8")
+            self.assertIsNone(launcher.installed_pi_version(link))
+            (package / "dist" / "cli.js").unlink()
+            self.assertIsNone(launcher.installed_pi_version(link), "a dangling link was trusted")
+            self.assertIsNone(launcher.installed_pi_version(root / "missing"))
 
     def test_session_id_accepts_android_uuid4_and_pi_uuid7_only(self) -> None:
         uuid4 = operation_id()
@@ -1022,6 +1089,24 @@ class RuntimeTestCase(unittest.TestCase):
                     self.assertFalse(model_store.stable_tool_choice_prefix(changed))
         self.assertFalse(model_store.stable_tool_choice_prefix({}))
 
+    def test_cross_session_prefix_is_limited_to_the_checkpointing_runtime(self) -> None:
+        catalog = json.loads((Path(__file__).resolve().parents[2]
+                              / "app/src/main/assets/models-v2.json").read_text("utf-8"))
+        for entry in catalog["models"]:
+            with self.subTest(model=entry["id"]):
+                runtime = entry["runtime"]
+                self.assertEqual(
+                    (runtime["serverFlavor"], runtime["minimumLlamaCppVersion"])
+                    == ("stock", "b10092"),
+                    model_store.cross_session_prefix(entry),
+                )
+        stock = tiny_model(b"GGUF")
+        self.assertTrue(model_store.cross_session_prefix(stock))
+        stock["runtime"]["minimumLlamaCppVersion"] = "b10333"
+        self.assertFalse(model_store.cross_session_prefix(stock))
+        self.assertFalse(model_store.cross_session_prefix({}))
+        self.assertFalse(model_store.cross_session_prefix({"runtime": "stock"}))
+
     def test_idempotent_server_start_refreshes_stale_pi_model_contract(self) -> None:
         model = tiny_model(b"GGUF")
         model["runtime"]["recommendedContext"] = 4_096
@@ -1442,6 +1527,44 @@ class RuntimeTestCase(unittest.TestCase):
             "reserveTokens": 2_048,
         }
         self.assertFalse(matches(stale_compaction))
+
+    def test_abort_cancels_an_active_compaction_by_stopping_pi(self) -> None:
+        value = fake_bridge()
+        target = operation_id()
+        value.active_operation_id = target
+        value.active_operation_kind = "compact"
+        value.compacting = True
+        with mock.patch.object(value, "_checkpoint_session") as checkpoint:
+            accepted = value.command({
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "ABORT",
+                "payload": {"targetOperationId": target},
+            })
+        self.assertTrue(accepted["accepted"])
+        self.assertTrue(value.child.stopped)
+        self.assertIsNone(value.active_operation_id)
+        self.assertFalse(value.compacting)
+        checkpoint.assert_called_once_with("SESSION_COMPACTION_FAILED", target)
+        _gap, events = value.journal.after(0, 0)
+        terminal = [event for event in events if event["type"] == "SESSION_COMPACTION_FAILED"]
+        self.assertEqual(1, len(terminal))
+        self.assertTrue(terminal[0]["payload"]["cancelled"])
+
+        unconfirmed = fake_bridge()
+        unconfirmed.child = FakeChild(stop_result=False)
+        unconfirmed.active_operation_id = target
+        unconfirmed.active_operation_kind = "compact"
+        unconfirmed.compacting = True
+        with self.assertRaises(common.PiDeckError) as raised:
+            unconfirmed.command({
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "type": "ABORT",
+                "payload": {"targetOperationId": target},
+            })
+        self.assertEqual("ABORT_UNCONFIRMED", raised.exception.code)
+        self.assertTrue(unconfirmed.compacting, "an unconfirmed stop must not claim cancellation")
 
     def test_prompt_stream_terminal_event_and_duplicate_rejection(self) -> None:
         value = fake_bridge()
@@ -2783,6 +2906,100 @@ class RuntimeTestCase(unittest.TestCase):
             self.assertEqual([], failures)
             self.assertEqual(1, maximum_active)
 
+    def _grant_renewal_bootstrap(self, endpoint_answers: bool) -> tuple[dict, Path, Path, mock.Mock, mock.Mock]:
+        root = Path(tempfile.mkdtemp(prefix="pideck-grant-renewal-"))
+        self.addCleanup(shutil.rmtree, root, True)
+        model = tiny_model(b"GGUF")
+        token = "A" * 43
+        token_sha256 = hashlib.sha256(bridge.validated_token(token)).hexdigest()
+        system_prompt, _content = bridge.parse_system_prompt_request({})
+        old_until = int(time.time() * 1000) + 60_000
+        new_until = old_until + 600_000
+        existing = {
+            "pid": 4242,
+            "modelId": model["id"],
+            "accessProfile": "autonomous",
+            "autonomousUntilMs": old_until,
+            "agentMode": "agent",
+            "sessionId": None,
+            "port": 8787,
+            "tokenSha256": token_sha256,
+            "piContextContractVersion": model_store.PI_CONTEXT_CONTRACT_VERSION,
+            "compactionSettings": {},
+            "systemPromptMode": system_prompt["systemPromptMode"],
+            "systemPromptSha256": system_prompt["systemPromptSha256"],
+            "systemPromptBytes": system_prompt["systemPromptBytes"],
+        }
+        bridge_metadata = root / "supervisor.json"
+        bridge_config = root / "config.json"
+        common.atomic_write_json(bridge_metadata, existing)
+        common.atomic_write_json(
+            bridge_config, {"schemaVersion": 1, "autonomousUntilMs": old_until}
+        )
+        server_key = root / "server.key"
+        server_key.write_text("server-secret", encoding="ascii")
+
+        def endpoint(_port, _token, path, body=None):
+            if path == "/v1/grant" and endpoint_answers:
+                return {"ok": True, "autonomousUntilMs": body["autonomousUntilMs"]}
+            return None
+
+        with (
+            mock.patch.object(bridge, "BRIDGE_METADATA", bridge_metadata),
+            mock.patch.object(bridge, "PI_CHILD_METADATA", root / "pi-child.json"),
+            mock.patch.object(bridge, "BRIDGE_TOKEN", root / "token"),
+            mock.patch.object(bridge, "BRIDGE_CONFIG", bridge_config),
+            mock.patch.object(bridge, "SYSTEM_PROMPT_FILE", root / "system-prompt.txt"),
+            mock.patch.object(bridge, "BRIDGE_LIFECYCLE_LOCK", root / "lifecycle.lock"),
+            mock.patch.object(bridge, "SERVER_API_KEY", server_key),
+            mock.patch.object(bridge, "model_by_id", return_value=model),
+            mock.patch.object(bridge, "ensure_pi_compaction_settings", return_value={}),
+            mock.patch.object(bridge, "read_server_status", return_value={
+                "state": "READY",
+                "modelId": model["id"],
+                "modelSha256": model["artifact"]["sha256"],
+                "port": 8080,
+            }),
+            mock.patch.object(bridge, "strict_health"),
+            mock.patch.object(bridge, "process_alive", return_value=True),
+            mock.patch.object(bridge, "_bridge_endpoint", side_effect=endpoint),
+            mock.patch.object(bridge, "terminate_exact", return_value=False) as terminate,
+            mock.patch.object(bridge.subprocess, "Popen") as popen,
+        ):
+            request = {
+                "schemaVersion": 1,
+                "operationId": operation_id(),
+                "token": token,
+                "modelId": model["id"],
+                "accessProfile": "autonomous",
+                "autonomousUntilMs": new_until,
+                "port": 8787,
+            }
+            try:
+                result = bridge.bootstrap_bridge(request)
+            except common.PiDeckError as error:
+                result = {"error": error.code}
+        result["newUntil"] = new_until
+        return result, bridge_metadata, bridge_config, terminate, popen
+
+    def test_grant_renewal_keeps_the_live_pi_process(self) -> None:
+        result, metadata, config, terminate, popen = self._grant_renewal_bootstrap(True)
+        self.assertEqual("READY", result["state"])
+        self.assertTrue(result["grantRenewed"])
+        terminate.assert_not_called()
+        popen.assert_not_called()
+        self.assertEqual(result["newUntil"], common.read_json(metadata)["autonomousUntilMs"])
+        self.assertEqual(result["newUntil"], common.read_json(config)["autonomousUntilMs"])
+
+    def test_refused_grant_renewal_falls_back_to_exact_restart(self) -> None:
+        result, metadata, _config, terminate, popen = self._grant_renewal_bootstrap(False)
+        terminate.assert_called_once()
+        self.assertEqual("BRIDGE_BUSY", result["error"])
+        popen.assert_not_called()
+        self.assertNotEqual(
+            result["newUntil"], common.read_json(metadata)["autonomousUntilMs"]
+        )
+
     def test_bootstrap_reconciles_orphan_before_spawning_supervisor(self) -> None:
         with tempfile.TemporaryDirectory(prefix="pideck-bootstrap-orphan-") as directory:
             root = Path(directory)
@@ -4026,6 +4243,62 @@ class SessionListingTestCase(unittest.TestCase):
         self.assertEqual(3, session["messages"])
         self.assertEqual(transcript.stat().st_size, session["bytes"])
         self.assertEqual(session["bytes"], listing["totalBytes"])
+
+    def test_listing_carries_the_last_visible_messages_for_resume(self) -> None:
+        identifier = str(uuid.uuid4())
+        transcript = common.BASE / "sessions" / f"{identifier}.jsonl"
+        lines = [json.dumps({"type": "session", "id": identifier})]
+        for index in range(6):
+            lines.append(json.dumps({"type": "message", "message": {
+                "role": "user", "content": [{"type": "text", "text": f"вопрос {index}"}],
+            }}))
+            lines.append(json.dumps({"type": "message", "message": {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "hidden"},
+                    {"type": "toolCall", "name": "read", "arguments": {}},
+                    {"type": "text", "text": f"ответ {index}"},
+                ],
+            }}))
+        lines.append(json.dumps({"type": "message", "message": {
+            "role": "toolResult", "content": [{"type": "text", "text": "tool output"}],
+        }}))
+        transcript.write_text("\n".join(lines), encoding="utf-8")
+
+        recent = launcher.list_sessions()["sessions"][0]["recent"]
+
+        self.assertEqual(
+            [
+                {"role": "user", "text": "вопрос 4"},
+                {"role": "assistant", "text": "ответ 4"},
+                {"role": "user", "text": "вопрос 5"},
+                {"role": "assistant", "text": "ответ 5"},
+            ],
+            recent,
+        )
+
+    def test_one_inactive_session_moves_to_the_archive(self) -> None:
+        keep = str(uuid.uuid4())
+        archive = str(uuid.uuid4())
+        for identifier in (keep, archive):
+            (common.BASE / "sessions" / f"{identifier}.jsonl").write_text("{}\n", encoding="utf-8")
+        result = launcher.archive_session({"sessionId": archive})
+        self.assertEqual(1, result["archivedEntries"])
+        self.assertFalse((common.BASE / "sessions" / f"{archive}.jsonl").exists())
+        self.assertTrue((Path(result["archive"]) / f"{archive}.jsonl").is_file())
+        self.assertTrue((common.BASE / "sessions" / f"{keep}.jsonl").is_file())
+        with self.assertRaises(common.PiDeckError) as missing:
+            launcher.archive_session({"sessionId": archive})
+        self.assertEqual("SESSION_NOT_FOUND", missing.exception.code)
+
+        common.atomic_write_json(bridge.BRIDGE_CONFIG, {"sessionId": keep})
+        try:
+            with self.assertRaises(common.PiDeckError) as active:
+                launcher.archive_session({"sessionId": keep})
+            self.assertEqual("SESSION_ACTIVE", active.exception.code)
+        finally:
+            bridge.BRIDGE_CONFIG.unlink()
+        self.assertTrue((common.BASE / "sessions" / f"{keep}.jsonl").is_file())
 
     def test_unreadable_session_still_appears_with_its_size(self) -> None:
         # Pi may change its transcript format; a session must not vanish because of it.

@@ -265,6 +265,43 @@ try {
 		assert.equal((await request(terminal)).cache_prompt, false);
 	}
 	delete process.env.PIDECK_STABLE_TOOL_CHOICE_PREFIX;
+	// A new session may reuse only the server checkpoint at the end of a byte-identical
+	// system+tools prefix, and only on runtimes that place that checkpoint.
+	const system = { role: "system", content: "PI//DECK system" };
+	const sessionOne = [system, { role: "user", content: "first task" }];
+	const sessionTwo = [system, { role: "user", content: "second task" }];
+	for (const enabled of [false, true]) {
+		process.env.PIDECK_CROSS_SESSION_PREFIX = enabled ? "1" : "0";
+		const hooks = new Map();
+		localCache.default({ on: (name, handler) => hooks.set(name, handler) });
+		const request = async (payload) => (await hooks.get("before_provider_request")({ payload }));
+		const contract = { tools: [{ name: "read" }], tool_choice: "auto" };
+		assert.equal((await request({ ...contract, messages: sessionOne })).cache_prompt, false,
+			"the first request of a Pi process reused an unknown slot");
+		await hooks.get("session_start")();
+		assert.equal((await request({ ...contract, messages: sessionTwo })).cache_prompt, enabled,
+			"cross-session prefix reuse ignored its runtime gate");
+		assert.equal((await request({ ...contract, messages: [...sessionTwo, { role: "assistant", content: "ok" }] })).cache_prompt,
+			true, "the growing new session lost ordinary reuse");
+		await hooks.get("session_start")();
+		assert.equal((await request({ ...contract, messages: [{ ...system, content: "changed" }, sessionTwo[1]] })).cache_prompt,
+			false, "a different system prompt reused the previous session's checkpoint");
+		await hooks.get("session_start")();
+		assert.equal((await request({ tools: [{ name: "write" }], tool_choice: "auto", messages: sessionTwo })).cache_prompt,
+			false, "a different tool schema reused the previous session's checkpoint");
+		await hooks.get("session_start")();
+		assert.equal((await request({ tools: [{ name: "write" }], tool_choice: "auto", messages: [{ role: "user", content: "no system" }] })).cache_prompt,
+			false, "a request without a leading system message crossed sessions");
+		await hooks.get("session_start")();
+		const developer = [{ role: "developer", content: "PI//DECK system" }, sessionOne[1]];
+		await request({ ...contract, messages: developer });
+		await hooks.get("session_start")();
+		assert.equal((await request({ ...contract, messages: [developer[0], sessionTwo[1]] })).cache_prompt, enabled,
+			"a developer-role system prompt was not recognised");
+		assert.equal((await request({ ...contract, messages: [developer[0], { role: "user", content: "rewritten" }] })).cache_prompt,
+			false, "cross-session reuse leaked past the first request of a session");
+	}
+	delete process.env.PIDECK_CROSS_SESSION_PREFIX;
 	const adaptive = await jiti.import(join(workspace, "pideck-adaptive-thinking.ts"));
 	assert.equal(adaptive.adaptiveThinkingLevel("Прочитай README и ответь кратко", "agent"), "off");
 	assert.equal(adaptive.adaptiveThinkingLevel("Исправь ошибку и запусти тест", "agent"), "low");
@@ -620,15 +657,35 @@ try {
 	const routerBeforeProviderRequest = routerExtension?.handlers.get("before_provider_request")?.[0];
 	const routerBeforeAgentStart = routerExtension?.handlers.get("before_agent_start")?.[0];
 	// The following legacy-session checks deliberately start with a general task. New-session
-	// requests below separately prove that simple tasks never pay for that larger schema.
+	// requests below prove that the profile core is fixed from session_start, so a narrow
+	// first task cannot make the next ordinary task rewrite the cached system+tools prefix.
 	const routerSessionStart = async (event) => {
 		await rawRouterSessionStart(event);
 		await routerInput({ type: "input", text: "Continue the implementation task", source: "rpc" });
 	};
 	await rawRouterSessionStart({ type: "session_start", reason: "new" });
-	assert.deepEqual(activeTools, [], "a cold session eagerly advertised the full tool core");
+	assert.deepEqual(activeTools, AUTONOMOUS_CORE, "a new session did not start from the fixed profile core");
 	await routerInput({ type: "input", text: "Какая погода в Москве?", source: "rpc" });
-	assert.deepEqual(activeTools, ["weather"], "a fresh weather request advertised coding tools");
+	assert.deepEqual(
+		activeTools,
+		[...AUTONOMOUS_CORE, "weather"],
+		"a fresh weather request rewrote the core instead of appending its tool",
+	);
+	const weatherShell = await routerToolCall({
+		type: "tool_call",
+		toolName: "bash",
+		toolCallId: "weather-shell",
+		input: { command: "curl wttr.in" },
+	}, { cwd: workspace });
+	assert.equal(weatherShell.block, true, "a narrow weather task could run coding tools");
+	await routerInput({ type: "input", text: "Continue the implementation task", source: "rpc" });
+	assert.deepEqual(
+		activeTools,
+		[...AUTONOMOUS_CORE, "weather"],
+		"an ordinary task after a narrow one changed the provider schema",
+	);
+	await rawRouterSessionStart({ type: "session_start", reason: "new" });
+	await routerInput({ type: "input", text: "Какая погода в Москве?", source: "rpc" });
 	await routerToolResult({ type: "tool_result", toolName: "weather", input: {}, isError: false,
 		content: [{ type: "text", text: "Moscow: 15 C" }] });
 	const terminalPayload = await routerBeforeProviderRequest({ type: "before_provider_request",
@@ -641,7 +698,14 @@ try {
 	assert.equal(aborted, true, "a provider ignoring tool_choice could loop after termination");
 	await rawRouterSessionStart({ type: "session_start", reason: "new" });
 	await routerInput({ type: "input", text: repairPrompt, source: "rpc" });
-	assert.deepEqual(activeTools, ["read", "pideck_edit_text", "run_tests"], "fresh repair schema is not compact");
+	assert.deepEqual(activeTools, AUTONOMOUS_CORE, "a fresh repair rewrote the fixed session core");
+	const freshRepairShell = await routerToolCall({
+		type: "tool_call",
+		toolName: "bash",
+		toolCallId: "repair-shell",
+		input: { command: "ls" },
+	}, { cwd: workspace });
+	assert.equal(freshRepairShell.block, true, "bounded repair allowed broad bash discovery");
 	assert.equal(typeof routerSessionStart, "function", "tool router has no session reset");
 	assert.equal(typeof routerInput, "function", "tool router has no input hook");
 	assert.equal(typeof routerToolResult, "function", "tool router has no result hook");
@@ -1277,6 +1341,27 @@ try {
 	);
 
 	const promptExtension = await jiti.import(join(workspace, "pideck-system-prompt.ts"));
+	// The permanent agent prefix states every rule once; optional tools carry their own guidance.
+	const basePrompt = readFileSync(join(RUNTIME, "pideck-agent-base-prompt.md"), "utf8").trim();
+	const agentPrompt = promptExtension.composeManagedPrompt("agent", basePrompt, undefined);
+	for (const rule of [
+		/Answer in the user's language/gu,
+		/Report only/gu,
+		/exact user paths/giu,
+		/never repeat an identical failed call/gu,
+		/read shows file lines as line:hash/gu,
+		/run_tests runs the exact test/gu,
+	]) {
+		assert.equal(agentPrompt.match(rule)?.length, 1, `agent prompt states ${rule} other than exactly once`);
+	}
+	assert.ok(Buffer.byteLength(agentPrompt, "utf8") < 1_600, "the permanent agent prefix grew back");
+	for (const optional of [/weather/iu, /web request/iu, /pideck_replace_lines/u]) {
+		assert.doesNotMatch(agentPrompt, optional, "optional-tool guidance stayed in the permanent prefix");
+	}
+	assert.match(tools.get("weather").description, /call it once/u, "weather lost its direct-call guidance");
+	assert.match(tools.get("web_research").description, /cite the URLs/u, "web_research lost its citation guidance");
+	assert.match(tools.get("pideck_replace_lines").description, /never invent or shorten/u,
+		"pideck_replace_lines lost its anchor guidance");
 	const compactChatPrompt = promptExtension.composeManagedPrompt("chat", "FULL PI PROMPT", undefined);
 	assert.match(compactChatPrompt, /Chat mode has no tools/);
 	assert.doesNotMatch(compactChatPrompt, /FULL PI PROMPT/);
@@ -1351,10 +1436,28 @@ try {
 		extension.path.endsWith("pideck-context-guard.ts"));
 	const contextHandler = contextExtension?.handlers.get("context")?.[0];
 	assert.equal(typeof contextHandler, "function", "context guard has no provider-context hook");
+	const pressured = { getContextUsage: () => ({ tokens: 7_500, contextWindow: 10_240, percent: 73 }) };
+	const relaxed = { getContextUsage: () => ({ tokens: 2_000, contextWindow: 10_240, percent: 20 }) };
+	assert.deepEqual(
+		(await contextHandler({ type: "context", messages: contextMessages }, pressured)).messages,
+		prunedContext,
+	);
+	assert.equal(
+		await contextHandler({ type: "context", messages: contextMessages }, relaxed),
+		undefined,
+		"pruning below context pressure forced a full re-prefill for a small saving",
+	);
 	assert.deepEqual(
 		(await contextHandler({ type: "context", messages: contextMessages })).messages,
 		prunedContext,
+		"pruning without a known window changed the previous behavior",
 	);
+	assert.equal(contextGuardModule.underContextPressure(
+		{ tokens: null, contextWindow: 10_240 }, contextMessages), false,
+		"a small unknown-usage context was treated as pressured");
+	assert.equal(contextGuardModule.underContextPressure(
+		{ tokens: null, contextWindow: 2_000 }, contextMessages), true,
+		"a large unknown-usage context was not estimated from its bytes");
 	await cacheSessionStart({ type: "session_start", reason: "new" });
 	assert.equal((await cacheProviderRequest({
 		type: "before_provider_request",
