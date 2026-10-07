@@ -14,6 +14,7 @@ Experiments:
   prism-kernel   baseline versus candidate Prism executable (ABBA): identical answers, prefill
   kv-quant       f16 versus q8_0 KV cache on top of the catalog arguments
   slot-snapshot  cold start: a saved system+tools slot restored into a fresh server
+  runtime-ab     two builds of the stock runtime (ABBA): prefill, decode, identical answer
 """
 
 from __future__ import annotations
@@ -294,18 +295,18 @@ class Device:
     def shell(self, script: str, *, check: bool = True, timeout: float = 600) -> str:
         return self.adb("shell", script, check=check, timeout=timeout).stdout
 
-    def push_runtime(self) -> dict[str, str]:
-        self.shell(f"mkdir -p {DEVICE_DIR}/lib")
+    def push_runtime(self, source: Path = JNI, remote_dir: str = f"{DEVICE_DIR}/lib") -> dict[str, str]:
+        self.shell(f"mkdir -p {remote_dir}")
         hashes: dict[str, str] = {}
-        remote = self.shell(f"cd {DEVICE_DIR}/lib && sha256sum *.so 2>/dev/null", check=False)
+        remote = self.shell(f"cd {remote_dir} && sha256sum *.so 2>/dev/null", check=False)
         present = {line.split()[1]: line.split()[0] for line in remote.splitlines() if len(line.split()) == 2}
         for name in STOCK_LIBRARIES:
-            local = JNI / name
+            local = source / name
             digest = hashlib.sha256(local.read_bytes()).hexdigest()
             hashes[name] = digest
             if present.get(name) != digest:
-                self.adb("push", str(local), f"{DEVICE_DIR}/lib/{name}", timeout=300)
-        self.shell(f"chmod 755 {DEVICE_DIR}/lib/*.so")
+                self.adb("push", str(local), f"{remote_dir}/{name}", timeout=300)
+        self.shell(f"chmod 755 {remote_dir}/*.so")
         return hashes
 
     def thermal(self) -> dict[str, Any]:
@@ -351,8 +352,9 @@ class Device:
                      executable: str = f"{DEVICE_DIR}/lib/libpideck_llama_server.so") -> tuple[int, float]:
         self.stop_all()
         quoted = " ".join(_shell_quote(arg) for arg in args)
+        library_dir = executable.rsplit("/", 1)[0]
         inner = (
-            f"cd {DEVICE_DIR} && LD_LIBRARY_PATH={DEVICE_DIR}/lib TMPDIR={DEVICE_DIR} "
+            f"cd {DEVICE_DIR} && LD_LIBRARY_PATH={library_dir} TMPDIR={DEVICE_DIR} "
             f"exec {executable} {quoted} "
             f"> {DEVICE_DIR}/{label}.log 2>&1 < /dev/null"
         )
@@ -706,12 +708,59 @@ def experiment_slot_snapshot(device: Device, model: dict, model_path: str, args:
     }
 
 
+def experiment_runtime_ab(device: Device, model: dict, model_path: str, args: argparse.Namespace) -> dict:
+    """Two builds of the stock runtime, ABBA, same arguments: prefill, decode, identical answer."""
+    runtimes = {
+        "baseline": Path(args.baseline_libs) if args.baseline_libs else JNI,
+        "candidate": Path(args.candidate_libs),
+    }
+    remote = {label: f"{DEVICE_DIR}/runtime-{label}" for label in runtimes}
+    hashes = {label: device.push_runtime(path, remote[label]) for label, path in runtimes.items()}
+    system = {"role": "system", "content": agent_system_prompt()}
+    long_user = {"role": "user", "content": "Прочитай заметки и ответь одним словом OK.\n"
+                 + filler_paragraphs(args.filler)}
+    variants = []
+    for label in ("baseline", "candidate", "candidate", "baseline")[: 2 * args.repeats]:
+        cool = device.wait_cool(args.max_celsius)
+        pid, load_seconds = device.start_server(
+            server_arguments(model, model_path), f"ab-{label}",
+            executable=f"{remote[label]}/libpideck_llama_server.so",
+        )
+        body, wall = chat(request_payload(model, [system, long_user], False, args.max_tokens))
+        timings = prompt_timings(body)
+        status = device.status(pid)
+        device.stop_all()
+        entry = {"label": label, "thermalBefore": cool, "thermalAfter": device.thermal(),
+                 "loadSeconds": round(load_seconds, 2), "wallSeconds": round(wall, 2),
+                 "afterPromptKiB": status,
+                 **{k: timings[k] for k in ("promptN", "promptPerSecond", "predictedN",
+                                            "predictedPerSecond", "content", "reasoning",
+                                            "toolCalls")}}
+        variants.append(entry)
+        print(json.dumps({k: entry[k] for k in ("label", "promptPerSecond", "predictedPerSecond",
+                                                 "loadSeconds")}), flush=True)
+    mean = lambda label, key: sum(v[key] for v in variants if v["label"] == label) / max(  # noqa: E731
+        1, sum(1 for v in variants if v["label"] == label))
+    return {
+        "libraryHashes": hashes,
+        "variants": variants,
+        "verdict": {
+            "identicalAnswers": len({answer_signature(v) for v in variants}) == 1,
+            "prefillRatio": round(mean("candidate", "promptPerSecond")
+                                  / mean("baseline", "promptPerSecond"), 3),
+            "decodeRatio": round(mean("candidate", "predictedPerSecond")
+                                 / mean("baseline", "predictedPerSecond"), 3),
+        },
+    }
+
+
 EXPERIMENTS = {
     "prefix-reuse": experiment_prefix_reuse,
     "memory": experiment_memory,
     "batch-threads": experiment_batch_threads,
     "prism-kernel": experiment_prism_kernel,
     "slot-snapshot": experiment_slot_snapshot,
+    "runtime-ab": experiment_runtime_ab,
     "kv-quant": lambda device, model, path, args: experiment_memory(
         device, model, path, args, layouts=KV_LAYOUTS
     ),
@@ -731,6 +780,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-celsius", type=float, default=42.0)
     parser.add_argument("--baseline-binary", help="prism-kernel: local baseline executable")
     parser.add_argument("--candidate-binary", help="prism-kernel: local candidate executable")
+    parser.add_argument("--baseline-libs", help="runtime-ab: baseline stock library directory")
+    parser.add_argument("--candidate-libs", help="runtime-ab: candidate stock library directory")
     args = parser.parse_args(argv)
     device = Device(args.serial)
     model = catalog_model(args.model_id)

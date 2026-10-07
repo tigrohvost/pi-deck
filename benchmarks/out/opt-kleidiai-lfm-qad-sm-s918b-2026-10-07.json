@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "experiment": "runtime-ab",
+  "startedAt": "2026-10-07T20:32:33.230399+00:00",
+  "device": "SM-S918B",
+  "modelId": "lfm2.5-2.6b-qad",
+  "modelSha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+  "runtimeLibraries": {
+    "libpideck_llama_server.so": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+    "libllama-server-impl.so": "51442675ade46984d70c37b059c2214e0f4bb67407e3498daa50d1fbd9d51826",
+    "libllama-common.so": "3d235b340bfeff54646ac8d8bbae9911a7ea098596a77c03b572a01eb73d928d",
+    "libllama.so": "8707510ddfa4cb6ac96f3ae78891270fcce5c7ba15e1d0e701ad1aaf270f8712",
+    "libmtmd.so": "aa7a146a88ed1eb418cfac0618ee64490752a0a8ccae336e78a64b7c2f12920b",
+    "libggml.so": "2aeebab24756785d3732d45de35c5ad27c9bbe8235432d8cd43ebacf41a15b0d",
+    "libggml-base.so": "4fec3e67d87b98145f1a1d48d189fb061c0cb2135cc94a3346bec19fce500b93",
+    "libggml-cpu-android_armv8.0_1.so": "f20f764e7f2c555804a411fc0f71c32b815e769acb541b35caf64e9e7a9d1506",
+    "libggml-cpu-android_armv8.2_1.so": "ba648ce30d09f12b92442cbc2545c63ce135627d1e3932916364a08104715963",
+    "libggml-cpu-android_armv8.2_2.so": "c46e23fbc7bb58c82b4efab8cc8f7c2afdf608c0900637d4cd390a0b41a8d7d7",
+    "libggml-cpu-android_armv8.6_1.so": "1bf1bf35d344350f9b3235b6190351fda1029ee89eb6a6a3a76e943ced111413",
+    "libggml-cpu-android_armv9.0_1.so": "a624a90b676e174a31e521b408dae69e237ef2b6f98f1fb0a61bbdb54ed461cf",
+    "libggml-cpu-android_armv9.2_1.so": "02731476be120f8d291cdd51d843af34a6fcc67851a5b0ef62d894d330ec4363",
+    "libggml-cpu-android_armv9.2_2.so": "34c41e6d136181927bb8f86378181e87103d8ae608cfde4c55ab335c97e3b70b"
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf",
+    "--alias",
+    "lfm2.5-2.6b-qad",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18080",
+    "-c",
+    "10240",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "--cpu-strict",
+    "1",
+    "-Crb",
+    "0-7",
+    "--cpu-strict-batch",
+    "1",
+    "--jinja",
+    "--reasoning",
+    "on",
+    "--temp",
+    "0.1",
+    "--top-p",
+    "1",
+    "--top-k",
+    "50",
+    "--min-p",
+    "0",
+    "--presence-penalty",
+    "0",
+    "--repeat-penalty",
+    "1.1",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--no-mmap"
+  ],
+  "result": {
+    "libraryHashes": {
+      "baseline": {
+        "libpideck_llama_server.so": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+        "libllama-server-impl.so": "51442675ade46984d70c37b059c2214e0f4bb67407e3498daa50d1fbd9d51826",
+        "libllama-common.so": "3d235b340bfeff54646ac8d8bbae9911a7ea098596a77c03b572a01eb73d928d",
+        "libllama.so": "8707510ddfa4cb6ac96f3ae78891270fcce5c7ba15e1d0e701ad1aaf270f8712",
+        "libmtmd.so": "aa7a146a88ed1eb418cfac0618ee64490752a0a8ccae336e78a64b7c2f12920b",
+        "libggml.so": "2aeebab24756785d3732d45de35c5ad27c9bbe8235432d8cd43ebacf41a15b0d",
+        "libggml-base.so": "4fec3e67d87b98145f1a1d48d189fb061c0cb2135cc94a3346bec19fce500b93",
+        "libggml-cpu-android_armv8.0_1.so": "f20f764e7f2c555804a411fc0f71c32b815e769acb541b35caf64e9e7a9d1506",
+        "libggml-cpu-android_armv8.2_1.so": "ba648ce30d09f12b92442cbc2545c63ce135627d1e3932916364a08104715963",
+        "libggml-cpu-android_armv8.2_2.so": "c46e23fbc7bb58c82b4efab8cc8f7c2afdf608c0900637d4cd390a0b41a8d7d7",
+        "libggml-cpu-android_armv8.6_1.so": "1bf1bf35d344350f9b3235b6190351fda1029ee89eb6a6a3a76e943ced111413",
+        "libggml-cpu-android_armv9.0_1.so": "a624a90b676e174a31e521b408dae69e237ef2b6f98f1fb0a61bbdb54ed461cf",
+        "libggml-cpu-android_armv9.2_1.so": "02731476be120f8d291cdd51d843af34a6fcc67851a5b0ef62d894d330ec4363",
+        "libggml-cpu-android_armv9.2_2.so": "34c41e6d136181927bb8f86378181e87103d8ae608cfde4c55ab335c97e3b70b"
+      },
+      "candidate": {
+        "libpideck_llama_server.so": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+        "libllama-server-impl.so": "51442675ade46984d70c37b059c2214e0f4bb67407e3498daa50d1fbd9d51826",
+        "libllama-common.so": "3d235b340bfeff54646ac8d8bbae9911a7ea098596a77c03b572a01eb73d928d",
+        "libllama.so": "8707510ddfa4cb6ac96f3ae78891270fcce5c7ba15e1d0e701ad1aaf270f8712",
+        "libmtmd.so": "aa7a146a88ed1eb418cfac0618ee64490752a0a8ccae336e78a64b7c2f12920b",
+        "libggml.so": "2aeebab24756785d3732d45de35c5ad27c9bbe8235432d8cd43ebacf41a15b0d",
+        "libggml-base.so": "4fec3e67d87b98145f1a1d48d189fb061c0cb2135cc94a3346bec19fce500b93",
+        "libggml-cpu-android_armv8.0_1.so": "040524fc9a083750c3ce7dec6ad3770fe46be32d46ce4bf9516a8bcbaa420146",
+        "libggml-cpu-android_armv8.2_1.so": "a2ddf1ba8e249a6181a3c6bb5760d84c4f4cac408afab1aac728dc47121698a5",
+        "libggml-cpu-android_armv8.2_2.so": "c81e95d835de70e3749da7c1f47df2587b23b624468c8a4f3d4f167888817932",
+        "libggml-cpu-android_armv8.6_1.so": "c46af467bc391f67b9123c1ed5774d3be6d159b82ed3414333be151bb0241419",
+        "libggml-cpu-android_armv9.0_1.so": "64898e26d195649dbaf7d9450b7af781a14101f10d891c755e5bf5e8817dd598",
+        "libggml-cpu-android_armv9.2_1.so": "e58f6853d2fdd5df33632c43826e5f2be09189da07a0ecfd57bf41e8e60efad1",
+        "libggml-cpu-android_armv9.2_2.so": "59dfad3c176f5bde0efae21206dba647b379d0ea3db4208350b8e68f802ec577"
+      }
+    },
+    "variants": [
+      {
+        "label": "baseline",
+        "thermalBefore": {
+          "at": "2026-10-07T20:32:54.245570+00:00",
+          "hottestZone": "cpu-1-0",
+          "hottestMilliCelsius": 42200,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T20:33:54.062162+00:00",
+          "hottestZone": "cpuss-0",
+          "hottestMilliCelsius": 65500,
+          "maxFrequencyHeadroom": 0.6629
+        },
+        "loadSeconds": 4.06,
+        "wallSeconds": 51.2,
+        "afterPromptKiB": {
+          "VmHWM": 2076212,
+          "VmRSS": 2076168,
+          "RssAnon": 2063792,
+          "RssFile": 11992,
+          "VmSwap": 0
+        },
+        "promptN": 3477,
+        "promptPerSecond": 73.57706308593038,
+        "predictedN": 64,
+        "predictedPerSecond": 16.356435350039217,
+        "content": "",
+        "reasoning": "The user has provided a long list of 120 numbered items, each containing various keywords related to what appears to be a project or codebase. The instruction says \"Прочитай заметки и ответь одним словом OK.\" which means \"Read the notes and answer with one word OK.\"\n\nLooking at all",
+        "toolCalls": null
+      },
+      {
+        "label": "candidate",
+        "thermalBefore": {
+          "at": "2026-10-07T20:35:39.012352+00:00",
+          "hottestZone": "cpu-1-3",
+          "hottestMilliCelsius": 43400,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T20:36:50.973754+00:00",
+          "hottestZone": "cpu-1-5",
+          "hottestMilliCelsius": 65900,
+          "maxFrequencyHeadroom": 0.5886
+        },
+        "loadSeconds": 16.66,
+        "wallSeconds": 50.71,
+        "afterPromptKiB": {
+          "VmHWM": 2076432,
+          "VmRSS": 2076340,
+          "RssAnon": 2063920,
+          "RssFile": 12044,
+          "VmSwap": 0
+        },
+        "promptN": 3477,
+        "promptPerSecond": 74.61488675361508,
+        "predictedN": 64,
+        "predictedPerSecond": 15.66114374801024,
+        "content": "",
+        "reasoning": "The user has provided a long list of 120 numbered items, each containing various keywords related to what appears to be a project or codebase. The instruction says \"Прочитай заметки и ответь одним словом OK.\" which means \"Read the notes and answer with one word OK.\"\n\nLooking at all",
+        "toolCalls": null
+      },
+      {
+        "label": "candidate",
+        "thermalBefore": {
+          "at": "2026-10-07T20:38:01.660850+00:00",
+          "hottestZone": "cpu-1-2",
+          "hottestMilliCelsius": 45700,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T20:39:11.822217+00:00",
+          "hottestZone": "cpuss-0",
+          "hottestMilliCelsius": 65500,
+          "maxFrequencyHeadroom": 0.5886
+        },
+        "loadSeconds": 12.79,
+        "wallSeconds": 52.75,
+        "afterPromptKiB": {
+          "VmHWM": 2076672,
+          "VmRSS": 2076584,
+          "RssAnon": 2063740,
+          "RssFile": 12460,
+          "VmSwap": 0
+        },
+        "promptN": 3477,
+        "promptPerSecond": 71.59027385287241,
+        "predictedN": 64,
+        "predictedPerSecond": 15.450715476764415,
+        "content": "",
+        "reasoning": "The user has provided a long list of 120 numbered items, each containing various keywords related to what appears to be a project or codebase. The instruction says \"Прочитай заметки и ответь одним словом OK.\" which means \"Read the notes and answer with one word OK.\"\n\nLooking at all",
+        "toolCalls": null
+      },
+      {
+        "label": "baseline",
+        "thermalBefore": {
+          "at": "2026-10-07T20:40:55.373638+00:00",
+          "hottestZone": "cpu-1-4",
+          "hottestMilliCelsius": 45700,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T20:42:05.989350+00:00",
+          "hottestZone": "cpuss-0",
+          "hottestMilliCelsius": 66300,
+          "maxFrequencyHeadroom": 0.5886
+        },
+        "loadSeconds": 14.0,
+        "wallSeconds": 52.04,
+        "afterPromptKiB": {
+          "VmHWM": 2074808,
+          "VmRSS": 2074712,
+          "RssAnon": 2063480,
+          "RssFile": 10844,
+          "VmSwap": 0
+        },
+        "promptN": 3477,
+        "promptPerSecond": 72.40110185439899,
+        "predictedN": 64,
+        "predictedPerSecond": 16.25083158552254,
+        "content": "",
+        "reasoning": "The user has provided a long list of 120 numbered items, each containing various keywords related to what appears to be a project or codebase. The instruction says \"Прочитай заметки и ответь одним словом OK.\" which means \"Read the notes and answer with one word OK.\"\n\nLooking at all",
+        "toolCalls": null
+      }
+    ],
+    "verdict": {
+      "identicalAnswers": true,
+      "prefillRatio": 1.002,
+      "decodeRatio": 0.954
+    }
+  },
+  "finishedAt": "2026-10-07T20:42:07.144976+00:00"
+}
