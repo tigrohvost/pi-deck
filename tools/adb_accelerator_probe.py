@@ -445,8 +445,9 @@ def thermal_state(serial: str | None) -> dict[str, Any]:
         serial,
         "shell",
         "for z in /sys/class/thermal/thermal_zone*/; do "
-        "printf '%s %s\\n' \"$(cat $z/type 2>/dev/null)\" "
-        "\"$(cat $z/temp 2>/dev/null)\"; done",
+        "IFS= read -r pideck_zone_type < \"$z/type\" || continue; "
+        "IFS= read -r pideck_zone_temp < \"$z/temp\" || continue; "
+        "printf '%s %s\\n' \"$pideck_zone_type\" \"$pideck_zone_temp\"; done",
         check=True,
     ).stdout
     readings = []

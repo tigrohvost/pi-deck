@@ -512,6 +512,39 @@ class ToolTests(unittest.TestCase):
             with self.assertRaises(accelerator_probe.ProbeError):
                 accelerator_probe.load_resume_report(path, planned)
 
+    def test_accelerator_thermal_scan_uses_shell_builtins_and_skips_missing_zones(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for index, (name, temperature) in enumerate([
+                ("cpu-0-0", "42000"), ("gpu", "46000"),
+                ("battery", "99000"), ("soc", "invalid"), ("cpu-1", None),
+            ]):
+                zone = root / f"thermal_zone{index}"
+                zone.mkdir()
+                (zone / "type").write_text(name + "\n")
+                if temperature is not None:
+                    (zone / "temp").write_text(temperature + "\n")
+
+            def adb_shell(serial, command, script, **kwargs):
+                if script.startswith("cat "):
+                    return subprocess.CompletedProcess([], 0, "3360000\n3360000\n", "")
+                return subprocess.run(
+                    ["/bin/sh", "-c", script.replace("/sys/class/thermal", directory)],
+                    env={"PATH": str(root / "no-external-commands")},
+                    capture_output=True, text=True, check=True,
+                )
+
+            with mock.patch.object(accelerator_probe, "adb_run", side_effect=adb_shell):
+                state = accelerator_probe.thermal_state(None)
+                self.assertEqual(state["headroom"], 1.0)
+                self.assertEqual(state["hottestComputeZone"], {
+                    "zone": "gpu", "milliCelsius": 46000,
+                })
+                (root / "thermal_zone0" / "temp").write_text("invalid\n")
+                (root / "thermal_zone1" / "temp").write_text("invalid\n")
+                with self.assertRaises(accelerator_probe.ProbeError):
+                    accelerator_probe.thermal_state(None)
+
     def test_accelerator_thermal_gate_fails_closed_without_telemetry(self) -> None:
         self.assertTrue(accelerator_probe.thermal_ready({
             "headroom": 1.0,

@@ -1,0 +1,1953 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-25",
+  "device": "Samsung SM-S918B / Android 16",
+  "sourceRevision": "842b1880415d6f508f03b789e5ce70194def7bfd",
+  "modelSha256": "53107f530aa52eb00912263ab1ee29bd199261c87cd7b4ad4ca1318c1fe33ee3",
+  "modelBytes": 5946648928,
+  "build": {
+    "ndk": "28.2.13676358",
+    "cmake": "3.22.1",
+    "cFlags": "-O3 -DNDEBUG",
+    "armArch": "armv8.2-a+dotprod+fp16"
+  },
+  "patches": {
+    "bonsai2-affinity-retry-2026-09-24.patch": "fd44cf779efc3a99586ca0d554d4e44ff4f438d4eead714ae67ea0ffe490167d",
+    "bonsai2-ptq1-tile-arm-2026-09-24.patch": "7eb68671996ba42bace331716ad620b22c7071d50de285be526885009dd77d70"
+  },
+  "binarySha256": {
+    "pideck-ptq1-review-base": "a44444c440fc269f8b5891cd88e4bb1c2a04fbe6d6fab9e7f1de1e78ae0ae566",
+    "pideck-ptq1-review-tile": "0d43025c4958918e491d0f5ad1b6c157394dc89be6eae2baa36d9f28b50c152d"
+  },
+  "method": {
+    "order": [
+      "base-a",
+      "tile-a",
+      "tile-b",
+      "base-b"
+    ],
+    "baseline": "Pinned source plus affinity retry patch",
+    "tiled": "Same source and affinity retry patch plus nrc=2 PTQ1 ARM patch",
+    "warmup": true,
+    "promptTokens": 32,
+    "generationTokens": 0,
+    "threads": 5,
+    "cpuMask": "f8",
+    "cpuStrict": true,
+    "ubatch": 128,
+    "repetitionsPerProcess": 1,
+    "loadMode": "mmap",
+    "gpuLayers": 0,
+    "startMaxComputeMilliCelsius": 43000,
+    "startMinFrequencyHeadroom": 0.98,
+    "telemetryIntervalSeconds": 2,
+    "frequencyUnits": "kHz (legacy thermalState field names say Hz)",
+    "ioAccounting": "Cumulative process counters sampled during load, warmup and measurement; last sample is not a final process total.",
+    "affinityAccounting": "Validate snapshots with exactly five threads; one-thread startup snapshots are excluded.",
+    "pageCache": "Not dropped or locked; warmup does not guarantee all model pages stay resident.",
+    "foreground": "Lawnchair launcher at preflight; no app-owned model server running."
+  },
+  "nrc2Correctness": {
+    "widths": [
+      5120,
+      6144,
+      17408
+    ],
+    "rows": 64,
+    "maxRelativeError": 0
+  },
+  "runs": [
+    {
+      "label": "ptq1-review-base-a",
+      "arguments": [
+        "/data/local/tmp/pideck-ptq1-review-base",
+        "-m",
+        "/data/local/tmp/pideck-ptq1-tile-test.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "32",
+        "-n",
+        "0",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "mmap"
+      ],
+      "startedAt": "2026-09-25T04:51:08Z",
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-2",
+          "milliCelsius": 42200
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 55300
+        }
+      },
+      "elapsedSeconds": 65.674,
+      "returnCode": 0,
+      "status": "complete",
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-ptq1-tile-test.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "mmap",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 32,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-25T04:51:14Z",
+          "avg_ns": 27186034209,
+          "stddev_ns": 0,
+          "avg_ts": 1.177075,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            27186034209
+          ],
+          "samples_ts": [
+            1.17707
+          ]
+        }
+      ],
+      "stderr": "llama-bench: benchmark 1/1: starting\nllama-bench: benchmark 1/1: warmup prompt run\nllama-bench: benchmark 1/1: prompt run 1/1\n",
+      "samples": [
+        {
+          "elapsedSeconds": 0.22,
+          "readBytes": 5251072,
+          "rssKiB": 13712,
+          "swapKiB": 0,
+          "highWaterKiB": 19800,
+          "majorFaults": 0,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "0-7"
+          ]
+        },
+        {
+          "elapsedSeconds": 2.56,
+          "readBytes": 2727395328,
+          "rssKiB": 2706508,
+          "swapKiB": 0,
+          "highWaterKiB": 2706508,
+          "majorFaults": 0,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "0-7"
+          ]
+        },
+        {
+          "elapsedSeconds": 4.71,
+          "readBytes": 5336653824,
+          "rssKiB": 3864248,
+          "swapKiB": 73128,
+          "highWaterKiB": 3864828,
+          "majorFaults": 0,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "0-7"
+          ]
+        },
+        {
+          "elapsedSeconds": 6.89,
+          "readBytes": 5801349120,
+          "rssKiB": 4641116,
+          "swapKiB": 56636,
+          "highWaterKiB": 4641116,
+          "majorFaults": 3667,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 9.19,
+          "readBytes": 6258900992,
+          "rssKiB": 4734648,
+          "swapKiB": 56636,
+          "highWaterKiB": 4769592,
+          "majorFaults": 3864,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 11.52,
+          "readBytes": 6599999488,
+          "rssKiB": 4627512,
+          "swapKiB": 56636,
+          "highWaterKiB": 4785348,
+          "majorFaults": 4065,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 13.84,
+          "readBytes": 6946725888,
+          "rssKiB": 4503044,
+          "swapKiB": 56636,
+          "highWaterKiB": 4785348,
+          "majorFaults": 4293,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 16.14,
+          "readBytes": 7274799104,
+          "rssKiB": 4181908,
+          "swapKiB": 56636,
+          "highWaterKiB": 4785348,
+          "majorFaults": 4501,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 18.41,
+          "readBytes": 7634591744,
+          "rssKiB": 4182060,
+          "swapKiB": 56680,
+          "highWaterKiB": 4785348,
+          "majorFaults": 4721,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 20.69,
+          "readBytes": 7945711616,
+          "rssKiB": 4020736,
+          "swapKiB": 56680,
+          "highWaterKiB": 4785348,
+          "majorFaults": 4928,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 22.92,
+          "readBytes": 8303169536,
+          "rssKiB": 4194804,
+          "swapKiB": 56680,
+          "highWaterKiB": 4785348,
+          "majorFaults": 5139,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 25.18,
+          "readBytes": 8691490816,
+          "rssKiB": 4157672,
+          "swapKiB": 56680,
+          "highWaterKiB": 4785348,
+          "majorFaults": 5701,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 27.42,
+          "readBytes": 9052381184,
+          "rssKiB": 4241276,
+          "swapKiB": 56680,
+          "highWaterKiB": 4785348,
+          "majorFaults": 5925,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 29.67,
+          "readBytes": 9422372864,
+          "rssKiB": 4505576,
+          "swapKiB": 56680,
+          "highWaterKiB": 4785348,
+          "majorFaults": 6157,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 31.92,
+          "readBytes": 9742376960,
+          "rssKiB": 4790776,
+          "swapKiB": 58724,
+          "highWaterKiB": 4790776,
+          "majorFaults": 6483,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 34.14,
+          "readBytes": 10085969920,
+          "rssKiB": 4953644,
+          "swapKiB": 194292,
+          "highWaterKiB": 4953644,
+          "majorFaults": 7742,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 36.36,
+          "readBytes": 10548420608,
+          "rssKiB": 5320476,
+          "swapKiB": 184468,
+          "highWaterKiB": 5320476,
+          "majorFaults": 10792,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 38.65,
+          "readBytes": 10722557952,
+          "rssKiB": 5215488,
+          "swapKiB": 169268,
+          "highWaterKiB": 5363292,
+          "majorFaults": 14881,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 40.89,
+          "readBytes": 10767609856,
+          "rssKiB": 5260556,
+          "swapKiB": 153244,
+          "highWaterKiB": 5363292,
+          "majorFaults": 18997,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 43.14,
+          "readBytes": 10789134336,
+          "rssKiB": 5216716,
+          "swapKiB": 140312,
+          "highWaterKiB": 5363292,
+          "majorFaults": 22417,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 45.4,
+          "readBytes": 10818146304,
+          "rssKiB": 5258928,
+          "swapKiB": 127372,
+          "highWaterKiB": 5363292,
+          "majorFaults": 25851,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 47.65,
+          "readBytes": 10907328512,
+          "rssKiB": 5262648,
+          "swapKiB": 114364,
+          "highWaterKiB": 5363292,
+          "majorFaults": 29298,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 49.88,
+          "readBytes": 10962677760,
+          "rssKiB": 5447856,
+          "swapKiB": 148296,
+          "highWaterKiB": 5463292,
+          "majorFaults": 32025,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 52.23,
+          "readBytes": 10998280192,
+          "rssKiB": 5466280,
+          "swapKiB": 156316,
+          "highWaterKiB": 5545524,
+          "majorFaults": 37491,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 54.49,
+          "readBytes": 11012157440,
+          "rssKiB": 5509920,
+          "swapKiB": 143412,
+          "highWaterKiB": 5545524,
+          "majorFaults": 45456,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 56.75,
+          "readBytes": 11025760256,
+          "rssKiB": 5506416,
+          "swapKiB": 130508,
+          "highWaterKiB": 5545524,
+          "majorFaults": 54121,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 59.01,
+          "readBytes": 11039424512,
+          "rssKiB": 5537032,
+          "swapKiB": 117620,
+          "highWaterKiB": 5545524,
+          "majorFaults": 58369,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 61.29,
+          "readBytes": 11054694400,
+          "rssKiB": 5484384,
+          "swapKiB": 104516,
+          "highWaterKiB": 5551168,
+          "majorFaults": 61776,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 63.55,
+          "readBytes": 11056287744,
+          "rssKiB": 5509340,
+          "swapKiB": 103024,
+          "highWaterKiB": 5551168,
+          "majorFaults": 62514,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        }
+      ],
+      "affinityValidInAllFiveThreadSnapshots": true
+    },
+    {
+      "label": "ptq1-review-tile-a",
+      "arguments": [
+        "/data/local/tmp/pideck-ptq1-review-tile",
+        "-m",
+        "/data/local/tmp/pideck-ptq1-tile-test.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "32",
+        "-n",
+        "0",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "mmap"
+      ],
+      "startedAt": "2026-09-25T04:52:52Z",
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 41400
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 3187200,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.949,
+        "hottestComputeZone": {
+          "zone": "cpu-1-3",
+          "milliCelsius": 58800
+        }
+      },
+      "elapsedSeconds": 42.781,
+      "returnCode": 0,
+      "status": "complete",
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-ptq1-tile-test.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "mmap",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 32,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-25T04:52:56Z",
+          "avg_ns": 18655570358,
+          "stddev_ns": 0,
+          "avg_ts": 1.715305,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            18655570358
+          ],
+          "samples_ts": [
+            1.71531
+          ]
+        }
+      ],
+      "stderr": "llama-bench: benchmark 1/1: starting\nllama-bench: benchmark 1/1: warmup prompt run\naffinity experiment: retries=1 result=0\nllama-bench: benchmark 1/1: prompt run 1/1\n",
+      "samples": [
+        {
+          "elapsedSeconds": 0.25,
+          "readBytes": 7286784,
+          "rssKiB": 12424,
+          "swapKiB": 0,
+          "highWaterKiB": 12424,
+          "majorFaults": 50,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "0-7"
+          ]
+        },
+        {
+          "elapsedSeconds": 2.39,
+          "readBytes": 671428608,
+          "rssKiB": 4331096,
+          "swapKiB": 0,
+          "highWaterKiB": 4465180,
+          "majorFaults": 62,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "0-7"
+          ]
+        },
+        {
+          "elapsedSeconds": 4.52,
+          "readBytes": 838455296,
+          "rssKiB": 5206176,
+          "swapKiB": 0,
+          "highWaterKiB": 5386696,
+          "majorFaults": 248,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 6.76,
+          "readBytes": 990711808,
+          "rssKiB": 5266836,
+          "swapKiB": 0,
+          "highWaterKiB": 5386696,
+          "majorFaults": 964,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 9.01,
+          "readBytes": 1040642048,
+          "rssKiB": 5230148,
+          "swapKiB": 0,
+          "highWaterKiB": 5386696,
+          "majorFaults": 2173,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 11.27,
+          "readBytes": 1053556736,
+          "rssKiB": 5244844,
+          "swapKiB": 0,
+          "highWaterKiB": 5386696,
+          "majorFaults": 2543,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 13.51,
+          "readBytes": 1321795584,
+          "rssKiB": 5234148,
+          "swapKiB": 0,
+          "highWaterKiB": 5386696,
+          "majorFaults": 2879,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 15.78,
+          "readBytes": 1365725184,
+          "rssKiB": 5238744,
+          "swapKiB": 0,
+          "highWaterKiB": 5386696,
+          "majorFaults": 3601,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 18.03,
+          "readBytes": 1458515968,
+          "rssKiB": 5297712,
+          "swapKiB": 0,
+          "highWaterKiB": 5386696,
+          "majorFaults": 4228,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 20.28,
+          "readBytes": 1945038848,
+          "rssKiB": 5529036,
+          "swapKiB": 3820,
+          "highWaterKiB": 5529188,
+          "majorFaults": 4552,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 22.59,
+          "readBytes": 2008207360,
+          "rssKiB": 5739188,
+          "swapKiB": 58940,
+          "highWaterKiB": 5831380,
+          "majorFaults": 5125,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 24.87,
+          "readBytes": 2008207360,
+          "rssKiB": 5673556,
+          "swapKiB": 60212,
+          "highWaterKiB": 5831380,
+          "majorFaults": 5138,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 27.2,
+          "readBytes": 2008264704,
+          "rssKiB": 5647356,
+          "swapKiB": 60212,
+          "highWaterKiB": 5831380,
+          "majorFaults": 5320,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 29.46,
+          "readBytes": 2008272896,
+          "rssKiB": 5660388,
+          "swapKiB": 60212,
+          "highWaterKiB": 5831380,
+          "majorFaults": 5375,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 31.71,
+          "readBytes": 2015739904,
+          "rssKiB": 5578004,
+          "swapKiB": 60212,
+          "highWaterKiB": 5831380,
+          "majorFaults": 7236,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 33.98,
+          "readBytes": 2016559104,
+          "rssKiB": 5597260,
+          "swapKiB": 60232,
+          "highWaterKiB": 5831380,
+          "majorFaults": 9737,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 36.26,
+          "readBytes": 2023849984,
+          "rssKiB": 5397040,
+          "swapKiB": 204264,
+          "highWaterKiB": 5831380,
+          "majorFaults": 11590,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 38.5,
+          "readBytes": 2041372672,
+          "rssKiB": 5507352,
+          "swapKiB": 187836,
+          "highWaterKiB": 5831380,
+          "majorFaults": 16085,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 40.73,
+          "readBytes": 2057695232,
+          "rssKiB": 3349116,
+          "swapKiB": 57276,
+          "highWaterKiB": 5831380,
+          "majorFaults": 20159,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7"
+          ]
+        }
+      ],
+      "affinityValidInAllFiveThreadSnapshots": true
+    },
+    {
+      "label": "ptq1-review-tile-b",
+      "arguments": [
+        "/data/local/tmp/pideck-ptq1-review-tile",
+        "-m",
+        "/data/local/tmp/pideck-ptq1-tile-test.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "32",
+        "-n",
+        "0",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "mmap"
+      ],
+      "startedAt": "2026-09-25T04:54:13Z",
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-3",
+          "milliCelsius": 42600
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2956800,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.88,
+        "hottestComputeZone": {
+          "zone": "cpu-1-5",
+          "milliCelsius": 61900
+        }
+      },
+      "elapsedSeconds": 38.624,
+      "returnCode": 0,
+      "status": "complete",
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-ptq1-tile-test.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "mmap",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 32,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-25T04:54:14Z",
+          "avg_ns": 17490812702,
+          "stddev_ns": 0,
+          "avg_ts": 1.829532,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            17490812702
+          ],
+          "samples_ts": [
+            1.82953
+          ]
+        }
+      ],
+      "stderr": "llama-bench: benchmark 1/1: starting\nllama-bench: benchmark 1/1: warmup prompt run\nllama-bench: benchmark 1/1: prompt run 1/1\n",
+      "samples": [
+        {
+          "elapsedSeconds": 0.25,
+          "readBytes": 5857280,
+          "rssKiB": 13548,
+          "swapKiB": 0,
+          "highWaterKiB": 19636,
+          "majorFaults": 19,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "0-7"
+          ]
+        },
+        {
+          "elapsedSeconds": 2.43,
+          "readBytes": 38633472,
+          "rssKiB": 5479556,
+          "swapKiB": 0,
+          "highWaterKiB": 5694444,
+          "majorFaults": 105,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 4.72,
+          "readBytes": 77287424,
+          "rssKiB": 5525788,
+          "swapKiB": 0,
+          "highWaterKiB": 5694444,
+          "majorFaults": 1052,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 6.97,
+          "readBytes": 139890688,
+          "rssKiB": 5593940,
+          "swapKiB": 0,
+          "highWaterKiB": 5694444,
+          "majorFaults": 2803,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 9.22,
+          "readBytes": 167616512,
+          "rssKiB": 5577020,
+          "swapKiB": 0,
+          "highWaterKiB": 5694444,
+          "majorFaults": 3481,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 11.51,
+          "readBytes": 168341504,
+          "rssKiB": 5531104,
+          "swapKiB": 0,
+          "highWaterKiB": 5694444,
+          "majorFaults": 3769,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 13.78,
+          "readBytes": 169213952,
+          "rssKiB": 5592960,
+          "swapKiB": 0,
+          "highWaterKiB": 5694444,
+          "majorFaults": 4048,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 16.03,
+          "readBytes": 169742336,
+          "rssKiB": 5503080,
+          "swapKiB": 0,
+          "highWaterKiB": 5694444,
+          "majorFaults": 4324,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 18.3,
+          "readBytes": 340717568,
+          "rssKiB": 5680356,
+          "swapKiB": 183328,
+          "highWaterKiB": 5694444,
+          "majorFaults": 5609,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 20.56,
+          "readBytes": 428822528,
+          "rssKiB": 5616456,
+          "swapKiB": 165076,
+          "highWaterKiB": 5816736,
+          "majorFaults": 11248,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 22.81,
+          "readBytes": 448765952,
+          "rssKiB": 5654212,
+          "swapKiB": 145860,
+          "highWaterKiB": 5816736,
+          "majorFaults": 16118,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 25.09,
+          "readBytes": 471801856,
+          "rssKiB": 5678136,
+          "swapKiB": 123420,
+          "highWaterKiB": 5816736,
+          "majorFaults": 21742,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 27.35,
+          "readBytes": 491700224,
+          "rssKiB": 5697980,
+          "swapKiB": 103884,
+          "highWaterKiB": 5816736,
+          "majorFaults": 26608,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 29.62,
+          "readBytes": 498380800,
+          "rssKiB": 5704452,
+          "swapKiB": 97412,
+          "highWaterKiB": 5816736,
+          "majorFaults": 28251,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 31.86,
+          "readBytes": 498380800,
+          "rssKiB": 5704308,
+          "swapKiB": 97412,
+          "highWaterKiB": 5816736,
+          "majorFaults": 28251,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 34.18,
+          "readBytes": 508456960,
+          "rssKiB": 5690556,
+          "swapKiB": 111112,
+          "highWaterKiB": 5816736,
+          "majorFaults": 30711,
+          "bigCoreScalingMaxKHz": 2956800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 36.45,
+          "readBytes": 511414272,
+          "rssKiB": 5693508,
+          "swapKiB": 108160,
+          "highWaterKiB": 5816736,
+          "majorFaults": 31445,
+          "bigCoreScalingMaxKHz": 2956800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        }
+      ],
+      "affinityValidInAllFiveThreadSnapshots": true
+    },
+    {
+      "label": "ptq1-review-base-b",
+      "arguments": [
+        "/data/local/tmp/pideck-ptq1-review-base",
+        "-m",
+        "/data/local/tmp/pideck-ptq1-tile-test.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "32",
+        "-n",
+        "0",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "mmap"
+      ],
+      "startedAt": "2026-09-25T04:55:29Z",
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-3",
+          "milliCelsius": 42600
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2476800,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.737,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 59600
+        }
+      },
+      "elapsedSeconds": 56.924,
+      "returnCode": 0,
+      "status": "complete",
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-ptq1-tile-test.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "mmap",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 32,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-25T04:55:31Z",
+          "avg_ns": 26654878688,
+          "stddev_ns": 0,
+          "avg_ts": 1.200531,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            26654878688
+          ],
+          "samples_ts": [
+            1.20053
+          ]
+        }
+      ],
+      "stderr": "llama-bench: benchmark 1/1: starting\nllama-bench: benchmark 1/1: warmup prompt run\naffinity experiment: retries=1 result=0\nllama-bench: benchmark 1/1: prompt run 1/1\n",
+      "samples": [
+        {
+          "elapsedSeconds": 0.21,
+          "readBytes": 2572288,
+          "rssKiB": 4856,
+          "swapKiB": 0,
+          "highWaterKiB": 4856,
+          "majorFaults": 43,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "0-7"
+          ]
+        },
+        {
+          "elapsedSeconds": 2.37,
+          "readBytes": 72216576,
+          "rssKiB": 5638816,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 171,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 4.61,
+          "readBytes": 72306688,
+          "rssKiB": 5640332,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 186,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 6.86,
+          "readBytes": 72306688,
+          "rssKiB": 5618536,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 186,
+          "bigCoreScalingMaxKHz": 3360000,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 9.21,
+          "readBytes": 72384512,
+          "rssKiB": 5199744,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 258,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 11.5,
+          "readBytes": 79785984,
+          "rssKiB": 5017680,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 340,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 13.81,
+          "readBytes": 177111040,
+          "rssKiB": 4955856,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 497,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 16.08,
+          "readBytes": 529551360,
+          "rssKiB": 4987576,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 1383,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 18.33,
+          "readBytes": 629673984,
+          "rssKiB": 4940420,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 1568,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 20.56,
+          "readBytes": 895221760,
+          "rssKiB": 4949676,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 1921,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 22.8,
+          "readBytes": 1056870400,
+          "rssKiB": 4934068,
+          "swapKiB": 0,
+          "highWaterKiB": 5796852,
+          "majorFaults": 2756,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 25.05,
+          "readBytes": 1403228160,
+          "rssKiB": 5074468,
+          "swapKiB": 55704,
+          "highWaterKiB": 5796852,
+          "majorFaults": 3042,
+          "bigCoreScalingMaxKHz": 3187200,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 27.28,
+          "readBytes": 1747931136,
+          "rssKiB": 5255992,
+          "swapKiB": 71560,
+          "highWaterKiB": 5796852,
+          "majorFaults": 3997,
+          "bigCoreScalingMaxKHz": 2956800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 29.52,
+          "readBytes": 2084110336,
+          "rssKiB": 5541324,
+          "swapKiB": 71360,
+          "highWaterKiB": 5796852,
+          "majorFaults": 6854,
+          "bigCoreScalingMaxKHz": 2956800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 31.79,
+          "readBytes": 2084593664,
+          "rssKiB": 5656288,
+          "swapKiB": 71360,
+          "highWaterKiB": 5796852,
+          "majorFaults": 6960,
+          "bigCoreScalingMaxKHz": 2956800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 34.06,
+          "readBytes": 2084704256,
+          "rssKiB": 5647416,
+          "swapKiB": 71360,
+          "highWaterKiB": 5796852,
+          "majorFaults": 7104,
+          "bigCoreScalingMaxKHz": 2956800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 36.34,
+          "readBytes": 2087071744,
+          "rssKiB": 5644832,
+          "swapKiB": 69312,
+          "highWaterKiB": 5796852,
+          "majorFaults": 7799,
+          "bigCoreScalingMaxKHz": 2956800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 38.63,
+          "readBytes": 2091253760,
+          "rssKiB": 5594176,
+          "swapKiB": 65676,
+          "highWaterKiB": 5796852,
+          "majorFaults": 8911,
+          "bigCoreScalingMaxKHz": 2726400,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 40.91,
+          "readBytes": 2092331008,
+          "rssKiB": 5681412,
+          "swapKiB": 67440,
+          "highWaterKiB": 5796852,
+          "majorFaults": 9267,
+          "bigCoreScalingMaxKHz": 2726400,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 43.28,
+          "readBytes": 2092359680,
+          "rssKiB": 5669192,
+          "swapKiB": 67580,
+          "highWaterKiB": 5796852,
+          "majorFaults": 9550,
+          "bigCoreScalingMaxKHz": 2726400,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 45.54,
+          "readBytes": 2092384256,
+          "rssKiB": 5672760,
+          "swapKiB": 67580,
+          "highWaterKiB": 5796852,
+          "majorFaults": 9569,
+          "bigCoreScalingMaxKHz": 2726400,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 47.85,
+          "readBytes": 2093019136,
+          "rssKiB": 5688612,
+          "swapKiB": 67084,
+          "highWaterKiB": 5796852,
+          "majorFaults": 9733,
+          "bigCoreScalingMaxKHz": 2476800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 50.17,
+          "readBytes": 2106490880,
+          "rssKiB": 5667608,
+          "swapKiB": 125116,
+          "highWaterKiB": 5796852,
+          "majorFaults": 13077,
+          "bigCoreScalingMaxKHz": 2476800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 52.47,
+          "readBytes": 2119667712,
+          "rssKiB": 5686708,
+          "swapKiB": 113596,
+          "highWaterKiB": 5796852,
+          "majorFaults": 16295,
+          "bigCoreScalingMaxKHz": 2476800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "elapsedSeconds": 54.77,
+          "readBytes": 2136150016,
+          "rssKiB": 5702732,
+          "swapKiB": 97572,
+          "highWaterKiB": 5796852,
+          "majorFaults": 20319,
+          "bigCoreScalingMaxKHz": 2476800,
+          "threadCpuMasks": [
+            "7",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        }
+      ],
+      "affinityValidInAllFiveThreadSnapshots": true
+    }
+  ],
+  "status": "complete",
+  "comparison": {
+    "firstPairSpeedup": 1.4572605823758045,
+    "reversePairSpeedup": 1.5239356584711266
+  },
+  "interpretation": "The tiled candidate was 1.46x and 1.52x faster for 32-token prefill in forward and reverse pairs with correct observed affinity in both builds. However, it also read fewer bytes from storage in both pairs, and thermal frequency limits varied. The advantage repeated in these standalone runs; these ratios do not isolate compute speedup or establish APK performance. Decode was not measured.",
+  "deviceAfter": {
+    "stayOnWhilePluggedIn": 2,
+    "foreground": "Lawnchair launcher",
+    "benchmarkProcessesRunning": false,
+    "temporaryModelAndExecutables": "Retained for follow-up experiments",
+    "apkReinstalled": false
+  },
+  "validation": {
+    "pythonToolsTests": 58,
+    "pythonRuntimeTests": 129,
+    "gradleTasks": [
+      "testDebugUnitTest",
+      "verifyNativeRuntime",
+      "verifyModelManifest"
+    ],
+    "gradleStatus": "BUILD SUCCESSFUL",
+    "javaUnitTestResult": "186 tests, 0 failures, 0 errors; Gradle UP-TO-DATE"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "device": "Samsung SM-S918B / Snapdragon 8 Gen 2 / Android 16",
+  "date": "2026-09-24",
+  "sourceModelSha256": "53107f530aa52eb00912263ab1ee29bd199261c87cd7b4ad4ca1318c1fe33ee3",
+  "mixedModelSha256": "1c86affab35cdfe4daf13ca2aa7ea7da5b7e4a62fec2eea7915cbebf21233290",
+  "sourceBytes": 5946648928,
+  "mixedBytes": 6214035808,
+  "selection": "64 blk.*.ffn_down.weight tensors, 5704253440 of 26869760000 ternary weights (21.23%)",
+  "conversion": "lossless PTQ1_0 to PQ2_0 weight and FP16 scale repack; every selected trit checked",
+  "repackSource": "benchmarks/out/bonsai2-pq2-repack-2026-09-24.cpp",
+  "headerSource": "benchmarks/out/bonsai2-mixed-ffn-down-2026-09-24.py",
+  "runtimeSha256": "e67ef9781cfacefee972f64fb8082e74a9f97a3149c1188eba1f8a617fe86be0",
+  "runtime": "Prism 842b188 + ARM PQ2 Q8_0 dispatch + affinity retry, same binary for both models",
+  "benchArguments": "-t 4 -C 78 --cpu-strict 1 --poll 50 -b 256 -ub 4 -r 1 -o jsonl -dev none -ngl 0 -nopo 1 -nkvo 1 -fa off -lm auto",
+  "shortRuns": [
+    {"model": "PTQ1", "order": 1, "p": 16, "n": 32, "prefillTokensPerSecond": 0.972165, "decodeTokensPerSecond": 0.878989, "log": "build/device-bonsai/hypotheses/mixed-ptq-a.log"},
+    {"model": "mixed", "order": 2, "p": 16, "n": 32, "prefillTokensPerSecond": 1.184822, "decodeTokensPerSecond": 0.942349, "log": "build/device-bonsai/hypotheses/mixed-candidate-a.log"},
+    {"model": "mixed", "order": 3, "p": 16, "n": 32, "prefillTokensPerSecond": 1.075102, "decodeTokensPerSecond": 0.863524, "log": "build/device-bonsai/hypotheses/mixed-candidate-b.log"},
+    {"model": "PTQ1", "order": 4, "p": 16, "n": 32, "prefillTokensPerSecond": 0.856287, "decodeTokensPerSecond": 0.661372, "log": "build/device-bonsai/hypotheses/mixed-ptq-b.log"}
+  ],
+  "longRuns": [
+    {"model": "PTQ1", "order": 1, "p": 16, "n": 64, "prefillTokensPerSecond": 0.867234, "decodeTokensPerSecond": 0.514248, "log": "build/device-bonsai/hypotheses/mixed-ptq-long.log", "initialApCelsius": 43.7, "initialSkinCelsius": 38.9},
+    {"model": "mixed", "order": 2, "p": 16, "n": 64, "prefillTokensPerSecond": 0.800104, "decodeTokensPerSecond": 0.492524, "log": "build/device-bonsai/hypotheses/mixed-candidate-long.log", "initialApCelsius": 45.6, "initialSkinCelsius": 39.9}
+  ],
+  "observedMemory": {
+    "mixedShortRunBVmHwmKiB": 6177084,
+    "mixedShortRunBVmSwapKiB": 57780,
+    "ptqShortRunBVmHwmKiB": 6082732,
+    "ptqShortRunBVmSwapKiB": 0,
+    "mixedLongRunVmHwmKiB": 6224276,
+    "mixedLongRunSwapSnapshotKiB": 65376,
+    "mixedLongRunReadBytesSnapshots": [6363815936, 6364106752],
+    "ptqLongRunVmHwmKiB": 6082716,
+    "ptqLongRunSwapSnapshotKiB": 0,
+    "ptqLongRunReadBytesSnapshot": 5977645056
+  },
+  "smoke": {"chatTemplateEnableThinking": false, "expected": "BONSAI_OK", "actual": "BONSAI_OK", "finishReason": "stop", "response": "build/device-bonsai/hypotheses/mixed-smoke-response-nothink.json"},
+  "verdict": "Short samples favor mixed weights; longer generation did not reproduce the speed advantage under thermal throttling. Keep PTQ1 in the release APK."
+}

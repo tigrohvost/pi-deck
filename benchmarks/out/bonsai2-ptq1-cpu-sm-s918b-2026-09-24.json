@@ -1,0 +1,5217 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-24",
+  "device": {
+    "model": "SM-S918B",
+    "soc": "Snapdragon 8 Gen 2",
+    "android": 16,
+    "memTotalKiB": 11309740,
+    "nominalCpu7MaxKHz": 3360000
+  },
+  "model": {
+    "filename": "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+    "bytes": 5946648928,
+    "sha256": "53107f530aa52eb00912263ab1ee29bd199261c87cd7b4ad4ca1318c1fe33ee3"
+  },
+  "builds": {
+    "baseCommit": "842b1880415d6f508f03b789e5ce70194def7bfd",
+    "patchPR": "https://github.com/PrismML-Eng/llama.cpp/pull/249",
+    "patchHead": "6d1d921ddd97e715a98d499738e967e8ff85215e",
+    "patchSha256": "d086c5b111bd39be27994a26182974b03bbd04ba0e25d3a0925524e3bb51bf4e",
+    "artifacts": {
+      "pideck-bonsai2-bench-base": {
+        "bytes": 5080600,
+        "sha256": "e5ae40d0c1f1d6c76bd7427a6d6b024e06002d2d1caf2160cf87e73dd7e44472"
+      },
+      "pideck-bonsai2-bench-pr249": {
+        "bytes": 5080568,
+        "sha256": "99f61d02a82d1fc6e48149859591c28cc90db8721aa69f7a38a751b87353a01a"
+      },
+      "pideck-bonsai2-server-pr249": {
+        "bytes": 10075064,
+        "sha256": "fb086ca887314247e6f74e9e53b09d7180abbd332c0a944b4eb23fd16c62f0ce"
+      },
+      "pideck-bonsai2-bench-retry": {
+        "bytes": 5080352,
+        "sha256": "5f77e41e31c873e86d21d6edd32afd3a782828c717d105fd1cc2a6866ab9cc03",
+        "patches": [
+          "affinityRetryPatch"
+        ]
+      },
+      "pideck-bonsai2-bench-retry-pr249": {
+        "bytes": 5080320,
+        "sha256": "4741c7dca17c2ef96c58afba0b9fd14c82ff34a8ed4be396aa283f6fbda417c4",
+        "patches": [
+          "affinityRetryPatch",
+          "patchPR"
+        ]
+      }
+    },
+    "affinityRetryPatch": {
+      "path": "benchmarks/out/bonsai2-affinity-retry-2026-09-24.patch",
+      "sha256": "fd44cf779efc3a99586ca0d554d4e44ff4f438d4eead714ae67ea0ffe490167d",
+      "scope": "Experimental startup-only retry of sched_setaffinity EINVAL, up to 20 attempts 10ms apart; not shipped in APK."
+    },
+    "toolchain": {
+      "ndk": "28.2.13676358",
+      "cmake": "3.22.1",
+      "target": "arm64-v8a",
+      "march": "armv8.2-a+dotprod+fp16",
+      "optimization": "O3",
+      "openmp": false,
+      "vulkan": false,
+      "opencl": false
+    },
+    "packagedRuntimeSha256": "4f318551fb2ba961a0c2a263d40754fd47f63b232e8cf614fdcf9fa08b8c19c0",
+    "sourceRestoredAfterExperiments": true
+  },
+  "method": {
+    "tool": "Prism llama-bench, CPU only, shell UID 2000",
+    "warmup": "Default llama-bench warmup retained: full prompt or one generated token.",
+    "cooldown": "Before each case: CPU7 scaling cap >=98% nominal; hottest compute zone <=47 C (first cases <=44 C).",
+    "cache": "Kernel file cache was neither dropped nor locked. read_bytes and faults quantify differing residency.",
+    "sampling": "Procfs snapshots every approximately 10 s; thermal state immediately before and after.",
+    "affinity": "strict=1 pins individual threads; strict=0 gives each thread the common selected CPU mask.",
+    "screen": "Awake during benchmarks; original stay_on_while_plugged_in restored after each run.",
+    "charging": "Phone remained connected to power; active cooling not used.",
+    "userIdle": "Runs from internal-base-t4-relaxed-tg64 onward followed the user confirmation to leave the phone idle.",
+    "app": "PI DECK native model server stopped; installed release APK/runtime unchanged.",
+    "limits": [
+      "Synthetic short-context runs, not application TTFT or answer quality.",
+      "Each row is one timed sample, unless samples_ts explicitly contains more.",
+      "Cooling threshold does not equalize stored device heat; all long cases throttled.",
+      "No isolated speedup can be derived from cases with different cache pressure.",
+      "PR249 binary retains baseline build string; artifact SHA identifies the patch."
+    ]
+  },
+  "cases": [
+    {
+      "label": "baseline-t5-p32-n32",
+      "startedAt": "2026-09-24T07:45:10Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench",
+        "-m",
+        "/sdcard/Download/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "-p",
+        "32",
+        "-n",
+        "32",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 131.844,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/sdcard/Download/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 32,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-24T07:45:15Z",
+          "avg_ns": 39823839152,
+          "stddev_ns": 0,
+          "avg_ts": 0.803539,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            39823839152
+          ],
+          "samples_ts": [
+            0.803539
+          ]
+        },
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/sdcard/Download/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 32,
+          "n_depth": 0,
+          "test_time": "2026-09-24T07:46:42Z",
+          "avg_ns": 30804143946,
+          "stddev_ns": 0,
+          "avg_ts": 1.038821,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            30804143946
+          ],
+          "samples_ts": [
+            1.03882
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-1",
+          "milliCelsius": 41000
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 2227200,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.663,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 50900
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.25,
+          "rssKiB": 13584,
+          "rssHighWaterKiB": 19672,
+          "swapKiB": 0,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 4998,
+          "majorFaults": 0,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.42,
+          "rssKiB": 5857136,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 564,
+          "mainThreadCpus": "7",
+          "minorFaults": 316750,
+          "majorFaults": 94,
+          "memoryPsiSomeAvg10Percent": 10.52,
+          "memoryPsiFullAvg10Percent": 9.76,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 20.53,
+          "rssKiB": 5283332,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 10776,
+          "mainThreadCpus": "7",
+          "minorFaults": 336701,
+          "majorFaults": 6368,
+          "memoryPsiSomeAvg10Percent": 8.17,
+          "memoryPsiFullAvg10Percent": 6.15,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 30.62,
+          "rssKiB": 4649668,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 57200,
+          "mainThreadCpus": "7",
+          "minorFaults": 368649,
+          "majorFaults": 17108,
+          "memoryPsiSomeAvg10Percent": 7.06,
+          "memoryPsiFullAvg10Percent": 4.92,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 40.74,
+          "rssKiB": 4457300,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 57200,
+          "mainThreadCpus": "7",
+          "minorFaults": 401324,
+          "majorFaults": 38263,
+          "memoryPsiSomeAvg10Percent": 7.15,
+          "memoryPsiFullAvg10Percent": 4.67,
+          "cpu7ScalingMaxKHz": 2726400
+        },
+        {
+          "elapsedSeconds": 50.84,
+          "rssKiB": 4953900,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 67044,
+          "mainThreadCpus": "7",
+          "minorFaults": 434498,
+          "majorFaults": 61542,
+          "memoryPsiSomeAvg10Percent": 4.41,
+          "memoryPsiFullAvg10Percent": 2.99,
+          "cpu7ScalingMaxKHz": 2592000
+        },
+        {
+          "elapsedSeconds": 60.96,
+          "rssKiB": 5380172,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 128352,
+          "mainThreadCpus": "7",
+          "minorFaults": 477638,
+          "majorFaults": 90213,
+          "memoryPsiSomeAvg10Percent": 3.53,
+          "memoryPsiFullAvg10Percent": 2.32,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 71.11,
+          "rssKiB": 5637016,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 99080,
+          "mainThreadCpus": "7",
+          "minorFaults": 514092,
+          "majorFaults": 106444,
+          "memoryPsiSomeAvg10Percent": 6.26,
+          "memoryPsiFullAvg10Percent": 3.49,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 81.26,
+          "rssKiB": 5719232,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 82880,
+          "mainThreadCpus": "7",
+          "minorFaults": 521076,
+          "majorFaults": 119833,
+          "memoryPsiSomeAvg10Percent": 2.79,
+          "memoryPsiFullAvg10Percent": 1.52,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 91.41,
+          "rssKiB": 5316580,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 111216,
+          "mainThreadCpus": "7",
+          "minorFaults": 526560,
+          "majorFaults": 125078,
+          "memoryPsiSomeAvg10Percent": 5.79,
+          "memoryPsiFullAvg10Percent": 3.31,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 101.55,
+          "rssKiB": 5736408,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 60892,
+          "mainThreadCpus": "7",
+          "minorFaults": 611518,
+          "majorFaults": 168728,
+          "memoryPsiSomeAvg10Percent": 4.47,
+          "memoryPsiFullAvg10Percent": 3.45,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 111.69,
+          "rssKiB": 5736848,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 60888,
+          "mainThreadCpus": "7",
+          "minorFaults": 611518,
+          "majorFaults": 168740,
+          "memoryPsiSomeAvg10Percent": 1.64,
+          "memoryPsiFullAvg10Percent": 1.27,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 121.83,
+          "rssKiB": 5736848,
+          "rssHighWaterKiB": 5986904,
+          "swapKiB": 60888,
+          "mainThreadCpus": "7",
+          "minorFaults": 611518,
+          "majorFaults": 168750,
+          "memoryPsiSomeAvg10Percent": 0.6,
+          "memoryPsiFullAvg10Percent": 0.46,
+          "cpu7ScalingMaxKHz": 2227200
+        }
+      ],
+      "threadAffinity": [],
+      "affinityDiagnostics": [
+        "warn: failed to set affinity mask 0xb4000079e581926d : Invalid argument (22)"
+      ],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "relaxed-t5-p32-n32",
+      "startedAt": "2026-09-24T07:48:42Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench",
+        "-m",
+        "/sdcard/Download/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "0",
+        "--poll",
+        "50",
+        "-p",
+        "32",
+        "-n",
+        "32",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 152.272,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/sdcard/Download/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 32,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-24T07:48:45Z",
+          "avg_ns": 54331033416,
+          "stddev_ns": 0,
+          "avg_ts": 0.588982,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            54331033416
+          ],
+          "samples_ts": [
+            0.588982
+          ]
+        },
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/sdcard/Download/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 32,
+          "n_depth": 0,
+          "test_time": "2026-09-24T07:50:14Z",
+          "avg_ns": 49212004148,
+          "stddev_ns": 0,
+          "avg_ts": 0.650248,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            49212004148
+          ],
+          "samples_ts": [
+            0.650248
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-4",
+          "milliCelsius": 44600
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 2092800,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.623,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 48900
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.25,
+          "rssKiB": 5496,
+          "rssHighWaterKiB": 5496,
+          "swapKiB": 0,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 1272,
+          "majorFaults": 10,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.37,
+          "rssKiB": 5780568,
+          "rssHighWaterKiB": 5915840,
+          "swapKiB": 0,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 273530,
+          "majorFaults": 303,
+          "memoryPsiSomeAvg10Percent": 1.85,
+          "memoryPsiFullAvg10Percent": 1.55,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 20.54,
+          "rssKiB": 5669988,
+          "rssHighWaterKiB": 5915840,
+          "swapKiB": 0,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308668,
+          "majorFaults": 12492,
+          "memoryPsiSomeAvg10Percent": 3.28,
+          "memoryPsiFullAvg10Percent": 2.39,
+          "cpu7ScalingMaxKHz": 3187200
+        },
+        {
+          "elapsedSeconds": 30.78,
+          "rssKiB": 5741768,
+          "rssHighWaterKiB": 5915840,
+          "swapKiB": 0,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 338595,
+          "majorFaults": 22572,
+          "memoryPsiSomeAvg10Percent": 3.43,
+          "memoryPsiFullAvg10Percent": 2.62,
+          "cpu7ScalingMaxKHz": 2841600
+        },
+        {
+          "elapsedSeconds": 40.9,
+          "rssKiB": 5870032,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 122568,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 352857,
+          "majorFaults": 36279,
+          "memoryPsiSomeAvg10Percent": 2.42,
+          "memoryPsiFullAvg10Percent": 1.94,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 51.0,
+          "rssKiB": 5890144,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 103184,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 357645,
+          "majorFaults": 41169,
+          "memoryPsiSomeAvg10Percent": 0.89,
+          "memoryPsiFullAvg10Percent": 0.71,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 61.1,
+          "rssKiB": 5838476,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 96840,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 359240,
+          "majorFaults": 42764,
+          "memoryPsiSomeAvg10Percent": 0.32,
+          "memoryPsiFullAvg10Percent": 0.26,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 71.27,
+          "rssKiB": 5595536,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 205684,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 361632,
+          "majorFaults": 45283,
+          "memoryPsiSomeAvg10Percent": 2.26,
+          "memoryPsiFullAvg10Percent": 1.91,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 81.39,
+          "rssKiB": 5555668,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 166212,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 374058,
+          "majorFaults": 57187,
+          "memoryPsiSomeAvg10Percent": 1.29,
+          "memoryPsiFullAvg10Percent": 0.99,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 91.52,
+          "rssKiB": 5670740,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 126524,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 385933,
+          "majorFaults": 68791,
+          "memoryPsiSomeAvg10Percent": 0.47,
+          "memoryPsiFullAvg10Percent": 0.36,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 101.66,
+          "rssKiB": 5736016,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 60780,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 437540,
+          "majorFaults": 69393,
+          "memoryPsiSomeAvg10Percent": 0.17,
+          "memoryPsiFullAvg10Percent": 0.13,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 111.83,
+          "rssKiB": 5736164,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 60784,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 437540,
+          "majorFaults": 69403,
+          "memoryPsiSomeAvg10Percent": 0.42,
+          "memoryPsiFullAvg10Percent": 0.41,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 122.04,
+          "rssKiB": 5733988,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 62220,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 437625,
+          "majorFaults": 69511,
+          "memoryPsiSomeAvg10Percent": 4.39,
+          "memoryPsiFullAvg10Percent": 3.92,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 132.19,
+          "rssKiB": 5601392,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 134760,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 470973,
+          "majorFaults": 103322,
+          "memoryPsiSomeAvg10Percent": 3.82,
+          "memoryPsiFullAvg10Percent": 3.23,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 142.27,
+          "rssKiB": 4720,
+          "rssHighWaterKiB": 5940544,
+          "swapKiB": 3376,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 485009,
+          "majorFaults": 128937,
+          "memoryPsiSomeAvg10Percent": 2.29,
+          "memoryPsiFullAvg10Percent": 1.77,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 4347,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 4355,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 4357,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 4362,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 4363,
+          "cpus": "3-7"
+        }
+      ],
+      "affinityDiagnostics": [],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "strict-t4-p32-n32",
+      "startedAt": "2026-09-24T07:52:15Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench",
+        "-m",
+        "/sdcard/Download/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+        "-t",
+        "4",
+        "-C",
+        "f0",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "32",
+        "-n",
+        "32",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 101.385,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/sdcard/Download/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 4,
+          "cpu_mask": "f0",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 32,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-24T07:52:16Z",
+          "avg_ns": 30057195249,
+          "stddev_ns": 0,
+          "avg_ts": 1.064637,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            30057195249
+          ],
+          "samples_ts": [
+            1.06464
+          ]
+        },
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/sdcard/Download/Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 4,
+          "cpu_mask": "f0",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 32,
+          "n_depth": 0,
+          "test_time": "2026-09-24T07:53:16Z",
+          "avg_ns": 38151850871,
+          "stddev_ns": 0,
+          "avg_ts": 0.838754,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            38151850871
+          ],
+          "samples_ts": [
+            0.838754
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-3",
+          "milliCelsius": 44900
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 58800
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.26,
+          "rssKiB": 13460,
+          "rssHighWaterKiB": 19548,
+          "swapKiB": 0,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 4987,
+          "majorFaults": 25,
+          "memoryPsiSomeAvg10Percent": 0.01,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.39,
+          "rssKiB": 5852524,
+          "rssHighWaterKiB": 5888288,
+          "swapKiB": 0,
+          "mainThreadCpus": "7",
+          "minorFaults": 286026,
+          "majorFaults": 4876,
+          "memoryPsiSomeAvg10Percent": 0.85,
+          "memoryPsiFullAvg10Percent": 0.85,
+          "cpu7ScalingMaxKHz": 3187200
+        },
+        {
+          "elapsedSeconds": 20.51,
+          "rssKiB": 5755684,
+          "rssHighWaterKiB": 5913472,
+          "swapKiB": 0,
+          "mainThreadCpus": "7",
+          "minorFaults": 294585,
+          "majorFaults": 8544,
+          "memoryPsiSomeAvg10Percent": 1.63,
+          "memoryPsiFullAvg10Percent": 1.44,
+          "cpu7ScalingMaxKHz": 3187200
+        },
+        {
+          "elapsedSeconds": 30.74,
+          "rssKiB": 6008196,
+          "rssHighWaterKiB": 6008196,
+          "swapKiB": 51760,
+          "mainThreadCpus": "7",
+          "minorFaults": 304153,
+          "majorFaults": 14038,
+          "memoryPsiSomeAvg10Percent": 2.15,
+          "memoryPsiFullAvg10Percent": 2.07,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 40.85,
+          "rssKiB": 6017596,
+          "rssHighWaterKiB": 6017596,
+          "swapKiB": 51760,
+          "mainThreadCpus": "7",
+          "minorFaults": 304700,
+          "majorFaults": 14494,
+          "memoryPsiSomeAvg10Percent": 0.79,
+          "memoryPsiFullAvg10Percent": 0.76,
+          "cpu7ScalingMaxKHz": 2841600
+        },
+        {
+          "elapsedSeconds": 50.95,
+          "rssKiB": 6014984,
+          "rssHighWaterKiB": 6021932,
+          "swapKiB": 55552,
+          "mainThreadCpus": "7",
+          "minorFaults": 304925,
+          "majorFaults": 14729,
+          "memoryPsiSomeAvg10Percent": 1.6,
+          "memoryPsiFullAvg10Percent": 1.12,
+          "cpu7ScalingMaxKHz": 2726400
+        },
+        {
+          "elapsedSeconds": 61.08,
+          "rssKiB": 5963540,
+          "rssHighWaterKiB": 6021932,
+          "swapKiB": 55492,
+          "mainThreadCpus": "7",
+          "minorFaults": 356265,
+          "majorFaults": 14970,
+          "memoryPsiSomeAvg10Percent": 0.77,
+          "memoryPsiFullAvg10Percent": 0.59,
+          "cpu7ScalingMaxKHz": 2592000
+        },
+        {
+          "elapsedSeconds": 71.17,
+          "rssKiB": 5799636,
+          "rssHighWaterKiB": 6021932,
+          "swapKiB": 55492,
+          "mainThreadCpus": "7",
+          "minorFaults": 356517,
+          "majorFaults": 14977,
+          "memoryPsiSomeAvg10Percent": 0.28,
+          "memoryPsiFullAvg10Percent": 0.21,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 81.27,
+          "rssKiB": 5799720,
+          "rssHighWaterKiB": 6021932,
+          "swapKiB": 55492,
+          "mainThreadCpus": "7",
+          "minorFaults": 356517,
+          "majorFaults": 14982,
+          "memoryPsiSomeAvg10Percent": 0.1,
+          "memoryPsiFullAvg10Percent": 0.07,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 91.38,
+          "rssKiB": 5799720,
+          "rssHighWaterKiB": 6021932,
+          "swapKiB": 55492,
+          "mainThreadCpus": "7",
+          "minorFaults": 356517,
+          "majorFaults": 14989,
+          "memoryPsiSomeAvg10Percent": 0.03,
+          "memoryPsiFullAvg10Percent": 0.02,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 9034,
+          "cpus": "7"
+        },
+        {
+          "tid": 9045,
+          "cpus": "4"
+        },
+        {
+          "tid": 9047,
+          "cpus": "5"
+        },
+        {
+          "tid": 9048,
+          "cpus": "6"
+        }
+      ],
+      "affinityDiagnostics": [],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "internal-base-t5-tg64-a",
+      "startedAt": "2026-09-24T07:58:57Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-base",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "0",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 213.2,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 64,
+          "n_depth": 0,
+          "test_time": "2026-09-24T07:59:02Z",
+          "avg_ns": 199720270497,
+          "stddev_ns": 0,
+          "avg_ts": 0.320448,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            199720270497
+          ],
+          "samples_ts": [
+            0.320448
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 43400
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 52900
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.22,
+          "rssKiB": 5124,
+          "rssHighWaterKiB": 5124,
+          "swapKiB": 0,
+          "readBytes": 2543616,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 1134,
+          "majorFaults": 43,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.35,
+          "rssKiB": 6014024,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 56620,
+          "readBytes": 5981556736,
+          "mainThreadCpus": "7",
+          "minorFaults": 269583,
+          "majorFaults": 3454,
+          "memoryPsiSomeAvg10Percent": 10.06,
+          "memoryPsiFullAvg10Percent": 9.96,
+          "cpu7ScalingMaxKHz": 3187200
+        },
+        {
+          "elapsedSeconds": 20.47,
+          "rssKiB": 6014024,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 56620,
+          "readBytes": 5981556736,
+          "mainThreadCpus": "7",
+          "minorFaults": 269583,
+          "majorFaults": 3454,
+          "memoryPsiSomeAvg10Percent": 3.78,
+          "memoryPsiFullAvg10Percent": 3.66,
+          "cpu7ScalingMaxKHz": 2726400
+        },
+        {
+          "elapsedSeconds": 30.74,
+          "rssKiB": 6014024,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 56620,
+          "readBytes": 5981556736,
+          "mainThreadCpus": "7",
+          "minorFaults": 269583,
+          "majorFaults": 3454,
+          "memoryPsiSomeAvg10Percent": 1.14,
+          "memoryPsiFullAvg10Percent": 1.1,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 40.9,
+          "rssKiB": 5164720,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 72800,
+          "readBytes": 6285549568,
+          "mainThreadCpus": "7",
+          "minorFaults": 301862,
+          "majorFaults": 4677,
+          "memoryPsiSomeAvg10Percent": 9.85,
+          "memoryPsiFullAvg10Percent": 5.49,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 51.01,
+          "rssKiB": 4317968,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 186140,
+          "readBytes": 8321847296,
+          "mainThreadCpus": "7",
+          "minorFaults": 378083,
+          "majorFaults": 9362,
+          "memoryPsiSomeAvg10Percent": 9.58,
+          "memoryPsiFullAvg10Percent": 5.16,
+          "cpu7ScalingMaxKHz": 2592000
+        },
+        {
+          "elapsedSeconds": 61.16,
+          "rssKiB": 5432952,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 176076,
+          "readBytes": 10034401280,
+          "mainThreadCpus": "7",
+          "minorFaults": 448289,
+          "majorFaults": 30966,
+          "memoryPsiSomeAvg10Percent": 7.95,
+          "memoryPsiFullAvg10Percent": 5.86,
+          "cpu7ScalingMaxKHz": 2476800
+        },
+        {
+          "elapsedSeconds": 71.32,
+          "rssKiB": 5632116,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 126216,
+          "readBytes": 10198401024,
+          "mainThreadCpus": "7",
+          "minorFaults": 477769,
+          "majorFaults": 50819,
+          "memoryPsiSomeAvg10Percent": 3.97,
+          "memoryPsiFullAvg10Percent": 3.2,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 81.51,
+          "rssKiB": 5687976,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 99560,
+          "readBytes": 10227064832,
+          "mainThreadCpus": "7",
+          "minorFaults": 485457,
+          "majorFaults": 58551,
+          "memoryPsiSomeAvg10Percent": 1.87,
+          "memoryPsiFullAvg10Percent": 1.26,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 91.67,
+          "rssKiB": 4957428,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 101536,
+          "readBytes": 11300171776,
+          "mainThreadCpus": "7",
+          "minorFaults": 532358,
+          "majorFaults": 60554,
+          "memoryPsiSomeAvg10Percent": 7.24,
+          "memoryPsiFullAvg10Percent": 4.32,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 101.79,
+          "rssKiB": 5158408,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 138196,
+          "readBytes": 13618950144,
+          "mainThreadCpus": "7",
+          "minorFaults": 608901,
+          "majorFaults": 65193,
+          "memoryPsiSomeAvg10Percent": 6.94,
+          "memoryPsiFullAvg10Percent": 4.34,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 111.93,
+          "rssKiB": 5461184,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 109744,
+          "readBytes": 14135132160,
+          "mainThreadCpus": "7",
+          "minorFaults": 662625,
+          "majorFaults": 89368,
+          "memoryPsiSomeAvg10Percent": 5.11,
+          "memoryPsiFullAvg10Percent": 3.95,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 122.05,
+          "rssKiB": 5697968,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 99260,
+          "readBytes": 14176710656,
+          "mainThreadCpus": "7",
+          "minorFaults": 679349,
+          "majorFaults": 97236,
+          "memoryPsiSomeAvg10Percent": 3.15,
+          "memoryPsiFullAvg10Percent": 2.46,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 132.15,
+          "rssKiB": 5697888,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 99260,
+          "readBytes": 14176710656,
+          "mainThreadCpus": "7",
+          "minorFaults": 679349,
+          "majorFaults": 97236,
+          "memoryPsiSomeAvg10Percent": 1.52,
+          "memoryPsiFullAvg10Percent": 1.15,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 142.28,
+          "rssKiB": 5697964,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 99284,
+          "readBytes": 14180020224,
+          "mainThreadCpus": "7",
+          "minorFaults": 680145,
+          "majorFaults": 98069,
+          "memoryPsiSomeAvg10Percent": 0.56,
+          "memoryPsiFullAvg10Percent": 0.42,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 152.54,
+          "rssKiB": 4823604,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 112528,
+          "readBytes": 14214336512,
+          "mainThreadCpus": "7",
+          "minorFaults": 686776,
+          "majorFaults": 103563,
+          "memoryPsiSomeAvg10Percent": 3.43,
+          "memoryPsiFullAvg10Percent": 2.11,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 162.65,
+          "rssKiB": 5068032,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 162556,
+          "readBytes": 16070959104,
+          "mainThreadCpus": "7",
+          "minorFaults": 752380,
+          "majorFaults": 115233,
+          "memoryPsiSomeAvg10Percent": 5.24,
+          "memoryPsiFullAvg10Percent": 4.34,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 172.77,
+          "rssKiB": 5677708,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 119976,
+          "readBytes": 16468488192,
+          "mainThreadCpus": "7",
+          "minorFaults": 814754,
+          "majorFaults": 136589,
+          "memoryPsiSomeAvg10Percent": 5.11,
+          "memoryPsiFullAvg10Percent": 4.45,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 182.91,
+          "rssKiB": 5699092,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 98740,
+          "readBytes": 16490631168,
+          "mainThreadCpus": "7",
+          "minorFaults": 820643,
+          "majorFaults": 141916,
+          "memoryPsiSomeAvg10Percent": 1.88,
+          "memoryPsiFullAvg10Percent": 1.4,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 193.06,
+          "rssKiB": 5700040,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 98096,
+          "readBytes": 16491925504,
+          "mainThreadCpus": "7",
+          "minorFaults": 820647,
+          "majorFaults": 142089,
+          "memoryPsiSomeAvg10Percent": 0.69,
+          "memoryPsiFullAvg10Percent": 0.51,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 203.2,
+          "rssKiB": 5700904,
+          "rssHighWaterKiB": 6014028,
+          "swapKiB": 97520,
+          "readBytes": 16493109248,
+          "mainThreadCpus": "7",
+          "minorFaults": 820650,
+          "majorFaults": 142237,
+          "memoryPsiSomeAvg10Percent": 0.25,
+          "memoryPsiFullAvg10Percent": 0.18,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 14984,
+          "cpus": "7"
+        },
+        {
+          "tid": 14999,
+          "cpus": "3"
+        },
+        {
+          "tid": 15000,
+          "cpus": "4"
+        },
+        {
+          "tid": 15001,
+          "cpus": "5"
+        },
+        {
+          "tid": 15002,
+          "cpus": "0-7"
+        }
+      ],
+      "affinityDiagnostics": [
+        "warn: failed to set affinity mask 0xb400007ea8e1948d : Invalid argument (22)"
+      ],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "internal-base-t5-relaxed-tg64",
+      "startedAt": "2026-09-24T08:06:30Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-base",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "0",
+        "--poll",
+        "50",
+        "-p",
+        "0",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 91.399,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 64,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:06:32Z",
+          "avg_ns": 71648581743,
+          "stddev_ns": 0,
+          "avg_ts": 0.893249,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            71648581743
+          ],
+          "samples_ts": [
+            0.893249
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 45000
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 52100
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.23,
+          "rssKiB": 13020,
+          "rssHighWaterKiB": 19372,
+          "swapKiB": 0,
+          "readBytes": 4681728,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 4973,
+          "majorFaults": 22,
+          "memoryPsiSomeAvg10Percent": 0.03,
+          "memoryPsiFullAvg10Percent": 0.03,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.35,
+          "rssKiB": 5872148,
+          "rssHighWaterKiB": 5872148,
+          "swapKiB": 55344,
+          "readBytes": 1061580800,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 367097,
+          "majorFaults": 3655,
+          "memoryPsiSomeAvg10Percent": 6.29,
+          "memoryPsiFullAvg10Percent": 6.04,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 20.46,
+          "rssKiB": 5882304,
+          "rssHighWaterKiB": 5882308,
+          "swapKiB": 55344,
+          "readBytes": 1063903232,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 367960,
+          "majorFaults": 4237,
+          "memoryPsiSomeAvg10Percent": 2.56,
+          "memoryPsiFullAvg10Percent": 2.38,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 30.65,
+          "rssKiB": 5882304,
+          "rssHighWaterKiB": 5882308,
+          "swapKiB": 55344,
+          "readBytes": 1064329216,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 367960,
+          "majorFaults": 4244,
+          "memoryPsiSomeAvg10Percent": 1.13,
+          "memoryPsiFullAvg10Percent": 0.9,
+          "cpu7ScalingMaxKHz": 2592000
+        },
+        {
+          "elapsedSeconds": 40.82,
+          "rssKiB": 5699456,
+          "rssHighWaterKiB": 5882308,
+          "swapKiB": 97560,
+          "readBytes": 1087528960,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 385400,
+          "majorFaults": 8155,
+          "memoryPsiSomeAvg10Percent": 5.35,
+          "memoryPsiFullAvg10Percent": 4.35,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 50.96,
+          "rssKiB": 5699896,
+          "rssHighWaterKiB": 5882308,
+          "swapKiB": 97360,
+          "readBytes": 1088143360,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 385406,
+          "majorFaults": 8215,
+          "memoryPsiSomeAvg10Percent": 2.06,
+          "memoryPsiFullAvg10Percent": 1.6,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 61.12,
+          "rssKiB": 5700560,
+          "rssHighWaterKiB": 5882308,
+          "swapKiB": 96980,
+          "readBytes": 1088675840,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 385407,
+          "majorFaults": 8334,
+          "memoryPsiSomeAvg10Percent": 0.76,
+          "memoryPsiFullAvg10Percent": 0.58,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 71.27,
+          "rssKiB": 5701424,
+          "rssHighWaterKiB": 5882308,
+          "swapKiB": 96340,
+          "readBytes": 1089339392,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 385410,
+          "majorFaults": 8491,
+          "memoryPsiSomeAvg10Percent": 0.27,
+          "memoryPsiFullAvg10Percent": 0.21,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 81.4,
+          "rssKiB": 5702328,
+          "rssHighWaterKiB": 5882308,
+          "swapKiB": 95740,
+          "readBytes": 1090043904,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 385410,
+          "majorFaults": 8657,
+          "memoryPsiSomeAvg10Percent": 0.1,
+          "memoryPsiFullAvg10Percent": 0.07,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 22918,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 22931,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 22932,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 22933,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 22934,
+          "cpus": "3-7"
+        }
+      ],
+      "affinityDiagnostics": [],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "internal-base-t5-relaxed-nommap-tg64",
+      "startedAt": "2026-09-24T08:09:57Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-base",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "0",
+        "--poll",
+        "50",
+        "-p",
+        "0",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "none"
+      ],
+      "status": "failed",
+      "returnCode": 143,
+      "elapsedSeconds": 91.641,
+      "rows": [],
+      "rejectionReason": "Manually stopped after process VmSwap reached about 3 GiB and memory full PSI exceeded 13%; unsuitable memory footprint.",
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 52900
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.23,
+          "rssKiB": 18376,
+          "rssHighWaterKiB": 19612,
+          "swapKiB": 0,
+          "readBytes": 5693440,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 4749,
+          "majorFaults": 18,
+          "memoryPsiSomeAvg10Percent": 0.01,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.37,
+          "rssKiB": 4072040,
+          "rssHighWaterKiB": 6060284,
+          "swapKiB": 1997712,
+          "readBytes": 4056674304,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 1536436,
+          "majorFaults": 77415,
+          "memoryPsiSomeAvg10Percent": 17.43,
+          "memoryPsiFullAvg10Percent": 16.8,
+          "cpu7ScalingMaxKHz": 3187200
+        },
+        {
+          "elapsedSeconds": 20.52,
+          "rssKiB": 1499056,
+          "rssHighWaterKiB": 6060284,
+          "swapKiB": 4568244,
+          "readBytes": 6002065408,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 1539749,
+          "majorFaults": 552538,
+          "memoryPsiSomeAvg10Percent": 24.63,
+          "memoryPsiFullAvg10Percent": 22.32,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 30.86,
+          "rssKiB": 702340,
+          "rssHighWaterKiB": 6060284,
+          "swapKiB": 5364940,
+          "readBytes": 6979309568,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 1547162,
+          "majorFaults": 791245,
+          "memoryPsiSomeAvg10Percent": 21.86,
+          "memoryPsiFullAvg10Percent": 16.25,
+          "cpu7ScalingMaxKHz": 2592000
+        },
+        {
+          "elapsedSeconds": 41.16,
+          "rssKiB": 3010200,
+          "rssHighWaterKiB": 6060284,
+          "swapKiB": 3058868,
+          "readBytes": 10384322560,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 1569569,
+          "majorFaults": 1622753,
+          "memoryPsiSomeAvg10Percent": 16.82,
+          "memoryPsiFullAvg10Percent": 13.86,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 51.31,
+          "rssKiB": 2441100,
+          "rssHighWaterKiB": 6060284,
+          "swapKiB": 3627088,
+          "readBytes": 12549283840,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 1584989,
+          "majorFaults": 2151631,
+          "memoryPsiSomeAvg10Percent": 14.58,
+          "memoryPsiFullAvg10Percent": 12.62,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 61.46,
+          "rssKiB": 3172500,
+          "rssHighWaterKiB": 6060284,
+          "swapKiB": 2896616,
+          "readBytes": 15265923072,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 1602599,
+          "majorFaults": 2814989,
+          "memoryPsiSomeAvg10Percent": 12.28,
+          "memoryPsiFullAvg10Percent": 11.25,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 71.59,
+          "rssKiB": 2503192,
+          "rssHighWaterKiB": 6060284,
+          "swapKiB": 3564932,
+          "readBytes": 18433187840,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 1624440,
+          "majorFaults": 3588831,
+          "memoryPsiSomeAvg10Percent": 17.04,
+          "memoryPsiFullAvg10Percent": 14.77,
+          "cpu7ScalingMaxKHz": 2342400
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 25910,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 26016,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 26017,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 26018,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 26019,
+          "cpus": "3-7"
+        }
+      ],
+      "affinityDiagnostics": [],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "internal-base-t3-relaxed-tg64",
+      "startedAt": "2026-09-24T08:13:58Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-base",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "3",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "0",
+        "--poll",
+        "50",
+        "-p",
+        "0",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 101.255,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 3,
+          "cpu_mask": "f8",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 64,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:14:01Z",
+          "avg_ns": 94728097568,
+          "stddev_ns": 0,
+          "avg_ts": 0.675618,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            94728097568
+          ],
+          "samples_ts": [
+            0.675618
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-2",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 60500
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.23,
+          "rssKiB": 4432,
+          "rssHighWaterKiB": 4432,
+          "swapKiB": 0,
+          "readBytes": 2207744,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 1066,
+          "majorFaults": 35,
+          "memoryPsiSomeAvg10Percent": 0.01,
+          "memoryPsiFullAvg10Percent": 0.01,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.35,
+          "rssKiB": 6070476,
+          "rssHighWaterKiB": 6070860,
+          "swapKiB": 376,
+          "readBytes": 5957177344,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 269411,
+          "majorFaults": 101,
+          "memoryPsiSomeAvg10Percent": 3.94,
+          "memoryPsiFullAvg10Percent": 2.95,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 20.47,
+          "rssKiB": 5807872,
+          "rssHighWaterKiB": 6070860,
+          "swapKiB": 376,
+          "readBytes": 5957263360,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 269411,
+          "majorFaults": 104,
+          "memoryPsiSomeAvg10Percent": 3.65,
+          "memoryPsiFullAvg10Percent": 2.4,
+          "cpu7ScalingMaxKHz": 2841600
+        },
+        {
+          "elapsedSeconds": 30.69,
+          "rssKiB": 5807608,
+          "rssHighWaterKiB": 6070860,
+          "swapKiB": 384,
+          "readBytes": 5957296128,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 269411,
+          "majorFaults": 112,
+          "memoryPsiSomeAvg10Percent": 1.68,
+          "memoryPsiFullAvg10Percent": 1.22,
+          "cpu7ScalingMaxKHz": 2726400
+        },
+        {
+          "elapsedSeconds": 40.8,
+          "rssKiB": 5807608,
+          "rssHighWaterKiB": 6070860,
+          "swapKiB": 384,
+          "readBytes": 5957378048,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 269411,
+          "majorFaults": 118,
+          "memoryPsiSomeAvg10Percent": 0.77,
+          "memoryPsiFullAvg10Percent": 0.6,
+          "cpu7ScalingMaxKHz": 2476800
+        },
+        {
+          "elapsedSeconds": 50.9,
+          "rssKiB": 5808204,
+          "rssHighWaterKiB": 6070860,
+          "swapKiB": 384,
+          "readBytes": 5957394432,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 269411,
+          "majorFaults": 125,
+          "memoryPsiSomeAvg10Percent": 0.28,
+          "memoryPsiFullAvg10Percent": 0.22,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 60.98,
+          "rssKiB": 5752612,
+          "rssHighWaterKiB": 6070860,
+          "swapKiB": 56096,
+          "readBytes": 5957423104,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 269411,
+          "majorFaults": 132,
+          "memoryPsiSomeAvg10Percent": 0.99,
+          "memoryPsiFullAvg10Percent": 0.97,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 71.07,
+          "rssKiB": 5752448,
+          "rssHighWaterKiB": 6070860,
+          "swapKiB": 56096,
+          "readBytes": 5957517312,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 269412,
+          "majorFaults": 139,
+          "memoryPsiSomeAvg10Percent": 1.4,
+          "memoryPsiFullAvg10Percent": 1.09,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 81.14,
+          "rssKiB": 5742592,
+          "rssHighWaterKiB": 6070860,
+          "swapKiB": 56088,
+          "readBytes": 5957980160,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 269413,
+          "majorFaults": 147,
+          "memoryPsiSomeAvg10Percent": 0.67,
+          "memoryPsiFullAvg10Percent": 0.56,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 91.25,
+          "rssKiB": 5742592,
+          "rssHighWaterKiB": 6070860,
+          "swapKiB": 56088,
+          "readBytes": 5958373376,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 269413,
+          "majorFaults": 153,
+          "memoryPsiSomeAvg10Percent": 0.24,
+          "memoryPsiFullAvg10Percent": 0.2,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 3493,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 3597,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 3598,
+          "cpus": "3-7"
+        }
+      ],
+      "affinityDiagnostics": [],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "internal-base-t4-relaxed-tg64",
+      "startedAt": "2026-09-24T08:19:46Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-base",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "4",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "0",
+        "--poll",
+        "50",
+        "-p",
+        "0",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 91.27,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 4,
+          "cpu_mask": "f8",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 64,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:19:48Z",
+          "avg_ns": 78266678199,
+          "stddev_ns": 0,
+          "avg_ts": 0.817717,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            78266678199
+          ],
+          "samples_ts": [
+            0.817717
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46100
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 54100
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.28,
+          "rssKiB": 11912,
+          "rssHighWaterKiB": 11912,
+          "swapKiB": 0,
+          "readBytes": 3915776,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 2880,
+          "majorFaults": 25,
+          "memoryPsiSomeAvg10Percent": 0.04,
+          "memoryPsiFullAvg10Percent": 0.02,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.39,
+          "rssKiB": 6069376,
+          "rssHighWaterKiB": 6070756,
+          "swapKiB": 0,
+          "readBytes": 3573370880,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 369268,
+          "majorFaults": 2780,
+          "memoryPsiSomeAvg10Percent": 4.46,
+          "memoryPsiFullAvg10Percent": 3.87,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 20.49,
+          "rssKiB": 5974732,
+          "rssHighWaterKiB": 6070756,
+          "swapKiB": 94636,
+          "readBytes": 3573456896,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 369268,
+          "majorFaults": 2801,
+          "memoryPsiSomeAvg10Percent": 3.43,
+          "memoryPsiFullAvg10Percent": 2.95,
+          "cpu7ScalingMaxKHz": 2476800
+        },
+        {
+          "elapsedSeconds": 30.71,
+          "rssKiB": 5975256,
+          "rssHighWaterKiB": 6070756,
+          "swapKiB": 94112,
+          "readBytes": 3574005760,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 369268,
+          "majorFaults": 2935,
+          "memoryPsiSomeAvg10Percent": 1.26,
+          "memoryPsiFullAvg10Percent": 1.08,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 40.82,
+          "rssKiB": 5975784,
+          "rssHighWaterKiB": 6070756,
+          "swapKiB": 93584,
+          "readBytes": 3574550528,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 369268,
+          "majorFaults": 3068,
+          "memoryPsiSomeAvg10Percent": 0.46,
+          "memoryPsiFullAvg10Percent": 0.39,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 50.93,
+          "rssKiB": 5976216,
+          "rssHighWaterKiB": 6070756,
+          "swapKiB": 93152,
+          "readBytes": 3575013376,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 369268,
+          "majorFaults": 3182,
+          "memoryPsiSomeAvg10Percent": 0.16,
+          "memoryPsiFullAvg10Percent": 0.14,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 61.04,
+          "rssKiB": 5976884,
+          "rssHighWaterKiB": 6070756,
+          "swapKiB": 92536,
+          "readBytes": 3575533568,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 369268,
+          "majorFaults": 3311,
+          "memoryPsiSomeAvg10Percent": 0.06,
+          "memoryPsiFullAvg10Percent": 0.05,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 71.15,
+          "rssKiB": 5977548,
+          "rssHighWaterKiB": 6070756,
+          "swapKiB": 92032,
+          "readBytes": 3576074240,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 369268,
+          "majorFaults": 3444,
+          "memoryPsiSomeAvg10Percent": 0.02,
+          "memoryPsiFullAvg10Percent": 0.01,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 81.27,
+          "rssKiB": 5978196,
+          "rssHighWaterKiB": 6070756,
+          "swapKiB": 91532,
+          "readBytes": 3576606720,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 369268,
+          "majorFaults": 3577,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 9308,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 9318,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 9319,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 9320,
+          "cpus": "3-7"
+        }
+      ],
+      "affinityDiagnostics": [],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "internal-base-t5-relaxed-tg64-b",
+      "startedAt": "2026-09-24T08:22:41Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-base",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "0",
+        "--poll",
+        "50",
+        "-p",
+        "0",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 374.624,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 64,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:22:44Z",
+          "avg_ns": 362941496892,
+          "stddev_ns": 0,
+          "avg_ts": 0.176337,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            362941496892
+          ],
+          "samples_ts": [
+            0.176337
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 44600
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 55300
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.22,
+          "rssKiB": 19288,
+          "rssHighWaterKiB": 19384,
+          "swapKiB": 0,
+          "readBytes": 6569984,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 6688,
+          "majorFaults": 25,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.34,
+          "rssKiB": 6065568,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 0,
+          "readBytes": 215769088,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1479,
+          "memoryPsiSomeAvg10Percent": 3.52,
+          "memoryPsiFullAvg10Percent": 3.31,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 20.44,
+          "rssKiB": 6010556,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215805952,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1486,
+          "memoryPsiSomeAvg10Percent": 3.68,
+          "memoryPsiFullAvg10Percent": 3.13,
+          "cpu7ScalingMaxKHz": 3187200
+        },
+        {
+          "elapsedSeconds": 30.68,
+          "rssKiB": 6009788,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215805952,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1486,
+          "memoryPsiSomeAvg10Percent": 1.68,
+          "memoryPsiFullAvg10Percent": 1.39,
+          "cpu7ScalingMaxKHz": 2841600
+        },
+        {
+          "elapsedSeconds": 40.79,
+          "rssKiB": 6009788,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215805952,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1486,
+          "memoryPsiSomeAvg10Percent": 0.61,
+          "memoryPsiFullAvg10Percent": 0.51,
+          "cpu7ScalingMaxKHz": 2476800
+        },
+        {
+          "elapsedSeconds": 50.89,
+          "rssKiB": 6009788,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215805952,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1486,
+          "memoryPsiSomeAvg10Percent": 0.22,
+          "memoryPsiFullAvg10Percent": 0.18,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 61.04,
+          "rssKiB": 6009768,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215810048,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1487,
+          "memoryPsiSomeAvg10Percent": 0.08,
+          "memoryPsiFullAvg10Percent": 0.06,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 71.15,
+          "rssKiB": 6009764,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215818240,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1489,
+          "memoryPsiSomeAvg10Percent": 0.22,
+          "memoryPsiFullAvg10Percent": 0.02,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 81.27,
+          "rssKiB": 6009764,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215818240,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1489,
+          "memoryPsiSomeAvg10Percent": 0.08,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 91.39,
+          "rssKiB": 6009752,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215818240,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1489,
+          "memoryPsiSomeAvg10Percent": 0.03,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 101.51,
+          "rssKiB": 6009752,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215818240,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1490,
+          "memoryPsiSomeAvg10Percent": 0.01,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 111.61,
+          "rssKiB": 6009752,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215818240,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1490,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 121.73,
+          "rssKiB": 6009752,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215818240,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1490,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 131.83,
+          "rssKiB": 6009752,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215818240,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1490,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 141.95,
+          "rssKiB": 6004880,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215818240,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1490,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 152.06,
+          "rssKiB": 5999760,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215875584,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1491,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 162.18,
+          "rssKiB": 5997204,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215875584,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1491,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 172.29,
+          "rssKiB": 5993876,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215875584,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1491,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 182.4,
+          "rssKiB": 5975192,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215875584,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1491,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 192.5,
+          "rssKiB": 5948572,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215937024,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1492,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 202.62,
+          "rssKiB": 5934492,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215937024,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1492,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 212.73,
+          "rssKiB": 5902748,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215937024,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1492,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 222.85,
+          "rssKiB": 5864544,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215937024,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1492,
+          "memoryPsiSomeAvg10Percent": 0.09,
+          "memoryPsiFullAvg10Percent": 0.09,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 232.96,
+          "rssKiB": 5864544,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 215937024,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1492,
+          "memoryPsiSomeAvg10Percent": 0.03,
+          "memoryPsiFullAvg10Percent": 0.03,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 243.07,
+          "rssKiB": 5864544,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216002560,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1493,
+          "memoryPsiSomeAvg10Percent": 0.01,
+          "memoryPsiFullAvg10Percent": 0.01,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 253.18,
+          "rssKiB": 5864544,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216002560,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1493,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 263.29,
+          "rssKiB": 5864428,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216002560,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1493,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 273.38,
+          "rssKiB": 5864428,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216002560,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1493,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 283.49,
+          "rssKiB": 5864428,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216002560,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1493,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 293.62,
+          "rssKiB": 5864428,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216059904,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1494,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 303.73,
+          "rssKiB": 5864428,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216059904,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1494,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 313.84,
+          "rssKiB": 5864428,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216059904,
+          "mainThreadCpus": "3-7",
+          "minorFaults": 308130,
+          "majorFaults": 1494,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 323.99,
+          "rssKiB": 5864428,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216182784,
+          "mainThreadCpus": "7",
+          "minorFaults": 308134,
+          "majorFaults": 1496,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 334.15,
+          "rssKiB": 5864268,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 54932,
+          "readBytes": 216604672,
+          "mainThreadCpus": "7",
+          "minorFaults": 308136,
+          "majorFaults": 1504,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 344.3,
+          "rssKiB": 5729408,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 67868,
+          "readBytes": 217100288,
+          "mainThreadCpus": "7",
+          "minorFaults": 308136,
+          "majorFaults": 1512,
+          "memoryPsiSomeAvg10Percent": 1.14,
+          "memoryPsiFullAvg10Percent": 0.57,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 354.46,
+          "rssKiB": 5729556,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 67772,
+          "readBytes": 217231360,
+          "mainThreadCpus": "7",
+          "minorFaults": 308138,
+          "majorFaults": 1544,
+          "memoryPsiSomeAvg10Percent": 0.42,
+          "memoryPsiFullAvg10Percent": 0.21,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 364.62,
+          "rssKiB": 5729072,
+          "rssHighWaterKiB": 6065572,
+          "swapKiB": 67636,
+          "readBytes": 217636864,
+          "mainThreadCpus": "7",
+          "minorFaults": 308139,
+          "majorFaults": 1587,
+          "memoryPsiSomeAvg10Percent": 0.57,
+          "memoryPsiFullAvg10Percent": 0.34,
+          "cpu7ScalingMaxKHz": 2342400
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 11309,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 11330,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 11331,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 11332,
+          "cpus": "3-7"
+        },
+        {
+          "tid": 11333,
+          "cpus": "3-7"
+        }
+      ],
+      "affinityDiagnostics": [],
+      "scope": "diagnostic-with-mid-run-intervention; exclude throughput from ranking",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series",
+      "intervention": {
+        "case": "internal-base-t5-relaxed-tg64-b",
+        "timestamp": "2026-09-24T08:28:03.673232+00:00",
+        "reason": "Two workers shared CPU7; diagnostic pinning intervention after poor-progress run; aggregate throughput is not a pure common-mask sample.",
+        "assignments": [
+          {
+            "tid": 11309,
+            "cpu": 7,
+            "returnCode": 0,
+            "output": "pid 11309's current affinity mask: f8\npid 11309's new affinity mask: 80\n"
+          },
+          {
+            "tid": 11330,
+            "cpu": 3,
+            "returnCode": 0,
+            "output": "pid 11330's current affinity mask: f8\npid 11330's new affinity mask: 8\n"
+          },
+          {
+            "tid": 11331,
+            "cpu": 4,
+            "returnCode": 0,
+            "output": "pid 11331's current affinity mask: f8\npid 11331's new affinity mask: 10\n"
+          },
+          {
+            "tid": 11332,
+            "cpu": 5,
+            "returnCode": 0,
+            "output": "pid 11332's current affinity mask: f8\npid 11332's new affinity mask: 20\n"
+          },
+          {
+            "tid": 11333,
+            "cpu": 6,
+            "returnCode": 0,
+            "output": "pid 11333's current affinity mask: f8\npid 11333's new affinity mask: 40\n"
+          }
+        ]
+      }
+    },
+    {
+      "label": "internal-retry-t5-strict-tg64-a",
+      "startedAt": "2026-09-24T08:31:01Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-retry",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "0",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 81.535,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 64,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:31:04Z",
+          "avg_ns": 71432241484,
+          "stddev_ns": 0,
+          "avg_ts": 0.895954,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            71432241484
+          ],
+          "samples_ts": [
+            0.895954
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1593600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.474,
+        "hottestComputeZone": {
+          "zone": "cpu-1-3",
+          "milliCelsius": 55200
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.24,
+          "rssKiB": 19060,
+          "rssHighWaterKiB": 19512,
+          "swapKiB": 0,
+          "readBytes": 5263360,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 4752,
+          "majorFaults": 0,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.38,
+          "rssKiB": 6069516,
+          "rssHighWaterKiB": 6069600,
+          "swapKiB": 0,
+          "readBytes": 1367101440,
+          "mainThreadCpus": "7",
+          "minorFaults": 277868,
+          "majorFaults": 2530,
+          "memoryPsiSomeAvg10Percent": 2.63,
+          "memoryPsiFullAvg10Percent": 2.63,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 20.52,
+          "rssKiB": 6067764,
+          "rssHighWaterKiB": 6069600,
+          "swapKiB": 0,
+          "readBytes": 1367187456,
+          "mainThreadCpus": "7",
+          "minorFaults": 277868,
+          "majorFaults": 2534,
+          "memoryPsiSomeAvg10Percent": 3.6,
+          "memoryPsiFullAvg10Percent": 2.3,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 30.82,
+          "rssKiB": 6012492,
+          "rssHighWaterKiB": 6069600,
+          "swapKiB": 55204,
+          "readBytes": 1367216128,
+          "mainThreadCpus": "7",
+          "minorFaults": 277868,
+          "majorFaults": 2542,
+          "memoryPsiSomeAvg10Percent": 1.83,
+          "memoryPsiFullAvg10Percent": 1.2,
+          "cpu7ScalingMaxKHz": 2592000
+        },
+        {
+          "elapsedSeconds": 40.99,
+          "rssKiB": 5973864,
+          "rssHighWaterKiB": 6069600,
+          "swapKiB": 94272,
+          "readBytes": 1367248896,
+          "mainThreadCpus": "7",
+          "minorFaults": 277871,
+          "majorFaults": 2553,
+          "memoryPsiSomeAvg10Percent": 2.26,
+          "memoryPsiFullAvg10Percent": 1.74,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 51.21,
+          "rssKiB": 5974256,
+          "rssHighWaterKiB": 6069600,
+          "swapKiB": 94056,
+          "readBytes": 1367793664,
+          "mainThreadCpus": "7",
+          "minorFaults": 277871,
+          "majorFaults": 2619,
+          "memoryPsiSomeAvg10Percent": 0.83,
+          "memoryPsiFullAvg10Percent": 0.64,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 61.37,
+          "rssKiB": 5974760,
+          "rssHighWaterKiB": 6069600,
+          "swapKiB": 93600,
+          "readBytes": 1368264704,
+          "mainThreadCpus": "7",
+          "minorFaults": 277875,
+          "majorFaults": 2741,
+          "memoryPsiSomeAvg10Percent": 0.3,
+          "memoryPsiFullAvg10Percent": 0.23,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 71.53,
+          "rssKiB": 5975288,
+          "rssHighWaterKiB": 6069600,
+          "swapKiB": 93196,
+          "readBytes": 1368956928,
+          "mainThreadCpus": "7",
+          "minorFaults": 277875,
+          "majorFaults": 2874,
+          "memoryPsiSomeAvg10Percent": 0.11,
+          "memoryPsiFullAvg10Percent": 0.08,
+          "cpu7ScalingMaxKHz": 1843200
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 14715,
+          "cpus": "7"
+        },
+        {
+          "tid": 14723,
+          "cpus": "3"
+        },
+        {
+          "tid": 14724,
+          "cpus": "4"
+        },
+        {
+          "tid": 14725,
+          "cpus": "5"
+        },
+        {
+          "tid": 14726,
+          "cpus": "6"
+        }
+      ],
+      "affinityDiagnostics": [
+        "affinity experiment: retries=2 result=0"
+      ],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "internal-retry-pr249-t5-strict-tg64",
+      "startedAt": "2026-09-24T08:35:00Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-retry-pr249",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "0",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 71.197,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 64,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:35:00Z",
+          "avg_ns": 65502750444,
+          "stddev_ns": 0,
+          "avg_ts": 0.977058,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            65502750444
+          ],
+          "samples_ts": [
+            0.977058
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-0",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 57300
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.21,
+          "rssKiB": 4344,
+          "rssHighWaterKiB": 4344,
+          "swapKiB": 0,
+          "readBytes": 2441216,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 1076,
+          "majorFaults": 39,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.34,
+          "rssKiB": 5891512,
+          "rssHighWaterKiB": 6054988,
+          "swapKiB": 0,
+          "readBytes": 4562944,
+          "mainThreadCpus": "7",
+          "minorFaults": 269097,
+          "majorFaults": 132,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 20.47,
+          "rssKiB": 5883056,
+          "rssHighWaterKiB": 6054988,
+          "swapKiB": 0,
+          "readBytes": 4567040,
+          "mainThreadCpus": "7",
+          "minorFaults": 269097,
+          "majorFaults": 133,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3187200
+        },
+        {
+          "elapsedSeconds": 30.74,
+          "rssKiB": 5883032,
+          "rssHighWaterKiB": 6054988,
+          "swapKiB": 0,
+          "readBytes": 4567040,
+          "mainThreadCpus": "7",
+          "minorFaults": 269097,
+          "majorFaults": 133,
+          "memoryPsiSomeAvg10Percent": 0.12,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2726400
+        },
+        {
+          "elapsedSeconds": 40.89,
+          "rssKiB": 5883160,
+          "rssHighWaterKiB": 6054988,
+          "swapKiB": 0,
+          "readBytes": 4567040,
+          "mainThreadCpus": "7",
+          "minorFaults": 269097,
+          "majorFaults": 133,
+          "memoryPsiSomeAvg10Percent": 0.04,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2476800
+        },
+        {
+          "elapsedSeconds": 51.04,
+          "rssKiB": 5883156,
+          "rssHighWaterKiB": 6054988,
+          "swapKiB": 0,
+          "readBytes": 4567040,
+          "mainThreadCpus": "7",
+          "minorFaults": 269097,
+          "majorFaults": 133,
+          "memoryPsiSomeAvg10Percent": 0.01,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 61.2,
+          "rssKiB": 5883112,
+          "rssHighWaterKiB": 6054988,
+          "swapKiB": 0,
+          "readBytes": 4567040,
+          "mainThreadCpus": "7",
+          "minorFaults": 269097,
+          "majorFaults": 133,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 16995,
+          "cpus": "7"
+        },
+        {
+          "tid": 17003,
+          "cpus": "3"
+        },
+        {
+          "tid": 17004,
+          "cpus": "4"
+        },
+        {
+          "tid": 17005,
+          "cpus": "5"
+        },
+        {
+          "tid": 17006,
+          "cpus": "6"
+        }
+      ],
+      "affinityDiagnostics": [
+        "affinity experiment: retries=2 result=0"
+      ],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "internal-retry-t5-strict-tg64-b",
+      "startedAt": "2026-09-24T08:38:20Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-retry",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "0",
+        "-n",
+        "64",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "2",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 152.438,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 64,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:38:21Z",
+          "avg_ns": 74701411430,
+          "stddev_ns": 3303359359,
+          "avg_ts": 0.869086,
+          "stddev_ts": 0.146463,
+          "samples_ns": [
+            65799553881,
+            83603268979
+          ],
+          "samples_ts": [
+            0.972651,
+            0.76552
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 46100
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1593600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.474,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 59700
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.22,
+          "rssKiB": 11572,
+          "rssHighWaterKiB": 11572,
+          "swapKiB": 0,
+          "readBytes": 1654784,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 2770,
+          "majorFaults": 40,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.35,
+          "rssKiB": 6070544,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269247,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 1.66,
+          "memoryPsiFullAvg10Percent": 1.33,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 20.47,
+          "rssKiB": 6070544,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269247,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.61,
+          "memoryPsiFullAvg10Percent": 0.49,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 30.73,
+          "rssKiB": 6070544,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269247,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.22,
+          "memoryPsiFullAvg10Percent": 0.18,
+          "cpu7ScalingMaxKHz": 2726400
+        },
+        {
+          "elapsedSeconds": 40.87,
+          "rssKiB": 6070540,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269247,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.08,
+          "memoryPsiFullAvg10Percent": 0.06,
+          "cpu7ScalingMaxKHz": 2342400
+        },
+        {
+          "elapsedSeconds": 51.03,
+          "rssKiB": 6070500,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269247,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.12,
+          "memoryPsiFullAvg10Percent": 0.02,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 61.17,
+          "rssKiB": 6070500,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269247,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.04,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 71.34,
+          "rssKiB": 6070500,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269251,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.01,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 81.49,
+          "rssKiB": 6070500,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269251,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1843200
+        },
+        {
+          "elapsedSeconds": 91.64,
+          "rssKiB": 6070500,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269251,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1708800
+        },
+        {
+          "elapsedSeconds": 101.79,
+          "rssKiB": 6070500,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269251,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1593600
+        },
+        {
+          "elapsedSeconds": 111.96,
+          "rssKiB": 6070500,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269251,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1593600
+        },
+        {
+          "elapsedSeconds": 122.12,
+          "rssKiB": 6070496,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269251,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1593600
+        },
+        {
+          "elapsedSeconds": 132.29,
+          "rssKiB": 6070496,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269251,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1593600
+        },
+        {
+          "elapsedSeconds": 142.44,
+          "rssKiB": 6070496,
+          "rssHighWaterKiB": 6070548,
+          "swapKiB": 0,
+          "readBytes": 9773056,
+          "mainThreadCpus": "7",
+          "minorFaults": 269251,
+          "majorFaults": 63,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1593600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 17951,
+          "cpus": "7"
+        },
+        {
+          "tid": 17959,
+          "cpus": "3"
+        },
+        {
+          "tid": 17960,
+          "cpus": "4"
+        },
+        {
+          "tid": 17961,
+          "cpus": "5"
+        },
+        {
+          "tid": 17962,
+          "cpus": "6"
+        }
+      ],
+      "affinityDiagnostics": [
+        "affinity experiment: retries=1 result=0"
+      ],
+      "scope": "exploratory",
+      "uiCondition": "Foreground UI not fixed; PI DECK confirmed foreground near end of decode series"
+    },
+    {
+      "label": "internal-retry-t5-strict-p64-ub128",
+      "startedAt": "2026-09-24T08:44:31Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-retry",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "5",
+        "-C",
+        "f8",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "64",
+        "-n",
+        "0",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 121.93,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 5,
+          "cpu_mask": "f8",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 64,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:44:33Z",
+          "avg_ns": 60383256852,
+          "stddev_ns": 0,
+          "avg_ts": 1.059896,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            60383256852
+          ],
+          "samples_ts": [
+            1.0599
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-1",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-1-7",
+          "milliCelsius": 53200
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.21,
+          "rssKiB": 11548,
+          "rssHighWaterKiB": 11548,
+          "swapKiB": 0,
+          "readBytes": 1024000,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 2775,
+          "majorFaults": 32,
+          "memoryPsiSomeAvg10Percent": 0.27,
+          "memoryPsiFullAvg10Percent": 0.25,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.34,
+          "rssKiB": 5529184,
+          "rssHighWaterKiB": 5634156,
+          "swapKiB": 0,
+          "readBytes": 179298304,
+          "mainThreadCpus": "7",
+          "minorFaults": 304932,
+          "majorFaults": 584,
+          "memoryPsiSomeAvg10Percent": 1.83,
+          "memoryPsiFullAvg10Percent": 1.68,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 20.46,
+          "rssKiB": 5591432,
+          "rssHighWaterKiB": 5634156,
+          "swapKiB": 0,
+          "readBytes": 274849792,
+          "mainThreadCpus": "7",
+          "minorFaults": 316773,
+          "majorFaults": 1124,
+          "memoryPsiSomeAvg10Percent": 0.87,
+          "memoryPsiFullAvg10Percent": 0.81,
+          "cpu7ScalingMaxKHz": 3187200
+        },
+        {
+          "elapsedSeconds": 30.71,
+          "rssKiB": 5470664,
+          "rssHighWaterKiB": 5634156,
+          "swapKiB": 0,
+          "readBytes": 280354816,
+          "mainThreadCpus": "7",
+          "minorFaults": 317010,
+          "majorFaults": 1414,
+          "memoryPsiSomeAvg10Percent": 0.42,
+          "memoryPsiFullAvg10Percent": 0.3,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 40.85,
+          "rssKiB": 5470964,
+          "rssHighWaterKiB": 5634156,
+          "swapKiB": 0,
+          "readBytes": 280383488,
+          "mainThreadCpus": "7",
+          "minorFaults": 317011,
+          "majorFaults": 1418,
+          "memoryPsiSomeAvg10Percent": 0.15,
+          "memoryPsiFullAvg10Percent": 0.1,
+          "cpu7ScalingMaxKHz": 2726400
+        },
+        {
+          "elapsedSeconds": 50.99,
+          "rssKiB": 5681256,
+          "rssHighWaterKiB": 5681256,
+          "swapKiB": 0,
+          "readBytes": 441704448,
+          "mainThreadCpus": "7",
+          "minorFaults": 338447,
+          "majorFaults": 1839,
+          "memoryPsiSomeAvg10Percent": 1.57,
+          "memoryPsiFullAvg10Percent": 1.41,
+          "cpu7ScalingMaxKHz": 2476800
+        },
+        {
+          "elapsedSeconds": 61.15,
+          "rssKiB": 6080272,
+          "rssHighWaterKiB": 6080272,
+          "swapKiB": 0,
+          "readBytes": 500989952,
+          "mainThreadCpus": "7",
+          "minorFaults": 353004,
+          "majorFaults": 2456,
+          "memoryPsiSomeAvg10Percent": 2.56,
+          "memoryPsiFullAvg10Percent": 2.32,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 71.3,
+          "rssKiB": 6080272,
+          "rssHighWaterKiB": 6080272,
+          "swapKiB": 0,
+          "readBytes": 500989952,
+          "mainThreadCpus": "7",
+          "minorFaults": 353004,
+          "majorFaults": 2456,
+          "memoryPsiSomeAvg10Percent": 0.94,
+          "memoryPsiFullAvg10Percent": 0.85,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 81.45,
+          "rssKiB": 6080272,
+          "rssHighWaterKiB": 6080272,
+          "swapKiB": 0,
+          "readBytes": 500989952,
+          "mainThreadCpus": "7",
+          "minorFaults": 353004,
+          "majorFaults": 2456,
+          "memoryPsiSomeAvg10Percent": 0.34,
+          "memoryPsiFullAvg10Percent": 0.31,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 91.62,
+          "rssKiB": 6080272,
+          "rssHighWaterKiB": 6080272,
+          "swapKiB": 0,
+          "readBytes": 500989952,
+          "mainThreadCpus": "7",
+          "minorFaults": 353004,
+          "majorFaults": 2456,
+          "memoryPsiSomeAvg10Percent": 0.12,
+          "memoryPsiFullAvg10Percent": 0.11,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 101.77,
+          "rssKiB": 6080272,
+          "rssHighWaterKiB": 6080272,
+          "swapKiB": 0,
+          "readBytes": 500989952,
+          "mainThreadCpus": "7",
+          "minorFaults": 353004,
+          "majorFaults": 2456,
+          "memoryPsiSomeAvg10Percent": 0.04,
+          "memoryPsiFullAvg10Percent": 0.04,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 111.93,
+          "rssKiB": 6080272,
+          "rssHighWaterKiB": 6080272,
+          "swapKiB": 0,
+          "readBytes": 500989952,
+          "mainThreadCpus": "7",
+          "minorFaults": 353004,
+          "majorFaults": 2456,
+          "memoryPsiSomeAvg10Percent": 0.01,
+          "memoryPsiFullAvg10Percent": 0.01,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 20286,
+          "cpus": "7"
+        },
+        {
+          "tid": 20294,
+          "cpus": "3"
+        },
+        {
+          "tid": 20295,
+          "cpus": "4"
+        },
+        {
+          "tid": 20296,
+          "cpus": "5"
+        },
+        {
+          "tid": 20297,
+          "cpus": "6"
+        }
+      ],
+      "affinityDiagnostics": [],
+      "scope": "exploratory",
+      "uiCondition": "Launcher shown before run"
+    },
+    {
+      "label": "internal-retry-t8-strict-p64-ub128",
+      "startedAt": "2026-09-24T08:47:47Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-retry",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "8",
+        "-C",
+        "ff",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "64",
+        "-n",
+        "0",
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 111.86,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 128,
+          "n_threads": 8,
+          "cpu_mask": "ff",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 64,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:47:48Z",
+          "avg_ns": 54308387635,
+          "stddev_ns": 0,
+          "avg_ts": 1.178455,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            54308387635
+          ],
+          "samples_ts": [
+            1.17846
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-5",
+          "milliCelsius": 45300
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 50900
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.21,
+          "rssKiB": 19416,
+          "rssHighWaterKiB": 19512,
+          "swapKiB": 0,
+          "readBytes": 12288,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 6699,
+          "majorFaults": 0,
+          "memoryPsiSomeAvg10Percent": 0.11,
+          "memoryPsiFullAvg10Percent": 0.08,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.41,
+          "rssKiB": 6082372,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 28672,
+          "mainThreadCpus": "7",
+          "minorFaults": 272410,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.44,
+          "memoryPsiFullAvg10Percent": 0.22,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 20.54,
+          "rssKiB": 6082372,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 28672,
+          "mainThreadCpus": "7",
+          "minorFaults": 272410,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.31,
+          "memoryPsiFullAvg10Percent": 0.06,
+          "cpu7ScalingMaxKHz": 2841600
+        },
+        {
+          "elapsedSeconds": 30.98,
+          "rssKiB": 6082364,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 28672,
+          "mainThreadCpus": "7",
+          "minorFaults": 272410,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.44,
+          "memoryPsiFullAvg10Percent": 0.02,
+          "cpu7ScalingMaxKHz": 2476800
+        },
+        {
+          "elapsedSeconds": 41.12,
+          "rssKiB": 5982740,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 7925760,
+          "mainThreadCpus": "7",
+          "minorFaults": 274437,
+          "majorFaults": 1660,
+          "memoryPsiSomeAvg10Percent": 0.71,
+          "memoryPsiFullAvg10Percent": 0.12,
+          "cpu7ScalingMaxKHz": 2227200
+        },
+        {
+          "elapsedSeconds": 51.24,
+          "rssKiB": 6077524,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 8298496,
+          "mainThreadCpus": "7",
+          "minorFaults": 278624,
+          "majorFaults": 2480,
+          "memoryPsiSomeAvg10Percent": 1.18,
+          "memoryPsiFullAvg10Percent": 0.04,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 61.36,
+          "rssKiB": 6077524,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 8298496,
+          "mainThreadCpus": "7",
+          "minorFaults": 278624,
+          "majorFaults": 2480,
+          "memoryPsiSomeAvg10Percent": 1.16,
+          "memoryPsiFullAvg10Percent": 0.37,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 71.48,
+          "rssKiB": 6077524,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 8298496,
+          "mainThreadCpus": "7",
+          "minorFaults": 278624,
+          "majorFaults": 2480,
+          "memoryPsiSomeAvg10Percent": 0.42,
+          "memoryPsiFullAvg10Percent": 0.13,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 81.61,
+          "rssKiB": 6077500,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 8298496,
+          "mainThreadCpus": "7",
+          "minorFaults": 278624,
+          "majorFaults": 2480,
+          "memoryPsiSomeAvg10Percent": 0.35,
+          "memoryPsiFullAvg10Percent": 0.14,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 91.72,
+          "rssKiB": 6077500,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 8298496,
+          "mainThreadCpus": "7",
+          "minorFaults": 278624,
+          "majorFaults": 2480,
+          "memoryPsiSomeAvg10Percent": 0.12,
+          "memoryPsiFullAvg10Percent": 0.05,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 101.86,
+          "rssKiB": 6077500,
+          "rssHighWaterKiB": 6082372,
+          "swapKiB": 0,
+          "readBytes": 8298496,
+          "mainThreadCpus": "7",
+          "minorFaults": 278624,
+          "majorFaults": 2480,
+          "memoryPsiSomeAvg10Percent": 0.04,
+          "memoryPsiFullAvg10Percent": 0.01,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 21081,
+          "cpus": "7"
+        },
+        {
+          "tid": 21087,
+          "cpus": "0"
+        },
+        {
+          "tid": 21088,
+          "cpus": "1"
+        },
+        {
+          "tid": 21089,
+          "cpus": "2"
+        },
+        {
+          "tid": 21091,
+          "cpus": "3"
+        },
+        {
+          "tid": 21092,
+          "cpus": "4"
+        },
+        {
+          "tid": 21093,
+          "cpus": "5"
+        },
+        {
+          "tid": 21094,
+          "cpus": "6"
+        }
+      ],
+      "affinityDiagnostics": [],
+      "scope": "exploratory",
+      "uiCondition": "Launcher shown before run"
+    },
+    {
+      "label": "internal-retry-t8-strict-p64-ub32",
+      "startedAt": "2026-09-24T08:51:14Z",
+      "arguments": [
+        "/data/local/tmp/pideck-bonsai2-bench-retry",
+        "-m",
+        "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+        "-t",
+        "8",
+        "-C",
+        "ff",
+        "--cpu-strict",
+        "1",
+        "--poll",
+        "50",
+        "-p",
+        "64",
+        "-n",
+        "0",
+        "-b",
+        "256",
+        "-ub",
+        "32",
+        "-r",
+        "1",
+        "-o",
+        "jsonl",
+        "--progress",
+        "-dev",
+        "none",
+        "-ngl",
+        "0",
+        "-nopo",
+        "1",
+        "-nkvo",
+        "1",
+        "-lm",
+        "auto"
+      ],
+      "status": "complete",
+      "returnCode": 0,
+      "elapsedSeconds": 111.589,
+      "rows": [
+        {
+          "build_commit": "842b188",
+          "build_number": 10734,
+          "cpu_info": "CPU",
+          "gpu_info": "",
+          "backends": "CPU",
+          "model_filename": "/data/local/tmp/pideck-bonsai2-benchmark.gguf",
+          "model_type": "qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128)",
+          "model_size": 5935527936,
+          "model_n_params": 26895998464,
+          "n_batch": 256,
+          "n_ubatch": 32,
+          "n_threads": 8,
+          "cpu_mask": "ff",
+          "cpu_strict": true,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 0,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "main_gpu": 0,
+          "no_kv_offload": true,
+          "flash_attn": -1,
+          "devices": "none",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 1,
+          "no_host": false,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 64,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-09-24T08:51:15Z",
+          "avg_ns": 53807382115,
+          "stddev_ns": 0,
+          "avg_ts": 1.189428,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            53807382115
+          ],
+          "samples_ts": [
+            1.18943
+          ]
+        }
+      ],
+      "thermalBefore": {
+        "cpu7ScalingMaxKHz": 3360000,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpuss-2",
+          "milliCelsius": 45700
+        }
+      },
+      "thermalAfter": {
+        "cpu7ScalingMaxKHz": 1977600,
+        "cpu7NominalMaxKHz": 3360000,
+        "frequencyHeadroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 49300
+        }
+      },
+      "snapshots": [
+        {
+          "elapsedSeconds": 0.19,
+          "rssKiB": 13892,
+          "rssHighWaterKiB": 19268,
+          "swapKiB": 0,
+          "readBytes": 28672,
+          "mainThreadCpus": "0-7",
+          "minorFaults": 5649,
+          "majorFaults": 4,
+          "memoryPsiSomeAvg10Percent": 0.02,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 3360000
+        },
+        {
+          "elapsedSeconds": 10.3,
+          "rssKiB": 6073588,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270155,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2956800
+        },
+        {
+          "elapsedSeconds": 20.4,
+          "rssKiB": 6073588,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270155,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2841600
+        },
+        {
+          "elapsedSeconds": 30.73,
+          "rssKiB": 6073588,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270155,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.36,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 2476800
+        },
+        {
+          "elapsedSeconds": 40.88,
+          "rssKiB": 6073588,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270155,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.62,
+          "memoryPsiFullAvg10Percent": 0.24,
+          "cpu7ScalingMaxKHz": 2092800
+        },
+        {
+          "elapsedSeconds": 50.99,
+          "rssKiB": 6073588,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270156,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.22,
+          "memoryPsiFullAvg10Percent": 0.08,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 61.11,
+          "rssKiB": 5937320,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270156,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.08,
+          "memoryPsiFullAvg10Percent": 0.03,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 71.23,
+          "rssKiB": 5937320,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270156,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.19,
+          "memoryPsiFullAvg10Percent": 0.01,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 81.36,
+          "rssKiB": 5937320,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270156,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.07,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 91.5,
+          "rssKiB": 5937320,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270156,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.02,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        },
+        {
+          "elapsedSeconds": 101.59,
+          "rssKiB": 96116,
+          "rssHighWaterKiB": 6073588,
+          "swapKiB": 0,
+          "readBytes": 32768,
+          "mainThreadCpus": "7",
+          "minorFaults": 270157,
+          "majorFaults": 21,
+          "memoryPsiSomeAvg10Percent": 0.0,
+          "memoryPsiFullAvg10Percent": 0.0,
+          "cpu7ScalingMaxKHz": 1977600
+        }
+      ],
+      "threadAffinity": [
+        {
+          "tid": 22319,
+          "cpus": "7"
+        },
+        {
+          "tid": 22327,
+          "cpus": "0"
+        },
+        {
+          "tid": 22328,
+          "cpus": "1"
+        },
+        {
+          "tid": 22329,
+          "cpus": "2"
+        },
+        {
+          "tid": 22330,
+          "cpus": "3"
+        },
+        {
+          "tid": 22331,
+          "cpus": "4"
+        },
+        {
+          "tid": 22332,
+          "cpus": "5"
+        },
+        {
+          "tid": 22333,
+          "cpus": "6"
+        }
+      ],
+      "affinityDiagnostics": [
+        "affinity experiment: retries=2 result=0"
+      ],
+      "scope": "exploratory",
+      "uiCondition": "Launcher shown before run"
+    }
+  ],
+  "prefillEnvironment": {
+    "timestamp": "2026-09-24T08:44:04.705107+00:00",
+    "action": "KEYCODE_HOME before first prefill-only run; PI DECK UI was foreground and had observable CPU activity while its model server was stopped.",
+    "previousActivity": "dev.pideck.app/.MainActivity",
+    "appliesFrom": "internal-retry-t5-strict-p64-ub128",
+    "restoreAtEnd": true
+  },
+  "deviceCleanup": {
+    "finishedAt": "2026-09-24T08:54:37.602836+00:00",
+    "testProcessesStopped": true,
+    "temporaryModelRemoved": true,
+    "benchmarkBinariesRemoved": true,
+    "stayOnWhilePluggedIn": "2",
+    "adbForwards": [],
+    "restoredActivity": "dev.pideck.app/.MainActivity",
+    "packagedApkModified": false
+  },
+  "profiles": {
+    "strict-base-cpu": {
+      "cpuSamples": [
+        {
+          "tid": 14984,
+          "cpu": 7,
+          "samples": 543
+        },
+        {
+          "tid": 14999,
+          "cpu": 3,
+          "samples": 910
+        },
+        {
+          "tid": 15000,
+          "cpu": 4,
+          "samples": 936
+        },
+        {
+          "tid": 15001,
+          "cpu": 5,
+          "samples": 927
+        },
+        {
+          "tid": 15002,
+          "cpu": 3,
+          "samples": 18
+        },
+        {
+          "tid": 15002,
+          "cpu": 4,
+          "samples": 7
+        },
+        {
+          "tid": 15002,
+          "cpu": 5,
+          "samples": 12
+        },
+        {
+          "tid": 15002,
+          "cpu": 6,
+          "samples": 57
+        },
+        {
+          "tid": 15002,
+          "cpu": 7,
+          "samples": 394
+        }
+      ],
+      "symbols": {
+        "ggml_graph_compute_thread": 2826,
+        "ggml_compute_forward_mul_mat": 617,
+        "ggml_vec_dot_ptq1_0_q8_0": 289,
+        "ggml_barrier": 54,
+        "ggml_graph_compute_secondary_thread": 4,
+        "ggml_vec_dot_bf16": 3,
+        "quantize_row_q8_0": 2,
+        "ggml_compute_forward_gated_delta_net": 2
+      },
+      "perThreadSymbols": {
+        "14999": {
+          "ggml_graph_compute_thread": 683,
+          "ggml_compute_forward_mul_mat": 152,
+          "ggml_vec_dot_ptq1_0_q8_0": 60,
+          "ggml_barrier": 11
+        },
+        "15000": {
+          "ggml_graph_compute_thread": 711,
+          "ggml_compute_forward_mul_mat": 150,
+          "ggml_vec_dot_ptq1_0_q8_0": 58,
+          "ggml_barrier": 13
+        },
+        "15001": {
+          "ggml_graph_compute_thread": 689,
+          "ggml_compute_forward_mul_mat": 154,
+          "ggml_vec_dot_ptq1_0_q8_0": 67,
+          "ggml_barrier": 15
+        },
+        "14984": {
+          "ggml_graph_compute_thread": 383,
+          "ggml_compute_forward_mul_mat": 90,
+          "ggml_vec_dot_ptq1_0_q8_0": 58,
+          "ggml_barrier": 7
+        },
+        "15002": {
+          "ggml_graph_compute_thread": 360,
+          "ggml_compute_forward_mul_mat": 71,
+          "ggml_vec_dot_ptq1_0_q8_0": 46,
+          "ggml_barrier": 8
+        }
+      }
+    },
+    "relaxed-base-cpu": {
+      "cpuSamples": [
+        {
+          "tid": 22918,
+          "cpu": 6,
+          "samples": 494
+        },
+        {
+          "tid": 22931,
+          "cpu": 4,
+          "samples": 344
+        },
+        {
+          "tid": 22931,
+          "cpu": 5,
+          "samples": 140
+        },
+        {
+          "tid": 22932,
+          "cpu": 4,
+          "samples": 151
+        },
+        {
+          "tid": 22932,
+          "cpu": 5,
+          "samples": 335
+        },
+        {
+          "tid": 22933,
+          "cpu": 7,
+          "samples": 496
+        },
+        {
+          "tid": 22934,
+          "cpu": 3,
+          "samples": 488
+        }
+      ],
+      "symbols": {
+        "ggml_vec_dot_ptq1_0_q8_0": 2188,
+        "ggml_graph_compute_thread": 173,
+        "ggml_compute_forward_mul_mat": 21,
+        "ggml_vec_dot_bf16": 17,
+        "__memmove_aarch64_simd": 13,
+        "ggml_compute_forward_gated_delta_net": 10,
+        "ggml_compute_forward_fwht": 6,
+        "ggml_vec_dot_f32": 3
+      },
+      "perThreadSymbols": {
+        "22918": {
+          "ggml_vec_dot_ptq1_0_q8_0": 435,
+          "ggml_graph_compute_thread": 35,
+          "ggml_compute_forward_mul_mat": 5,
+          "ggml_compute_forward_rms_norm_mul_fused": 3
+        },
+        "22931": {
+          "ggml_vec_dot_ptq1_0_q8_0": 441,
+          "ggml_graph_compute_thread": 23,
+          "__memmove_aarch64_simd": 5,
+          "ggml_compute_forward_mul_mat": 5
+        },
+        "22932": {
+          "ggml_vec_dot_ptq1_0_q8_0": 440,
+          "ggml_graph_compute_thread": 33,
+          "ggml_vec_dot_bf16": 4,
+          "__memmove_aarch64_simd": 3
+        },
+        "22933": {
+          "ggml_vec_dot_ptq1_0_q8_0": 437,
+          "ggml_graph_compute_thread": 44,
+          "ggml_vec_dot_bf16": 4,
+          "ggml_compute_forward_mul_mat": 4
+        },
+        "22934": {
+          "ggml_vec_dot_ptq1_0_q8_0": 435,
+          "ggml_graph_compute_thread": 38,
+          "ggml_compute_forward_mul_mat": 6,
+          "ggml_compute_forward_gated_delta_net": 4
+        }
+      }
+    },
+    "relaxed-repeat-cpu": {
+      "cpuSamples": [
+        {
+          "tid": 11309,
+          "cpu": 4,
+          "samples": 496
+        },
+        {
+          "tid": 11330,
+          "cpu": 7,
+          "samples": 248
+        },
+        {
+          "tid": 11331,
+          "cpu": 3,
+          "samples": 495
+        },
+        {
+          "tid": 11332,
+          "cpu": 7,
+          "samples": 248
+        },
+        {
+          "tid": 11333,
+          "cpu": 6,
+          "samples": 496
+        }
+      ],
+      "symbols": {
+        "ggml_graph_compute_thread": 1553,
+        "ggml_compute_forward_mul_mat": 350,
+        "ggml_vec_dot_ptq1_0_q8_0": 40,
+        "ggml_barrier": 38,
+        "ggml_vec_dot_bf16": 1,
+        "ggml_compute_forward_fwht": 1
+      },
+      "perThreadSymbols": {
+        "11332": {
+          "ggml_graph_compute_thread": 198,
+          "ggml_compute_forward_mul_mat": 40,
+          "ggml_vec_dot_ptq1_0_q8_0": 7,
+          "ggml_barrier": 1
+        },
+        "11309": {
+          "ggml_graph_compute_thread": 395,
+          "ggml_compute_forward_mul_mat": 83,
+          "ggml_barrier": 9,
+          "ggml_vec_dot_ptq1_0_q8_0": 9
+        },
+        "11331": {
+          "ggml_graph_compute_thread": 392,
+          "ggml_compute_forward_mul_mat": 87,
+          "ggml_barrier": 9,
+          "ggml_vec_dot_ptq1_0_q8_0": 7
+        },
+        "11333": {
+          "ggml_graph_compute_thread": 393,
+          "ggml_compute_forward_mul_mat": 90,
+          "ggml_barrier": 9,
+          "ggml_vec_dot_ptq1_0_q8_0": 4
+        },
+        "11330": {
+          "ggml_graph_compute_thread": 175,
+          "ggml_compute_forward_mul_mat": 50,
+          "ggml_vec_dot_ptq1_0_q8_0": 13,
+          "ggml_barrier": 10
+        }
+      },
+      "topAddresses": {
+        "0x36f470": 879,
+        "0x36f464": 325,
+        "0x36f468": 312,
+        "0x36d994": 188,
+        "0x36d98c": 79,
+        "0x36d988": 67,
+        "0x36f474": 37,
+        "0x36cdc0": 22,
+        "0x36d998": 16,
+        "0x36cdb4": 7,
+        "0x36cdb8": 5,
+        "0x394a44": 4
+      }
+    },
+    "repinned-cpu": {
+      "cpuSamples": [
+        {
+          "tid": 11309,
+          "cpu": 7,
+          "samples": 494
+        },
+        {
+          "tid": 11330,
+          "cpu": 3,
+          "samples": 495
+        },
+        {
+          "tid": 11331,
+          "cpu": 4,
+          "samples": 496
+        },
+        {
+          "tid": 11332,
+          "cpu": 5,
+          "samples": 496
+        },
+        {
+          "tid": 11333,
+          "cpu": 6,
+          "samples": 495
+        }
+      ],
+      "symbols": {
+        "ggml_vec_dot_ptq1_0_q8_0": 2332,
+        "ggml_graph_compute_thread": 67,
+        "__memmove_aarch64_simd": 22,
+        "ggml_compute_forward_gated_delta_net": 16,
+        "ggml_vec_dot_bf16": 9,
+        "ggml_compute_forward_mul_mat": 8,
+        "ggml_compute_forward_fwht": 4,
+        "ggml_vec_dot_f32": 4,
+        "ggml_compute_forward_get_rows": 3,
+        "ggml_compute_forward_concat": 3,
+        "ggml_cpu_fp32_to_bf16": 2,
+        "ggml_vec_swiglu_f32": 2
+      },
+      "topAddresses": {
+        "0x394bf0": 185,
+        "0x394abc": 183,
+        "0x394b98": 151,
+        "0x394ba4": 142,
+        "0x394b34": 117,
+        "0x394a44": 114,
+        "0x394b58": 81,
+        "0x394bbc": 73,
+        "0x394bc0": 65,
+        "0x394b8c": 63,
+        "0x394be4": 55,
+        "0x394a50": 54
+      }
+    }
+  },
+  "baselineBarrierAddressResolution": {
+    "0x36f470": [
+      "ggml_thread_cpu_relax",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:534",
+      "ggml_barrier",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:613",
+      "ggml_graph_compute_thread",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:3169"
+    ],
+    "0x36f464": [
+      "ggml_barrier",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:612",
+      "ggml_graph_compute_thread",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:3169"
+    ],
+    "0x36f468": [
+      "ggml_barrier",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:612",
+      "ggml_graph_compute_thread",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:3169"
+    ],
+    "0x36d994": [
+      "ggml_thread_cpu_relax",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:534",
+      "ggml_barrier",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:613",
+      "ggml_compute_forward_mul_mat",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:1414"
+    ],
+    "0x36d988": [
+      "ggml_barrier",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:612",
+      "ggml_compute_forward_mul_mat",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:1414"
+    ],
+    "0x36d98c": [
+      "ggml_barrier",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:612",
+      "ggml_compute_forward_mul_mat",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:1414"
+    ],
+    "0x36f474": [
+      "ggml_thread_cpu_relax",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:534",
+      "ggml_barrier",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:613",
+      "ggml_graph_compute_thread",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:3169"
+    ],
+    "0x36cdc0": [
+      "ggml_thread_cpu_relax",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:534",
+      "ggml_barrier",
+      "././ggml/src/ggml-cpu/ggml-cpu.c:613"
+    ]
+  },
+  "profileMethod": {
+    "event": "cpu-clock:u",
+    "frequencyHz": 99,
+    "lostSamples": 0,
+    "strict": {
+      "case": "internal-base-t5-tg64-a",
+      "seconds": 10,
+      "samples": 3804,
+      "observation": "Over 90% of sampled user-space instructions resolve to barrier/relax code after accounting for inlining; failed pinned worker mostly shares CPU7 with main thread."
+    },
+    "relaxed": {
+      "case": "internal-base-t5-relaxed-tg64",
+      "seconds": 5,
+      "samples": 2448,
+      "ptqDotSamples": 2188,
+      "ptqDotPercent": 89.38
+    },
+    "relaxedRepeat": {
+      "case": "internal-base-t5-relaxed-tg64-b",
+      "seconds": 5,
+      "samples": 1983,
+      "ptqDotSamples": 40,
+      "ptqDotPercent": 2.02,
+      "observation": "Despite shared mask 3-7 on all five threads, two workers exclusively shared CPU7 during the sampled window; most samples are in barriers."
+    },
+    "repinned": {
+      "case": "internal-base-t5-relaxed-tg64-b",
+      "seconds": 5,
+      "samples": 2476,
+      "ptqDotSamples": 2332,
+      "ptqDotPercent": 94.18,
+      "observation": "Same process after successful taskset of one worker per fast core; each worker sampled on its assigned CPU."
+    },
+    "limits": "Sampled user-space CPU time in short windows, not whole-run wall time. Profiled runs include profiler overhead."
+  },
+  "noMmapRejection": "Manually stopped after about 3 GiB of process swap and memory PSI full avg10 >13%; no completed throughput sample.",
+  "mlockLimitKiB": 65536
+}

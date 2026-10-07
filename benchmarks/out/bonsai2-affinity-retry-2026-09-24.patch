@@ -1,0 +1,23 @@
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -2677,6 +2677,20 @@
+     if (err < 0) {
+         err = errno;
+     }
++    // Experiment: retry a temporarily unavailable Android CPU during pool startup.
++    int affinity_retries = 0;
++    while (err == EINVAL && affinity_retries < 20) {
++        const struct timespec delay = { 0, 10000000 };
++        nanosleep(&delay, NULL);
++        err = sched_setaffinity(0, sizeof(cpuset), &cpuset);
++        if (err < 0) {
++            err = errno;
++        }
++        affinity_retries++;
++    }
++    if (affinity_retries > 0) {
++        fprintf(stderr, "affinity experiment: retries=%d result=%d\n", affinity_retries, err);
++    }
+ #else
+     err = pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+ #endif

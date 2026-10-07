@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-24",
+  "device": "Samsung SM-S918B (Snapdragon 8 Gen 2)",
+  "model": "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+  "modelBytes": 5946648928,
+  "sourceRevision": "842b1880415d6f508f03b789e5ce70194def7bfd",
+  "variantPatch": "bonsai2-ptq1-tile-arm-2026-09-24.patch",
+  "microbenchmark": {
+    "width": 5120,
+    "rows": 8192,
+    "core": 3,
+    "tiles": [
+      {
+        "tile": 2,
+        "baselineMedianNsPerWeightToken": 0.1315111135,
+        "tiledMedianNsPerWeightToken": 0.0906421885,
+        "speedup": 1.4508819312102113
+      },
+      {
+        "tile": 4,
+        "baselineMedianNsPerWeightToken": 0.13150532399999998,
+        "tiledMedianNsPerWeightToken": 0.066504331,
+        "speedup": 1.9773948857556356
+      },
+      {
+        "tile": 8,
+        "baselineMedianNsPerWeightToken": 0.131665651,
+        "tiledMedianNsPerWeightToken": 0.0584675915,
+        "speedup": 2.2519424457564665
+      }
+    ],
+    "maxRelativeError": 0
+  },
+  "nrc2Correctness": {
+    "widths": [
+      5120,
+      6144,
+      17408
+    ],
+    "rows": 64,
+    "maxRelativeError": 0
+  },
+  "fullModelConfig": {
+    "threads": 5,
+    "cpuMask": "f8",
+    "ubatch": 128,
+    "mmap": true,
+    "warmup": false,
+    "device": "none",
+    "gpuLayers": 0,
+    "promptTokens": 32,
+    "generationTokens": 0
+  },
+  "fullModelRuns": [
+    {
+      "label": "baseline-a",
+      "variant": "baseline",
+      "diagnosticPrint": false,
+      "promptTokens": 64,
+      "tokensPerSecond": 0.83358,
+      "measuredSeconds": 76.77727392691763,
+      "wallSeconds": 132.302,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-0",
+          "milliCelsius": 42200
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 1977600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.589,
+        "hottestComputeZone": {
+          "zone": "cpu-1-5",
+          "milliCelsius": 68200
+        }
+      },
+      "readBytesAtLastSample": 6108041216,
+      "majorFaultsAtLastSample": 2603,
+      "threadAffinity": "Name:\tpideck-ptq1-bas\nPid:\t31111\nCpus_allowed_list:\t7\nName:\tpideck-ptq1-bas\nPid:\t31133\nCpus_allowed_list:\t3\nName:\tpideck-ptq1-bas\nPid:\t31134\nCpus_allowed_list:\t4\nName:\tpideck-ptq1-bas\nPid:\t31135\nCpus_allowed_list:\t5\nName:\tpideck-ptq1-bas\nPid:\t31136\nCpus_allowed_list:\t0-7\n",
+      "threadAffinityValidAtSnapshot": false
+    },
+    {
+      "label": "baseline-b",
+      "variant": "baseline",
+      "diagnosticPrint": false,
+      "promptTokens": 32,
+      "tokensPerSecond": 1.120697,
+      "measuredSeconds": 28.553659017557823,
+      "wallSeconds": 40.789,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-2",
+          "milliCelsius": 46500
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2726400,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.811,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 52900
+        }
+      },
+      "readBytesAtLastSample": 5777719296,
+      "majorFaultsAtLastSample": 1530,
+      "threadAffinity": "Name:\tpideck-ptq1-bas\nPid:\t5972\nCpus_allowed_list:\t7\nName:\tpideck-ptq1-bas\nPid:\t6072\nCpus_allowed_list:\t3\nName:\tpideck-ptq1-bas\nPid:\t6075\nCpus_allowed_list:\t4\nName:\tpideck-ptq1-bas\nPid:\t6076\nCpus_allowed_list:\t5\nName:\tpideck-ptq1-bas\nPid:\t6080\nCpus_allowed_list:\t6\n",
+      "threadAffinityValidAtSnapshot": true
+    },
+    {
+      "label": "patched-a",
+      "variant": "patched",
+      "diagnosticPrint": false,
+      "promptTokens": 32,
+      "tokensPerSecond": 1.114499,
+      "measuredSeconds": 28.712452859984623,
+      "wallSeconds": 40.755,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-0",
+          "milliCelsius": 46500
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2841600,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.846,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 52500
+        }
+      },
+      "readBytesAtLastSample": 3194384384,
+      "majorFaultsAtLastSample": 1401,
+      "threadAffinity": "Name:\tpideck-ptq1-pat\nPid:\t8932\nCpus_allowed_list:\t7\nName:\tpideck-ptq1-pat\nPid:\t8946\nCpus_allowed_list:\t3\nName:\tpideck-ptq1-pat\nPid:\t8947\nCpus_allowed_list:\t4\nName:\tpideck-ptq1-pat\nPid:\t8948\nCpus_allowed_list:\t0-7\nName:\tpideck-ptq1-pat\nPid:\t8949\nCpus_allowed_list:\t6\n",
+      "threadAffinityValidAtSnapshot": false
+    },
+    {
+      "label": "instrumented",
+      "variant": "patched",
+      "diagnosticPrint": true,
+      "promptTokens": 32,
+      "tokensPerSecond": 1.816554,
+      "measuredSeconds": 17.61577140013454,
+      "wallSeconds": 30.624,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 45000
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2592000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.771,
+        "hottestComputeZone": {
+          "zone": "cpuss-2",
+          "milliCelsius": 53200
+        }
+      },
+      "readBytesAtLastSample": 965427200,
+      "majorFaultsAtLastSample": 732,
+      "threadAffinity": "Name:\tpideck-ptq1-ins\nPid:\t9817\nCpus_allowed_list:\t7\nName:\tpideck-ptq1-ins\nPid:\t9832\nCpus_allowed_list:\t3\nName:\tpideck-ptq1-ins\nPid:\t9833\nCpus_allowed_list:\t4\nName:\tpideck-ptq1-ins\nPid:\t9834\nCpus_allowed_list:\t5\nName:\tpideck-ptq1-ins\nPid:\t9835\nCpus_allowed_list:\t6\n",
+      "threadAffinityValidAtSnapshot": true
+    },
+    {
+      "label": "baseline-c",
+      "variant": "baseline",
+      "diagnosticPrint": false,
+      "promptTokens": 32,
+      "tokensPerSecond": 1.289658,
+      "measuredSeconds": 24.81277982224745,
+      "wallSeconds": 30.649,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-2",
+          "milliCelsius": 45300
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2476800,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.737,
+        "hottestComputeZone": {
+          "zone": "cpu-1-0",
+          "milliCelsius": 52400
+        }
+      },
+      "readBytesAtLastSample": 12075008,
+      "majorFaultsAtLastSample": 333,
+      "threadAffinity": "Name:\tpideck-ptq1-bas\nPid:\t10556\nCpus_allowed_list:\t7\nName:\tpideck-ptq1-bas\nPid:\t10575\nCpus_allowed_list:\t3\nName:\tpideck-ptq1-bas\nPid:\t10577\nCpus_allowed_list:\t4\nName:\tpideck-ptq1-bas\nPid:\t10578\nCpus_allowed_list:\t5\nName:\tpideck-ptq1-bas\nPid:\t10579\nCpus_allowed_list:\t6\n",
+      "threadAffinityValidAtSnapshot": true
+    },
+    {
+      "label": "patched-b",
+      "variant": "patched",
+      "diagnosticPrint": false,
+      "promptTokens": 32,
+      "tokensPerSecond": 1.696042,
+      "measuredSeconds": 18.867457291741594,
+      "wallSeconds": 30.701,
+      "thermalBefore": {
+        "bigCoreScalingMaxHz": 3360000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 1.0,
+        "hottestComputeZone": {
+          "zone": "cpu-1-7",
+          "milliCelsius": 46900
+        }
+      },
+      "thermalAfter": {
+        "bigCoreScalingMaxHz": 2592000,
+        "bigCoreNominalMaxHz": 3360000,
+        "headroom": 0.771,
+        "hottestComputeZone": {
+          "zone": "cpu-0-1",
+          "milliCelsius": 50900
+        }
+      },
+      "readBytesAtLastSample": 2296999936,
+      "majorFaultsAtLastSample": 2357,
+      "threadAffinity": "Name:\tpideck-ptq1-pat\nPid:\t11866\nCpus_allowed_list:\t7\nName:\tpideck-ptq1-pat\nPid:\t11876\nCpus_allowed_list:\t3\nName:\tpideck-ptq1-pat\nPid:\t11877\nCpus_allowed_list:\t4\nName:\tpideck-ptq1-pat\nPid:\t11878\nCpus_allowed_list:\t5\nName:\tpideck-ptq1-pat\nPid:\t11879\nCpus_allowed_list:\t6\n",
+      "threadAffinityValidAtSnapshot": true
+    }
+  ],
+  "comparison": {
+    "coldPairSpeedup": 0.9944695131690366,
+    "laterPairSpeedup": 1.3151098973526316,
+    "diagnosticVsLaterBaseline": 1.4085548261632155
+  },
+  "diagnosticNrc2Observed": true,
+  "interpretation": "The full model uses the nrc=2 path. The first 32-token pair had heavy storage I/O and an incorrectly pinned worker in patched-a, so its lack of gain cannot be attributed solely to I/O. The later baseline-c/patched-b pair had correct affinity snapshots and about 1.32x higher prompt throughput, but page-cache I/O varied substantially. This is an experimental prefill candidate, not a production change."
+}
