@@ -44,7 +44,18 @@
       "commit": "842b1880415d6f508f03b789e5ce70194def7bfd",
       "sourceArchiveSha256": "84ec38b7e7fb45a9f076e923e064e967e7c30b946b71b3b778444b05e8459c3c",
       "ndkRevision": "28.2.13676358",
-      "file": "libpideck_prism_server.so"
+      "file": "libpideck_prism_server.so",
+      "patchSet": "pideck-prism1",
+      "patches": [
+        {
+          "name": "0001-cpu-affinity-retry.patch",
+          "sha256": "e7ebe407839b11990497e9531c841fcc68c29d3dcc038ec75689b46b4371e92f"
+        },
+        {
+          "name": "0002-ptq1-two-token-dot-arm.patch",
+          "sha256": "e9bfadef4437e11b320f35aa352128c6010d7be4b988f77ffb90fe9da3b94f1b"
+        }
+      ]
     }
   ],
   "files": [
@@ -135,8 +146,8 @@
     },
     {
       "name": "libpideck_prism_server.so",
-      "bytes": 10074752,
-      "sha256": "4f318551fb2ba961a0c2a263d40754fd47f63b232e8cf614fdcf9fa08b8c19c0"
+      "bytes": 10075856,
+      "sha256": "402f8118e8adf02ab3757cc62035b2bb92e7bc3c6e361856d51e7a8491a17b75"
     }
   ]
 }

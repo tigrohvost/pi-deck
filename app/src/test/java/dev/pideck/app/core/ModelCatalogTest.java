@@ -141,7 +141,10 @@ public class ModelCatalogTest {
                 qwen38.sha256
         );
         assertEquals("on", qwen38.reasoningMode);
-        assertEquals(List.of("--reasoning-budget", "256"), qwen38.serverArgs);
+        assertEquals(
+                List.of("--reasoning-budget", "256", "--cache-ram", "512", "--no-mmap"),
+                qwen38.serverArgs
+        );
         assertEquals("stock", qwen38.serverFlavor);
         assertEquals("b10092", qwen38.nativeRuntimeBuild());
 
@@ -155,7 +158,10 @@ public class ModelCatalogTest {
                 granite.sha256
         );
         assertEquals("on", granite.reasoningMode);
-        assertEquals(List.of("--reasoning-budget", "256"), granite.serverArgs);
+        assertEquals(
+                List.of("--reasoning-budget", "256", "--cache-ram", "512", "--no-mmap"),
+                granite.serverArgs
+        );
         assertEquals("stock", granite.serverFlavor);
         assertEquals("b10092", granite.nativeRuntimeBuild());
 
@@ -170,7 +176,8 @@ public class ModelCatalogTest {
         );
         assertEquals("on", qad.reasoningMode);
         assertEquals(
-                List.of("--repeat-penalty", "1.1", "--reasoning-budget", "256"),
+                List.of("--repeat-penalty", "1.1", "--reasoning-budget", "256", "--cache-ram", "512",
+                        "--no-mmap"),
                 qad.serverArgs
         );
         assertEquals("stock", qad.serverFlavor);
@@ -343,8 +350,8 @@ public class ModelCatalogTest {
     public void modelCannotOverrideManagedLoopbackArguments() throws Exception {
         String raw = readUtf8(asset("models-v2.json"));
         ModelCatalog.parse(raw.replaceFirst(
-                "\"serverArgs\": \\[\\]",
-                "\"serverArgs\": [\"--host\", \"0.0.0.0\"]"
+                "\"serverArgs\": \\[",
+                "\"serverArgs\": [\"--host\", \"0.0.0.0\", "
         ));
     }
 

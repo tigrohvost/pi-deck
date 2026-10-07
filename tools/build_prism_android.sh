@@ -5,6 +5,7 @@ set -euo pipefail
 # Package its pinned fork as an independent Android executable.
 PRISM_COMMIT="842b1880415d6f508f03b789e5ce70194def7bfd"
 PRISM_BUILD="prism-842b188"
+PRISM_PATCH_SET="pideck-prism1"
 PRISM_NDK_REVISION="28.2.13676358"
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -71,6 +72,24 @@ if [[ "${archive_hash%% *}" != "84ec38b7e7fb45a9f076e923e064e967e7c30b946b71b3b7
 fi
 mkdir -p "${source_dir}"
 tar -xzf "${archive}" --strip-components=1 -C "${source_dir}"
+
+# Pinned PI//DECK patch set "pideck-prism1": affinity retry and the two-token PTQ1 dot.
+patch_dir="${repo_dir}/third_party/prism/patches"
+declare -a prism_patches=(
+    "0001-cpu-affinity-retry.patch e7ebe407839b11990497e9531c841fcc68c29d3dcc038ec75689b46b4371e92f"
+    "0002-ptq1-two-token-dot-arm.patch e9bfadef4437e11b320f35aa352128c6010d7be4b988f77ffb90fe9da3b94f1b"
+)
+for entry in "${prism_patches[@]}"; do
+    patch_name="${entry%% *}"
+    patch_hash="${entry##* }"
+    actual_hash="$(sha256sum "${patch_dir}/${patch_name}")"
+    if [[ "${actual_hash%% *}" != "${patch_hash}" ]]; then
+        printf 'Prism patch %s SHA-256 mismatch.\n' "${patch_name}" >&2
+        exit 3
+    fi
+    patch --directory="${source_dir}" --strip=1 --forward --quiet \
+        < "${patch_dir}/${patch_name}"
+done
 source_date_epoch=1790231541
 common_flags="-O3 -DNDEBUG -ffile-prefix-map=${source_dir}=. -ffile-prefix-map=${build_dir}=."
 SOURCE_DATE_EPOCH="${source_date_epoch}" "${cmake_bin}" \
@@ -117,6 +136,6 @@ install -m 0755 "${build_dir}/bin/llama-server" "${destination}"
 "${strip_tool}" --strip-unneeded "${destination}"
 "${strip_tool}" --remove-section=.note.gnu.build-id "${destination}"
 
-printf 'Built %s (%s) into %s\n' \
-    "${PRISM_BUILD}" "${PRISM_COMMIT}" "${destination}"
+printf 'Built %s (%s, %s) into %s\n' \
+    "${PRISM_BUILD}" "${PRISM_COMMIT}" "${PRISM_PATCH_SET}" "${destination}"
 sha256sum "${destination}"

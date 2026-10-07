@@ -1,0 +1,100 @@
+PI//DECK: decode each PTQ1_0 block once for two prompt tokens (nrc=2, NEON SDOT).
+Bit-exact against the scalar path on 64 rows at widths 5120/6144/17408; prefill
+1.46x/1.52x in paired SM-S918B runs (docs/bonsai2-performance-research.md).
+Single-token decode keeps the original path.
+
+--- a/ggml/src/ggml-cpu/quants.c
++++ b/ggml/src/ggml-cpu/quants.c
+@@ -13,6 +13,10 @@
+ #include <float.h>
+ #include <stdlib.h> // for qsort
+ #include <stdio.h>  // for GGML_ASSERT
++
++#if defined(__ARM_FEATURE_DOTPROD)
++#include <arm_neon.h>
++#endif
+ 
+ #define GROUP_MAX_EPS 1e-15f
+ #define GROUP_MAX_EPS_IQ3_XXS 1e-8f
+@@ -282,7 +286,67 @@
+ // order, so decode a block into element order first using the same traversal as
+ // dequantize_row_ptq1_0 -- that keeps the two provably in step. Four Q8_0 blocks
+ // cover one 128-wide PTQ1_0 block.
++#if defined(__ARM_FEATURE_DOTPROD)
++static void ggml_ptq1_dot_two_tokens(int n, float out[2], const block_ptq1_0 * x,
++                                     const block_q8_0 * y0, const block_q8_0 * y1) {
++    static const uint8_t pow3[5] = {1, 3, 9, 27, 81};
++    static const size_t stages[3] = {32, 16, 8};
++    float sums[2] = {0, 0};
++
++    for (int i = 0; i < n / QK_PTQ1_0; ++i) {
++        int8_t q[QK_PTQ1_0];
++        int o = 0;
++        size_t j = 0;
++        for (size_t st = 0; st < 3; ++st) {
++            const size_t c = stages[st];
++            for (; j + c <= sizeof(x->qs); j += c) {
++                for (size_t nn = 0; nn < 5; ++nn) {
++                    for (size_t m = 0; m < c; ++m) {
++                        const uint8_t v = x[i].qs[j + m] * pow3[nn];
++                        q[o++] = (int8_t) ((((uint16_t) v * 3) >> 8) - 1);
++                    }
++                }
++            }
++        }
++        for (size_t nn = 0; nn < 4; ++nn) {
++            for (size_t h = 0; h < sizeof(x->qh); ++h) {
++                const uint8_t v = x[i].qh[h] * pow3[nn];
++                q[o++] = (int8_t) ((((uint16_t) v * 3) >> 8) - 1);
++            }
++        }
++        GGML_ASSERT(o == QK_PTQ1_0);
++
++        const float d0 = GGML_CPU_FP16_TO_FP32(x[i].d);
++        const block_q8_0 * ys[2] = {y0 + i * 4, y1 + i * 4};
++        for (int t = 0; t < 2; ++t) {
++            float block_sum = 0;
++            for (int k = 0; k < 4; ++k) {
++                const int8x16_t q0 = vld1q_s8(q + k * 32);
++                const int8x16_t q1 = vld1q_s8(q + k * 32 + 16);
++                int32x4_t dot = vdotq_s32(vdupq_n_s32(0), q0, vld1q_s8(ys[t][k].qs));
++                dot = vdotq_s32(dot, q1, vld1q_s8(ys[t][k].qs + 16));
++                block_sum += GGML_CPU_FP16_TO_FP32(ys[t][k].d) * vaddvq_s32(dot);
++            }
++            sums[t] += d0 * block_sum;
++        }
++    }
++    out[0] = sums[0];
++    out[1] = sums[1];
++}
++#endif
++
+ void ggml_vec_dot_ptq1_0_q8_0_generic(int n, float * GGML_RESTRICT s, size_t bs, const void * GGML_RESTRICT vx, size_t bx, const void * GGML_RESTRICT vy, size_t by, int nrc) {
++#if defined(__ARM_FEATURE_DOTPROD)
++    if (nrc == 2) {
++        float first[2], second[2];
++        ggml_ptq1_dot_two_tokens(n, first, vx, vy, (const block_q8_0 *) ((const char *) vy + by));
++        ggml_ptq1_dot_two_tokens(n, second, (const block_ptq1_0 *) ((const char *) vx + bx), vy,
++                                 (const block_q8_0 *) ((const char *) vy + by));
++        s[0] = first[0]; s[1] = second[0];
++        s[bs] = first[1]; s[bs + 1] = second[1];
++        return;
++    }
++#endif
+     const int qk = QK_PTQ1_0;
+     const int nb = n / qk;
+ 
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -247,7 +247,11 @@
+         .from_float               = quantize_row_ptq1_0,
+         .vec_dot                  = ggml_vec_dot_ptq1_0_q8_0,
+         .vec_dot_type             = GGML_TYPE_Q8_0,
++#if defined(__ARM_FEATURE_DOTPROD)
++        .nrows                    = 2,
++#else
+         .nrows                    = 1,
++#endif
+     },
+     [GGML_TYPE_Q4_0] = {
+         .from_float               = quantize_row_q4_0,

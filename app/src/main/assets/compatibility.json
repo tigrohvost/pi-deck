@@ -58,7 +58,7 @@
         "sourceArchiveSha256": "84ec38b7e7fb45a9f076e923e064e967e7c30b946b71b3b778444b05e8459c3c",
         "ndkRevision": "28.2.13676358",
         "file": "libpideck_prism_server.so",
-        "sha256": "4f318551fb2ba961a0c2a263d40754fd47f63b232e8cf614fdcf9fa08b8c19c0"
+        "sha256": "402f8118e8adf02ab3757cc62035b2bb92e7bc3c6e361856d51e7a8491a17b75"
       }
     ]
   },

@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+  "experiment": "batch-threads",
+  "startedAt": "2026-10-07T19:12:32.098410+00:00",
+  "device": "SM-S918B",
+  "modelId": "lfm2.5-2.6b-qad",
+  "modelSha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+  "runtimeLibraries": {
+    "libpideck_llama_server.so": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+    "libllama-server-impl.so": "51442675ade46984d70c37b059c2214e0f4bb67407e3498daa50d1fbd9d51826",
+    "libllama-common.so": "3d235b340bfeff54646ac8d8bbae9911a7ea098596a77c03b572a01eb73d928d",
+    "libllama.so": "8707510ddfa4cb6ac96f3ae78891270fcce5c7ba15e1d0e701ad1aaf270f8712",
+    "libmtmd.so": "aa7a146a88ed1eb418cfac0618ee64490752a0a8ccae336e78a64b7c2f12920b",
+    "libggml.so": "2aeebab24756785d3732d45de35c5ad27c9bbe8235432d8cd43ebacf41a15b0d",
+    "libggml-base.so": "4fec3e67d87b98145f1a1d48d189fb061c0cb2135cc94a3346bec19fce500b93",
+    "libggml-cpu-android_armv8.0_1.so": "f20f764e7f2c555804a411fc0f71c32b815e769acb541b35caf64e9e7a9d1506",
+    "libggml-cpu-android_armv8.2_1.so": "ba648ce30d09f12b92442cbc2545c63ce135627d1e3932916364a08104715963",
+    "libggml-cpu-android_armv8.2_2.so": "c46e23fbc7bb58c82b4efab8cc8f7c2afdf608c0900637d4cd390a0b41a8d7d7",
+    "libggml-cpu-android_armv8.6_1.so": "1bf1bf35d344350f9b3235b6190351fda1029ee89eb6a6a3a76e943ced111413",
+    "libggml-cpu-android_armv9.0_1.so": "a624a90b676e174a31e521b408dae69e237ef2b6f98f1fb0a61bbdb54ed461cf",
+    "libggml-cpu-android_armv9.2_1.so": "02731476be120f8d291cdd51d843af34a6fcc67851a5b0ef62d894d330ec4363",
+    "libggml-cpu-android_armv9.2_2.so": "34c41e6d136181927bb8f86378181e87103d8ae608cfde4c55ab335c97e3b70b"
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf",
+    "--alias",
+    "lfm2.5-2.6b-qad",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18080",
+    "-c",
+    "10240",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "--cpu-strict",
+    "1",
+    "-Crb",
+    "0-7",
+    "--cpu-strict-batch",
+    "1",
+    "--jinja",
+    "--reasoning",
+    "on",
+    "--temp",
+    "0.1",
+    "--top-p",
+    "1",
+    "--top-k",
+    "50",
+    "--min-p",
+    "0",
+    "--presence-penalty",
+    "0",
+    "--repeat-penalty",
+    "1.1",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--no-mmap"
+  ],
+  "result": {
+    "variants": [
+      {
+        "label": "batch8@0-7",
+        "round": 0,
+        "thermalBefore": {
+          "at": "2026-10-07T19:12:35.025297+00:00",
+          "hottestZone": "cpu-1-5",
+          "hottestMilliCelsius": 44900,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T19:13:27.309138+00:00",
+          "hottestZone": "cpuss-0",
+          "hottestMilliCelsius": 79300,
+          "maxFrequencyHeadroom": 0.7371
+        },
+        "loadSeconds": 2.36,
+        "wallSeconds": 46.18,
+        "promptN": 3477,
+        "promptPerSecond": 78.50058243277978,
+        "predictedN": 32,
+        "predictedPerSecond": 17.234080825684813
+      },
+      {
+        "label": "batch5@3-7",
+        "round": 0,
+        "thermalBefore": {
+          "at": "2026-10-07T19:14:40.972282+00:00",
+          "hottestZone": "cpu-0-0",
+          "hottestMilliCelsius": 42600,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T19:15:34.380153+00:00",
+          "hottestZone": "cpuss-0",
+          "hottestMilliCelsius": 78500,
+          "maxFrequencyHeadroom": 0.7371
+        },
+        "loadSeconds": 2.07,
+        "wallSeconds": 47.64,
+        "promptN": 3477,
+        "promptPerSecond": 75.99476757338019,
+        "predictedN": 32,
+        "predictedPerSecond": 17.527581292374297
+      },
+      {
+        "label": "batch5@3-7",
+        "round": 1,
+        "thermalBefore": {
+          "at": "2026-10-07T19:16:47.986122+00:00",
+          "hottestZone": "cpu-0-1",
+          "hottestMilliCelsius": 41800,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T19:17:40.729696+00:00",
+          "hottestZone": "cpuss-0",
+          "hottestMilliCelsius": 78900,
+          "maxFrequencyHeadroom": 0.7714
+        },
+        "loadSeconds": 2.1,
+        "wallSeconds": 47.17,
+        "promptN": 3477,
+        "promptPerSecond": 76.75755088885442,
+        "predictedN": 32,
+        "predictedPerSecond": 17.51879164134654
+      },
+      {
+        "label": "batch8@0-7",
+        "round": 1,
+        "thermalBefore": {
+          "at": "2026-10-07T19:18:53.969642+00:00",
+          "hottestZone": "cpu-0-0",
+          "hottestMilliCelsius": 43400,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T19:19:45.377819+00:00",
+          "hottestZone": "cpu-1-5",
+          "hottestMilliCelsius": 89600,
+          "maxFrequencyHeadroom": 0.6629
+        },
+        "loadSeconds": 2.07,
+        "wallSeconds": 47.28,
+        "promptN": 3477,
+        "promptPerSecond": 77.25159230595469,
+        "predictedN": 32,
+        "predictedPerSecond": 14.4082357475533
+      },
+      {
+        "label": "batch8@0-7",
+        "round": 2,
+        "thermalBefore": {
+          "at": "2026-10-07T19:20:41.575847+00:00",
+          "hottestZone": "cpu-0-0",
+          "hottestMilliCelsius": 43800,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T19:21:32.603237+00:00",
+          "hottestZone": "cpuss-0",
+          "hottestMilliCelsius": 80500,
+          "maxFrequencyHeadroom": 0.6971
+        },
+        "loadSeconds": 2.41,
+        "wallSeconds": 44.81,
+        "promptN": 3477,
+        "promptPerSecond": 81.1244554138873,
+        "predictedN": 32,
+        "predictedPerSecond": 16.939677807328103
+      },
+      {
+        "label": "batch5@3-7",
+        "round": 2,
+        "thermalBefore": {
+          "at": "2026-10-07T19:22:27.793092+00:00",
+          "hottestZone": "cpu-0-1",
+          "hottestMilliCelsius": 44200,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "thermalAfter": {
+          "at": "2026-10-07T19:23:22.116674+00:00",
+          "hottestZone": "cpuss-0",
+          "hottestMilliCelsius": 79300,
+          "maxFrequencyHeadroom": 0.7371
+        },
+        "loadSeconds": 2.09,
+        "wallSeconds": 48.46,
+        "promptN": 3477,
+        "promptPerSecond": 74.69746880634132,
+        "predictedN": 32,
+        "predictedPerSecond": 17.21817744515607
+      }
+    ]
+  },
+  "finishedAt": "2026-10-07T19:23:24.383154+00:00"
+}

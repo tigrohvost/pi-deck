@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "experiment": "memory",
+  "startedAt": "2026-10-07T19:03:38.945532+00:00",
+  "device": "SM-S918B",
+  "modelId": "lfm2.5-2.6b-qad",
+  "modelSha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+  "runtimeLibraries": {
+    "libpideck_llama_server.so": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+    "libllama-server-impl.so": "51442675ade46984d70c37b059c2214e0f4bb67407e3498daa50d1fbd9d51826",
+    "libllama-common.so": "3d235b340bfeff54646ac8d8bbae9911a7ea098596a77c03b572a01eb73d928d",
+    "libllama.so": "8707510ddfa4cb6ac96f3ae78891270fcce5c7ba15e1d0e701ad1aaf270f8712",
+    "libmtmd.so": "aa7a146a88ed1eb418cfac0618ee64490752a0a8ccae336e78a64b7c2f12920b",
+    "libggml.so": "2aeebab24756785d3732d45de35c5ad27c9bbe8235432d8cd43ebacf41a15b0d",
+    "libggml-base.so": "4fec3e67d87b98145f1a1d48d189fb061c0cb2135cc94a3346bec19fce500b93",
+    "libggml-cpu-android_armv8.0_1.so": "f20f764e7f2c555804a411fc0f71c32b815e769acb541b35caf64e9e7a9d1506",
+    "libggml-cpu-android_armv8.2_1.so": "ba648ce30d09f12b92442cbc2545c63ce135627d1e3932916364a08104715963",
+    "libggml-cpu-android_armv8.2_2.so": "c46e23fbc7bb58c82b4efab8cc8f7c2afdf608c0900637d4cd390a0b41a8d7d7",
+    "libggml-cpu-android_armv8.6_1.so": "1bf1bf35d344350f9b3235b6190351fda1029ee89eb6a6a3a76e943ced111413",
+    "libggml-cpu-android_armv9.0_1.so": "a624a90b676e174a31e521b408dae69e237ef2b6f98f1fb0a61bbdb54ed461cf",
+    "libggml-cpu-android_armv9.2_1.so": "02731476be120f8d291cdd51d843af34a6fcc67851a5b0ef62d894d330ec4363",
+    "libggml-cpu-android_armv9.2_2.so": "34c41e6d136181927bb8f86378181e87103d8ae608cfde4c55ab335c97e3b70b"
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf",
+    "--alias",
+    "lfm2.5-2.6b-qad",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18080",
+    "-c",
+    "10240",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "--cpu-strict",
+    "1",
+    "-Crb",
+    "0-7",
+    "--cpu-strict-batch",
+    "1",
+    "--jinja",
+    "--reasoning",
+    "on",
+    "--temp",
+    "0.1",
+    "--top-p",
+    "1",
+    "--top-k",
+    "50",
+    "--min-p",
+    "0",
+    "--presence-penalty",
+    "0",
+    "--repeat-penalty",
+    "1.1",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512"
+  ],
+  "result": {
+    "variants": [
+      {
+        "label": "mmap",
+        "round": 0,
+        "extra": [],
+        "loadSeconds": 13.88,
+        "afterLoadKiB": {
+          "VmHWM": 3310480,
+          "VmRSS": 3310480,
+          "RssAnon": 1764292,
+          "RssFile": 1545816,
+          "VmSwap": 0
+        },
+        "afterPromptKiB": {
+          "VmHWM": 3399760,
+          "VmRSS": 3399664,
+          "RssAnon": 1852712,
+          "RssFile": 1546580,
+          "VmSwap": 0
+        },
+        "wallSeconds": 45.58,
+        "thermalBefore": {
+          "at": "2026-10-07T19:03:41.662977+00:00",
+          "hottestZone": "cpu-1-3",
+          "hottestMilliCelsius": 39800,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "promptN": 3477,
+        "promptPerSecond": 83.56850042923492,
+        "predictedN": 64,
+        "predictedPerSecond": 16.558853009649155
+      },
+      {
+        "label": "no-mmap",
+        "round": 0,
+        "extra": [
+          "--no-mmap"
+        ],
+        "loadSeconds": 2.39,
+        "afterLoadKiB": {
+          "VmHWM": 2035660,
+          "VmRSS": 1985476,
+          "RssAnon": 1975240,
+          "RssFile": 9844,
+          "VmSwap": 0
+        },
+        "afterPromptKiB": {
+          "VmHWM": 2075128,
+          "VmRSS": 2075080,
+          "RssAnon": 2064276,
+          "RssFile": 10412,
+          "VmSwap": 0
+        },
+        "wallSeconds": 47.35,
+        "thermalBefore": {
+          "at": "2026-10-07T19:05:37.372240+00:00",
+          "hottestZone": "cpuss-0",
+          "hottestMilliCelsius": 40600,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "promptN": 3477,
+        "promptPerSecond": 80.0485199472992,
+        "predictedN": 64,
+        "predictedPerSecond": 16.64872159929701
+      },
+      {
+        "label": "mmap",
+        "round": 1,
+        "extra": [],
+        "loadSeconds": 1.78,
+        "afterLoadKiB": {
+          "VmHWM": 3313548,
+          "VmRSS": 3313548,
+          "RssAnon": 1764196,
+          "RssFile": 1548968,
+          "VmSwap": 0
+        },
+        "afterPromptKiB": {
+          "VmHWM": 3402960,
+          "VmRSS": 3402908,
+          "RssAnon": 1852792,
+          "RssFile": 1549732,
+          "VmSwap": 0
+        },
+        "wallSeconds": 48.32,
+        "thermalBefore": {
+          "at": "2026-10-07T19:07:23.755554+00:00",
+          "hottestZone": "cpu-1-6",
+          "hottestMilliCelsius": 41800,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "promptN": 3477,
+        "promptPerSecond": 78.4088837242709,
+        "predictedN": 64,
+        "predictedPerSecond": 16.321625797145654
+      },
+      {
+        "label": "no-mmap",
+        "round": 1,
+        "extra": [
+          "--no-mmap"
+        ],
+        "loadSeconds": 2.73,
+        "afterLoadKiB": {
+          "VmHWM": 2035492,
+          "VmRSS": 1985224,
+          "RssAnon": 1975248,
+          "RssFile": 9604,
+          "VmSwap": 0
+        },
+        "afterPromptKiB": {
+          "VmHWM": 2074312,
+          "VmRSS": 2074264,
+          "RssAnon": 2063648,
+          "RssFile": 10244,
+          "VmSwap": 0
+        },
+        "wallSeconds": 55.24,
+        "thermalBefore": {
+          "at": "2026-10-07T19:10:19.203183+00:00",
+          "hottestZone": "cpu-1-1",
+          "hottestMilliCelsius": 42600,
+          "maxFrequencyHeadroom": 1.0
+        },
+        "promptN": 3477,
+        "promptPerSecond": 67.84122717814385,
+        "predictedN": 64,
+        "predictedPerSecond": 16.3778995599719
+      }
+    ]
+  },
+  "finishedAt": "2026-10-07T19:11:20.616265+00:00"
+}

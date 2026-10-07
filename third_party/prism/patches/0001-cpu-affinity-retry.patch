@@ -1,0 +1,28 @@
+PI//DECK: retry a temporarily unavailable Android CPU while a thread pool pins itself.
+Measured on SM-S918B (docs/bonsai2-performance-research.md): strict pinning returned
+EINVAL on some starts and left a worker sharing a core; 1-2 retries restored five
+distinct CPUs in every observed start. Math is unchanged.
+
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -2677,6 +2677,20 @@
+     if (err < 0) {
+         err = errno;
+     }
++    // Retry a temporarily unavailable Android CPU during pool startup.
++    int affinity_retries = 0;
++    while (err == EINVAL && affinity_retries < 20) {
++        const struct timespec delay = { 0, 10000000 };
++        nanosleep(&delay, NULL);
++        err = sched_setaffinity(0, sizeof(cpuset), &cpuset);
++        if (err < 0) {
++            err = errno;
++        }
++        affinity_retries++;
++    }
++    if (affinity_retries > 0) {
++        fprintf(stderr, "pideck affinity: retries=%d result=%d\n", affinity_retries, err);
++    }
+ #else
+     err = pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+ #endif

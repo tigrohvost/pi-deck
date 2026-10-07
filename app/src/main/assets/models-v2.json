@@ -45,7 +45,10 @@
         "requiresJinja": true,
         "serverArgs": [
           "--repeat-penalty",
-          "1.05"
+          "1.05",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "off",
@@ -122,7 +125,10 @@
         "requiresJinja": true,
         "serverArgs": [
           "--repeat-penalty",
-          "1.05"
+          "1.05",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "off",
@@ -199,7 +205,10 @@
         "requiresJinja": true,
         "serverArgs": [
           "--reasoning-budget",
-          "256"
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
@@ -278,7 +287,10 @@
           "--repeat-penalty",
           "1.1",
           "--reasoning-budget",
-          "256"
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
@@ -357,7 +369,10 @@
           "--repeat-penalty",
           "1.1",
           "--reasoning-budget",
-          "256"
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
@@ -523,7 +538,10 @@
         "requiresJinja": true,
         "serverArgs": [
           "--reasoning-budget",
-          "256"
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
@@ -598,7 +616,11 @@
         "maximumTestedContext": 8192,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": [],
+        "serverArgs": [
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "off",
         "speculative": {
@@ -674,7 +696,10 @@
         "requiresJinja": true,
         "serverArgs": [
           "--reasoning-budget",
-          "256"
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
@@ -828,7 +853,10 @@
         "requiresJinja": true,
         "serverArgs": [
           "--reasoning-budget",
-          "512"
+          "512",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "on",
@@ -905,7 +933,10 @@
         "requiresJinja": true,
         "serverArgs": [
           "--repeat-penalty",
-          "1.05"
+          "1.05",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "off",
@@ -980,7 +1011,10 @@
         "maximumTestedContext": 4096,
         "parallelSlots": 1,
         "requiresJinja": true,
-        "serverArgs": [],
+        "serverArgs": [
+          "--cache-ram",
+          "512"
+        ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "off",
         "speculative": {
@@ -1062,7 +1096,7 @@
           "--reasoning-budget",
           "0",
           "--cache-ram",
-          "256"
+          "512"
         ],
         "chatTemplateMode": "embedded",
         "reasoningMode": "off",
