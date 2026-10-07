@@ -63,9 +63,11 @@ import dev.pideck.app.core.InferenceDisplayPolicy;
 import dev.pideck.app.core.ServerProgress;
 import dev.pideck.app.core.ThermalHeadroom;
 import dev.pideck.app.core.TranscriptStore;
+import dev.pideck.app.core.TurnClock;
 import dev.pideck.app.core.TurnPhase;
 import dev.pideck.app.core.ModelCatalog;
 import dev.pideck.app.core.ModelDownloadManager;
+import dev.pideck.app.core.ModelLifecycle;
 import dev.pideck.app.core.ModelSpec;
 import dev.pideck.app.core.MemoryPressurePolicy;
 import dev.pideck.app.core.NativeLlamaController;
@@ -213,10 +215,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private String smartCompactionAttemptSession;
     private long smartCompactionAttemptTokens = -1L;
     private boolean inferenceActive;
-    private long turnStartedAtUptimeMs;
-    private long firstOutputAtUptimeMs;
-    private long streamedCharacters;
-    private long lastRateUpdateUptimeMs;
+    /** Start, first output and streamed size of the running turn. */
+    private final TurnClock turnClock = new TurnClock();
     private String inferencePhase = "";
     private String pendingPromptAfterCompaction;
     private boolean pendingPlanAfterCompaction;
@@ -241,14 +241,14 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private final Runnable inferenceProgressTicker = new Runnable() {
         @Override
         public void run() {
-            if (!inferenceActive || turnStartedAtUptimeMs <= 0L || firstOutputAtUptimeMs > 0L) {
+            if (!inferenceActive || !turnClock.awaitingFirstOutput()) {
                 return;
             }
             long now = SystemClock.uptimeMillis();
-            long elapsedSeconds = Math.max(0L, (now - turnStartedAtUptimeMs) / 1_000L);
+            long elapsedSeconds = turnClock.elapsedSeconds(now);
             // The server's own log reports prefill and thinking progress; until it does (the
             // first report needs ~3 s of work) the phase and elapsed time are all there is.
-            ServerProgress progress = ServerProgress.latestSince(turnStartedAtUptimeMs);
+            ServerProgress progress = ServerProgress.latestSince(turnClock.startedAtMs());
             // A fully read prompt is no longer news: the phase (thinking, tool) says what follows.
             if (progress != null && progress.promptComplete()) progress = null;
             deck.setGenerationProgress(progress != null
@@ -2784,16 +2784,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
 
     private void updateStreamingRate() {
         long now = SystemClock.uptimeMillis();
-        if (firstOutputAtUptimeMs <= 0L
-                || now - firstOutputAtUptimeMs < 250L
-                || now - lastRateUpdateUptimeMs < 750L) {
-            return;
-        }
-        lastRateUpdateUptimeMs = now;
-        GenerationSpeed speed = GenerationSpeed.fromStreaming(
-                streamedCharacters,
-                now - firstOutputAtUptimeMs
-        );
+        if (!turnClock.rateDue(now)) return;
+        GenerationSpeed speed = turnClock.speed(now);
         if (speed == null) return;
         deck.setGenerationSpeed(speed);
         setBusy(true, t("Печатает · ", "Writing · ")
@@ -2801,9 +2793,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private String formatTurnElapsed(long seconds) {
-        long minutes = Math.min(99L, seconds / 60L);
-        long remainder = seconds % 60L;
-        return String.format(Locale.ROOT, "%02d:%02d", minutes, remainder);
+        return TurnClock.formatElapsed(seconds);
     }
 
     /**
@@ -2827,7 +2817,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (!active) turnPhase = null;
         inferencePhase = active ? (phase == null ? "" : phase) : "";
         main.removeCallbacks(inferenceProgressTicker);
-        if (active && turnStartedAtUptimeMs > 0L && firstOutputAtUptimeMs == 0L) {
+        if (active && turnClock.awaitingFirstOutput()) {
             main.post(inferenceProgressTicker);
         }
         applyScreenSpeedPolicy();
@@ -3509,77 +3499,106 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             meta += t(" · рекомендуем", " · recommended");
         }
 
+        ModelLifecycle.Facts facts = new ModelLifecycle.Facts();
+        facts.fits = fits;
+        facts.privateReady = privateReady;
+        facts.selected = selected;
+        facts.serverReady = serverReady;
+        facts.downloadActive = download.isActive();
+        facts.downloadFailed = download.phase == ModelDownloadManager.Phase.FAILED;
+        facts.incoming = incoming;
+        facts.verified = verified;
+        ModelLifecycle.Stage stage = ModelLifecycle.stage(facts);
+
         String state;
         int stateColor = palette.muted;
         int percent = -1;
+        switch (stage) {
+            case NO_RAM -> state = t("не хватит RAM (", "not enough RAM (") + humanBytes(totalRam) + ")";
+            case ACTIVE -> {
+                state = t("активна", "active");
+                stateColor = palette.ok;
+            }
+            case INSTALLED -> {
+                state = t("загружена, готова к запуску", "downloaded, ready to start");
+                stateColor = palette.ok;
+            }
+            case DOWNLOADING -> {
+                state = t("скачивается · ", "downloading · ")
+                        + humanBytes(download.downloadedBytes)
+                        + t(" из ", " of ") + humanBytes(download.totalBytes);
+                stateColor = palette.accent;
+                percent = download.percent();
+            }
+            case DOWNLOAD_FAILED -> {
+                state = t("сбой загрузки: ", "download failed: ")
+                        + ModelDownloadManager.failureLabel(download.reason).toLowerCase(Locale.ROOT);
+                stateColor = palette.errorText;
+            }
+            case VERIFIED -> {
+                state = t(
+                        "проверена, ждёт приватной установки",
+                        "verified, waiting for private installation"
+                );
+                stateColor = palette.warn;
+            }
+            case INCOMING -> {
+                state = t("ждёт проверки SHA-256", "waiting for SHA-256 verification");
+                stateColor = palette.warn;
+            }
+            default -> state = t("не скачана", "not downloaded");
+        }
+
         String actionLabel = null;
         Runnable action = null;
-        // Offered exactly where the deck has no bytes of its own: someone holding the pinned
-        // artifact already should not pay for it twice.
-        boolean canAttach = false;
-
-        if (!fits) {
-            // Nothing else about the row matters if the phone cannot hold the weights.
-            state = t("не хватит RAM (", "not enough RAM (") + humanBytes(totalRam) + ")";
-        } else if (privateReady && selected && serverReady) {
-            state = t("активна", "active");
-            stateColor = palette.ok;
-        } else if (privateReady) {
-            state = t("загружена, готова к запуску", "downloaded, ready to start");
-            stateColor = palette.ok;
-            actionLabel = selected
-                    ? t("Перезапустить", "Restart")
-                    : t("Выбрать", "Select");
-            action = () -> {
-                chooseModel(model);
-                if (selected) startServer();
-            };
-        } else if (download.isActive()) {
-            state = t("скачивается · ", "downloading · ")
-                    + humanBytes(download.downloadedBytes)
-                    + t(" из ", " of ") + humanBytes(download.totalBytes);
-            stateColor = palette.accent;
-            percent = download.percent();
-            actionLabel = t("Отменить", "Cancel");
-            action = () -> {
-                modelDownloads.cancel(model);
-                refreshUi();
-            };
-        } else if (download.phase == ModelDownloadManager.Phase.FAILED) {
-            state = t("сбой загрузки: ", "download failed: ")
-                    + ModelDownloadManager.failureLabel(download.reason).toLowerCase(Locale.ROOT);
-            stateColor = palette.errorText;
-            actionLabel = t("Повторить", "Retry");
-            action = () -> confirmDownload(model);
-            canAttach = true;
-        } else if (incoming && verified) {
-            state = t(
-                    "проверена, ждёт приватной установки",
-                    "verified, waiting for private installation"
-            );
-            stateColor = palette.warn;
-            actionLabel = t("Установить", "Install");
-            action = () -> installPrivateModel(model);
-        } else if (incoming) {
-            state = t("ждёт проверки SHA-256", "waiting for SHA-256 verification");
-            stateColor = palette.warn;
-            actionLabel = t("Проверить", "Verify");
-            action = () -> verifyModel(model);
-        } else {
-            state = t("не скачана", "not downloaded");
-            actionLabel = t("Скачать", "Download");
-            action = () -> confirmDownload(model);
-            canAttach = true;
+        switch (ModelLifecycle.action(stage, selected)) {
+            case SELECT, RESTART -> {
+                actionLabel = selected ? t("Перезапустить", "Restart") : t("Выбрать", "Select");
+                action = () -> {
+                    chooseModel(model);
+                    if (selected) startServer();
+                };
+            }
+            case CANCEL_DOWNLOAD -> {
+                actionLabel = t("Отменить", "Cancel");
+                action = () -> {
+                    modelDownloads.cancel(model);
+                    refreshUi();
+                };
+            }
+            case RETRY_DOWNLOAD -> {
+                actionLabel = t("Повторить", "Retry");
+                action = () -> confirmDownload(model);
+            }
+            case INSTALL -> {
+                actionLabel = t("Установить", "Install");
+                action = () -> installPrivateModel(model);
+            }
+            case VERIFY -> {
+                actionLabel = t("Проверить", "Verify");
+                action = () -> verifyModel(model);
+            }
+            case DOWNLOAD -> {
+                actionLabel = t("Скачать", "Download");
+                action = () -> confirmDownload(model);
+            }
+            default -> {
+            }
         }
 
         String secondaryLabel = null;
         Runnable secondary = null;
-        if (incoming) {
-            secondaryLabel = t("Удалить исходник", "Delete source");
-            secondary = () -> confirmDeleteModel(model);
-        } else if (canAttach && fits) {
-            secondaryLabel = t("Подключить файл", "Attach file");
-            secondary = () -> requestModelDocument(model, PIDECK_FOLDER);
+        switch (ModelLifecycle.secondary(stage, facts)) {
+            case DELETE_SOURCE -> {
+                secondaryLabel = t("Удалить исходник", "Delete source");
+                secondary = () -> confirmDeleteModel(model);
+            }
+            case ATTACH_FILE -> {
+                secondaryLabel = t("Подключить файл", "Attach file");
+                secondary = () -> requestModelDocument(model, PIDECK_FOLDER);
+            }
+            default -> {
+            }
         }
 
         return new CoreRootView.ModelRow(
@@ -4030,10 +4049,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             main.removeCallbacks(persistComposerDraft);
             prefs.setComposerDraft("");
             deck.setComposerDispatchPending(true);
-            turnStartedAtUptimeMs = SystemClock.uptimeMillis();
-            firstOutputAtUptimeMs = 0L;
-            streamedCharacters = 0L;
-            lastRateUpdateUptimeMs = turnStartedAtUptimeMs;
+            turnClock.begin(SystemClock.uptimeMillis());
             deck.setGenerationSpeed(null);
             enterPhase(TurnPhase.PREPARING, null);
             armWatchdog(operation.operationId, OperationKind.AGENT_TURN);
@@ -4506,11 +4522,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 if (event.operationId != null
                         && event.operationId.equals(operations.activeOperationId())) {
                     String delta = event.payload.optString("delta");
-                    if (firstOutputAtUptimeMs == 0L) {
-                        firstOutputAtUptimeMs = SystemClock.uptimeMillis();
+                    if (turnClock.output(SystemClock.uptimeMillis(), delta.length())) {
                         enterPhase(TurnPhase.WRITING, null);
                     }
-                    streamedCharacters += delta.length();
                     updateStreamingRate();
                     deck.appendStreaming(delta);
                 }
@@ -4520,9 +4534,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         && event.operationId.equals(operations.activeOperationId())) {
                     deck.discardStreaming();
                     transcript.save(deck.entries());
-                    firstOutputAtUptimeMs = 0L;
-                    streamedCharacters = 0L;
-                    lastRateUpdateUptimeMs = SystemClock.uptimeMillis();
+                    turnClock.restartOutput(SystemClock.uptimeMillis());
                     deck.setGenerationSpeed(null);
                     if (event.payload.optBoolean("willRetry", false)) {
                         String retryState = "live_tool_required".equals(
@@ -4544,9 +4556,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case TOOL_CALL_STARTED -> {
                 if (event.operationId != null
                         && event.operationId.equals(operations.activeOperationId())) {
-                    firstOutputAtUptimeMs = 0L;
-                    streamedCharacters = 0L;
-                    lastRateUpdateUptimeMs = SystemClock.uptimeMillis();
+                    turnClock.restartOutput(SystemClock.uptimeMillis());
                     deck.setGenerationSpeed(null);
                     deck.flushStreaming();
                     String verb = traceVerb(event.payload.optString("toolName", "tool"));
@@ -4739,9 +4749,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             } else if (event.type != BridgeEvent.Type.TURN_COMPLETED) {
                 deck.setGenerationSpeed(null);
             }
-            turnStartedAtUptimeMs = 0L;
-            firstOutputAtUptimeMs = 0L;
-            streamedCharacters = 0L;
+            turnClock.end();
         } else if (record.kind == OperationKind.COMPACT_SESSION) {
             contextCompacting = false;
             if (success) {
