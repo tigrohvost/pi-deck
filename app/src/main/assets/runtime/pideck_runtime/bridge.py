@@ -1378,6 +1378,9 @@ class PiRpcChild:
         environment["PIDECK_CROSS_SESSION_PREFIX"] = (
             "1" if cross_session_prefix(model) else "0"
         )
+        # The app starts that server with --slot-save-path; snapshots are keyed by the exact GGUF.
+        environment["PIDECK_SLOT_SNAPSHOTS"] = environment["PIDECK_CROSS_SESSION_PREFIX"]
+        environment["PIDECK_MODEL_SHA256"] = str(model["artifact"]["sha256"])
         environment.update(system_prompt_environment(config, SYSTEM_PROMPT_FILE))
         # The anchored-edit tool is one tool across two profiles that disagree about
         # approval, so the profile decides here rather than the extension guessing. Any

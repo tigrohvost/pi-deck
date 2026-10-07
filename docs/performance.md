@@ -105,6 +105,14 @@ readiness callback cannot drain it behind the dialog.
 
 ### Why a disk slot cache is not enabled
 
+> **Superseded 2026-10-07.** The test below restored a slot and then sent the
+> *identical* prompt, which forces a one-token re-evaluation that recurrent
+> state cannot roll back. A slot that holds exactly the system+tools prefix is
+> strictly extended by the next request and restores correctly: 1414 cached
+> tokens, prefill 0.49 s instead of 21.1 s on LFM2.5 QAD, identical answer. The
+> app now saves and restores such prefix snapshots; see
+> [optimization-2026-10.md](optimization-2026-10.md).
+
 The pinned b10092 server saved a synthetic 2048-token slot in 59 ms and restored
 its 45,417,072-byte file in 50 ms. The first identical prompt after a server
 restart still reported `cache_n=0` and re-evaluated all 2048 tokens in 33.15 s;

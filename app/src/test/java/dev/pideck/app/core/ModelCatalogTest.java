@@ -346,6 +346,33 @@ public class ModelCatalogTest {
         ));
     }
 
+    @Test
+    public void onlyTheVerifiedRuntimeSavesPrefixSnapshots() throws Exception {
+        ModelCatalog catalog = ModelCatalog.parse(readUtf8(asset("models-v2.json")));
+        ModelSpec stock = catalog.byId("lfm2.5-2.6b-qad").orElseThrow();
+        List<String> args = stock.nativeLlamaServerArguments(
+                "/private/m.gguf", edgeProfile(), 8080, "key", "/cache/llama-slots"
+        );
+        int index = args.indexOf("--slot-save-path");
+        assertEquals("/cache/llama-slots/", args.get(index + 1));
+        assertEquals(-1, stock.nativeLlamaServerArguments(
+                "/private/m.gguf", edgeProfile(), 8080, "key"
+        ).indexOf("--slot-save-path"));
+        ModelSpec prism = catalog.byId("bonsai2-27b").orElseThrow();
+        assertEquals(-1, prism.nativeLlamaServerArguments(
+                "/private/b.gguf", edgeProfile(), 8080, "key", "/cache/llama-slots"
+        ).indexOf("--slot-save-path"));
+    }
+
+    @Test(expected = JSONException.class)
+    public void catalogCannotChooseWhereSlotsAreWritten() throws Exception {
+        String raw = readUtf8(asset("models-v2.json"));
+        ModelCatalog.parse(raw.replaceFirst(
+                "\"serverArgs\": \\[",
+                "\"serverArgs\": [\"--slot-save-path\", \"/sdcard/\", "
+        ));
+    }
+
     @Test(expected = JSONException.class)
     public void modelCannotOverrideManagedLoopbackArguments() throws Exception {
         String raw = readUtf8(asset("models-v2.json"));

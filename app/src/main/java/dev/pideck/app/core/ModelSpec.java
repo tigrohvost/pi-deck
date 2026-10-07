@@ -42,7 +42,7 @@ public final class ModelSpec {
             "--spec-ngram-mod-n-max", "--spec-ngram-mod-n-min",
             "--spec-ngram-mod-n-match", "--spec-ngram-simple-size-n",
             "--spec-ngram-simple-size-m", "--spec-ngram-simple-min-hits",
-            "--model-draft", "-md"
+            "--model-draft", "-md", "--slot-save-path"
     );
     /**
      * Only self-speculation is admissible. Every mode here drafts from the model already
@@ -423,14 +423,40 @@ public final class ModelSpec {
             int port,
             String apiKey
     ) {
+        return nativeLlamaServerArguments(privateModelPath, profile, port, apiKey, null);
+    }
+
+    /**
+     * @param slotDirectory where prefix snapshots are saved; used only by the runtime whose
+     *                      restore of a system+tools slot was verified on device
+     */
+    public List<String> nativeLlamaServerArguments(
+            String privateModelPath,
+            CpuProfile profile,
+            int port,
+            String apiKey,
+            String slotDirectory
+    ) {
         if (profile == null) throw new IllegalArgumentException("CPU profile is required");
-        return llamaServerArguments(
+        List<String> args = llamaServerArguments(
                 privateModelPath,
                 profile.decodeThreads,
                 profile,
                 port,
                 apiKey
         );
+        if (slotDirectory == null || slotDirectory.isBlank() || !supportsSlotSnapshots()) {
+            return args;
+        }
+        ArrayList<String> withSlots = new ArrayList<>(args);
+        withSlots.add("--slot-save-path");
+        withSlots.add(slotDirectory.endsWith("/") ? slotDirectory : slotDirectory + "/");
+        return Collections.unmodifiableList(withSlots);
+    }
+
+    /** Stock b10092: a restored prefix slot was measured to extend without rollback. */
+    public boolean supportsSlotSnapshots() {
+        return "stock".equals(serverFlavor) && "b10092".equals(nativeRuntimeBuild());
     }
 
     private List<String> llamaServerArguments(

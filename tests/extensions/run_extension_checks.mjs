@@ -302,6 +302,99 @@ try {
 			false, "cross-session reuse leaked past the first request of a session");
 	}
 	delete process.env.PIDECK_CROSS_SESSION_PREFIX;
+
+	// Prefix slot snapshots: the rendered system+tools prefix is cut before the user turn,
+	// restored when saved earlier, otherwise evaluated once and saved.
+	const chatml = (user) => `<|startoftext|><|im_start|>system\nRules + tools<|im_end|>\n<|im_start|>user\n${user}<|im_end|>\n<|im_start|>assistant\n`;
+	assert.equal(localCache.systemPrefix(chatml("a"), chatml("bb")),
+		"<|startoftext|><|im_start|>system\nRules + tools<|im_end|>\n");
+	assert.equal(localCache.systemPrefix("plain a", "plain b"), undefined);
+	const nameA = localCache.snapshotName("lfm2.5-2.6b-qad", "sha", "{c}", "{s}");
+	assert.equal(nameA, localCache.snapshotName("lfm2.5-2.6b-qad", "sha", "{c}", "{s}"));
+	assert.notEqual(nameA, localCache.snapshotName("lfm2.5-2.6b-qad", "sha", "{c}", "{other}"));
+	assert.match(nameA, /^pideck-lfm2\.5-2\.6b-qad-[0-9a-f]{24}\.bin$/u);
+	const fakeSlots = (stored) => {
+		const calls = [];
+		return {
+			calls,
+			post: async (path, body) => {
+				calls.push(path);
+				if (path.startsWith("/slots/0?action=restore")) {
+					return stored.has(body.filename)
+						? { status: 200, json: { n_restored: 1414 } }
+						: { status: 400, json: { error: "failed to restore" } };
+				}
+				if (path === "/apply-template") return { status: 200, json: { prompt: chatml(body.messages[1].content) } };
+				if (path === "/completion") return { status: 200, json: { tokens_evaluated: 1414 } };
+				if (path.startsWith("/slots/0?action=save")) {
+					stored.add(body.filename);
+					return { status: 200, json: { n_saved: 1414 } };
+				}
+				return { status: 404, json: {} };
+			},
+		};
+	};
+	const snapshotPayload = { model: "m", messages: [{ role: "system", content: "S" }, { role: "user", content: "U" }], tools: [] };
+	const stored = new Set();
+	const cold = fakeSlots(stored);
+	assert.equal(await localCache.warmPrefixSnapshot(cold, snapshotPayload, "pideck-m-1.bin", true), "saved");
+	assert.deepEqual(cold.calls, ["/slots/0?action=restore", "/apply-template", "/apply-template", "/completion", "/slots/0?action=save"]);
+	const warm = fakeSlots(stored);
+	assert.equal(await localCache.warmPrefixSnapshot(warm, snapshotPayload, "pideck-m-1.bin", true), "restored");
+	assert.deepEqual(warm.calls, ["/slots/0?action=restore"], "a saved prefix was evaluated again");
+	assert.equal(await localCache.warmPrefixSnapshot(fakeSlots(new Set()), snapshotPayload, "x.bin", false), "failed",
+		"a missing snapshot was rebuilt although an in-memory checkpoint already covered the prefix");
+	assert.equal(await localCache.warmPrefixSnapshot({ post: async () => ({ status: 501, json: {} }) },
+		snapshotPayload, "x.bin", true), "unsupported");
+	assert.equal(localCache.loopbackSlotClient("https://api.example.com/v1", "k"), undefined,
+		"slot requests may only reach the app-owned loopback server");
+	assert.notEqual(localCache.loopbackSlotClient("http://127.0.0.1:8080/v1", "k"), undefined);
+
+	// The provider hook uses the snapshot on the first request of a Pi process.
+	process.env.PIDECK_CROSS_SESSION_PREFIX = "1";
+	process.env.PIDECK_SLOT_SNAPSHOTS = "1";
+	process.env.PIDECK_MODEL_SHA256 = "sha";
+	const realFetch = globalThis.fetch;
+	const served = new Set();
+	const hookCalls = [];
+	globalThis.fetch = async (url, init) => {
+		const path = String(url).replace("http://127.0.0.1:8080", "");
+		hookCalls.push(path);
+		assert.equal(init.headers.Authorization, "Bearer secret", "the server key was not sent");
+		const response = await fakeSlots(served).post(path, JSON.parse(init.body));
+		return { status: response.status, json: async () => response.json };
+	};
+	try {
+		const snapshotContext = {
+			model: { baseUrl: "http://127.0.0.1:8080/v1" },
+			modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "secret" }) },
+		};
+		const startProcess = () => {
+			const hooks = new Map();
+			localCache.default({ on: (name, handler) => hooks.set(name, handler) });
+			return (payload) => hooks.get("before_provider_request")({ payload }, snapshotContext);
+		};
+		const firstProcess = startProcess();
+		assert.equal((await firstProcess(snapshotPayload)).cache_prompt, true,
+			"a cold first request did not start from its saved prefix");
+		assert.equal(hookCalls.filter((path) => path === "/completion").length, 1);
+		const secondProcess = startProcess();
+		hookCalls.length = 0;
+		assert.equal((await secondProcess(snapshotPayload)).cache_prompt, true);
+		assert.deepEqual(hookCalls, ["/slots/0?action=restore"], "a restarted Pi re-evaluated a saved prefix");
+		hookCalls.length = 0;
+		assert.equal((await secondProcess({ ...snapshotPayload, messages: [...snapshotPayload.messages, { role: "assistant", content: "A" }] })).cache_prompt, true);
+		assert.deepEqual(hookCalls, [], "a growing session touched slot snapshots again");
+		process.env.PIDECK_SLOT_SNAPSHOTS = "0";
+		hookCalls.length = 0;
+		assert.equal((await startProcess()(snapshotPayload)).cache_prompt, false);
+		assert.deepEqual(hookCalls, [], "snapshots ran without their runtime gate");
+	} finally {
+		globalThis.fetch = realFetch;
+		delete process.env.PIDECK_CROSS_SESSION_PREFIX;
+		delete process.env.PIDECK_SLOT_SNAPSHOTS;
+		delete process.env.PIDECK_MODEL_SHA256;
+	}
 	const adaptive = await jiti.import(join(workspace, "pideck-adaptive-thinking.ts"));
 	assert.equal(adaptive.adaptiveThinkingLevel("Прочитай README и ответь кратко", "agent"), "off");
 	assert.equal(adaptive.adaptiveThinkingLevel("Исправь ошибку и запусти тест", "agent"), "low");

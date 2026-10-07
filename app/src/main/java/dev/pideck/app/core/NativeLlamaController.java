@@ -55,10 +55,16 @@ public final class NativeLlamaController {
                         modelFile.getAbsolutePath(),
                         profile,
                         PORT,
-                        apiKey
+                        apiKey,
+                        slotDirectory(app)
                 )
         );
         monitorAndAdopt(app, operationId, model, apiKey, profile);
+    }
+
+    private static String slotDirectory(Context app) {
+        File directory = SlotSnapshotDirectory.prepare(app.getCacheDir());
+        return directory == null ? null : directory.getAbsolutePath();
     }
 
     /** Reattaches the durable operation after an Activity recreation in the same app process. */
