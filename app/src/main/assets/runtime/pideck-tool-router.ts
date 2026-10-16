@@ -327,10 +327,11 @@ export function explicitlyRequestedSoleTool(text: string): string | undefined {
 	return requestsReadOnlyFile ? "read" : undefined;
 }
 
-function cleanExplicitPath(value: string | undefined): string | undefined {
+function cleanExplicitPath(value: string | undefined, quoted = false): string | undefined {
 	let candidate = value?.trim();
 	if (!candidate) return undefined;
-	while (candidate.length > 1 && /[),;:!?]$/u.test(candidate)) {
+	while (!quoted && candidate.length > 1 && /[.),;:!?]$/u.test(candidate)) {
+		if (/(?:^|[\\/])\.{1,2}$/u.test(candidate)) break;
 		candidate = candidate.slice(0, -1);
 	}
 	return candidate || undefined;
@@ -338,14 +339,33 @@ function cleanExplicitPath(value: string | undefined): string | undefined {
 
 /** Finds a file path the user explicitly attached to a read request. */
 export function explicitReadPath(text: string): string | undefined {
-	const forFile = text.match(
-		/(?:для\s+файла|for\s+(?:the\s+)?file)\s+[`"'«]?([^\s`"'»<>]+)[`"'»]?/iu,
+	// A named tool is not a read verb. Otherwise "use the read tool to read X"
+	// binds every read call to workspace/tool, even when the model supplied X.
+	const request = text.replace(
+		/(?<![\p{L}\p{N}_])(?:use|call|invoke|используй|вызови)\s+(?:(?:the|инструмент)\s+)?read(?:\s+tool)?\b/giu,
+		"",
 	);
-	if (forFile?.[1]) return cleanExplicitPath(forFile[1]);
-	const direct = text.match(
-		/(?:прочитай|прочти)(?:\s+файл)?\s+[`"'«]?([^\s`"'»<>]+)[`"'»]?|\bread(?:\s+(?:the\s+)?file)?\s+[`"']?([^\s`"'<>]+)[`"']?/iu,
-	);
-	return cleanExplicitPath(direct?.[1] ?? direct?.[2]);
+	const candidateAfter = (end: number, explicitFile: boolean): string | undefined => {
+		const match = request.slice(end).match(
+			/^\s+(?:`([^`]+)`|"([^"]+)"|'([^']+)'|«([^»]+)»|([^\s`"'«»<>]+))/u,
+		);
+		if (!match) return undefined;
+		const quoted = match[5] === undefined;
+		const candidate = cleanExplicitPath(match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5], quoted);
+		if (!quoted && !explicitFile && /^(?:the|a|an|tool|exactly|first|last|line|lines|первую|последнюю|строку|строки|инструмент)$/iu.test(candidate ?? "")) return undefined;
+		return candidate;
+	};
+	const forFile = /(?:для\s+файла|for\s+(?:the\s+)?file)(?=\s)/giu;
+	for (const match of request.matchAll(forFile)) {
+		const candidate = candidateAfter(match.index + match[0].length, true);
+		if (candidate) return candidate;
+	}
+	const direct = /(?:прочитай|прочти)(?:\s+(?:первую|последнюю)\s+строку)?(?:\s+из)?(?:\s+файл(?:а)?)?|\bread\b(?:\s+(?:the\s+)?(?:first|last)\s+line(?:\s+(?:of|from|in))?)?(?:\s+(?:the\s+)?file)?/giu;
+	for (const match of request.matchAll(direct)) {
+		const candidate = candidateAfter(match.index + match[0].length, /(?:file|файл|файла)$/iu.test(match[0]));
+		if (candidate) return candidate;
+	}
+	return undefined;
 }
 
 /** Combines the user's explicit directory and file without trusting model arguments. */

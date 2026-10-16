@@ -676,6 +676,21 @@ try {
 		undefined,
 		"a word containing 'read' was mistaken for an explicit read target",
 	);
+	const handsetReadPrompt = "Use the read tool to read .pideck-bench/probe/fixture/README.md. "
+		+ "Reply with exactly the first line from that file. Do not guess.";
+	assert.equal(router.explicitReadPath(handsetReadPrompt), ".pideck-bench/probe/fixture/README.md",
+		"a tool name became the user-scoped filename");
+	assert.equal(router.explicitReadPath("Use the read tool exactly once."), undefined);
+	assert.equal(router.explicitReadPath("Read the first line of README.md"), "README.md");
+	assert.equal(router.explicitReadPath("Используй инструмент read, прочитай первую строку README.md"), "README.md");
+	assert.equal(router.explicitReadPath("Прочитай первую строку из README.md"), "README.md");
+	assert.equal(router.explicitReadPath("Read the file LICENSE"), "LICENSE");
+	assert.equal(router.explicitReadPath("Прочитай файл tool"), "tool");
+	assert.equal(router.explicitReadPath('Read "docs/path with spaces.md"'), "docs/path with spaces.md");
+	assert.equal(router.explicitReadPath('Read "tool."'), "tool.");
+	assert.equal(router.explicitReadPath("Для файла README.md прочитай первую строку"), "README.md");
+	assert.equal(router.explicitReadPath("Read ../.."), "../..");
+	assert.equal(router.safeReadTarget("/workspace", router.explicitReadPath("Read ../..")), undefined);
 	assert.equal(router.safeReadTarget("/workspace", "/workspace/fixture/a.txt"), "/workspace/fixture/a.txt");
 	assert.equal(router.safeReadTarget("/workspace", "/outside/a.txt"), undefined);
 	const repairPrompt = `В каталоге ${workspace} исправь только off-by-one в src/counter.py `
@@ -751,6 +766,12 @@ try {
 	const routerToolCall = routerExtension?.handlers.get("tool_call")?.[0];
 	const routerBeforeProviderRequest = routerExtension?.handlers.get("before_provider_request")?.[0];
 	const routerBeforeAgentStart = routerExtension?.handlers.get("before_agent_start")?.[0];
+	await rawRouterSessionStart({ type: "session_start", reason: "new" });
+	await routerInput({ type: "input", text: handsetReadPrompt, source: "rpc" });
+	const handsetReadArgs = { path: ".data/data/com.termux/files/home/.pideck/workspace/wrong/README.md" };
+	await routerToolCall({ type: "tool_call", toolName: "read", input: handsetReadArgs }, { cwd: workspace });
+	assert.equal(handsetReadArgs.path, join(workspace, ".pideck-bench/probe/fixture/README.md"),
+		"the real tool hook replaced a read target with a prose word");
 	// The following legacy-session checks deliberately start with a general task. New-session
 	// requests below prove that the profile core is fixed from session_start, so a narrow
 	// first task cannot make the next ordinary task rewrite the cached system+tools prefix.
