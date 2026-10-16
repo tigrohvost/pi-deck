@@ -111,9 +111,9 @@ DECISION_KINDS = frozenset({"overwrite", "delete", "shell", "plan"})
 MAX_DECISION_PREVIEW_LINES = 4
 MAX_PLAN_ITEMS = 7
 PLAN_PHASES = frozenset(
-    {"idle", "planning", "planned", "executing", "blocked", "complete", "cancelled"}
+    {"idle", "planning", "planned", "executing", "unverified", "blocked", "complete", "cancelled"}
 )
-PLAN_ITEM_STATUSES = frozenset({"pending", "active", "verified", "blocked"})
+PLAN_ITEM_STATUSES = frozenset({"pending", "active", "done_unverified", "verified", "blocked", "cancelled"})
 PLAN_PROGRESS_PATTERN = re.compile(r"\[(DONE|BLOCKED):(\d+)\]", re.IGNORECASE)
 DEGENERATE_FORMATTING_CHARS = frozenset("*_`~#>-.[](){}|\\/")
 ANSWER_RETRY_MESSAGE = (
@@ -478,6 +478,9 @@ def bounded_session_stats(
     return result
 
 
+TEST_VERDICTS = {"passed", "failed", "no_tests", "unsupported", "timed_out", "cancelled", "output_limit", "infra_error"}
+
+
 def empty_plan_ledger() -> dict[str, Any]:
     return {"schemaVersion": 1, "phase": "idle", "goal": "", "items": []}
 
@@ -501,18 +504,33 @@ def bounded_plan_ledger(value: Any) -> dict[str, Any]:
             status = item.get("status")
             if status not in PLAN_ITEM_STATUSES:
                 status = "pending"
+            evidence = item.get("evidenceIds", [])
+            evidence = [entry for entry in evidence[:8] if isinstance(entry, str)
+                        and re.fullmatch(r"[0-9a-f-]{36}", entry)] if isinstance(evidence, list) else []
+            kind = item.get("verificationKind")
+            snapshot = item.get("snapshotId")
+            if status == "verified" and (not evidence or kind not in {"test", "inspection", "artifact_check", "user_acceptance"}
+                                         or not isinstance(snapshot, str) or not re.fullmatch(r"[0-9a-f]{64}", snapshot)):
+                status = "done_unverified"
             items.append(
                 {
                     "step": len(items) + 1,
                     "text": text,
                     "status": status,
+                    "verificationKind": kind if status == "verified" else None,
+                    "evidenceIds": evidence if status == "verified" else [],
+                    "snapshotId": snapshot if status == "verified" else None,
                 }
             )
+    if phase == "complete" and (not items or any(item["status"] != "verified" for item in items)):
+        phase = "unverified"
     return {
         "schemaVersion": 1,
         "phase": phase,
         "goal": bounded_text(value.get("goal", ""), 2048),
         "items": items,
+        **{key: bounded_text(value[key], 2048 if key == "reason" else 128)
+           for key in ("revision", "operationId", "workspaceId", "scopeFingerprint", "reason") if key in value},
     }
 
 
@@ -527,10 +545,17 @@ def load_plan_ledger(session_id: str | None) -> dict[str, Any]:
         return empty_plan_ledger()
     ledger = bounded_plan_ledger(value.get("planLedger"))
     phase = ledger["phase"]
+    for item in ledger["items"]:
+        if item["status"] == "verified":
+            item.update(status="done_unverified", verificationKind=None, evidenceIds=[], snapshotId=None)
+    if phase == "complete":
+        ledger["phase"] = "unverified"
+        ledger["reason"] = "Workspace must be checked again after restart"
     if phase in {"planning", "planned"}:
         ledger["phase"] = "cancelled"
     elif phase == "executing":
         ledger["phase"] = "blocked"
+        ledger["reason"] = "Execution interrupted; explicit resume and fresh verification required"
         for item in ledger["items"]:
             if item["status"] == "active":
                 item["status"] = "blocked"
@@ -538,8 +563,26 @@ def load_plan_ledger(session_id: str | None) -> dict[str, Any]:
     return ledger
 
 
+def terminal_plan_markers(value: str) -> list[Any]:
+    lines = value.rstrip().splitlines()
+    if not lines or not re.fullmatch(r"(?:\[(?:DONE|BLOCKED):[1-7]\](?: |$))+", lines[-1], re.IGNORECASE):
+        return []
+    fence = None
+    for line in lines[:-1]:
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        if marker:
+            text = marker.group(1)
+            if fence is None:
+                fence = text
+            elif text[0] == fence[0] and len(text) >= len(fence):
+                fence = None
+    return [] if fence else list(PLAN_PROGRESS_PATTERN.finditer(lines[-1]))
+
+
 def strip_plan_markers(value: str) -> str:
-    return PLAN_PROGRESS_PATTERN.sub("", value).rstrip()
+    return value.rstrip().rsplit("\n", 1)[0].rstrip() if terminal_plan_markers(value) and "\n" in value.rstrip() else (
+        "" if terminal_plan_markers(value) else value.rstrip()
+    )
 
 
 def load_session_checkpoint(
@@ -1660,7 +1703,7 @@ class PiDeckBridge:
     def _advance_plan_from_markers(self, answer: str) -> None:
         if self.plan_ledger.get("phase") != "executing":
             return
-        markers = list(PLAN_PROGRESS_PATTERN.finditer(answer))
+        markers = terminal_plan_markers(answer)
         if not markers:
             return
         items = [dict(item) for item in self.plan_ledger.get("items", [])]
@@ -1669,7 +1712,7 @@ class PiDeckBridge:
             step = int(marker.group(2))
             if step < 1 or step > len(items):
                 continue
-            status = "verified" if marker.group(1).upper() == "DONE" else "blocked"
+            status = ("verified" if items[step - 1].get("status") == "verified" else "done_unverified") if marker.group(1).upper() == "DONE" else "blocked"
             if items[step - 1].get("status") != status:
                 items[step - 1]["status"] = status
                 changed = True
@@ -1679,16 +1722,19 @@ class PiDeckBridge:
             phase = "blocked"
         elif items and all(item.get("status") == "verified" for item in items):
             phase = "complete"
+        elif items and all(item.get("status") in {"verified", "done_unverified"} for item in items):
+            phase = "unverified"
         else:
             phase = "executing"
             activated = False
             for item in items:
-                if item.get("status") == "verified":
+                if item.get("status") in {"verified", "done_unverified"}:
                     continue
                 item["status"] = "active" if not activated else "pending"
                 activated = True
         self._set_plan_ledger(
             {
+                **self.plan_ledger,
                 "schemaVersion": 1,
                 "phase": phase,
                 "goal": self.plan_ledger.get("goal", ""),
@@ -1805,6 +1851,12 @@ class PiDeckBridge:
         self._reset_generation_metrics()
         child_message = PLAN_REQUEST_PREFIX + message if plan_requested else message
         try:
+            if not plan_requested:
+                self._set_plan_ledger(empty_plan_ledger(), operation_id)
+            atomic_write_json(BASE / "active-operation.json", {
+                "schemaVersion": 1, "operationId": operation_id,
+                "workspace": str((BASE / "workspace").resolve()),
+            }, 0o600)
             self.child.send(
                 {"id": operation_id, "type": "prompt", "message": child_message}
             )
@@ -1997,10 +2049,14 @@ class PiDeckBridge:
         pending = self.pending_approvals.get(approval_id)
         if pending is None:
             raise PiDeckError("APPROVAL_NOT_PENDING", "Approval is unknown or already resolved")
-        if pending["operationId"] != operation_id:
+        if pending["operationId"] != operation_id or self.active_operation_id != operation_id:
             raise PiDeckError("APPROVAL_OPERATION_MISMATCH", "Approval belongs to another turn")
         decision = pending.get("decision")
         is_plan = isinstance(decision, dict) and decision.get("kind") == "plan"
+        if is_plan and pending.get("planRevision") != self.plan_ledger.get("revision"):
+            self.child.send({"type": "extension_ui_response", "id": approval_id, "cancelled": True})
+            self._resolve_approval(approval_id, False, "stale revision")
+            raise PiDeckError("APPROVAL_PLAN_MISMATCH", "Plan changed after this approval was requested")
         if time.monotonic() > pending["expiresMonotonic"]:
             try:
                 self.child.send(
@@ -2115,6 +2171,27 @@ class PiDeckBridge:
                 )
             elif message_type == "tool_execution_end":
                 tool_name = value.get("toolName")
+                receipt = None
+                verification_status = None
+                if tool_name == "run_tests":
+                    result = value.get("result")
+                    details = result.get("details") if isinstance(result, dict) else None
+                    candidate = details.get("receipt") if isinstance(details, dict) else None
+                    if (isinstance(candidate, dict) and candidate.get("schemaVersion") == 1
+                            and candidate.get("operationId") == operation_id
+                            and candidate.get("status") in TEST_VERDICTS
+                            and len(json.dumps(candidate)) <= 4096):
+                        receipt = candidate
+                        verification_status = candidate["status"]
+                        if verification_status == "passed" and not (
+                            type(candidate.get("selected")) is int and candidate["selected"] > 0
+                            and type(candidate.get("passed")) is int and candidate["passed"] > 0
+                            and candidate.get("failed") == 0 and candidate.get("exitCode") == 0
+                            and candidate.get("terminationReason") == "exited"
+                        ):
+                            verification_status = "infra_error"
+                    else:
+                        verification_status = "infra_error"
                 if (
                     self.active_operation_kind == "prompt"
                     and value.get("isError") is not True
@@ -2131,6 +2208,8 @@ class PiDeckBridge:
                         "toolCallId": value.get("toolCallId"),
                         "isError": value.get("isError") is True,
                         "resultPreview": bounded_text(value.get("result", ""), 16 * 1024),
+                        **({"verificationStatus": verification_status, "testReceipt": receipt}
+                           if verification_status else {}),
                     },
                 )
                 # A tool that fails is an event the model reacts to, not the end of the turn:
@@ -2569,6 +2648,23 @@ class PiDeckBridge:
     def _handle_extension_ui(self, value: dict[str, Any]) -> None:
         method = value.get("method")
         approval_id = value.get("id")
+        if method == "setStatus" and value.get("statusKey") == "pideck-plan-ledger":
+            try:
+                candidate = bounded_plan_ledger(json.loads(bounded_text(value.get("statusText", ""), 16 * 1024)))
+            except (ValueError, TypeError):
+                return
+            if not self.active_operation_id or candidate.get("operationId") != self.active_operation_id:
+                return
+            current = self.plan_ledger
+            if current.get("phase") == "planning" and candidate.get("phase") in {"planning", "planned"}:
+                self._set_plan_ledger(candidate)
+            elif (candidate.get("revision") and candidate.get("revision") == current.get("revision")
+                  and candidate.get("scopeFingerprint") == current.get("scopeFingerprint")
+                  and [item["text"] for item in candidate["items"]] == [item["text"] for item in current["items"]]
+                  and (current.get("phase") in {"executing", "unverified"}
+                       or candidate.get("phase") == "cancelled")):
+                self._set_plan_ledger(candidate)
+            return
         if method != "confirm":
             self.journal.append(
                 "DIAGNOSTIC",
@@ -2599,6 +2695,7 @@ class PiDeckBridge:
         expires = time.monotonic() + ttl_seconds
         pending = {
             "operationId": self.active_operation_id,
+            "planRevision": self.plan_ledger.get("revision"),
             "expiresMonotonic": expires,
             "title": bounded_text(value.get("title", "Allow change?"), 512),
             "message": message,
@@ -2618,6 +2715,7 @@ class PiDeckBridge:
             if decision.get("kind") == "plan" and decision.get("preview"):
                 self._set_plan_ledger(
                     {
+                        **self.plan_ledger,
                         "schemaVersion": 1,
                         "phase": "planned",
                         "goal": decision.get("reason", ""),
@@ -3015,7 +3113,9 @@ class PiDeckBridge:
         if pending is None:
             return
         decision = pending.get("decision")
-        if isinstance(decision, dict) and decision.get("kind") == "plan":
+        if (isinstance(decision, dict) and decision.get("kind") == "plan"
+                and pending.get("planRevision") == self.plan_ledger.get("revision")
+                and pending.get("operationId") == self.active_operation_id):
             items = [dict(item) for item in self.plan_ledger.get("items", [])]
             if confirmed:
                 for index, item in enumerate(items):
@@ -3027,6 +3127,7 @@ class PiDeckBridge:
                 {
                     "schemaVersion": 1,
                     "phase": phase,
+                    **{key: self.plan_ledger[key] for key in ("revision", "operationId", "workspaceId", "scopeFingerprint") if key in self.plan_ledger},
                     "goal": self.plan_ledger.get("goal", decision.get("reason", "")),
                     "items": items,
                 },

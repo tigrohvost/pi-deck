@@ -1027,12 +1027,14 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
             case BLOCKED -> p.errorText;
             case CANCELLED -> p.muted;
             case PLANNED -> p.warn;
+            case UNVERIFIED -> p.warn;
             default -> p.accentAlt;
         };
         String phase = switch (safe.phase) {
             case PLANNING -> t("ПЛАНИРУЮ", "PLANNING");
             case PLANNED -> t("ЖДЁТ РЕШЕНИЯ", "AWAITING DECISION");
             case EXECUTING -> t("ВЫПОЛНЯЮ", "EXECUTING");
+            case UNVERIFIED -> t("ТРЕБУЕТ ПРОВЕРКИ", "NEEDS VERIFICATION");
             case BLOCKED -> t("ЗАБЛОКИРОВАН", "BLOCKED");
             case COMPLETE -> t("ГОТОВО", "COMPLETE");
             case CANCELLED -> t("ОТМЕНЁН", "CANCELLED");
@@ -1046,6 +1048,31 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         String current = safe.currentItem();
         planCurrentLabel.setText(current.isBlank() ? safe.goal : current);
         planCurrentLabel.setTextColor(color);
+        planRow.setContentDescription(planStatusLabel.getText() + ". " + planCurrentLabel.getText());
+        planRow.setOnClickListener(ignored -> {
+            StringBuilder detail = new StringBuilder(safe.goal);
+            for (PlanLedger.Item item : safe.items) {
+                detail.append("\n\n").append(item.step).append(". ").append(item.text)
+                        .append("\n").append(switch (item.status) {
+                            case PENDING -> t("Ожидает выполнения", "Pending");
+                            case ACTIVE -> t("Выполняется", "In progress");
+                            case DONE_UNVERIFIED -> t("Выполнено · требует проверки", "Done · needs verification");
+                            case VERIFIED -> t("Проверено", "Verified");
+                            case BLOCKED -> t("Заблокировано", "Blocked");
+                            case CANCELLED -> t("Отменено", "Cancelled");
+                        });
+                if (!item.evidenceIds.isEmpty()) detail.append(" · ").append(switch (item.verificationKind) {
+                            case "test" -> t("тестами", "by tests");
+                            case "inspection" -> t("чтением файла", "by file inspection");
+                            case "user_acceptance" -> t("пользователем", "by user acceptance");
+                            default -> t("проверкой результата", "by artifact check");
+                        }).append("\n").append(t("Записи проверки: ", "Evidence records: "))
+                        .append(String.join("\n", item.evidenceIds));
+            }
+            if (!safe.reason.isBlank()) detail.append("\n\n").append(safe.reason);
+            new android.app.AlertDialog.Builder(getContext()).setTitle("PLAN")
+                    .setMessage(detail.toString()).setPositiveButton(android.R.string.ok, null).show();
+        });
         planRow.setVisibility(activeTab() == TabBarView.TAB_CONSOLE ? VISIBLE : GONE);
     }
 

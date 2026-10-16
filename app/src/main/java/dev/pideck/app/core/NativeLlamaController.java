@@ -18,18 +18,20 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.Set;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /** Coordinates native server readiness with the durable Termux-side Pi provider contract. */
 public final class NativeLlamaController {
     private static final String PREFS = "native_llama_controller";
     private static final int PORT = 8080;
-    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
-    private static final Set<String> ACTIVE = ConcurrentHashMap.newKeySet();
-    private static final Set<String> CANCELLED = ConcurrentHashMap.newKeySet();
+    private static final ScheduledExecutorService PROBES = Executors.newScheduledThreadPool(2);
+    private static final ScheduledExecutorService CONTROL = Executors.newScheduledThreadPool(2);
+    private static final Map<String, NativeStartupMonitor> ACTIVE = new ConcurrentHashMap<>();
     public static final String LOAD_CANCELLED = "Загрузка модели отменена · Model load cancelled";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
@@ -45,11 +47,15 @@ public final class NativeLlamaController {
         Context app = context.getApplicationContext();
         CpuProfile profile = CpuProfile.detect().forModel(model);
         String apiKey = newApiKey();
+        String generation = UUID.randomUUID().toString();
         File modelFile = store.fileFor(model);
-        remember(app, operationId, model, apiKey, profile);
+        ACTIVE.values().forEach(NativeStartupMonitor::cancel);
+        ACTIVE.clear();
+        remember(app, operationId, model, apiKey, profile, generation);
         NativeLlamaService.start(
                 app,
                 operationId,
+                generation,
                 model,
                 modelFile,
                 profile,
@@ -61,7 +67,7 @@ public final class NativeLlamaController {
                         slotDirectory(app)
                 )
         );
-        monitorAndAdopt(app, operationId, model, apiKey, profile);
+        monitorAndAdopt(app, operationId, model, apiKey, profile, generation);
     }
 
     private static String slotDirectory(Context app) {
@@ -88,7 +94,12 @@ public final class NativeLlamaController {
             publishFailure(app, operationId, "Native server API key is missing");
             return;
         }
-        monitorAndAdopt(app, operationId, model, apiKey, profile);
+        String generation = prefs.getString("server_generation", "");
+        if (generation.isBlank()) {
+            publishFailure(app, operationId, "Native server generation is missing");
+            return;
+        }
+        monitorAndAdopt(app, operationId, model, apiKey, profile, generation);
     }
 
     /**
@@ -97,23 +108,39 @@ public final class NativeLlamaController {
      * startup deadline against a process that is gone.
      */
     public static void cancelStart(Context context, OperationId operationId) {
-        CANCELLED.add(operationId.toString());
-        NativeLlamaService.stop(context);
+        NativeStartupMonitor monitor = ACTIVE.remove(operationId.toString());
+        if (monitor == null) return;
+        monitor.cancel();
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (!operationId.toString().equals(prefs.getString("operation_id", ""))) return;
+        NativeLlamaService.stopIfGeneration(context, prefs.getString("server_generation", ""));
+        CONTROL.execute(() -> publishFailure(context.getApplicationContext(), operationId, LOAD_CANCELLED));
     }
 
-    public static void stopThen(Context context, Runnable continuation) {
+    public static void stopThen(Context context, OperationId operationId, Runnable continuation) {
         Context app = context.getApplicationContext();
-        NativeLlamaService.stop(app);
-        EXECUTOR.execute(() -> {
-            long deadline = System.nanoTime() + 12_000_000_000L;
-            while (System.nanoTime() < deadline) {
-                String state = NativeLlamaService.snapshot(app).state;
-                if ("STOPPED".equals(state) || "FAILED".equals(state)) break;
-                sleep(100);
-            }
-            app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply();
-            MAIN.post(continuation);
-        });
+        ACTIVE.values().forEach(NativeStartupMonitor::cancel);
+        ACTIVE.clear();
+        String generation = NativeLlamaService.currentGeneration(app);
+        NativeLlamaService.stopIfGeneration(app, generation);
+        new NativeStopMonitor((task, delay) -> {
+            var future = CONTROL.schedule(task, delay, TimeUnit.MILLISECONDS);
+            return () -> future.cancel(false);
+        }, () -> System.nanoTime() / 1_000_000L, () -> {
+            NativeLlamaService.Snapshot current = NativeLlamaService.snapshot(app);
+            return new NativeStopMonitor.Observation(
+                    generation.equals(NativeLlamaService.currentGeneration(app)), current.processAlive, current.persistedState);
+        }, result -> {
+            if (result == NativeStopMonitor.Result.STOPPED) {
+                MAIN.post(() -> {
+                    NativeLlamaService.Snapshot current = NativeLlamaService.snapshot(app);
+                    if (generation.equals(NativeLlamaService.currentGeneration(app)) && !current.processAlive
+                            && "STOPPED".equals(current.persistedState)) continuation.run();
+                    else publishFailure(app, operationId, OperationKind.STOP_SERVER, "Native server generation changed after stop");
+                });
+            } else publishFailure(app, operationId, OperationKind.STOP_SERVER,
+                    "Native server stop failed or generation changed within the 5 second deadline");
+        }, 5_000L).start();
     }
 
     private static void monitorAndAdopt(
@@ -121,62 +148,56 @@ public final class NativeLlamaController {
             OperationId operationId,
             ModelSpec model,
             String apiKey,
-            CpuProfile profile
+            CpuProfile profile,
+            String generation
     ) {
         String key = operationId.toString();
-        if (!ACTIVE.add(key)) return;
-        EXECUTOR.execute(() -> {
-            try {
-                long startedAt = System.nanoTime();
-                long deadline = System.nanoTime() + 240_000_000_000L;
-                String lastError = UiLanguage.text("llama-server ещё загружает модель", "llama-server is still loading the model");
-                while (System.nanoTime() < deadline) {
-                    if (CANCELLED.remove(key)) throw new IOException(LOAD_CANCELLED);
-                    NativeLlamaService.Snapshot service = NativeLlamaService.snapshot(context);
-                    boolean sameOperation = key.equals(service.operationId);
-                    long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
-                    if (!sameOperation && !service.operationId.isBlank()) {
-                        if (StartupPolicy.nativeOperationMismatchIsFatal(
-                                key, service.operationId, elapsedMs
-                        )) {
-                            throw new IOException("Native server operation identity changed");
-                        }
-                        sleep(100);
-                        continue;
-                    }
-                    if (sameOperation && "FAILED".equals(service.state)) {
-                        throw new IOException(
-                                service.error.isBlank()
-                                        ? "Native llama-server stopped during startup"
-                                        : service.error
-                        );
-                    }
-                    try {
-                        strictHealth(model.id, apiKey);
-                        NativeLlamaService.recordLoadMillis(context, model.id, elapsedMs);
-                        NativeLlamaService.markReady(context, key);
-                        dispatchAdoption(
-                                context,
-                                operationId,
-                                model,
-                                apiKey,
-                                profile,
-                                service.pid
-                        );
-                        return;
-                    } catch (IOException error) {
-                        lastError = error.getMessage();
-                    }
-                    sleep(250);
-                }
-                throw new IOException("Native llama-server startup timed out: " + lastError);
-            } catch (IOException | RuntimeException error) {
-                NativeLlamaService.stop(context);
-                publishFailure(context, operationId, safeError(error));
-            } finally {
-                ACTIVE.remove(key);
+        long started = System.nanoTime();
+        NativeStartupMonitor[] holder = new NativeStartupMonitor[1];
+        NativeStartupMonitor monitor = new NativeStartupMonitor((task, delay) -> {
+            var future = PROBES.schedule(task, delay, TimeUnit.MILLISECONDS);
+            return () -> future.cancel(false);
+        }, () -> System.nanoTime() / 1_000_000L, new NativeStartupMonitor.Driver() {
+            private volatile HttpURLConnection connection;
+            @Override public boolean current() {
+                SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                return ACTIVE.get(key) == holder[0] && key.equals(prefs.getString("operation_id", ""))
+                        && generation.equals(prefs.getString("server_generation", ""));
             }
-        });
+            @Override public String state() {
+                NativeLlamaService.Snapshot service = NativeLlamaService.snapshot(context);
+                if (!generation.equals(service.serverGeneration)) {
+                    return (System.nanoTime() - started) < 10_000_000_000L ? "WAITING" : "FAILED";
+                }
+                return NativeLlamaService.generationRunning(generation) ? service.persistedState : "STOPPED";
+            }
+            @Override public boolean health() throws IOException {
+                NativeLlamaService.Snapshot service = NativeLlamaService.snapshot(context);
+                if (!generation.equals(service.serverGeneration) || !service.processAlive) return false;
+                strictHealth(model.id, apiKey, value -> connection = value);
+                return current() && NativeLlamaService.generationRunning(generation);
+            }
+            @Override public void adopt() {
+                if (!current() || !NativeLlamaService.markReady(context, key, generation)) {
+                    throw new IllegalStateException("Native generation is no longer ready for adoption");
+                }
+                NativeLlamaService.recordLoadMillis(context, model.id, (System.nanoTime() - started) / 1_000_000L);
+                dispatchAdoption(context, operationId, model, apiKey, profile, NativeLlamaService.snapshot(context).pid);
+                ACTIVE.remove(key, holder[0]);
+            }
+            @Override public void failed(String message) {
+                if (!current()) return;
+                NativeLlamaService.stopIfGeneration(context, generation);
+                ACTIVE.remove(key, holder[0]);
+                publishFailure(context, operationId, message);
+            }
+            @Override public void cancelIo() {
+                HttpURLConnection active = connection;
+                if (active != null) CONTROL.execute(active::disconnect);
+            }
+        }, 240_000L);
+        holder[0] = monitor;
+        if (ACTIVE.putIfAbsent(key, monitor) == null) monitor.start();
     }
 
     private static void dispatchAdoption(
@@ -213,12 +234,12 @@ public final class NativeLlamaController {
         }
     }
 
-    private static void strictHealth(String modelId, String apiKey) throws IOException {
-        JSONObject health = request("/health", apiKey);
+    private static void strictHealth(String modelId, String apiKey, java.util.function.Consumer<HttpURLConnection> active) throws IOException {
+        JSONObject health = request("/health", apiKey, active);
         if (!"ok".equals(health.optString("status"))) {
             throw new IOException("Native health is not ready");
         }
-        JSONObject models = request("/v1/models", apiKey);
+        JSONObject models = request("/v1/models", apiKey, active);
         JSONArray data = models.optJSONArray("data");
         int exact = 0;
         for (int index = 0; data != null && index < data.length(); index++) {
@@ -228,10 +249,11 @@ public final class NativeLlamaController {
         if (exact != 1) throw new IOException("Native server exposed the wrong model");
     }
 
-    private static JSONObject request(String path, String apiKey) throws IOException {
+    private static JSONObject request(String path, String apiKey, java.util.function.Consumer<HttpURLConnection> active) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) new URL(
                 "http://127.0.0.1:" + PORT + path
         ).openConnection();
+        active.accept(connection);
         connection.setConnectTimeout(750);
         connection.setReadTimeout(1_500);
         connection.setRequestProperty("Authorization", "Bearer " + apiKey);
@@ -252,6 +274,7 @@ public final class NativeLlamaController {
             }
         } finally {
             connection.disconnect();
+            active.accept(null);
         }
     }
 
@@ -274,11 +297,13 @@ public final class NativeLlamaController {
             OperationId operationId,
             ModelSpec model,
             String apiKey,
-            CpuProfile profile
+            CpuProfile profile,
+            String generation
     ) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putString("operation_id", operationId.toString())
+                .putString("server_generation", generation)
                 .putString("model_id", model.id)
                 .putString("model_sha256", model.sha256)
                 .putString("api_key", apiKey)
@@ -297,6 +322,10 @@ public final class NativeLlamaController {
             OperationId operationId,
             String message
     ) {
+        publishFailure(context, operationId, OperationKind.START_SERVER, message);
+    }
+
+    private static void publishFailure(Context context, OperationId operationId, OperationKind kind, String message) {
         String output;
         try {
             output = new JSONObject()
@@ -311,7 +340,7 @@ public final class NativeLlamaController {
         }
         CommandResult result = new CommandResult(
                 operationId,
-                OperationKind.START_SERVER,
+                kind,
                 output,
                 "",
                 2,
@@ -322,17 +351,4 @@ public final class NativeLlamaController {
         CommandEvents.publish(result);
     }
 
-    private static String safeError(Exception error) {
-        String value = error.getMessage();
-        if (value == null || value.isBlank()) value = error.getClass().getSimpleName();
-        return value.length() <= 2048 ? value : value.substring(0, 2048);
-    }
-
-    private static void sleep(long milliseconds) {
-        try {
-            Thread.sleep(milliseconds);
-        } catch (InterruptedException error) {
-            Thread.currentThread().interrupt();
-        }
-    }
 }

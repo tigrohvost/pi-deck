@@ -13,6 +13,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.TreeMap;
 import java.util.zip.GZIPOutputStream;
+import java.io.DataOutputStream;
+import java.util.zip.Deflater;
 
 /** Installs the exact assets shipped in the APK into app-private Termux storage. */
 public final class RuntimeAssetBundle {
@@ -38,6 +40,7 @@ public final class RuntimeAssetBundle {
             "runtime/pideck-hashline-edit.ts",
             "runtime/pideck-syntax-check.ts",
             "runtime/pideck-run-tests.ts",
+            "runtime/pideck-test-runner.py",
             "runtime/pideck-context-guard.ts",
             "runtime/pideck-web-tools.ts",
             "runtime/pideck-code-nav.ts",
@@ -146,27 +149,43 @@ public final class RuntimeAssetBundle {
                     """);
         }
         script.append("printf '[03/06] installing versioned runtime assets\\n'\n");
-        int index = 0;
-        for (Map.Entry<String, byte[]> asset : contents.entrySet()) {
-            String target = targetFor(asset.getKey());
-            String delimiter = "PIDECK_ASSET_" + index++;
-            String encoded = Base64.getEncoder().encodeToString(gzip(asset.getValue()));
-            script.append("base64 -d <<'").append(delimiter)
-                    .append("' | python -c ")
-                    .append(shellQuote(
-                            "import gzip,sys;"
-                                    + "sys.stdout.buffer.write(gzip.decompress(sys.stdin.buffer.read()))"
-                    ))
-                    .append(" > ").append(shellQuote(target + ".tmp")).append('\n');
-            for (int offset = 0; offset < encoded.length(); offset += 120) {
-                script.append(encoded, offset, Math.min(encoded.length(), offset + 120))
-                        .append('\n');
-            }
-            script.append(delimiter).append('\n')
-                    .append("chmod 600 ").append(shellQuote(target + ".tmp")).append('\n')
-                    .append("mv -f ").append(shellQuote(target + ".tmp")).append(' ')
-                    .append(shellQuote(target)).append('\n');
+        // A shared compression dictionary avoids exceeding Binder as the runtime grows.
+        // Length-prefixed bytes preserve every shipped asset exactly (no text transcoding).
+        String encoded = Base64.getEncoder().encodeToString(gzip(packAssets(contents)));
+        script.append("base64 -d <<'PIDECK_ASSETS' | python -c ").append(shellQuote("""
+                import gzip,os,pathlib,struct,sys
+                raw=gzip.decompress(sys.stdin.buffer.read())
+                root=pathlib.Path(sys.argv[1]).resolve()
+                offset=0
+                assets=[]
+                while offset<len(raw):
+                    name_size,size=struct.unpack_from('>II',raw,offset)
+                    offset+=8
+                    if name_size>1024 or size>2*1024*1024 or offset+name_size+size>len(raw):
+                        raise ValueError('Invalid runtime asset envelope')
+                    name=raw[offset:offset+name_size].decode('utf-8')
+                    offset+=name_size
+                    target=root/name
+                    if not target.resolve().is_relative_to(root) or target.is_symlink():
+                        raise ValueError('Unsafe runtime asset path')
+                    assets.append((target,raw[offset:offset+size]))
+                    offset+=size
+                if not assets or len(assets)>128 or len({str(p) for p,_ in assets})!=len(assets):
+                    raise ValueError('Invalid runtime asset set')
+                for target,data in assets:
+                    temporary=target.with_name(target.name+'.tmp')
+                    fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o600)
+                    with os.fdopen(fd,'wb') as stream:
+                        stream.write(data)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    os.chmod(temporary,0o600)
+                    os.replace(temporary,target)
+                """)).append(" \"$RUNTIME\"\n");
+        for (int offset = 0; offset < encoded.length(); offset += 120) {
+            script.append(encoded, offset, Math.min(encoded.length(), offset + 120)).append('\n');
         }
+        script.append("PIDECK_ASSETS\n");
         script.append("printf '[04/06] preserving workspace instructions\\n'\n");
         script.append(workspaceInstructionsScript());
         script.append("printf '[05/06] installing pinned Pi package\\n'\n");
@@ -338,7 +357,7 @@ public final class RuntimeAssetBundle {
     private static byte[] gzip(byte[] value) {
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            try (GZIPOutputStream gzip = new GZIPOutputStream(output)) {
+            try (GZIPOutputStream gzip = new GZIPOutputStream(output) {{ def.setLevel(Deflater.BEST_COMPRESSION); }}) {
                 gzip.write(value);
             }
             return output.toByteArray();
@@ -347,11 +366,25 @@ public final class RuntimeAssetBundle {
         }
     }
 
-    private static String targetFor(String asset) {
-        if ("models-v2.json".equals(asset) || "compatibility.json".equals(asset)) {
-            return TermuxBridge.HOME + "/.pideck/runtime/" + asset;
+    static byte[] packAssets(Map<String, byte[]> contents) {
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (DataOutputStream packed = new DataOutputStream(bytes)) {
+                for (Map.Entry<String, byte[]> entry : contents.entrySet()) {
+                    String name = entry.getKey().startsWith("runtime/") ? entry.getKey().substring(8) : entry.getKey();
+                    if (name.startsWith("/") || name.contains("..") || name.contains("\\")
+                            || entry.getValue().length > MAX_ASSET_BYTES) throw new IOException("Unsafe runtime asset");
+                    byte[] path = name.getBytes(StandardCharsets.UTF_8);
+                    packed.writeInt(path.length);
+                    packed.writeInt(entry.getValue().length);
+                    packed.write(path);
+                    packed.write(entry.getValue());
+                }
+            }
+            return bytes.toByteArray();
+        } catch (IOException error) {
+            throw new IllegalStateException("Could not pack runtime assets", error);
         }
-        return TermuxBridge.HOME + "/.pideck/" + asset;
     }
 
     private static String shellQuote(String value) {

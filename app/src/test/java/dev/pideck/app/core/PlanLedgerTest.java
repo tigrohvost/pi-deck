@@ -38,10 +38,28 @@ public class PlanLedgerTest {
         assertEquals(1, ledger.items.get(0).step);
         assertEquals(PlanLedger.MAX_ITEMS, ledger.items.get(6).step);
         assertEquals(PlanLedger.MAX_ITEM_CHARS, ledger.items.get(0).text.length());
-        assertEquals(PlanLedger.Status.VERIFIED, ledger.items.get(0).status);
+        assertEquals(PlanLedger.Status.DONE_UNVERIFIED, ledger.items.get(0).status);
         assertEquals(PlanLedger.Status.PENDING, ledger.items.get(1).status);
-        assertEquals(1, ledger.verifiedCount());
+        assertEquals(0, ledger.verifiedCount());
         assertTrue(ledger.visible());
+    }
+
+    @Test
+    public void verifiedEvidenceSurvivesRoundTripButRequiresSnapshot() throws Exception {
+        JSONObject item = new JSONObject().put("text", "run parser tests").put("status", "verified")
+                .put("verificationKind", "test").put("snapshotId", "a".repeat(64))
+                .put("evidenceIds", new JSONArray().put("11111111-2222-3333-4444-555555555555"));
+        JSONObject value = new JSONObject().put("schemaVersion", 1).put("phase", "complete")
+                .put("revision", "11111111-2222-3333-4444-555555555555")
+                .put("items", new JSONArray().put(item));
+        PlanLedger ledger = PlanLedger.parse(value);
+        assertEquals(PlanLedger.Phase.COMPLETE, ledger.phase);
+        assertEquals(1, ledger.verifiedCount());
+        assertEquals(ledger.toJson().toString(), PlanLedger.parse(ledger.toJson()).toJson().toString());
+        item.remove("snapshotId");
+        assertEquals(PlanLedger.Phase.UNVERIFIED, PlanLedger.parse(value).phase);
+        item.put("status", "done_unverified");
+        assertEquals(0, PlanLedger.parse(value).verifiedCount());
     }
 
     @Test

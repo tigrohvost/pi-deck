@@ -1,2 +1,4 @@
 # Unified diffs contain significant blank context lines.
 *.patch -whitespace
+# Preserve the supplied audit's Markdown hard breaks and published checksums.
+audit/pi-deck-audit/*.md whitespace=-blank-at-eol

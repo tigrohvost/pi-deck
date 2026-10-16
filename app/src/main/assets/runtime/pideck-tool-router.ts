@@ -18,6 +18,7 @@ import {
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
 import { explicitNavigationScope } from "./pideck-code-nav.ts";
+import { currentPassedReceipt, currentReceipt } from "./pideck-run-tests.ts";
 import {
 	annotateAuthoritativeRead,
 	annotateReadText,
@@ -1399,26 +1400,30 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			};
 		}
 		if (scopedRepairTargets.length > 0 && event.toolName === "run_tests") {
-			const status = (event.details as { status?: unknown } | undefined)?.status;
-			if (status === 0) {
+			const receipt = (event.details as { receipt?: { status?: string } } | undefined)?.receipt;
+			const passed = currentPassedReceipt(receipt, context?.cwd ?? process.cwd());
+			const failed = receipt?.status === "failed" && currentReceipt(receipt, context?.cwd ?? process.cwd());
+			if (passed) {
 				markScopedRepairTerminal();
-			} else {
+			} else if (failed) {
 				scopedRepairTestFailed = true;
 			}
 			return {
 				content: [
 					{
 						type: "text" as const,
-						text: status === 0
+						text: passed
 							? "TEST PASSED: this verdict is authoritative."
-							: "TEST FAILED: use the following failure as authoritative evidence.",
+							: failed ? "TEST FAILED: use the following failure as authoritative evidence."
+								: "TEST NOT VERIFIED: no current, completed passing receipt.",
 					},
 					...routedContent,
 					{
 						type: "text" as const,
-						text: status === 0
+						text: passed
 							? "The requested repair is verified. Finish with a concise factual answer and no more tools."
-							: "The same test is now unavailable until a source edit succeeds. Fix only a named source file; then run_tests will be enabled again.",
+							: failed ? "The same test is now unavailable until a source edit succeeds. Fix only a named source file; then run_tests will be enabled again."
+								: "Report the actual verification limit. Missing runners, cancellation, output limits and environment failures do not require a source edit; any retry remains bounded.",
 					},
 				],
 			};

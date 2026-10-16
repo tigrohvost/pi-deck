@@ -13,6 +13,10 @@ import type { AssistantMessage, TextContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { approved, decisionHeader } from "./pideck-permission-gate.ts";
+import { createHash, randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
+import { resolve, sep } from "node:path";
+import { currentPassedReceipt, currentTestOperation, workspaceSnapshot } from "./pideck-run-tests.ts";
 
 export const PLAN_REQUEST_PREFIX = "[[PI//DECK:PLAN_REQUEST]]\n";
 export const PLAN_APPROVAL_TIMEOUT_MS = 120_000;
@@ -22,18 +26,26 @@ const MIN_PLAN_ITEMS = 3;
 const MAX_ITEM_CHARS = 200;
 const READ_ONLY_TOOLS = new Set(["read", "code_nav", "web_research", "weather"]);
 
-export type PlanItemStatus = "pending" | "active" | "verified" | "blocked";
+export type PlanItemStatus = "pending" | "active" | "done_unverified" | "verified" | "blocked" | "cancelled";
 
 export type PlanItem = {
 	step: number;
 	text: string;
 	status: PlanItemStatus;
+	verificationKind?: "test" | "inspection";
+	evidenceIds?: string[];
+	snapshotId?: string;
 };
 
 type PlanState = {
-	phase: "idle" | "planning" | "planned" | "executing" | "blocked" | "complete" | "cancelled";
+	phase: "idle" | "planning" | "planned" | "executing" | "unverified" | "blocked" | "complete" | "cancelled";
 	goal: string;
 	items: PlanItem[];
+	revision?: string;
+	operationId?: string;
+	workspaceId?: string;
+	scopeFingerprint?: string;
+	reason?: string;
 };
 
 function isAssistantMessage(message: AgentMessage): message is AssistantMessage {
@@ -78,7 +90,18 @@ export function progressMarkers(message: string): Array<{
 	step: number;
 }> {
 	const result: Array<{ kind: "done" | "blocked"; step: number }> = [];
-	for (const match of message.matchAll(/\[(DONE|BLOCKED):(\d+)\]/giu)) {
+	const lines = message.trimEnd().split("\n");
+	const last = lines.pop() ?? "";
+	if (!/^(?:\[(?:DONE|BLOCKED):[1-7]\](?: |$))+$/iu.test(last)) return [];
+	let fence: string | undefined;
+	for (const line of lines) {
+		const marker = /^ {0,3}(`{3,}|~{3,})/u.exec(line)?.[1];
+		if (marker && (!fence || marker[0] === fence[0] && marker.length >= fence.length)) {
+			fence = fence ? undefined : marker;
+		}
+	}
+	if (fence) return [];
+	for (const match of last.matchAll(/\[(DONE|BLOCKED):(\d+)\]/giu)) {
 		const step = Number(match[2]);
 		if (step >= 1 && step <= MAX_PLAN_ITEMS) {
 			result.push({
@@ -96,9 +119,9 @@ function boundedState(value: unknown): PlanState {
 	}
 	const raw = value as Partial<PlanState>;
 	const phases = new Set<PlanState["phase"]>([
-		"idle", "planning", "planned", "executing", "blocked", "complete", "cancelled",
+		"idle", "planning", "planned", "executing", "unverified", "blocked", "complete", "cancelled",
 	]);
-	const statuses = new Set<PlanItemStatus>(["pending", "active", "verified", "blocked"]);
+	const statuses = new Set<PlanItemStatus>(["pending", "active", "done_unverified", "verified", "blocked", "cancelled"]);
 	const items = Array.isArray(raw.items)
 		? raw.items.slice(0, MAX_PLAN_ITEMS).flatMap((item, index) => {
 			if (typeof item !== "object" || item === null) return [];
@@ -108,14 +131,16 @@ function boundedState(value: unknown): PlanState {
 			return [{
 				step: index + 1,
 				text,
-				status: statuses.has(candidate.status as PlanItemStatus)
+				// Historical model declarations have no host evidence and must not stay verified.
+				status: candidate.status === "verified" ? "done_unverified" as const
+					: statuses.has(candidate.status as PlanItemStatus)
 					? candidate.status as PlanItemStatus
 					: "pending" as const,
 			}];
 		})
 		: [];
 	return {
-		phase: phases.has(raw.phase as PlanState["phase"])
+		phase: raw.phase === "complete" ? "unverified" : phases.has(raw.phase as PlanState["phase"])
 			? raw.phase as PlanState["phase"]
 			: "idle",
 		goal: typeof raw.goal === "string" ? raw.goal.slice(0, 2_048) : "",
@@ -125,14 +150,21 @@ function boundedState(value: unknown): PlanState {
 
 export default function pideckPlanLedger(pi: ExtensionAPI): void {
 	let state: PlanState = { phase: "idle", goal: "", items: [] };
+	let currentContext: ExtensionContext | undefined;
+	const evidence = new Map<number, { id: string; kind: "test" | "inspection"; snapshot: string }>();
+	const readSnapshots = new Map<string, string | null>();
 	const supported = process.env.PIDECK_AGENT_MODE === "agent"
 		&& process.env.PIDECK_ACCESS_PROFILE !== "read_only";
 
 	function persist(): void {
 		pi.appendEntry(PLAN_ENTRY_TYPE, state);
+		currentContext?.ui?.setStatus?.(PLAN_ENTRY_TYPE, JSON.stringify({ schemaVersion: 1, ...state }));
 	}
 
 	pi.on("session_start", (_event, ctx) => {
+		currentContext = ctx;
+		evidence.clear();
+		readSnapshots.clear();
 		const entry = ctx.sessionManager.getEntries()
 			.filter((candidate: { type: string; customType?: string }) =>
 				candidate.type === "custom" && candidate.customType === PLAN_ENTRY_TYPE)
@@ -157,20 +189,36 @@ export default function pideckPlanLedger(pi: ExtensionAPI): void {
 		}
 	});
 
-	pi.on("input", (event) => {
-		if (!event.text.startsWith(PLAN_REQUEST_PREFIX)) return { action: "continue" } as const;
+	pi.on("input", (event, ctx) => {
+		currentContext = ctx;
+		if (!event.text.startsWith(PLAN_REQUEST_PREFIX)) {
+			if (event.source !== "extension" && state.operationId !== currentTestOperation(ctx?.cwd ?? process.cwd())) {
+				state = { phase: "idle", goal: "", items: [] };
+				evidence.clear();
+				readSnapshots.clear();
+			}
+			return { action: "continue" } as const;
+		}
 		if (!supported) return { action: "handled" } as const;
 		const goal = event.text.slice(PLAN_REQUEST_PREFIX.length).trim();
 		state = {
 			phase: "planning",
 			goal: goal.slice(0, 2_048),
 			items: [],
+			revision: randomUUID(),
+			operationId: currentTestOperation(ctx?.cwd ?? process.cwd()),
+			workspaceId: createHash("sha256").update(realpathSync(ctx?.cwd ?? process.cwd())).digest("hex"),
 		};
+		evidence.clear();
+		readSnapshots.clear();
 		persist();
 		return { action: "transform", text: goal, images: event.images } as const;
 	});
 
-	pi.on("tool_call", (event) => {
+	pi.on("tool_call", (event, ctx) => {
+		if (state.phase === "executing" && event.toolName === "read") {
+			readSnapshots.set(event.toolCallId, workspaceSnapshot(ctx?.cwd ?? process.cwd()));
+		}
 		if (state.phase !== "planning" && state.phase !== "planned") return undefined;
 		if (READ_ONLY_TOOLS.has(event.toolName)) return undefined;
 		return {
@@ -179,12 +227,36 @@ export default function pideckPlanLedger(pi: ExtensionAPI): void {
 		};
 	});
 
-	pi.on("before_agent_start", () => {
+	pi.on("tool_result", (event, ctx) => {
+		const readSnapshot = readSnapshots.get(event.toolCallId);
+		readSnapshots.delete(event.toolCallId);
+		if (state.phase !== "executing" || event.isError) return;
+		const cwd = ctx?.cwd ?? process.cwd();
+		const input = event.input as { path?: string };
+		const snapshot = workspaceSnapshot(cwd);
+		if (!snapshot || !input.path) return;
+		const receipt = (event.details as { receipt?: unknown } | undefined)?.receipt;
+		const kind = event.toolName === "run_tests" && currentPassedReceipt(receipt, cwd) ? "test"
+			: event.toolName === "read" && readSnapshot === snapshot ? "inspection" : undefined;
+		if (!kind) return;
+		for (const item of state.items) {
+			// Evidence is matched to the exact declared path, never inferred from prose or DONE.
+			const requirement = /\[(test|inspection):([^\]\n]+)\]/u.exec(item.text);
+			if (requirement?.[1] !== kind) continue;
+			const expected = resolve(cwd, requirement[2]);
+			if (expected !== resolve(cwd) && !expected.startsWith(resolve(cwd) + sep)) continue;
+			if (expected !== resolve(cwd, input.path)) continue;
+			evidence.set(item.step, { id: kind === "test" ? (receipt as { receiptId: string }).receiptId : randomUUID(), kind, snapshot });
+		}
+	});
+
+	pi.on("before_agent_start", (_event, ctx) => {
+		if (ctx) currentContext = ctx;
 		if (state.phase === "planning") {
 			return {
 				message: {
 					customType: "pideck-plan-context",
-					content: `[PI//DECK READ-ONLY PLAN PASS]\n\nExplore only what is necessary. This pass permits only ${[...READ_ONLY_TOOLS].join(", ")}; every other tool call is refused. Do not change files, run commands, install dependencies, or execute the proposed work. Return a concise plan under an exact \"Plan:\" header with 3-7 numbered, independently verifiable steps. Mention important risks or tests inside the relevant step.`,
+					content: `[PI//DECK READ-ONLY PLAN PASS]\n\nExplore only what is necessary. This pass permits only ${[...READ_ONLY_TOOLS].join(", ")}; every other tool call is refused. Do not change files, run commands, install dependencies, or execute the proposed work. Return a concise plan under an exact \"Plan:\" header with 3-7 numbered, independently verifiable steps. For a step verified by a file read, append [inspection:relative/path]; for a test step append [test:relative/test/path]. Only actual successful tools matching that path and the current workspace snapshot can verify the step. Other completed steps remain unverified. Mention important risks inside the relevant step.`,
 					display: false,
 				},
 			};
@@ -201,7 +273,7 @@ export default function pideckPlanLedger(pi: ExtensionAPI): void {
 			return {
 				message: {
 					customType: "pideck-plan-execution-context",
-					content: `[PI//DECK EXECUTION AUTHORIZATION - ANDROID USER CONFIRMED]\n\nThe user pressed Execute in the Android plan card. The exact approved steps below are authoritative runtime state; do not claim that an approved plan is missing. Complete them in order and verify the result. Android reads only machine-status tags for checklist progress. If all remaining steps are verified, the FINAL LINE MUST BE EXACTLY:\n${verifiedSuffix}\nIf a step cannot be completed safely, stop and put [BLOCKED:n] for that step on the final line instead. Never omit the final status line.\n\nApproved remaining steps:\n${remaining}`,
+					content: `[PI//DECK EXECUTION AUTHORIZATION - ANDROID USER CONFIRMED]\n\nThe user pressed Execute in the Android plan card. The exact approved steps below are authoritative runtime state; do not claim that an approved plan is missing. Complete them in order and verify the result. Android reads only machine-status tags for checklist progress. DONE declares completion only; the host validates evidence independently. If all remaining steps are done, the FINAL LINE MUST BE EXACTLY:\n${verifiedSuffix}\nIf a step cannot be completed safely, stop and put [BLOCKED:n] for that step on the final line instead. Never omit the final status line.\n\nApproved remaining steps:\n${remaining}`,
 					display: false,
 				},
 			};
@@ -209,18 +281,31 @@ export default function pideckPlanLedger(pi: ExtensionAPI): void {
 		return undefined;
 	});
 
-	pi.on("turn_end", (event) => {
+	pi.on("turn_end", (event, ctx) => {
 		if (state.phase !== "executing" || !isAssistantMessage(event.message)) return;
+		const snapshot = workspaceSnapshot(ctx?.cwd ?? currentContext?.cwd ?? process.cwd());
 		for (const marker of progressMarkers(assistantText(event.message))) {
 			const item = state.items.find((candidate) => candidate.step === marker.step);
-			if (item !== undefined) item.status = marker.kind === "done" ? "verified" : "blocked";
+			if (item === undefined) continue;
+			const proof = evidence.get(item.step);
+			item.status = marker.kind === "blocked" ? "blocked" : proof && proof.snapshot === snapshot ? "verified" : "done_unverified";
+			item.verificationKind = item.status === "verified" ? proof?.kind : undefined;
+			item.evidenceIds = item.status === "verified" && proof ? [proof.id] : [];
+			item.snapshotId = item.status === "verified" && proof ? proof.snapshot : undefined;
+		}
+		for (const item of state.items) {
+			if (item.status === "verified" && item.snapshotId !== snapshot) {
+				item.status = "done_unverified"; item.evidenceIds = []; item.verificationKind = undefined;
+			}
 		}
 		if (state.items.some((item) => item.status === "blocked")) state.phase = "blocked";
 		else if (state.items.every((item) => item.status === "verified")) state.phase = "complete";
+		else if (state.items.every((item) => ["verified", "done_unverified"].includes(item.status))) state.phase = "unverified";
 		persist();
 	});
 
 	pi.on("agent_end", async (event, ctx: ExtensionContext) => {
+		currentContext = ctx;
 		if (state.phase !== "planning") return;
 		const last = [...event.messages].reverse().find(isAssistantMessage);
 		const items = last === undefined ? [] : extractPlanItems(assistantText(last));
@@ -231,6 +316,11 @@ export default function pideckPlanLedger(pi: ExtensionAPI): void {
 		}
 		state.items = items;
 		state.phase = "planned";
+		state.scopeFingerprint = createHash("sha256").update(JSON.stringify(items.map(item => item.text))).digest("hex");
+		const proposed = state;
+		const cwd = ctx.cwd ?? process.cwd();
+		const snapshot = workspaceSnapshot(cwd);
+		const expiresAt = Date.now() + PLAN_APPROVAL_TIMEOUT_MS;
 		persist();
 		const confirmed = await approved(
 			ctx,
@@ -246,8 +336,10 @@ export default function pideckPlanLedger(pi: ExtensionAPI): void {
 			}) + "The planning pass was read-only. Execution starts only after this approval.",
 			PLAN_APPROVAL_TIMEOUT_MS,
 		);
-		if (!confirmed) {
-			state = { phase: "cancelled", goal: state.goal, items: state.items };
+		if (state !== proposed) return;
+		if (!confirmed || Date.now() >= expiresAt || proposed.operationId !== currentTestOperation(cwd)
+			|| !snapshot || workspaceSnapshot(cwd) !== snapshot) {
+			state = { ...state, phase: "cancelled", reason: "Approval expired, declined, or workspace changed" };
 			persist();
 			return;
 		}
@@ -263,7 +355,7 @@ export default function pideckPlanLedger(pi: ExtensionAPI): void {
 		// Execute. Small local models reliably distinguish that direct approval from an extension's
 		// hidden custom context; followUp still produces exactly one additional model turn.
 		pi.sendUserMessage(
-			`I approve this exact plan in the Android UI. Execute it now and report verified progress. Android requires a machine-readable final line. If every step succeeds, end with this exact line and nothing after it:\n${doneMarkers}\nIf a step is unsafe or cannot be completed, end with [BLOCKED:n] for that step instead.\n\nApproved plan:\n${steps}`,
+			`I approve this exact plan in the Android UI. Execute it now and report completed progress; the host verifies evidence independently. Android requires a machine-readable final line. If every step succeeds, end with this exact line and nothing after it:\n${doneMarkers}\nIf a step is unsafe or cannot be completed, end with [BLOCKED:n] for that step instead.\n\nApproved plan:\n${steps}`,
 			{ deliverAs: "followUp" },
 		);
 	});

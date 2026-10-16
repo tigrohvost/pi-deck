@@ -92,7 +92,7 @@ public class RuntimeScriptsTest {
         String ready = """
                 PIDECK_LINK_OK
                 {"schemaVersion":1,"ok":true,"state":"READY","layoutReady":true,
-                 "runtimeContractVersion":58,
+                 "runtimeContractVersion":59,
                  "versionsCompatible":true,"piVersion":"0.82.1","nodeVersion":"v24.4.1",
                  "pythonVersion":"3.13","llamaVersion":"b10092"}
                 """.replace("\n ", "");
@@ -102,10 +102,10 @@ public class RuntimeScriptsTest {
                 ready.replace("\"state\":\"READY\"", "\"state\":\"NOT_READY\"")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":58", "\"runtimeContractVersion\":57")
+                ready.replace("\"runtimeContractVersion\":59", "\"runtimeContractVersion\":57")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
-                ready.replace("\"runtimeContractVersion\":58,", "")
+                ready.replace("\"runtimeContractVersion\":59,", "")
         ));
         assertFalse(RuntimeScripts.isReadyProbeOutput(
                 "noise {\"schemaVersion\":1,\"ok\":true,\"state\":\"READY\"}"
@@ -159,7 +159,7 @@ public class RuntimeScriptsTest {
         assertTrue(script.contains("PIDECK_AGENTS_PRESERVED"));
         assertTrue(script.contains("@earendil-works/pi-coding-agent"));
         assertTrue(script.contains("0.82.1"));
-        assertTrue(script.contains("pideck-system-prompt.ts"));
+        assertTrue(script.contains("PIDECK_ASSETS"));
         assertTrue(script.contains("PI_INTEGRITY="));
         assertFalse(script.contains("@latest"));
         assertFalse(script.contains("pkg install -y llama-cpp"));
@@ -197,6 +197,7 @@ public class RuntimeScriptsTest {
                 "pideck-hashline-edit.ts",
                 "pideck-syntax-check.ts",
                 "pideck-run-tests.ts",
+                "pideck-test-runner.py",
                 "pideck-context-guard.ts",
                 "pideck-web-tools.ts",
                 "pideck-code-nav.ts",
@@ -227,6 +228,22 @@ public class RuntimeScriptsTest {
                         < RuntimeAssetBundle.MAX_INSTALL_SCRIPT_BYTES
         );
         assertBashSyntax(script);
+        // Execute the production decoder, including binary/Unicode bytes, without package installation.
+        Path destination = temporary.newFolder("bundle-roundtrip").toPath();
+        Files.createDirectories(destination.resolve("pideck_runtime"));
+        String decode = script.substring(script.indexOf("base64 -d <<'PIDECK_ASSETS'"),
+                script.indexOf("PIDECK_ASSETS\n") + "PIDECK_ASSETS\n".length());
+        Path decoder = temporary.newFile("decode-assets.sh").toPath();
+        Files.write(decoder, ("python() { command python3 \"$@\"; }\n" + decode).getBytes(StandardCharsets.UTF_8));
+        ProcessBuilder builder = new ProcessBuilder("bash", decoder.toString()).redirectErrorStream(true);
+        builder.environment().put("RUNTIME", destination.toString());
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals(output, 0, process.waitFor());
+        for (Map.Entry<String, byte[]> entry : contents.entrySet()) {
+            String name = entry.getKey().replaceFirst("^runtime/", "");
+            assertArrayEquals(name, entry.getValue(), Files.readAllBytes(destination.resolve(name)));
+        }
     }
 
     @Test

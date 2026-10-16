@@ -20,6 +20,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 FRAGMENT_PROMPT_MARKER = "PIDECK_PROTOCOL_FRAGMENT"
 RETRY_PROMPT_MARKER = "PIDECK_PROTOCOL_RETRY_FULL"
 RETRY_COMPLETE_TEXT = "Полный ответ после settled retry"
+TEST_RECEIPT_MARKER = "PIDECK_PROTOCOL_TEST_RECEIPT"
 CACHE_ROUND_MARKER = "PIDECK_PROTOCOL_CACHE_ROUND"
 LOOP_ROUND_MARKER = "PIDECK_PROTOCOL_IGNORES_TOOL_CHOICE"
 CACHE_ROUND_COMPLETE_TEXT = "Кэшированный tool round завершён"
@@ -71,7 +72,8 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
             isinstance(message, dict) and message.get("role") == "tool"
             for message in request.get("messages", [])
         )
-        if (CACHE_ROUND_MARKER in latest_user_text and not has_tool_result) or LOOP_ROUND_MARKER in latest_user_text:
+        receipt_round = TEST_RECEIPT_MARKER in latest_user_text
+        if (receipt_round and not has_tool_result) or (CACHE_ROUND_MARKER in latest_user_text and not has_tool_result) or LOOP_ROUND_MARKER in latest_user_text:
             chunks = [
                 {
                     "id": "fixture",
@@ -89,8 +91,8 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
                                         "id": "fixture-read-" + uuid.uuid4().hex,
                                         "type": "function",
                                         "function": {
-                                            "name": "read",
-                                            "arguments": '{"path":"cache-round.txt"}',
+                                            "name": "run_tests" if receipt_round else "read",
+                                            "arguments": '{"path":"tests"}' if receipt_round else '{"path":"cache-round.txt"}',
                                         },
                                     }
                                 ],
@@ -172,6 +174,75 @@ class FakeLlamaHandler(BaseHTTPRequestHandler):
 
 
 class PiRpcProtocolTest(unittest.TestCase):
+    def test_structured_test_receipts_survive_real_pi_tool_transport(self) -> None:
+        pi_binary = os.environ.get("PIDECK_PI_BIN")
+        if not pi_binary:
+            self.skipTest("Set PIDECK_PI_BIN to the pinned Pi 0.82.1 executable")
+        server = ThreadingHTTPServer(("127.0.0.1", 0), FakeLlamaHandler)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        for source, expected in (("", "no_tests"), ("async def test_bad():\n    assert False\n", "unsupported"),
+                                 ("def test_ok():\n    assert True\n", "passed")):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory(prefix="pideck-receipt-rpc-") as directory:
+                base = Path(directory)
+                agent = base / "agent"
+                workspace = base / "workspace"
+                agent.mkdir()
+                (workspace / "tests").mkdir(parents=True)
+                if source:
+                    (workspace / "tests/test_sample.py").write_text(source)
+                runner = base / "python-no-site"
+                runner.write_text('#!/bin/sh\nexec python3 -S "$@"\n')
+                runner.chmod(0o700)
+                (agent / "models.json").write_text(json.dumps({"providers": {"pideck": {
+                    "baseUrl": f"http://127.0.0.1:{server.server_port}/v1", "api": "openai-completions", "apiKey": "fixture",
+                    "models": [{"id": "fixture-model", "name": "Fixture", "reasoning": False, "input": ["text"],
+                                "contextWindow": 16384, "maxTokens": 256, "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}]}}}))
+                identifier = str(uuid.uuid4())
+                (base / "active-operation.json").write_text(json.dumps({"schemaVersion": 1, "operationId": identifier, "workspace": str(workspace.resolve())}))
+                environment = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PIDECK_HOME": str(base),
+                               "PI_OFFLINE": "1", "PIDECK_RUN_TESTS_PYTHON": str(runner)}
+                arguments = [pi_binary, "--mode", "rpc", "--provider", "pideck", "--model", "fixture-model", "--thinking", "off",
+                             "--approve", "--offline", "--no-extensions", "--no-skills", "--no-builtin-tools",
+                             "--extension", str(REPOSITORY / "app/src/main/assets/runtime/pideck-run-tests.ts"), "--tools", "run_tests"]
+                process = subprocess.Popen(arguments, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           text=True, cwd=workspace, env=environment)
+                events = queue.Queue()
+                errors = []
+                stdout_thread = threading.Thread(target=lambda: [events.put(json.loads(line)) for line in process.stdout], daemon=True)
+                stderr_thread = threading.Thread(target=lambda: errors.extend(process.stderr.readlines()), daemon=True)
+                stdout_thread.start()
+                stderr_thread.start()
+                try:
+                    process.stdin.write(json.dumps({"id": identifier, "type": "prompt", "message": TEST_RECEIPT_MARKER}) + "\n")
+                    process.stdin.flush()
+                    received = []
+                    deadline = time.monotonic() + 25
+                    while time.monotonic() < deadline:
+                        try: event = events.get(timeout=0.5)
+                        except queue.Empty: continue
+                        received.append(event)
+                        if event.get("type") == "agent_settled": break
+                    self.assertTrue(any(event.get("type") == "agent_settled" for event in received), errors)
+                    results = [event for event in received if event.get("type") == "tool_execution_end"]
+                    self.assertEqual(1, len(results), received)
+                    receipt = results[0]["result"]["details"]["receipt"]
+                    self.assertEqual(expected, receipt["status"])
+                    self.assertEqual(identifier, receipt["operationId"])
+                    self.assertEqual(1 if expected == "passed" else 0, receipt["passed"])
+                finally:
+                    process.stdin.close()
+                    process.terminate()
+                    try: process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                    stdout_thread.join(timeout=2)
+                    stderr_thread.join(timeout=2)
+                    process.stdout.close()
+                    process.stderr.close()
+
     def test_prompt_stream_state_abort_and_explicit_extension_load(self) -> None:
         pi_binary = os.environ.get("PIDECK_PI_BIN")
         if not pi_binary:

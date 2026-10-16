@@ -9,7 +9,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
-**[Скачать APK последнего релиза](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha16/pi-deck.apk)**
+**[Скачать APK последнего релиза](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha17/pi-deck.apk)**
 
 </div>
 
@@ -26,7 +26,9 @@ root не нужен.
 
 ## Релиз и проверки на устройстве
 
-Текущая версия исходников — `0.3.0-alpha16` (`versionCode 24`): модели
+Текущая версия исходников — `0.3.0-alpha17` (`versionCode 25`, контракт runtime 59): применён
+[пакет A аудита](docs/audit-package-a.md) — достоверные результаты тестов/PLAN,
+отменяемый запуск ядра и проверка полного релиза до публикации. Включены модели
 Bonsai 2 4B/9B, компактный каталог и октябрьские улучшения инференса и
 интерфейса. Прежние измерения alpha14 сохранены в
 [результатах проверок](docs/validation/alpha14); они не заменяют проверку нового

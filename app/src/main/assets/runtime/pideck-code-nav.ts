@@ -161,7 +161,8 @@ export async function navigate(
 	requestedPath: string,
 	cwd: string,
 	signal?: AbortSignal,
-): Promise<{ text: string; fileCandidates: number; textMatches: number }> {
+): Promise<{ text: string; schemaVersion: 1; status: "complete" | "partial";
+	scope: string; truncated: boolean; fileCandidates: number; textMatches: number }> {
 	const normalizedQuery = query.trim();
 	if (!normalizedQuery || normalizedQuery.length > MAX_QUERY_CHARS) {
 		throw new Error("code_nav query is empty or too long");
@@ -196,20 +197,21 @@ export async function navigate(
 	]);
 
 	const foldedTerms = searchTerms.map((term) => term.toLocaleLowerCase());
-	const files = rawFiles
+	const allFiles = rawFiles
 		.split("\n")
 		.map((value) => value.trim())
 		.filter(Boolean)
 		.map((value) => value.replace(/^\.\/+/, ""))
 		.filter((value) => foldedTerms.some((term) =>
-			value.toLocaleLowerCase().includes(term)))
-		.slice(0, MAX_FILE_CANDIDATES);
-	const matches = rawMatches
+			value.toLocaleLowerCase().includes(term)));
+	const files = allFiles.slice(0, MAX_FILE_CANDIDATES);
+	const allMatches = rawMatches
 		.split("\n")
 		.map((value) => value.trimEnd())
 		.filter(Boolean)
-		.map((value) => value.replace(/^\.\/+/, ""))
-		.slice(0, MAX_TEXT_MATCHES);
+		.map((value) => value.replace(/^\.\/+/, ""));
+	const matches = allMatches.slice(0, MAX_TEXT_MATCHES);
+	const limited = allFiles.length > files.length || allMatches.length > matches.length;
 
 	const lines = [
 		`code_nav query: ${normalizedQuery}`,
@@ -223,11 +225,18 @@ export async function navigate(
 	} else {
 		lines.push(
 			"",
-			"Search complete. Answer from these matches; read the exact range only if file contents are needed before editing.",
+			limited ? "Partial search result; narrow query or path to inspect omitted matches."
+				: "Search complete. Answer from these matches; read the exact range only if file contents are needed before editing.",
 		);
 	}
+	const text = bounded(lines);
+	const truncated = limited || text !== lines.join("\n");
 	return {
-		text: bounded(lines),
+		text,
+		schemaVersion: 1,
+		status: truncated ? "partial" : "complete",
+		scope: scopeLabel,
+		truncated,
 		fileCandidates: files.length,
 		textMatches: matches.length,
 	};
@@ -270,6 +279,10 @@ export default function pideckCodeNav(pi: ExtensionAPI) {
 			return {
 				content: [{ type: "text" as const, text: result.text }],
 				details: {
+					schemaVersion: result.schemaVersion,
+					status: result.status,
+					scope: result.scope,
+					truncated: result.truncated,
 					query: query.trim(),
 					requestedQuery,
 					path,

@@ -266,7 +266,7 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertEqual("blocked", ledger["phase"])
         self.assertEqual([1, 2], [item["step"] for item in ledger["items"]])
         self.assertEqual(
-            ["verified", "blocked"], [item["status"] for item in ledger["items"]]
+            ["done_unverified", "blocked"], [item["status"] for item in ledger["items"]]
         )
         self.assertNotIn("prompt", ledger)
 
@@ -3727,6 +3727,66 @@ class RuntimeTestCase(unittest.TestCase):
         _gap, events = value.journal.after(0, 0)
         self.assertEqual("TURN_ABORTED", events[-1]["type"])
 
+    def test_test_verdict_transport_never_uses_exit_zero_as_success(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        for verdict in bridge.TEST_VERDICTS:
+            receipt = {"schemaVersion": 1, "operationId": value.active_operation_id,
+                       "status": verdict, "selected": 1, "passed": 1, "failed": 0,
+                       "exitCode": 0, "terminationReason": "exited"}
+            value.handle_pi_message({"type": "tool_execution_end", "toolName": "run_tests",
+                                     "result": {"details": {"receipt": receipt}}})
+            _gap, events = value.journal.after(0, 0)
+            self.assertEqual(verdict, events[-1]["payload"]["verificationStatus"])
+        for receipt in ({"status": 0}, {**receipt, "status": "passed", "selected": 0},
+                        {**receipt, "operationId": operation_id(), "status": "passed"}):
+            value.handle_pi_message({"type": "tool_execution_end", "toolName": "run_tests",
+                                     "result": {"details": {"receipt": receipt}}})
+            _gap, events = value.journal.after(0, 0)
+            self.assertEqual("infra_error", events[-1]["payload"]["verificationStatus"])
+
+    def test_new_prompt_does_not_inherit_previous_plan_authorization(self) -> None:
+        value = fake_bridge()
+        value.plan_ledger = {"schemaVersion": 1, "phase": "executing", "revision": operation_id(),
+                             "goal": "previous task", "items": [{"text": "old work", "status": "active"}]}
+        value._prompt(operation_id(), {"message": "a different task"})
+        self.assertEqual("idle", value.plan_ledger["phase"])
+        self.assertEqual([], value.plan_ledger["items"])
+
+    def test_stale_plan_approval_does_not_cancel_or_start_new_revision(self) -> None:
+        value = fake_bridge()
+        identifier = operation_id()
+        value.active_operation_id = identifier
+        value.plan_ledger = {"schemaVersion": 1, "phase": "planned", "revision": "old", "items": []}
+        value.pending_approvals["old-plan"] = {
+            "operationId": identifier, "decision": {"kind": "plan"}, "planRevision": "old",
+            "expiresMonotonic": time.monotonic() + 60, "title": "Execute?", "message": "old",
+        }
+        value.plan_ledger["revision"] = "new"
+        before = dict(value.plan_ledger)
+        with self.assertRaises(common.PiDeckError) as raised:
+            value._approval_decision(identifier, {"approvalId": "old-plan", "confirmed": True})
+        self.assertEqual("APPROVAL_PLAN_MISMATCH", raised.exception.code)
+        self.assertEqual(before, value.plan_ledger)
+        self.assertFalse(any(message.get("confirmed") for message in value.child.sent))
+
+    def test_structured_plan_progress_requires_current_revision_scope_and_operation(self) -> None:
+        value = fake_bridge()
+        value.active_operation_id = operation_id()
+        state = {"schemaVersion": 1, "phase": "executing", "operationId": value.active_operation_id,
+                 "revision": operation_id(), "scopeFingerprint": "a" * 64,
+                 "items": [{"text": "inspect source", "status": "active"}]}
+        value.plan_ledger = bridge.bounded_plan_ledger(state)
+        proof = {**state, "phase": "complete", "items": [{"text": "inspect source", "status": "verified",
+                 "verificationKind": "inspection", "evidenceIds": [operation_id()], "snapshotId": "b" * 64}]}
+        for key in ("revision", "scopeFingerprint", "operationId"):
+            value._handle_extension_ui({"method": "setStatus", "statusKey": "pideck-plan-ledger",
+                                        "statusText": json.dumps({**proof, key: "stale"})})
+            self.assertEqual("executing", value.plan_ledger["phase"])
+        value._handle_extension_ui({"method": "setStatus", "statusKey": "pideck-plan-ledger",
+                                    "statusText": json.dumps(proof)})
+        self.assertEqual("complete", value.plan_ledger["phase"])
+
     def test_plan_prompt_is_opt_in_read_only_then_tracks_android_approval(self) -> None:
         value = fake_bridge()
         identifier = operation_id()
@@ -3789,11 +3849,12 @@ class RuntimeTestCase(unittest.TestCase):
 
         message = {
             "role": "assistant",
-            "content": [{"type": "text", "text": "fixed [DONE:1] [DONE:2] [DONE:3]"}],
+            "content": [{"type": "text", "text": "fixed\n[DONE:1] [DONE:2] [DONE:3]"}],
             "stopReason": "stop",
         }
         value._handle_assistant_message_end(message)
-        self.assertEqual("complete", value.plan_ledger["phase"])
+        self.assertEqual("unverified", value.plan_ledger["phase"])
+        self.assertTrue(all(item["status"] == "done_unverified" for item in value.plan_ledger["items"]))
         self.assertEqual("fixed", value.last_answer)
         value.handle_pi_message({"type": "agent_settled"})
         self.assertIsNone(value.active_operation_id)

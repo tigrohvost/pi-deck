@@ -1,0 +1,48 @@
+{
+  "sourceCommit": "43faa8b711a8d9ecf1d75b8ef86aa3fb0110ad61",
+  "scope": "isolated reproductions only; not Gradle, Pi protocol, APK, or handset tests",
+  "environment": {
+    "python": "3.13.5",
+    "node": "v22.16.0"
+  },
+  "cases": [
+    {
+      "id": "TEST-ASYNC",
+      "scope": "isolated fallback fragment; pytest is not invoked",
+      "exitCode": 0,
+      "stdout": "1 passed in offline zero-fixture fallback",
+      "stderr": "<string>:15: RuntimeWarning: coroutine 'test_should_fail' was never awaited\nRuntimeWarning: Enable tracemalloc to get the object allocation traceback",
+      "failingTestBodyExecuted": false,
+      "falseSuccessReproduced": true,
+      "reproduced": true
+    },
+    {
+      "id": "TEST-GENERATOR",
+      "scope": "isolated fallback fragment; pytest is not invoked",
+      "exitCode": 0,
+      "stdout": "1 passed in offline zero-fixture fallback",
+      "stderr": "",
+      "failingTestBodyExecuted": false,
+      "falseSuccessReproduced": true,
+      "reproduced": true
+    },
+    {
+      "id": "CG-EMPTY",
+      "scope": "isolated predicate, not the complete pruning pipeline",
+      "genuineEmptyClassifiedAsEmpty": false,
+      "reproduced": true
+    },
+    {
+      "id": "CG-HIT",
+      "scope": "isolated predicate; pruning also requires age and >=4096 saved bytes",
+      "realSourceHitClassifiedAsEmpty": true,
+      "reproduced": true
+    },
+    {
+      "id": "NAV-BUFFER",
+      "scope": "execFile maxBuffer contract with synthetic producer",
+      "errorCode": "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+      "reproduced": true
+    }
+  ]
+}

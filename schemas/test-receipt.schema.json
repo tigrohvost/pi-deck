@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PI DECK TestReceipt v1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "receiptId",
+    "operationId",
+    "workspaceId",
+    "snapshotId",
+    "currentSnapshotId",
+    "runner",
+    "invocationFingerprint",
+    "selection",
+    "selected",
+    "passed",
+    "failed",
+    "skipped",
+    "status",
+    "terminationReason",
+    "exitCode",
+    "durationMs",
+    "artifactId"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "operationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "snapshotId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "currentSnapshotId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "runner": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "invocationFingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "selection": {
+      "type": "object",
+      "required": [
+        "path",
+        "expression"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "expression": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "selected": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "passed": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "failed": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "skipped": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "no_tests",
+        "unsupported",
+        "timed_out",
+        "cancelled",
+        "output_limit",
+        "infra_error"
+      ]
+    },
+    "terminationReason": {
+      "enum": [
+        "exited",
+        "cancelled",
+        "timed_out",
+        "output_limit",
+        "spawn_error",
+        "signal"
+      ]
+    },
+    "exitCode": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "artifactId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^test-output:[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "passed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "selected": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "passed": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "failed": {
+            "const": 0
+          },
+          "exitCode": {
+            "const": 0
+          },
+          "terminationReason": {
+            "const": "exited"
+          }
+        }
+      }
+    }
+  ]
+}

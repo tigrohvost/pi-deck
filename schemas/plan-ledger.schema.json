@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PI DECK plan ledger v1 (additive evidence)",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "phase",
+    "goal",
+    "items"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "phase": {
+      "enum": [
+        "idle",
+        "planning",
+        "planned",
+        "executing",
+        "unverified",
+        "blocked",
+        "complete",
+        "cancelled"
+      ]
+    },
+    "goal": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "required": [
+          "step",
+          "text",
+          "status"
+        ],
+        "properties": {
+          "step": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "active",
+              "done_unverified",
+              "verified",
+              "blocked",
+              "cancelled"
+            ]
+          },
+          "verificationKind": {
+            "enum": [
+              "test",
+              "inspection",
+              "artifact_check",
+              "user_acceptance",
+              null,
+              ""
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "snapshotId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "const": ""
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "verified"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "verificationKind",
+                "evidenceIds",
+                "snapshotId"
+              ],
+              "properties": {
+                "verificationKind": {
+                  "enum": [
+                    "test",
+                    "inspection",
+                    "artifact_check",
+                    "user_acceptance"
+                  ]
+                },
+                "evidenceIds": {
+                  "minItems": 1
+                },
+                "snapshotId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "revision": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "operationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scopeFingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 2048
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "complete"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "items": {
+            "minItems": 1,
+            "items": {
+              "properties": {
+                "status": {
+                  "const": "verified"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

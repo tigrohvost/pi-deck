@@ -9,7 +9,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
-**[Download the latest release APK](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha16/pi-deck.apk)**
+**[Download the latest release APK](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha17/pi-deck.apk)**
 
 </div>
 
@@ -26,7 +26,9 @@ authenticated loopback RPC bridge, with no root required.
 
 ## Release and device validation
 
-The current source version is `0.3.0-alpha16` (`versionCode 24`). It adds
+The current source version is `0.3.0-alpha17` (`versionCode 25`, runtime contract 59). It applies
+[audit Package A](docs/audit-package-a.md): trustworthy test/PLAN results, cancellable
+native startup and complete verified release publication. It also includes
 Bonsai 2 4B/9B, a compact model catalog, and the October inference and interface
 improvements. Historical alpha14 measurements are in
 [validation evidence](docs/validation/alpha14); these do not constitute device

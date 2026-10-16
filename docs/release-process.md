@@ -70,8 +70,8 @@ CI. A tag can be created using the owner's dedicated signing key:
 GNUPGHOME="${XDG_DATA_HOME:-$HOME/.local/share}/pi-deck/release-tag-gnupg" \
   git -c gpg.format=openpgp \
   -c user.signingkey=15D57AAB416AC7C871D3EFAA1D9744520A6282C5 \
-  tag -s v0.3.0-alpha16 -m 'PI//DECK 0.3.0-alpha16'
-git push origin v0.3.0-alpha16
+  tag -s v0.3.0-alpha17 -m 'PI//DECK 0.3.0-alpha17'
+git push origin v0.3.0-alpha17
 ```
 
 The active tag key is `15D57AAB416AC7C871D3EFAA1D9744520A6282C5`, created on
@@ -116,3 +116,33 @@ be claimed.
 Runtime updates stage and smoke-test the exact Pi version, then atomically
 switch the active symlink. A failed reinstall restores the previous target.
 User `AGENTS.md`, models and sessions are outside the replaced runtime tree.
+
+## Verified publication and retry (alpha17+)
+
+The signing job creates `release-manifest.json` with all eleven original asset
+names, exact sizes, SHA-256 hashes, source commit, version tag and certificate
+pin. Publication runs in a separate job that downloads the immutable
+`pi-deck-signed-release` artifact. It creates a draft, retries interrupted
+uploads at most three times, downloads every file, verifies the complete
+manifest and APK signature/ZIP alignment/version/native contents, then publishes.
+A failed upload leaves the draft unpublished. Existing matching files are
+reused; a starter or corrupt metadata asset can be replaced only after checking
+its membership in the exact release and rechecking the tag's commit.
+
+If publication fails, rerun **failed jobs**, preserving the successful signing
+job's artifact. Do not rebuild or re-sign that version. The publisher refuses
+to replace a different already-uploaded APK. It never creates or moves tags.
+For a deliberate repair, download the original signed artifact and run:
+
+```sh
+python3 tools/publish_release.py --repository tigrohvost/pi-deck \
+  --bundle build/release --commit "$SOURCE_COMMIT" --tag "$RELEASE_TAG" \
+  --certificate "$PIDECK_RELEASE_CERT_SHA256" \
+  --build-tools "$ANDROID_HOME/build-tools/35.0.0" --repair-published
+```
+
+This uses `gh` authentication (`GH_TOKEN` in Actions) and writes a non-secret
+JSON action journal. A local-only verification uses the same arguments with
+`tools/verify_release_bundle.py`, omitting repository/repair options. The
+manifest deliberately does not hash itself; it includes `SHA256SUMS`, which
+covers the other ten original assets.

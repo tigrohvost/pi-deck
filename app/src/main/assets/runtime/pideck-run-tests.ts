@@ -1,268 +1,197 @@
-/**
- * Runs the workspace's pytest suite and answers in one bounded turn.
- *
- * Through bash, pytest's output reaches the model via the context guard's generic head/tail
- * window — which is precisely where the failure summary is not. This tool shapes the run
- * instead: stop at the first failure, short traceback, no cache artifacts in a workspace the
- * suite scores by diffing, and a result that always fits a phone-sized context. It exists only
- * in the autonomous profile: executing conftest and fixtures is the same trust class as bash.
- */
+/** Bounded project execution. Stdout/exit zero alone never proves tests ran. */
 import { spawn } from "node:child_process";
-import { resolve, sep } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const RUN_TIMEOUT_MS = 120_000;
+const MAX_CAPTURE = 64 * 1024;
+const RUNNER = join(dirname(fileURLToPath(import.meta.url)), "pideck-test-runner.py");
+const states = new Set(["passed", "failed", "no_tests", "unsupported", "timed_out", "cancelled", "output_limit", "infra_error"]);
+const sharedKey = Symbol.for("pideck.test-receipts.v1");
+const shared = ((globalThis as any)[sharedKey] ??= { operationId: randomUUID() });
+const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 
-/** Read per call, not at load: the deck sets the environment before each Pi start. */
-function runTimeoutMs(): number {
-	return Number(process.env.PIDECK_RUN_TESTS_TIMEOUT_MS) || RUN_TIMEOUT_MS;
-}
-const MAX_RESULT_BYTES = 4 * 1024;
-const MAX_CAPTURED_BYTES = 64 * 1024;
-const MAX_PATH_CHARS = 500;
-const MAX_EXPR_CHARS = 200;
-
-type RunOutcome = {
-	status: number | null;
-	signal: NodeJS.Signals | null;
-	output: string;
-	spawnError?: string;
+export type TestReceipt = {
+    schemaVersion: 1; receiptId: string; operationId: string; workspaceId: string;
+    snapshotId: string | null; currentSnapshotId: string | null;
+    runner: { name: string; version: string | null }; invocationFingerprint: string;
+    selection: { path: string; expression: string };
+    selected: number | null; passed: number | null; failed: number | null; skipped: number | null;
+    status: string; terminationReason: string; exitCode: number | null; durationMs: number;
+    artifactId: string | null;
 };
 
-function runPython(
-	cwd: string,
-	args: string[],
-	signal?: AbortSignal,
-): Promise<RunOutcome> {
-	return new Promise((resolvePromise) => {
-		const child = spawn(
-			process.env.PIDECK_RUN_TESTS_PYTHON || "python3",
-			args,
-			{
-				cwd,
-				env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
-				stdio: ["ignore", "pipe", "pipe"],
-				signal,
-				timeout: runTimeoutMs(),
-				killSignal: "SIGKILL",
-			},
-		);
-		const chunks: Buffer[] = [];
-		let captured = 0;
-		const collect = (chunk: Buffer) => {
-			if (captured >= MAX_CAPTURED_BYTES) {
-				child.kill("SIGKILL");
-				return;
-			}
-			captured += chunk.byteLength;
-			chunks.push(chunk);
-		};
-		child.stdout.on("data", collect);
-		child.stderr.on("data", collect);
-		// A spawned process always reaches 'close', which carries the exit status and the
-		// captured output; resolving on 'error' there would race it and drop both. Only a
-		// process that never spawned (no pid, no 'close' guaranteed) resolves from 'error'.
-		let settled = false;
-		child.on("error", (error) => {
-			if (settled || child.pid !== undefined) return;
-			settled = true;
-			resolvePromise({
-				status: null,
-				signal: null,
-				output: "",
-				spawnError: error.message,
-			});
-		});
-		child.on("close", (status, killedBy) => {
-			if (settled) return;
-			settled = true;
-			resolvePromise({
-				status,
-				signal: killedBy,
-				output: Buffer.concat(chunks).toString("utf8"),
-				spawnError: undefined,
-			});
-		});
-	});
+/** Oversized, symlinked or unreadable trees have an explicitly unknown snapshot. */
+export function workspaceSnapshot(cwd: string): string | null {
+    try {
+        const hash = createHash("sha256");
+        let files = 0, bytes = 0;
+        function visit(directory: string, prefix: string): void {
+            for (const name of readdirSync(directory).sort()) {
+                if ([".git", "__pycache__", ".pytest_cache"].includes(name)) continue;
+                const path = join(directory, name), relative = prefix + name, stat = lstatSync(path);
+                if (stat.isSymbolicLink()) throw new Error("symlink");
+                if (stat.isDirectory()) { visit(path, relative + "/"); continue; }
+                if (!stat.isFile() || ++files > 2048 || (bytes += stat.size) > 16 * 1024 * 1024) throw new Error("bound");
+                hash.update(relative).update("\0").update(digest(readFileSync(path))).update("\0");
+            }
+        }
+        visit(realpathSync(cwd), "");
+        return hash.digest("hex");
+    } catch { return null; }
 }
 
-function runPytest(
-	cwd: string,
-	extra: string[],
-	signal?: AbortSignal,
-): Promise<RunOutcome> {
-	return runPython(
-		cwd,
-		["-m", "pytest", "-x", "-q", "--tb=short", "-p", "no:cacheprovider", ...extra],
-		signal,
-	);
+export function currentTestOperation(cwd: string): string {
+    try {
+        if (process.env.PIDECK_HOME) {
+            const value = JSON.parse(readFileSync(join(process.env.PIDECK_HOME, "active-operation.json"), "utf8"));
+            if (value.schemaVersion === 1 && value.workspace === realpathSync(cwd)
+                && /^[0-9a-f-]{36}$/u.test(value.operationId)) return value.operationId;
+        }
+    } catch { /* Direct Pi use has no Android bridge operation. */ }
+    return shared.operationId;
 }
 
-const ZERO_FIXTURE_RUNNER = [
-	"import inspect, pathlib, runpy, sys, traceback",
-	"target = pathlib.Path(sys.argv[1]).resolve()",
-	"expr = sys.argv[2]",
-	"if target.is_file():",
-	"    files = [target]",
-	"elif target.is_dir():",
-	"    files = sorted(target.rglob('test_*.py'))[:200]",
-	"else:",
-	"    print(f'test target does not exist: {target}')",
-	"    raise SystemExit(2)",
-	"root = target.parent if target.is_file() else target",
-	"if root.name == 'tests':",
-	"    root = root.parent",
-	"sys.path.insert(0, str(root))",
-	"passed = 0",
-	"selected = 0",
-	"for file in files:",
-	"    try:",
-	"        namespace = runpy.run_path(str(file))",
-	"    except BaseException:",
-	"        traceback.print_exc()",
-	"        print(f'1 failed, {passed} passed in offline zero-fixture fallback')",
-	"        raise SystemExit(1)",
-	"    for name, value in sorted(namespace.items()):",
-	"        if not name.startswith('test_') or not callable(value) or (expr and expr not in name):",
-	"            continue",
-	"        selected += 1",
-	"        try:",
-	"            parameters = inspect.signature(value).parameters",
-	"        except (TypeError, ValueError) as error:",
-	"            print(f'{file}:{name}: unsupported test callable: {error}')",
-	"            raise SystemExit(2)",
-	"        if parameters:",
-	"            print(f'{file}:{name}: pytest fixture parameters are unsupported without pytest')",
-	"            raise SystemExit(2)",
-	"        try:",
-	"            value()",
-	"        except BaseException:",
-	"            traceback.print_exc()",
-	"            print(f'1 failed, {passed} passed in offline zero-fixture fallback')",
-	"            raise SystemExit(1)",
-	"        passed += 1",
-	"if selected == 0:",
-	"    print('no tests ran in offline zero-fixture fallback')",
-	"    raise SystemExit(5)",
-	"print(f'{passed} passed in offline zero-fixture fallback')",
-].join("\n");
-
-function runZeroFixtureTests(
-	cwd: string,
-	target: string,
-	expr: string,
-	signal?: AbortSignal,
-): Promise<RunOutcome> {
-	return runPython(cwd, ["-c", ZERO_FIXTURE_RUNNER, target, expr], signal);
+export function currentReceipt(value: unknown, cwd: string): value is TestReceipt {
+    const receipt = value as Partial<TestReceipt> | undefined;
+    try {
+        return receipt?.schemaVersion === 1 && receipt.terminationReason === "exited"
+            && receipt.operationId === currentTestOperation(cwd) && receipt.workspaceId === digest(realpathSync(cwd))
+            && typeof receipt.snapshotId === "string" && receipt.snapshotId === receipt.currentSnapshotId
+            && receipt.snapshotId === workspaceSnapshot(cwd);
+    } catch { return false; }
 }
 
-function pytestIsMissing(outcome: RunOutcome): boolean {
-	return outcome.spawnError === undefined
-		&& /No module named ['\"]?pytest['\"]?/.test(outcome.output);
+export function currentPassedReceipt(value: unknown, cwd: string): value is TestReceipt {
+    const receipt = value as Partial<TestReceipt> | undefined;
+    return currentReceipt(value, cwd) && receipt!.status === "passed" && receipt!.exitCode === 0
+        && typeof receipt.selected === "number" && receipt.selected > 0
+        && typeof receipt.passed === "number" && receipt.passed > 0 && receipt.failed === 0;
 }
 
-function normalizedExpr(raw: string): string {
-	const candidate = raw.trim();
-	const command = /^(?:(?:python3?|py)\s+-m\s+)?pytest\s+-k\s+(.+)$/iu.exec(candidate)
-		?? /^-k\s+(.+)$/iu.exec(candidate);
-	const value = (command?.[1] ?? candidate).trim();
-	if ((value.startsWith('"') && value.endsWith('"'))
-		|| (value.startsWith("'") && value.endsWith("'"))) {
-		return value.slice(1, -1).trim();
-	}
-	return value;
+type Outcome = { exitCode: number | null; termination: string; output: string; facts?: Record<string, any> };
+function run(cwd: string, target: string, expr: string, signal?: AbortSignal): Promise<Outcome> {
+    if (signal?.aborted) return Promise.resolve({ exitCode: null, termination: "cancelled", output: "" });
+    return new Promise((done) => {
+        const child = spawn(process.env.PIDECK_RUN_TESTS_PYTHON || "python3", ["-u", RUNNER, target, expr], {
+            cwd, detached: process.platform !== "win32", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+            stdio: ["ignore", "pipe", "pipe", "pipe"],
+        });
+        const chunks: Buffer[] = [];
+        let bytes = 0, receipt = "", termination = "exited", settled = false;
+        let escalation: ReturnType<typeof setTimeout> | undefined;
+        const kill = (force: boolean) => {
+            try {
+                if (child.pid && process.platform !== "win32") process.kill(-child.pid, force ? "SIGKILL" : "SIGTERM");
+                else child.kill(force ? "SIGKILL" : "SIGTERM");
+            } catch { /* The process group has already exited. */ }
+        };
+        const stop = (reason: string) => {
+            if (termination !== "exited") return;
+            termination = reason; kill(false);
+            escalation = setTimeout(() => kill(true), 250);
+        };
+        const abort = () => stop("cancelled");
+        const timeout = Math.max(100, Math.min(120_000, Number(process.env.PIDECK_RUN_TESTS_TIMEOUT_MS) || 120_000));
+        const timer = setTimeout(() => stop("timed_out"), timeout);
+        signal?.addEventListener("abort", abort, { once: true });
+        if (signal?.aborted) abort();
+        const collect = (chunk: Buffer) => {
+            const room = MAX_CAPTURE - bytes;
+            chunks.push(chunk.subarray(0, Math.max(0, room))); bytes += Math.min(chunk.length, Math.max(0, room));
+            if (chunk.length > room) stop("output_limit");
+        };
+        child.stdout!.on("data", collect); child.stderr!.on("data", collect);
+        child.stdio[3]!.on("data", (chunk: Buffer) => {
+            if (receipt.length + chunk.length > 4096) stop("output_limit");
+            else receipt += chunk.toString("utf8");
+        });
+        const finish = (exitCode: number | null) => {
+            if (settled) return;
+            settled = true; clearTimeout(timer); signal?.removeEventListener("abort", abort);
+            if (termination !== "exited") kill(true);
+            if (escalation) clearTimeout(escalation);
+            let facts;
+            try { facts = JSON.parse(receipt); } catch { /* Missing receipt is never success. */ }
+            done({ exitCode, termination, output: Buffer.concat(chunks).toString("utf8"), facts });
+        };
+        child.on("error", (error) => {
+            termination = "spawn_error"; collect(Buffer.from(error.message));
+            if (!child.pid) finish(null);
+        });
+        child.on("close", (code, killedBy) => {
+            if (killedBy && termination === "exited") termination = "signal";
+            finish(code);
+        });
+    });
 }
 
-/** The verdict pytest prints last, e.g. "1 failed, 2 passed in 0.12s". */
-function summaryLine(output: string): string {
-	const lines = output.trim().split("\n");
-	for (let index = lines.length - 1; index >= 0; index--) {
-		const line = lines[index].replace(/^=+ | =+$/g, "").trim();
-		if (/\b(passed|failed|error|errors|no tests ran)\b/.test(line)) return line;
-	}
-	return lines[lines.length - 1]?.trim() ?? "";
+function artifact(output: string): string | null {
+    try {
+        if (!process.env.PIDECK_HOME) return null;
+        const directory = join(process.env.PIDECK_HOME, "test-results"), id = digest(output);
+        mkdirSync(directory, { recursive: true, mode: 0o700 });
+        // Preserve existing evidence; explicitly stop retaining new output at the quota.
+        if (readdirSync(directory).length >= 64) return null;
+        writeFileSync(join(directory, id + ".txt"), output, { mode: 0o600 });
+        return "test-output:" + id;
+    } catch { return null; }
 }
 
-function bounded(text: string): string {
-	if (Buffer.byteLength(text, "utf8") <= MAX_RESULT_BYTES) return text;
-	const cut = Buffer.from(text, "utf8").subarray(0, MAX_RESULT_BYTES).toString("utf8");
-	return `${cut}\n[... вывод сокращён ...]`;
-}
-
-function formatResult(outcome: RunOutcome, runner: "pytest" | "zero-fixture"): string {
-	if (outcome.spawnError) {
-		return "Python test runner недоступен в этом окружении. "
-			+ `Тесты не запускались. Детали: ${outcome.spawnError}`;
-	}
-	if (outcome.signal !== null) {
-		return `Тесты не завершились за ${runTimeoutMs() / 1000} с и были остановлены. `
-			+ "Запусти меньшее подмножество через path или expr.";
-	}
-	const summary = summaryLine(outcome.output);
-	const fallback = runner === "zero-fixture"
-		? " Использован offline zero-fixture fallback: функции с pytest fixtures не поддерживаются."
-		: "";
-	if (outcome.status === 0) {
-		return `Тесты прошли: ${summary || "0 tests"}.${fallback}`;
-	}
-	// -x stops at the first failure, so everything before the summary is that failure.
-	const body = outcome.output.trim();
-	return bounded(`Тесты упали: ${summary}.${fallback}\nПервая ошибка:\n${body}`);
+function format(receipt: TestReceipt, output: string): string {
+    const labels: Record<string, string> = {
+        passed: `Тесты прошли: ${receipt.passed} passed.`, failed: `Тесты упали: ${receipt.failed} failed.`,
+        no_tests: "Нет выполненных тестов: проверка не подтверждена.",
+        unsupported: "Эти тесты требуют поддерживаемого runner; offline fallback их не проверил.",
+        timed_out: "Тесты не завершились в отведённое время и были остановлены.",
+        cancelled: "Проверка отменена пользователем.", output_limit: "Проверка остановлена: превышен лимит вывода.",
+        infra_error: "Python test runner недоступен или завершился с ошибкой окружения. Проверка не подтверждена.",
+    };
+    const fallback = receipt.runner.name === "zero-fixture" ? " offline zero-fixture fallback." : "";
+    const head = `${labels[receipt.status]}${fallback}\nReceipt: ${receipt.receiptId}`;
+    const text = receipt.status === "passed" ? head : `${head}\n${output.trim()}`;
+    return Buffer.byteLength(text) <= 4096 ? text : Buffer.from(text).subarray(0, 4096).toString("utf8") + "\n[... вывод сокращён ...]";
 }
 
 export default function pideckRunTests(pi: ExtensionAPI) {
-	pi.registerTool({
-		name: "run_tests",
-		label: "Run tests",
-		description:
-			"Run the workspace's pytest tests and return the verdict plus the first failure verbatim.",
-		parameters: Type.Object({
-			path: Type.Optional(Type.String({
-				description: "File or directory with tests, relative to the workspace",
-				maxLength: MAX_PATH_CHARS,
-			})),
-			expr: Type.Optional(Type.String({
-				description: "pytest -k expression to select tests",
-				maxLength: MAX_EXPR_CHARS,
-			})),
-		}),
-		async execute(_toolCallId, params, signal, _onUpdate, context) {
-			const cwd = resolve(String(context?.cwd ?? process.cwd()));
-			const extra: string[] = [];
-			let target = cwd;
-			const rawPath = params.path === undefined ? "" : String(params.path).trim();
-			if (rawPath) {
-				if (rawPath.length > MAX_PATH_CHARS) throw new Error("path is too long");
-				target = resolve(cwd, rawPath);
-				if (target !== cwd && !target.startsWith(cwd + sep)) {
-					throw new Error("path must stay inside the workspace");
-				}
-				extra.push(target);
-			}
-			const rawExpr = params.expr === undefined ? "" : String(params.expr).trim();
-			if (rawExpr.length > MAX_EXPR_CHARS) throw new Error("expr is too long");
-			const expr = normalizedExpr(rawExpr);
-			if (expr) {
-				extra.push("-k", expr);
-			}
-			let runner: "pytest" | "zero-fixture" = "pytest";
-			let outcome = await runPytest(cwd, extra, signal);
-			if (pytestIsMissing(outcome)) {
-				runner = "zero-fixture";
-				outcome = await runZeroFixtureTests(cwd, target, expr, signal);
-			}
-			return {
-				content: [{ type: "text", text: formatResult(outcome, runner) }],
-				details: {
-					runner,
-					path: target,
-					expr,
-					status: outcome.status,
-					timedOut: outcome.signal !== null,
-					bytes: Buffer.byteLength(outcome.output, "utf8"),
-				},
-			};
-		},
-	});
+    pi.on("input", (event) => { if (event.source !== "extension") shared.operationId = randomUUID(); });
+    pi.registerTool({
+        name: "run_tests", label: "Run tests",
+        description: "Run pytest tests with a structured receipt. Missing pytest permits only synchronous zero-argument tests without fixtures, marks or -k.",
+        parameters: Type.Object({
+            path: Type.Optional(Type.String({ description: "Test file or directory inside the workspace", maxLength: 500 })),
+            expr: Type.Optional(Type.String({ description: "pytest -k expression (requires pytest)", maxLength: 200 })),
+        }),
+        async execute(_toolCallId, params, signal, _onUpdate, context) {
+            const cwd = realpathSync(resolve(String(context?.cwd ?? process.cwd())));
+            const rawPath = String(params.path ?? "").trim(), rawExpr = String(params.expr ?? "").trim();
+            if (rawPath.length > 500 || rawExpr.length > 200) throw new Error("Test selection is too long");
+            const target = resolve(cwd, rawPath || ".");
+            if (target !== cwd && !target.startsWith(cwd + sep)) throw new Error("path must stay inside the workspace");
+            let expr = rawExpr.replace(/^(?:(?:python3?|py)\s+-m\s+)?pytest\s+-k\s+|^-k\s+/iu, "").trim();
+            if ((expr.startsWith('"') && expr.endsWith('"')) || (expr.startsWith("'") && expr.endsWith("'"))) expr = expr.slice(1, -1);
+            const operationId = currentTestOperation(cwd), before = workspaceSnapshot(cwd), started = performance.now();
+            const outcome = await run(cwd, target, expr, signal), facts = outcome.facts;
+            const count = (key: string) => Number.isSafeInteger(facts?.[key]) && facts![key] >= 0 ? facts![key] as number : null;
+            let status = outcome.termination === "exited" && states.has(facts?.status) ? facts!.status : "infra_error";
+            if (["cancelled", "timed_out", "output_limit"].includes(outcome.termination)) status = outcome.termination;
+            if (status === "passed" && (outcome.exitCode !== 0 || !count("selected") || !count("passed") || count("failed") !== 0)) status = "infra_error";
+            const receipt: TestReceipt = {
+                schemaVersion: 1, receiptId: randomUUID(), operationId, workspaceId: digest(cwd),
+                snapshotId: before, currentSnapshotId: workspaceSnapshot(cwd),
+                runner: { name: typeof facts?.runner === "string" ? facts.runner : "python", version: typeof facts?.version === "string" ? facts.version : null },
+                invocationFingerprint: digest(JSON.stringify([process.env.PIDECK_RUN_TESTS_PYTHON || "python3", target, expr])),
+                selection: { path: rawPath || ".", expression: expr },
+                selected: count("selected"), passed: count("passed"), failed: count("failed"), skipped: count("skipped"),
+                status, terminationReason: outcome.termination, exitCode: outcome.exitCode,
+                durationMs: Math.round(performance.now() - started), artifactId: artifact(outcome.output),
+            };
+            return { content: [{ type: "text", text: format(receipt, outcome.output) }],
+                details: { receipt, runner: receipt.runner.name, path: target, expr, status: outcome.exitCode,
+                    timedOut: status === "timed_out", bytes: Buffer.byteLength(outcome.output) } };
+        },
+    });
 }

@@ -61,6 +61,8 @@ jobs:
             python3 -W error::ResourceWarning -m unittest discover -s tests/protocol -v
           node tests/extensions/run_extension_checks.mjs \
             "$PWD/build/pi-protocol/node_modules"
+          node tests/extensions/run_audit_checks.mjs \
+            "$PWD/build/pi-protocol/node_modules"
 
       - name: Generate supply-chain bundle
         run: |
@@ -205,6 +207,8 @@ jobs:
           fi
 
       - name: Assemble signed release metadata
+        env:
+          PIDECK_RELEASE_CERT_SHA256: ${{ vars.PIDECK_RELEASE_CERT_SHA256 }}
         run: |
           cp docs/implementation-baseline.md build/release/
           cp docs/release-process.md build/release/BUILD-INSTRUCTIONS.md
@@ -220,6 +224,11 @@ jobs:
             build/release/SOURCE_COMMIT \
             build/release/signing-certificate.txt \
             build/release/apk-info.txt
+          version="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts)"
+          python3 tools/verify_release_bundle.py --bundle build/release \
+            --commit "$GITHUB_SHA" --tag "v$version" \
+            --certificate "$PIDECK_RELEASE_CERT_SHA256" \
+            --build-tools "$ANDROID_HOME/build-tools/35.0.0" --create-manifest
 
       - name: Upload signed release APK and metadata
         uses: actions/upload-artifact@v7
@@ -228,22 +237,33 @@ jobs:
           path: build/release/
           if-no-files-found: error
 
-      - name: Publish signed release assets
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: signed-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            build/release/pi-deck.apk
-            build/release/pi-deck.cdx.json
-            build/release/models-v2.json
-            build/release/compatibility.json
-            build/release/native-runtime.json
-            build/release/implementation-baseline.md
-            build/release/BUILD-INSTRUCTIONS.md
-            build/release/SOURCE_COMMIT
-            build/release/signing-certificate.txt
-            build/release/apk-info.txt
-            build/release/SHA256SUMS
+          distribution: temurin
+          java-version: '21'
+      - name: Download original signed bundle (never rebuild on publication retry)
+        uses: actions/download-artifact@v8
+        with:
+          name: pi-deck-signed-release
+          path: build/release
+      - name: Verify complete draft and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PIDECK_RELEASE_CERT_SHA256: ${{ vars.PIDECK_RELEASE_CERT_SHA256 }}
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
+          python3 tools/publish_release.py --repository "$GITHUB_REPOSITORY" \
+            --bundle build/release --commit "$GITHUB_SHA" --tag "$GITHUB_REF_NAME" \
+            --certificate "$PIDECK_RELEASE_CERT_SHA256" \
+            --build-tools "$ANDROID_HOME/build-tools/35.0.0" --repair-published

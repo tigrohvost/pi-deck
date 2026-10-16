@@ -73,6 +73,7 @@ try {
 	for (const name of EXTENSIONS) {
 		cpSync(join(RUNTIME, name), join(workspace, name));
 	}
+	cpSync(join(RUNTIME, "pideck-test-runner.py"), join(workspace, "pideck-test-runner.py"));
 
 	// Load through Pi's own loader rather than a hand-written stand-in for ExtensionAPI.
 	// A mock only proves the file runs; this proves Pi accepts it, and surfaces the load
@@ -413,7 +414,7 @@ try {
 		],
 	);
 	assert.deepEqual(
-		planner.progressMarkers("готово [DONE:1] стоп [BLOCKED:2]"),
+		planner.progressMarkers("готово\n[DONE:1] [BLOCKED:2]"),
 		[{ kind: "done", step: 1 }, { kind: "blocked", step: 2 }],
 	);
 	assert.deepEqual(
@@ -512,6 +513,7 @@ try {
 		{
 			hasUI: true,
 			mode: "rpc",
+			cwd: workspace,
 			ui: { confirm: async () => true },
 		},
 	);
@@ -1192,14 +1194,20 @@ try {
 		"the stable schema bypassed the scoped edit retry limit",
 	);
 	await routerInput({ type: "input", text: repairPrompt, source: "rpc" });
+	const repairFixture = join(workspace, "receipt-repair");
+	mkdirSync(join(repairFixture, "src"), { recursive: true });
+	mkdirSync(join(repairFixture, "tests"));
+	writeFileSync(join(repairFixture, "src/counter.py"), "def value():\n    return 0\n");
+	writeFileSync(join(repairFixture, "tests/test_counter.py"), "from src.counter import value\ndef test_value():\n    assert value() == 1\n");
+	await routerInput({ type: "input", text: repairPrompt.replace(workspace, repairFixture), source: "rpc" });
 	const repairTest = {
 		type: "tool_call",
 		toolName: "run_tests",
 		toolCallId: "repair-test",
 		input: { expr: "tests/test_counter.py" },
 	};
-	assert.equal(await routerToolCall(repairTest, { cwd: workspace }), undefined);
-	assert.equal(repairTest.input.path, join(workspace, "tests", "test_counter.py"));
+	assert.equal(await routerToolCall(repairTest, { cwd: repairFixture }), undefined);
+	assert.equal(repairTest.input.path, join(repairFixture, "tests", "test_counter.py"));
 	assert.equal(
 		repairTest.input.expr,
 		undefined,
@@ -1212,8 +1220,8 @@ try {
 		input: repairTest.input,
 		isError: false,
 		content: [{ type: "text", text: "1 failed" }],
-		details: { status: 1 },
-	});
+		details: (await tools.get("run_tests").execute("repair-fail", repairTest.input, undefined, undefined, { cwd: repairFixture })).details,
+	}, { cwd: repairFixture });
 	assert.match(failedRepairTest.content.at(-1).text, /unavailable until a source edit/u);
 	assert.deepEqual(
 		activeTools,
@@ -1229,16 +1237,17 @@ try {
 		type: "tool_result",
 		toolName: "pideck_edit_text",
 		toolCallId: "repair-after-test",
-		input: { path: join(workspace, "src", "counter.py") },
+		input: { path: join(repairFixture, "src", "counter.py") },
 		isError: false,
 		content: [{ type: "text", text: "edited" }],
 	});
+	writeFileSync(join(repairFixture, "src/counter.py"), "def value():\n    return 1\n");
 	assert.deepEqual(
 		activeTools,
 		AUTONOMOUS_CORE,
 		"a successful correction rewrote the provider schema",
 	);
-	assert.equal(await routerToolCall(repairTest, { cwd: workspace }), undefined);
+	assert.equal(await routerToolCall(repairTest, { cwd: repairFixture }), undefined);
 	const repairTestResult = await routerToolResult({
 		type: "tool_result",
 		toolName: "run_tests",
@@ -1246,8 +1255,8 @@ try {
 		input: repairTest.input,
 		isError: false,
 		content: [{ type: "text", text: "1 passed" }],
-		details: { status: 0 },
-	});
+		details: (await tools.get("run_tests").execute("repair-pass", repairTest.input, undefined, undefined, { cwd: repairFixture })).details,
+	}, { cwd: repairFixture });
 	assert.match(repairTestResult.content[0].text, /TEST PASSED/u);
 	assert.deepEqual(
 		activeTools,
@@ -2205,7 +2214,7 @@ try {
 	try {
 		const fallback = await runTests.execute(
 			"tests-zero-fixture",
-			{ path: "test_ok.py", expr: "pytest -k test_ok" },
+			{ path: "test_ok.py" },
 			undefined,
 			undefined,
 			{ cwd: passingWorkspace, hasUI: false, mode: "rpc" },
@@ -2214,7 +2223,7 @@ try {
 		assert.match(fallback.content[0].text, /offline zero-fixture fallback/);
 		assert.equal(fallback.details.runner, "zero-fixture");
 		assert.equal(fallback.details.status, 0);
-		assert.equal(fallback.details.expr, "test_ok");
+		assert.equal(fallback.details.expr, "");
 	} finally {
 		delete process.env.PIDECK_RUN_TESTS_PYTHON;
 	}

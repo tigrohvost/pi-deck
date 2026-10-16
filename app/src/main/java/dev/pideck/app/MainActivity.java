@@ -2536,6 +2536,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 "STOPPING LLM CORE",
                 operationId -> NativeLlamaController.stopThen(
                         this,
+                        operationId,
                         () -> termux.runRuntime(
                                 operationId,
                                 OperationKind.STOP_SERVER,
@@ -2814,6 +2815,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         setInferenceActive(true, progress);
     }
 
+    private String inferenceOperationId = "";
+
     private void setInferenceActive(boolean active, String phase) {
         inferenceActive = active;
         if (!active) turnPhase = null;
@@ -2825,8 +2828,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         applyScreenSpeedPolicy();
         NativeLlamaService.Snapshot nativeState = NativeLlamaService.snapshot(this);
         if (!nativeState.isStartingOrReady()) return;
-        if (active) NativeLlamaService.beginInference(this, phase);
-        else NativeLlamaService.endInference(this, contextUsage);
+        if (active) {
+            OperationId operationId = operations.activeOperationId();
+            if (operationId == null) return;
+            inferenceOperationId = operationId.toString();
+            NativeLlamaService.beginInference(this, phase, inferenceOperationId);
+        } else {
+            NativeLlamaService.endInference(this, contextUsage, inferenceOperationId);
+            inferenceOperationId = "";
+        }
     }
 
     private void applyScreenSpeedPolicy() {
@@ -4658,7 +4668,19 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
             case TOOL_CALL_COMPLETED -> {
                 boolean failed = event.payload.optBoolean("isError", false);
-                deck.completeTrace(failed
+                String verification = event.payload.optString("verificationStatus", "");
+                String verdict = switch (verification) {
+                    case "passed" -> t("тесты прошли", "tests passed");
+                    case "failed" -> t("тесты упали", "tests failed");
+                    case "no_tests" -> t("нет тестов", "no tests");
+                    case "unsupported" -> t("проверка не поддерживается", "unsupported verification");
+                    case "timed_out" -> t("время истекло", "timed out");
+                    case "cancelled" -> t("отменено", "cancelled");
+                    case "output_limit" -> t("лимит вывода", "output limit");
+                    case "infra_error" -> t("ошибка окружения", "runner error");
+                    default -> "";
+                };
+                deck.completeTrace(!verdict.isBlank() ? verdict : failed
                         ? t("ошибка", "error")
                         : t("готово", "done"));
                 if (failed) {

@@ -190,7 +190,11 @@ export function pruneSupersededContext(messages: readonly unknown[]): unknown[] 
 		} else if (
 			call.name === "code_nav"
 			&& index <= messages.length - NO_MATCH_MIN_AGE_MESSAGES
-			&& /(?:no matches?|nothing found|ничего не найдено|совпадени\p{L}* не найден)/iu.test(text)
+			&& record(message.details)?.schemaVersion === 1
+			&& record(message.details)?.status === "complete"
+			&& record(message.details)?.truncated === false
+			&& record(message.details)?.fileCandidates === 0
+			&& record(message.details)?.textMatches === 0
 		) {
 			marker = "[PI//DECK pruned: old bounded search returned no matches.]";
 		}
