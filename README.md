@@ -9,7 +9,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
-**[Download the latest release APK](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha15/pi-deck.apk)**
+**[Download the latest release APK](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha16/pi-deck.apk)**
 
 </div>
 
@@ -26,9 +26,9 @@ authenticated loopback RPC bridge, with no root required.
 
 ## Release and device validation
 
-The current source version is `0.3.0-alpha15` (`versionCode 23`). It includes
-the narrow-layout overlap fixes, accumulated runtime changes, and the
-production-signing CI pipeline. Historical alpha14 measurements are in
+The current source version is `0.3.0-alpha16` (`versionCode 24`). It adds
+Bonsai 2 4B/9B, a compact model catalog, and the October inference and interface
+improvements. Historical alpha14 measurements are in
 [validation evidence](docs/validation/alpha14); these do not constitute device
 acceptance of the new production-signed CI APK.
 
@@ -193,6 +193,15 @@ explicit choices. The full 28-task admission suite is still pending.
 | Ministral 3 3B Instruct | `CANDIDATE` | Official GGUF on stock b10092. Download, SHA/private install, startup, and tool-schema Pi turns passed on SM-S918B; full suite and Russian behavior remain unverified |
 | Nanbeige4.2 3B | `CANDIDATE` | Pinned Q4_K_M plus isolated `nanbeige42-c6640a1` sidecar. Download and SHA/private install passed on SM-S918B; inference suite is still pending |
 | Bonsai 27B | `CANDIDATE` | Manual-only 1-bit experiment: about 1.16 tok/s despite fitting in less memory than Qwen 4B |
+| Bonsai 2 4B / 9B | `CANDIDATE` | Official PTQ1_0 GGUF: 906 MiB / 1.86 GiB, isolated Prism, 4096-token context. Same language weights as MLX 2-bit; text only. Phone throughput and the full agent suite remain unvalidated |
+
+Choose **Core → All models → Bonsai 2 4B / 9B → Download**. The compact list
+keeps the selected, recommended and locally available models visible.
+**Details** shows RAM requirements, installation space, the exact filename for
+attaching an existing copy, and the source link. Tapping a card opens details;
+cancelling a download requires its explicit button. Verification and private
+installation each display progress. See the [integration notes](docs/bonsai2-4b-9b.md)
+for the MLX/GGUF distinction and validation scope.
 
 The first Ministral handset smoke measured about 23.2 prompt tokens/s and 0.5
 decode tokens/s for a six-token reply. It is proof of compatibility, not a

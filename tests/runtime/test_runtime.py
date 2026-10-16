@@ -1071,6 +1071,31 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertNotIn("thinkingFormat", provider["compat"])
         self.assertFalse(model_store.adaptive_thinking_enabled(model))
 
+    def test_compact_bonsai_profiles_keep_prism_and_text_only_pi_contract(self) -> None:
+        catalog = json.loads((REPOSITORY / "app/src/main/assets/models-v2.json").read_text())
+        for model_id in ("bonsai2-4b", "bonsai2-9b"):
+            with self.subTest(model=model_id):
+                model = next(entry for entry in catalog["models"] if entry["id"] == model_id)
+                model_store.validate_model(model)
+                install_catalog(model)
+                self.assertEqual(model, model_store.model_by_id(model_id))
+                self.assertEqual("prism-842b188", model["runtime"]["minimumLlamaCppVersion"])
+                # A Termux stock-server launch must fail closed for these quantizations;
+                # Android starts Prism and the bridge adopts that exact runtime instead.
+                with self.assertRaises(common.PiDeckError) as raised:
+                    server_supervisor.effective_server_arguments(
+                        model, Path("/private/model.gguf"), 4, 8080, "A" * 43)
+                self.assertEqual("NATIVE_RUNTIME_REQUIRED", raised.exception.code)
+                server_supervisor._write_pi_models("A" * 43, 8080, model)
+                provider = json.loads(server_supervisor.PI_MODELS.read_text())["providers"]["pideck"]
+                self.assertEqual([model_id], [entry["id"] for entry in provider["models"]])
+                self.assertEqual(["text"], provider["models"][0]["input"])
+                self.assertFalse(provider["models"][0]["reasoning"])
+                self.assertEqual(8192, provider["models"][0]["contextWindow"])
+                self.assertEqual(1024, provider["models"][0]["maxTokens"])
+                self.assertFalse(provider["compat"]["supportsStrictMode"])
+                self.assertNotIn("thinkingFormat", provider["compat"])
+
     def test_terminal_prefix_reuse_requires_the_measured_artifact_and_runtime(self) -> None:
         catalog = json.loads((Path(__file__).resolve().parents[2]
                               / "app/src/main/assets/models-v2.json").read_text("utf-8"))

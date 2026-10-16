@@ -67,4 +67,29 @@ public class ModelLifecycleTest {
         assertEquals(ModelLifecycle.Action.INSTALL,
                 ModelLifecycle.action(ModelLifecycle.Stage.VERIFIED, false));
     }
+
+    @Test
+    public void verificationAndInstallationProtectTheirSourceFromActions() {
+        ModelLifecycle.Facts facts = facts();
+        facts.incoming = true;
+        facts.verifying = true;
+        assertEquals(ModelLifecycle.Stage.VERIFYING, ModelLifecycle.stage(facts));
+        assertEquals(ModelLifecycle.Action.NONE,
+                ModelLifecycle.action(ModelLifecycle.stage(facts), true));
+        assertEquals(ModelLifecycle.Secondary.NONE,
+                ModelLifecycle.secondary(ModelLifecycle.stage(facts), facts));
+
+        facts.verifying = false;
+        facts.verified = true;
+        facts.installing = true;
+        assertEquals(ModelLifecycle.Stage.INSTALLING, ModelLifecycle.stage(facts));
+        assertEquals(ModelLifecycle.Action.NONE,
+                ModelLifecycle.action(ModelLifecycle.stage(facts), true));
+        assertEquals(ModelLifecycle.Secondary.NONE,
+                ModelLifecycle.secondary(ModelLifecycle.stage(facts), facts));
+
+        facts.installing = false;
+        facts.privateReady = true;
+        assertEquals(ModelLifecycle.Stage.INSTALLED, ModelLifecycle.stage(facts));
+    }
 }

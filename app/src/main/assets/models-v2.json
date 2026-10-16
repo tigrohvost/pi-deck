@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "2026-09-24-bonsai2",
+  "catalogVersion": "2026-10-16-bonsai2-4b-9b",
   "models": [
     {
       "id": "qwen3.5-0.8b",
@@ -1040,6 +1040,184 @@
         "minimumAvailableMiB": 5120,
         "measuredPeakRssMiB": 4091,
         "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "bonsai2-4b",
+      "title": "Bonsai 2 4B",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Те же тернарные языковые веса, что в официальной MLX 2-bit, в компактном GGUF PTQ1_0 для Android. Текстовый чат и агентный профиль без скрытого рассуждения; ввод изображений не подключён. Скорость на телефоне и полный агентный тест ещё не проверены. Только ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-4B-gguf/blob/8d6557168168f91ea6697a4a49ed2ef622b53adb/LICENSE",
+        "verifiedAt": "2026-10-16T00:00:00Z"
+      },
+      "source": {
+        "repository": "prism-ml/Ternary-Bonsai-2-4B-gguf",
+        "revision": "8d6557168168f91ea6697a4a49ed2ef622b53adb",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen35",
+        "upstreamModel": "Qwen/Qwen3.5-4B",
+        "conversion": {
+          "performedBy": "prism-ml",
+          "tool": "llama.cpp (PrismML-Eng fork)",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": [
+            "https://huggingface.co/prism-ml/Ternary-Bonsai-2-4B-gguf/blob/8d6557168168f91ea6697a4a49ed2ef622b53adb/NOTICE.txt"
+          ]
+        }
+      },
+      "artifact": {
+        "file": "Ternary-Bonsai-2-4B-PTQ1_0.gguf",
+        "bytes": 949549920,
+        "sha256": "56711263ec9a9ffeaa74a3a0e58dece8127cf9268404746c721113ca76994d60"
+      },
+      "runtime": {
+        "serverFlavor": "prism",
+        "minimumLlamaCppVersion": "prism-842b188",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 4096,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "-b",
+          "256",
+          "-ub",
+          "128",
+          "--reasoning-budget",
+          "0",
+          "--repeat-penalty",
+          "1.0",
+          "--repeat-last-n",
+          "64",
+          "--cache-ram",
+          "512"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "bonsai2-local",
+        "maxTokens": 1024,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "Android arm64; device validation pending"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "bonsai2-9b",
+      "title": "Bonsai 2 9B",
+      "tier": "MAX",
+      "status": "CANDIDATE",
+      "note": "Те же тернарные языковые веса, что в официальной MLX 2-bit, в компактном GGUF PTQ1_0 для Android. Текстовый чат и агентный профиль без скрытого рассуждения; ввод изображений не подключён. Скорость на телефоне и полный агентный тест ещё не проверены. Только ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-9B-gguf/blob/5b2abb02362efbed46bbe204014b02837778b2c2/LICENSE",
+        "verifiedAt": "2026-10-16T00:00:00Z"
+      },
+      "source": {
+        "repository": "prism-ml/Ternary-Bonsai-2-9B-gguf",
+        "revision": "5b2abb02362efbed46bbe204014b02837778b2c2",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen35",
+        "upstreamModel": "Qwen/Qwen3.5-9B",
+        "conversion": {
+          "performedBy": "prism-ml",
+          "tool": "llama.cpp (PrismML-Eng fork)",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": [
+            "https://huggingface.co/prism-ml/Ternary-Bonsai-2-9B-gguf/blob/5b2abb02362efbed46bbe204014b02837778b2c2/NOTICE.txt"
+          ]
+        }
+      },
+      "artifact": {
+        "file": "Ternary-Bonsai-2-9B-PTQ1_0.gguf",
+        "bytes": 1997486976,
+        "sha256": "3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b"
+      },
+      "runtime": {
+        "serverFlavor": "prism",
+        "minimumLlamaCppVersion": "prism-842b188",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 4096,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "-b",
+          "256",
+          "-ub",
+          "128",
+          "--reasoning-budget",
+          "0",
+          "--repeat-penalty",
+          "1.0",
+          "--repeat-last-n",
+          "64",
+          "--cache-ram",
+          "512"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "bonsai2-local",
+        "maxTokens": 1024,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 5120,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "Android arm64; device validation pending"
       },
       "benchmark": {
         "suiteVersion": null,

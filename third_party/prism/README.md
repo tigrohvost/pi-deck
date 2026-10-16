@@ -28,3 +28,8 @@ PIDECK_PRISM_NDK_ROOT="$ANDROID_HOME/ndk/28.2.13676358" \
 `PIDECK_HOST_CXX` selects the host C++ compiler used for the server's asset
 embedding tool. `PIDECK_PRISM_SOURCE_ARCHIVE` can reuse a downloaded archive;
 its SHA-256 is still checked.
+
+The same pinned runtime serves the official Bonsai 2 **4B and 9B PTQ1_0**
+profiles added on 2026-10-16. They use the language weights corresponding to
+the MLX 2-bit releases; no MLX runtime or safetensors importer is bundled.
+See [integration and compatibility checks](../../docs/bonsai2-4b-9b.md).

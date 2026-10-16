@@ -70,8 +70,8 @@ CI. A tag can be created using the owner's dedicated signing key:
 GNUPGHOME="${XDG_DATA_HOME:-$HOME/.local/share}/pi-deck/release-tag-gnupg" \
   git -c gpg.format=openpgp \
   -c user.signingkey=15D57AAB416AC7C871D3EFAA1D9744520A6282C5 \
-  tag -s v0.3.0-alpha15 -m 'PI//DECK 0.3.0-alpha15'
-git push origin v0.3.0-alpha15
+  tag -s v0.3.0-alpha16 -m 'PI//DECK 0.3.0-alpha16'
+git push origin v0.3.0-alpha16
 ```
 
 The active tag key is `15D57AAB416AC7C871D3EFAA1D9744520A6282C5`, created on

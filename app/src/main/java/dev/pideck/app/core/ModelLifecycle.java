@@ -13,6 +13,8 @@ public final class ModelLifecycle {
         NO_RAM,
         ACTIVE,
         INSTALLED,
+        VERIFYING,
+        INSTALLING,
         DOWNLOADING,
         DOWNLOAD_FAILED,
         VERIFIED,
@@ -43,6 +45,8 @@ public final class ModelLifecycle {
         public boolean privateReady;
         public boolean selected;
         public boolean serverReady;
+        public boolean verifying;
+        public boolean installing;
         public boolean downloadActive;
         public boolean downloadFailed;
         public boolean incoming;
@@ -56,6 +60,8 @@ public final class ModelLifecycle {
         if (!facts.fits) return Stage.NO_RAM;
         if (facts.privateReady && facts.selected && facts.serverReady) return Stage.ACTIVE;
         if (facts.privateReady) return Stage.INSTALLED;
+        if (facts.installing) return Stage.INSTALLING;
+        if (facts.verifying) return Stage.VERIFYING;
         if (facts.downloadActive) return Stage.DOWNLOADING;
         if (facts.downloadFailed) return Stage.DOWNLOAD_FAILED;
         if (facts.incoming && facts.verified) return Stage.VERIFIED;
@@ -65,7 +71,7 @@ public final class ModelLifecycle {
 
     public static Action action(Stage stage, boolean selected) {
         return switch (stage) {
-            case NO_RAM, ACTIVE -> Action.NONE;
+            case NO_RAM, ACTIVE, VERIFYING, INSTALLING -> Action.NONE;
             case INSTALLED -> selected ? Action.RESTART : Action.SELECT;
             case DOWNLOADING -> Action.CANCEL_DOWNLOAD;
             case DOWNLOAD_FAILED -> Action.RETRY_DOWNLOAD;
@@ -80,6 +86,7 @@ public final class ModelLifecycle {
      * attached from a file the user already has, so the pinned artifact is never paid for twice.
      */
     public static Secondary secondary(Stage stage, Facts facts) {
+        if (stage == Stage.VERIFYING || stage == Stage.INSTALLING) return Secondary.NONE;
         if (facts.incoming) return Secondary.DELETE_SOURCE;
         boolean noBytes = stage == Stage.MISSING || stage == Stage.DOWNLOAD_FAILED;
         return noBytes && facts.fits ? Secondary.ATTACH_FILE : Secondary.NONE;

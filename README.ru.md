@@ -9,7 +9,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
-**[Скачать APK последнего релиза](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha15/pi-deck.apk)**
+**[Скачать APK последнего релиза](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha16/pi-deck.apk)**
 
 </div>
 
@@ -26,9 +26,9 @@ root не нужен.
 
 ## Релиз и проверки на устройстве
 
-Текущая версия исходников — `0.3.0-alpha15` (`versionCode 23`): исправления
-перекрытий на узких экранах, накопленные изменения runtime и автоматическая
-сборка APK с production-подписью. Прежние измерения alpha14 сохранены в
+Текущая версия исходников — `0.3.0-alpha16` (`versionCode 24`): модели
+Bonsai 2 4B/9B, компактный каталог и октябрьские улучшения инференса и
+интерфейса. Прежние измерения alpha14 сохранены в
 [результатах проверок](docs/validation/alpha14); они не заменяют проверку нового
 подписанного CI APK на телефоне.
 
@@ -191,6 +191,15 @@ provenance и полный device admission suite. Неизвестный model 
 | Ministral 3 3B Instruct | `CANDIDATE` | Официальный GGUF на штатном b10092. На SM-S918B пройдены скачивание, SHA/private install, запуск и Pi-ходы со схемами инструментов; полный suite и русский язык ещё не проверены |
 | Nanbeige4.2 3B | `CANDIDATE` | Закреплённый Q4_K_M и изолированный sidecar `nanbeige42-c6640a1`. На SM-S918B пройдены скачивание и SHA/private install; inference suite ещё не запускался |
 | Bonsai 27B | `CANDIDATE` | Ручной 1-битный эксперимент: около 1,16 ток/с, хотя памяти требуется меньше, чем Qwen 4B |
+| Bonsai 2 4B / 9B | `CANDIDATE` | Официальные GGUF PTQ1_0: 906 МиБ / 1,86 ГиБ, отдельный Prism, контекст 4096. Те же языковые веса, что в MLX 2-bit; текстовый режим. Скорость и полный агентный тест на телефоне ещё не проверены |
+
+Bonsai 2 доступны через **Ядро → Все модели → Bonsai 2 4B / 9B → Скачать**.
+В компактном списке остаются выбранная, рекомендуемая и локально доступные
+модели. **Подробнее** показывает требования к RAM, место для установки,
+точное имя файла для подключения и ссылку на источник. Нажатие на карточку
+открывает подробности; отмена загрузки вынесена в отдельную кнопку. Проверка
+и приватная установка показывают свой прогресс.
+О различиях MLX/GGUF и проверках — в [заметке интеграции](docs/bonsai2-4b-9b.md).
 
 Первый smoke Ministral на телефоне показал около 23,2 prompt tok/s и 0,5 decode
 tok/s для ответа из шести токенов. Это доказательство совместимости, а не

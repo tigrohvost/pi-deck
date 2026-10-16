@@ -243,6 +243,19 @@ file at all. `runtime.minimumLlamaCppVersion` is the pinned `b10092` even though
 the vendor directs users at their own llama.cpp fork for the `Q1_0_g128`
 kernels — b10092 loads and decodes the file correctly, just slowly.
 
+## Bonsai 2 4B / 9B (`bonsai2-4b`, `bonsai2-9b`)
+
+Added on 2026-10-16 as manual-only `CANDIDATE` entries. Both use the official
+PTQ1_0 GGUF packing of the language weights corresponding to the requested
+MLX 2-bit releases. The existing `prism-842b188` sidecar provides their tensor
+type and Hadamard transforms. No stock runtime replacement is required.
+
+See [the integration record](bonsai2-4b-9b.md) for immutable repository
+revisions, independently checked sizes/hashes, sampling, conservative mobile
+limits, UI changes and validation scope. License is Apache-2.0; conversion
+provenance remains `INCOMPLETE`. Phone measurements and complete admission
+suites are still required before either profile can be recommended.
+
 ## Bonsai 2 27B (`bonsai2-27b`)
 
 Added for an explicit local-device run on 2026-09-24 as a manual-only

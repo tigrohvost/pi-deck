@@ -175,7 +175,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private boolean busy;
     private String busyPhase = "";
     private boolean verifying;
+    private String verifyingModelId;
     private int verificationPercent;
+    private int installationPercent;
     private String verificationFault = "";
     private float textScale;
     /** A prompt typed while a turn was running, or at a cold core; dispatched once the deck can. */
@@ -2842,7 +2844,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void installPrivateModel(ModelSpec model) {
-        if (busy) return;
+        if (busy || verifying) return;
         if (!prefs.isModelVerified(model) || !modelDownloads.isDownloaded(model)) {
             toast(t(
                     "Сначала нужна Android SHA-256 проверка incoming-файла",
@@ -2859,6 +2861,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             + t("; доступно ", "; available ") + humanBytes(available) + ".");
             return;
         }
+        installationPercent = 0;
         dispatchOperation(
                 OperationKind.INSTALL_MODEL,
                 requestMetadata(model.id, false),
@@ -2869,7 +2872,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                         new NativeModelStore.Listener() {
                             @Override
                             public void onProgress(int percent) {
-                                if (percent % 10 == 0) runOnUiThread(MainActivity.this::refreshUi);
+                                if (percent % 10 == 0) runOnUiThread(() -> {
+                                    installationPercent = percent;
+                                    refreshUi();
+                                });
                             }
 
                             @Override
@@ -2904,9 +2910,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void verifyModel(ModelSpec model) {
-        if (verifying) return;
+        if (busy || verifying) return;
         if (modelDownloads.state(model).isActive()) return;
         verifying = true;
+        verifyingModelId = model.id;
         verificationPercent = 0;
         verificationFault = "";
         modelDownloads.verifyAsync(model, new ModelDownloadManager.VerifyListener() {
@@ -2922,6 +2929,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             public void onComplete(ModelDownloadManager.VerifyResult result) {
                 runOnUiThread(() -> {
                     verifying = false;
+                    verifyingModelId = null;
                     prefs.setModelVerified(model, result.valid);
                     if (result.valid) {
                         verificationPercent = 100;
@@ -2980,6 +2988,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 });
             }
         });
+        refreshUi();
     }
 
     /**
@@ -3084,7 +3093,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void confirmDownload(ModelSpec model) {
-        if (busy) {
+        if (busy || verifying) {
             toast(t("Дождитесь завершения текущей операции", "Wait for the current operation to finish"));
             return;
         }
@@ -3105,7 +3114,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         boolean allowMetered = isMetered();
         new AlertDialog.Builder(this)
                 .setTitle(t("Загрузить ", "Download ") + model.title + "?")
-                .setMessage(model.humanSize() + " · " + model.repo
+                .setMessage(modelNote(model) + "\n\n" + model.humanSize() + " · " + model.repo
+                        + t("\nМесто для установки: ", "\nSpace needed to install: ")
+                        + humanBytes(ModelCatalog.requiredStorageForFreshInstall(model))
+                        + t(" · свободно ", " · free ") + humanBytes(available)
                         + t("\nIncoming будет сохранён в Download/PiDeck/incoming, "
                                 + "затем проверен и скопирован в приватный PiDeck store.",
                         "\nThe incoming file will be saved to Download/PiDeck/incoming, "
@@ -3183,7 +3195,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void chooseModel(ModelSpec model) {
-        if (busy) {
+        if (busy || verifying) {
             toast(t("Дождитесь завершения текущей операции", "Wait for the current operation to finish"));
             return;
         }
@@ -3208,7 +3220,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void confirmDeleteModel(ModelSpec model) {
-        if (busy) {
+        if (busy || verifying) {
             toast(t("Дождитесь завершения текущей операции", "Wait for the current operation to finish"));
             return;
         }
@@ -3254,13 +3266,26 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         state.smartCompaction = prefs.smartCompaction();
         state.language = uiLanguage;
 
-        java.util.List<String> primaryModels = java.util.List.of(
-                "lfm2.5-2.6b-qad", "k2-horizon-3.7b", "qwen3.8-4b-distill");
+        ModelSpec recommendedModel = modelCatalog.recommend(
+                recommendationAvailableRam(), lowMemory, freeStorage);
+        // OperationCoordinator.active() reads the durable record; do it once per screen,
+        // not once for each model on every progress heartbeat.
+        OperationRecord active = operations.active();
+        String installingModelId = active != null && active.kind == OperationKind.INSTALL_MODEL
+                ? active.request.optString("modelId") : null;
+        java.util.LinkedHashSet<String> primaryModels = new java.util.LinkedHashSet<>();
+        primaryModels.add(selectedModel.id);
+        primaryModels.add(recommendedModel.id);
+        primaryModels.addAll(java.util.List.of(
+                "bonsai2-4b", "bonsai2-9b", "k2-horizon-3.7b", "qwen3.8-4b-distill"));
         for (String id : primaryModels) {
-            modelCatalog.byId(id).ifPresent(model -> state.models.add(modelRow(model)));
+            modelCatalog.byId(id).ifPresent(model -> state.models.add(
+                    modelRow(model, recommendedModel, installingModelId)));
         }
         for (ModelSpec model : modelCatalog.all()) {
-            if (!primaryModels.contains(model.id)) state.models.add(modelRow(model));
+            if (!primaryModels.contains(model.id)) {
+                state.models.add(modelRow(model, recommendedModel, installingModelId));
+            }
         }
 
         String systemPrompt = prefs.systemPrompt();
@@ -3483,19 +3508,20 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         deck.renderCore(state);
     }
 
-    private CoreRootView.ModelRow modelRow(ModelSpec model) {
+    private CoreRootView.ModelRow modelRow(
+            ModelSpec model, ModelSpec recommendedModel, String installingModelId
+    ) {
         ModelDownloadManager.State download = modelDownloads.state(model);
         boolean privateReady = nativeModels.isInstalled(model);
         boolean incoming = modelDownloads.isDownloaded(model);
         boolean verified = prefs.isModelVerified(model);
         boolean selected = model.equals(selectedModel);
         boolean fits = totalRam >= model.minimumAvailableMiB * 1_048_576L;
+        boolean recommended = model.equals(recommendedModel);
 
         String meta = speedProfile(model) + " · " + model.humanSize()
                 + t(" · контекст ", " · context ") + model.recommendedContext;
-        if (model.equals(modelCatalog.recommend(
-                recommendationAvailableRam(), lowMemory, freeStorage
-        ))) {
+        if (recommended) {
             meta += t(" · рекомендуем", " · recommended");
         }
 
@@ -3504,6 +3530,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         facts.privateReady = privateReady;
         facts.selected = selected;
         facts.serverReady = serverReady;
+        facts.verifying = verifying && model.id.equals(verifyingModelId);
+        facts.installing = model.id.equals(installingModelId);
         facts.downloadActive = download.isActive();
         facts.downloadFailed = download.phase == ModelDownloadManager.Phase.FAILED;
         facts.incoming = incoming;
@@ -3523,6 +3551,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 state = t("загружена, готова к запуску", "downloaded, ready to start");
                 stateColor = palette.ok;
             }
+            case VERIFYING -> {
+                state = t("Проверка файла · ", "Verifying file · ") + verificationPercent + "%";
+                stateColor = palette.accent;
+                percent = verificationPercent;
+            }
+            case INSTALLING -> {
+                state = t("Установка · ", "Installing · ") + installationPercent + "%";
+                stateColor = palette.accent;
+                percent = installationPercent;
+            }
             case DOWNLOADING -> {
                 state = t("скачивается · ", "downloading · ")
                         + humanBytes(download.downloadedBytes)
@@ -3532,7 +3570,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
             case DOWNLOAD_FAILED -> {
                 state = t("сбой загрузки: ", "download failed: ")
-                        + ModelDownloadManager.failureLabel(download.reason).toLowerCase(Locale.ROOT);
+                        + downloadFailureLabel(download.reason).toLowerCase(Locale.ROOT);
                 stateColor = palette.errorText;
             }
             case VERIFIED -> {
@@ -3553,7 +3591,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         Runnable action = null;
         switch (ModelLifecycle.action(stage, selected)) {
             case SELECT, RESTART -> {
-                actionLabel = selected ? t("Перезапустить", "Restart") : t("Выбрать", "Select");
+                actionLabel = selected ? t("Запустить", "Start") : t("Выбрать", "Select");
                 action = () -> {
                     chooseModel(model);
                     if (selected) startServer();
@@ -3601,6 +3639,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             }
         }
 
+        if (busy || verifying) {
+            action = null;
+            secondary = null;
+        }
         return new CoreRootView.ModelRow(
                 model.title,
                 meta,
@@ -3612,8 +3654,44 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 actionLabel,
                 action,
                 secondaryLabel,
-                secondary
+                secondary,
+                selected || recommended || privateReady || incoming || download.isActive()
+                        || download.phase == ModelDownloadManager.Phase.FAILED,
+                () -> showModelDetails(model)
         );
+    }
+
+    private void showModelDetails(ModelSpec model) {
+        updateCapacity();
+        long requiredStorage = nativeModels.isInstalled(model) ? 0
+                : modelDownloads.isDownloaded(model)
+                ? ModelCatalog.requiredStorageForPrivateInstall(model)
+                : ModelCatalog.requiredStorageForFreshInstall(model);
+        String details = modelNote(model)
+                + "\n\n" + t("Загрузка: ", "Download: ") + model.humanSize()
+                + "\n" + t("Свободная RAM для запуска: от ", "Free RAM to start: at least ")
+                + humanBytes(model.minimumAvailableMiB * 1_048_576L)
+                + t("\nСейчас свободно RAM: ", "\nRAM available now: ") + humanBytes(availableRam)
+                + "\n" + t("Место для установки: ", "Space needed to install: ")
+                + humanBytes(requiredStorage)
+                + t(" · свободно ", " · free ") + humanBytes(freeStorage)
+                + "\n" + t("Контекст в приложении: ", "In-app context: ") + model.recommendedContext
+                + "\n" + t("Файл для подключения: ", "File to attach: ") + model.fileName
+                + "\n" + t("Лицензия: ", "License: ") + model.licenseSpdx;
+        new AlertDialog.Builder(this)
+                .setTitle(model.title)
+                .setMessage(details)
+                .setPositiveButton(t("Закрыть", "Close"), null)
+                .setNeutralButton(t("Страница модели", "Model page"), (dialog, which) -> {
+                    Intent intent = new Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://huggingface.co/" + model.repo));
+                    try {
+                        startActivity(intent);
+                    } catch (android.content.ActivityNotFoundException error) {
+                        toast(t("Браузер не установлен", "No browser installed"));
+                    }
+                })
+                .show();
     }
 
     /** Keep the recommendation stable while its selected model already occupies native RAM. */
@@ -3657,6 +3735,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                     "Tool candidate · ≈11.0 tok/s · loop failed"
             );
             case "bonsai-27b" -> t("Не для диалога · ≈1 ток/с", "Not for chat · ≈1 tok/s");
+            case "bonsai2-4b", "bonsai2-9b" -> t(
+                    "Ternary · кандидат · скорость не измерена",
+                    "Ternary · candidate · speed not measured"
+            );
             default -> t(
                     "Скорость зависит от телефона",
                     "Speed depends on the phone"
@@ -3704,6 +3786,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case "bonsai-27b" ->
                     "27B in a 1-bit packing: it fits a flagship's memory but decodes at about "
                             + "1.2 tok/s. Hand-picked only.";
+            case "bonsai2-4b", "bonsai2-9b" ->
+                    "The same ternary language weights as the official MLX 2-bit model, "
+                            + "in compact GGUF PTQ1_0 for Android. Text chat and agent profile "
+                            + "with thinking off; image input is not enabled. Phone speed and "
+                            + "the full agent suite have not been validated. Manual selection only.";
             default -> model.note;
         };
     }

@@ -34,14 +34,17 @@ public final class CoreRootView extends ScrollView {
         public final String state;
         public final int stateColor;
         public final boolean selected;
-        /** False when the phone cannot run the profile; the row dims and stops responding. */
+        /** False when the phone cannot run the profile; details remain accessible. */
         public final boolean available;
-        /** −1 when no transfer is running. */
+        /** −1 when no download, verification or installation is running. */
         public final int progressPercent;
         public final String actionLabel;
         public final Runnable action;
         public final String secondaryLabel;
         public final Runnable secondary;
+        /** Keep selected, recommended and locally available models in the compact list. */
+        public final boolean showInCompactList;
+        public final Runnable details;
 
         public ModelRow(
                 String title,
@@ -54,7 +57,9 @@ public final class CoreRootView extends ScrollView {
                 String actionLabel,
                 Runnable action,
                 String secondaryLabel,
-                Runnable secondary
+                Runnable secondary,
+                boolean showInCompactList,
+                Runnable details
         ) {
             this.title = title;
             this.meta = meta;
@@ -67,6 +72,8 @@ public final class CoreRootView extends ScrollView {
             this.action = action;
             this.secondaryLabel = secondaryLabel;
             this.secondary = secondary;
+            this.showInCompactList = showInCompactList;
+            this.details = details;
         }
     }
 
@@ -149,6 +156,8 @@ public final class CoreRootView extends ScrollView {
     private final LinearLayout column;
     private final UiLanguage language;
     private String lastSignature = "";
+    private boolean showAllModels;
+    private State latestState;
 
     public CoreRootView(
             Context context,
@@ -171,6 +180,7 @@ public final class CoreRootView extends ScrollView {
     }
 
     public void render(State state) {
+        latestState = state;
         String signature = signature(state);
         if (signature.equals(lastSignature)) return;
         lastSignature = signature;
@@ -179,7 +189,24 @@ public final class CoreRootView extends ScrollView {
         column.addView(style.screenTitle(t("Ядро", "Core")));
 
         section(t("Модель", "Model"));
-        for (ModelRow model : state.models) column.addView(modelRow(model));
+        int hiddenModels = 0;
+        for (ModelRow model : state.models) {
+            if (!model.showInCompactList) hiddenModels++;
+            if (showAllModels || model.showInCompactList) column.addView(modelRow(model));
+        }
+        if (hiddenModels > 0) {
+            addSpaced(style.inlineAction(
+                    showAllModels
+                            ? t("Свернуть каталог", "Collapse catalog")
+                            : t("Все модели · ", "All models · ") + state.models.size(),
+                    style.palette.accent,
+                    () -> {
+                        showAllModels = !showAllModels;
+                        if (!showAllModels) scrollTo(0, 0);
+                        render(latestState);
+                    }
+            ), 0);
+        }
 
         section(t("Режим работы", "Operating mode"));
         addSpaced(style.bodySecondary(
@@ -381,6 +408,7 @@ public final class CoreRootView extends ScrollView {
 
     private String signature(State state) {
         StringBuilder value = new StringBuilder()
+                .append(showAllModels).append('|')
                 .append(state.schemeId).append('|')
                 .append(state.textScale).append('|')
                 .append(state.agentMode).append('|')
@@ -402,7 +430,10 @@ public final class CoreRootView extends ScrollView {
             value.append('|').append(row.title).append('|').append(row.meta)
                     .append('|').append(row.state).append('|').append(row.selected)
                     .append('|').append(row.available).append('|').append(row.progressPercent)
-                    .append('|').append(row.actionLabel).append('|').append(row.secondaryLabel);
+                    .append('|').append(row.stateColor).append('|').append(row.showInCompactList)
+                    .append('|').append(row.actionLabel).append('|').append(row.action != null)
+                    .append('|').append(row.secondaryLabel).append('|').append(row.secondary != null)
+                    .append('|').append(row.details != null);
         }
         for (ActionRow row : state.accessProfiles) {
             value.append('|').append(row.title).append('|').append(row.subtitle);
@@ -450,7 +481,9 @@ public final class CoreRootView extends ScrollView {
                         style.palette.cardFill, style.palette.cardFillHover, style.palette.stroke, 7
                 ));
         if (!model.available) row.setAlpha(0.55f);
-        if (model.action != null && model.available) style.clickable(row, model.action);
+        // A tap on the card is informational, including during a transfer. Only the explicit
+        // action button may cancel a download, select a profile or start the core.
+        if (model.details != null) style.clickable(row, model.details);
 
         LinearLayout head = new LinearLayout(getContext());
         head.setGravity(Gravity.CENTER_VERTICAL);
@@ -464,6 +497,15 @@ public final class CoreRootView extends ScrollView {
         titleLp.leftMargin = style.dp(11);
         head.addView(title, titleLp);
         row.addView(head);
+        if (model.selected) {
+            TextView selected = style.monoTrace(t("Выбрана", "Selected"), style.palette.accent);
+            LinearLayout.LayoutParams selectedLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            selectedLp.leftMargin = style.dp(25);
+            selectedLp.topMargin = style.dp(4);
+            row.addView(selected, selectedLp);
+        }
 
         TextView meta = style.monoTrace(model.meta, style.palette.muted);
         LinearLayout.LayoutParams metaLp = new LinearLayout.LayoutParams(
@@ -490,22 +532,25 @@ public final class CoreRootView extends ScrollView {
 
         if (model.actionLabel != null || model.secondaryLabel != null) {
             LinearLayout actions = new LinearLayout(getContext());
-            actions.setOrientation(LinearLayout.HORIZONTAL);
-            if (model.actionLabel != null && model.action != null) {
-                actions.addView(style.inlineAction(
-                        model.actionLabel, style.palette.accent, model.action
-                ));
+            // Full-width, wrapping actions keep long translations accessible at 320 dp and
+            // large text sizes; horizontal wrap-content buttons used to escape the card.
+            actions.setOrientation(LinearLayout.VERTICAL);
+            if (model.actionLabel != null) {
+                actions.addView(modelAction(model.actionLabel, style.palette.accent,
+                        model.action, model.available));
             }
-            if (model.secondaryLabel != null && model.secondary != null) {
-                actions.addView(style.inlineAction(
-                        model.secondaryLabel, style.palette.muted, model.secondary
-                ));
+            if (model.secondaryLabel != null) {
+                actions.addView(modelAction(model.secondaryLabel, style.palette.muted,
+                        model.secondary, true));
             }
             LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             );
-            actionsLp.leftMargin = style.dp(14);
             row.addView(actions, actionsLp);
+        }
+        if (model.details != null) {
+            row.addView(modelAction(t("Подробнее", "Details"), style.palette.muted,
+                    model.details, true));
         }
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -514,6 +559,16 @@ public final class CoreRootView extends ScrollView {
         lp.bottomMargin = style.dp(8);
         row.setLayoutParams(lp);
         return row;
+    }
+
+    private TextView modelAction(String label, int color, Runnable action, boolean available) {
+        TextView button = style.inlineAction(label, color, action == null ? () -> { } : action);
+        button.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        button.setEnabled(available && action != null);
+        if (!button.isEnabled()) button.setAlpha(0.5f);
+        return button;
     }
 
     private LinearLayout.LayoutParams progressLp() {

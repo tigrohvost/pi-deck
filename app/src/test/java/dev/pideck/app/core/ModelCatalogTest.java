@@ -226,6 +226,44 @@ public class ModelCatalogTest {
     }
 
     @Test
+    public void compactBonsaiModelsUseOfficialWeightsAndPrismWithoutAutomaticPromotion() {
+        for (String id : List.of("bonsai2-4b", "bonsai2-9b")) {
+            ModelSpec model = catalog.byId(id).orElseThrow();
+            String size = id.equals("bonsai2-4b") ? "4B" : "9B";
+            assertEquals("prism-ml/Ternary-Bonsai-2-" + size + "-gguf", model.repo);
+            assertEquals("Ternary-Bonsai-2-" + size + "-PTQ1_0.gguf", model.fileName);
+            assertEquals("prism-842b188", model.nativeRuntimeBuild());
+            assertEquals("libpideck_prism_server.so", model.nativeServerLibraryName());
+            assertEquals(model.nativeServerLibraryName(),
+                    NativeLlamaService.serverLibraryForFlavor(model.serverFlavor));
+            assertEquals("CANDIDATE", model.status);
+            assertFalse(ModelCatalog.isRecommendable(model));
+            assertFalse(model.supportsSlotSnapshots());
+            assertEquals(4096, model.recommendedContext);
+            assertEquals("off", model.speculativeMode);
+            List<String> args = model.nativeLlamaServerArguments(
+                    "/private/model.gguf", edgeProfile(), 8080, "test-key");
+            assertEquals("off", args.get(args.indexOf("--reasoning") + 1));
+            assertEquals("0", args.get(args.indexOf("--reasoning-budget") + 1));
+            assertEquals("1.0", args.get(args.indexOf("--repeat-penalty") + 1));
+            assertEquals("64", args.get(args.indexOf("--repeat-last-n") + 1));
+            assertFalse(args.contains("--no-mmap"));
+            assertFalse(args.contains("--spec-type"));
+            assertEquals(0.7, model.temperature, 0.001);
+            assertEquals(0.8, model.topP, 0.001);
+            assertEquals(1.5, model.presencePenalty, 0.001);
+        }
+        ModelSpec small = catalog.byId("bonsai2-4b").orElseThrow();
+        assertEquals(949_549_920L, small.bytes);
+        assertEquals("56711263ec9a9ffeaa74a3a0e58dece8127cf9268404746c721113ca76994d60",
+                small.sha256);
+        ModelSpec large = catalog.byId("bonsai2-9b").orElseThrow();
+        assertEquals(1_997_486_976L, large.bytes);
+        assertEquals("3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b",
+                large.sha256);
+    }
+
+    @Test
     public void catalogUsesPinnedArtifactsAndAllowlistedLicenses() {
         assertEquals(2, ModelCatalog.SCHEMA_VERSION);
         for (ModelSpec model : catalog.all()) {

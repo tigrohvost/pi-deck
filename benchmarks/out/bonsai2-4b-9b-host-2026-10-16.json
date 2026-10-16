@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-16",
+  "kind": "host-model-compatibility",
+  "platform": "Linux x86_64 CPU; not Android device acceptance",
+  "runtime": {
+    "build": "prism-842b188",
+    "commit": "842b1880415d6f508f03b789e5ce70194def7bfd",
+    "sourceArchiveSha256": "84ec38b7e7fb45a9f076e923e064e967e7c30b946b71b3b778444b05e8459c3c",
+    "patchSet": "pideck-prism1",
+    "compiler": "Clang 19.0.1",
+    "hostBinarySha256": "df7c3fbf96d6dcdb7944ffca785da7e0d6a83a878051729cb859d03cdb31b9a6",
+    "patches": {
+      "0001-cpu-affinity-retry.patch": "e7ebe407839b11990497e9531c841fcc68c29d3dcc038ec75689b46b4371e92f",
+      "0002-ptq1-two-token-dot-arm.patch": "e9bfadef4437e11b320f35aa352128c6010d7be4b988f77ffb90fe9da3b94f1b"
+    }
+  },
+  "testMethod": {
+    "host": "127.0.0.1",
+    "port": 18090,
+    "bearerAuthentication": true,
+    "threads": 4,
+    "batchThreads": 4,
+    "nativeContext": 4096,
+    "parallelSlots": 1,
+    "embeddedJinja": true,
+    "reasoning": "off",
+    "maxOutputTokens": 128,
+    "seed": 42,
+    "tool": "read(path: string); synthetic tool response BONSAI_TOOL_OK",
+    "note": "Catalog sampling and extra server arguments; no Pi process or filesystem tool execution."
+  },
+  "models": [
+    {
+      "modelId": "bonsai2-4b",
+      "repository": "prism-ml/Ternary-Bonsai-2-4B-gguf",
+      "revision": "8d6557168168f91ea6697a4a49ed2ef622b53adb",
+      "artifact": {
+        "file": "Ternary-Bonsai-2-4B-PTQ1_0.gguf",
+        "bytes": 949549920,
+        "sha256": "56711263ec9a9ffeaa74a3a0e58dece8127cf9268404746c721113ca76994d60"
+      },
+      "context": 4096,
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "serverArgs": [
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "--reasoning-budget",
+        "0",
+        "--repeat-penalty",
+        "1.0",
+        "--repeat-last-n",
+        "64",
+        "--cache-ram",
+        "512"
+      ],
+      "artifactVerification": {
+        "downloadedAndHashed": true,
+        "publisherIdentityMatched": true,
+        "ggufVersion": 3,
+        "architecture": "qwen35"
+      },
+      "checks": {
+        "health": "ok",
+        "modelIdentity": "bonsai2-4b",
+        "english": "BONSAI_OK",
+        "russian": "4",
+        "toolCall": {
+          "name": "read",
+          "arguments": {
+            "path": "smoke.txt"
+          }
+        },
+        "toolResult": "BONSAI_TOOL_OK",
+        "hiddenReasoningAbsent": true,
+        "passed": true
+      }
+    },
+    {
+      "modelId": "bonsai2-9b",
+      "repository": "prism-ml/Ternary-Bonsai-2-9B-gguf",
+      "revision": "5b2abb02362efbed46bbe204014b02837778b2c2",
+      "artifact": {
+        "file": "Ternary-Bonsai-2-9B-PTQ1_0.gguf",
+        "bytes": 1997486976,
+        "sha256": "3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b"
+      },
+      "context": 4096,
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "serverArgs": [
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "--reasoning-budget",
+        "0",
+        "--repeat-penalty",
+        "1.0",
+        "--repeat-last-n",
+        "64",
+        "--cache-ram",
+        "512"
+      ],
+      "artifactVerification": {
+        "downloadedAndHashed": true,
+        "publisherIdentityMatched": true,
+        "ggufVersion": 3,
+        "architecture": "qwen35"
+      },
+      "checks": {
+        "health": "ok",
+        "modelIdentity": "bonsai2-9b",
+        "english": "BONSAI_OK",
+        "russian": "4",
+        "toolCall": {
+          "name": "read",
+          "arguments": {
+            "path": "smoke.txt"
+          }
+        },
+        "toolResult": "BONSAI_TOOL_OK",
+        "hiddenReasoningAbsent": true,
+        "passed": true
+      }
+    }
+  ],
+  "validation": {
+    "jvmTestsPassed": 230,
+    "runtimeTestsPassed": 140,
+    "jsonSchema": "passed",
+    "lintErrors": 0,
+    "lintWarnings": 13,
+    "debugApk": "assembled",
+    "androidTestApk": "assembled; instrumentation not run (no device)",
+    "apkSha256": "1a41149084a5337b80ac4cb25ecb9dad2070713811f640a7774351595db216ba",
+    "sourceState": "Working tree including pre-existing local changes; not a release build"
+  },
+  "limitations": [
+    "No Android/ARM inference or UI instrumentation executed.",
+    "No phone throughput, memory or thermal measurements.",
+    "No full Pi agent loop or 28-task admission suite.",
+    "Text only; no vision projector or speculative drafter.",
+    "Conversion provenance remains incomplete; both models are manual candidates."
+  ]
+}
