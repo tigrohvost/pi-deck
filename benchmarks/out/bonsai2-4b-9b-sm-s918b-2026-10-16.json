@@ -1,0 +1,491 @@
+{
+  "schemaVersion": 1,
+  "kind": "partial-handset-smoke",
+  "date": "2026-10-16",
+  "fullAdmissionSuiteRun": false,
+  "scope": "Bonsai 2 4B/9B Android integration and focused Package A follow-up; not full model admission or Packages B-E.",
+  "closure": "Device disconnected before planned retries. Owner requested completion using available results.",
+  "device": {
+    "model": "Samsung SM-S918B (Galaxy S23 Ultra)",
+    "android": "16",
+    "apiLevel": 36,
+    "physicalMemoryKiB": 11309732,
+    "usbPowered": true
+  },
+  "installation": {
+    "dataPreserved": true,
+    "modelsInstalledThroughCatalogWithSha256Verification": [
+      "bonsai2-4b",
+      "bonsai2-9b"
+    ],
+    "signatureReason": "Existing handset app used a local release key. Matching local release signing preserved its data; GitHub APK cannot directly update that installation.",
+    "localCertificateSha256": "8706452c65664f0a52f8b4d44c596589ecb723ac57978d820e6858c782d85ec4",
+    "productionCertificateSha256": "5cabadf644565c636857dfb329b6baa73deb5b498f7739e31e0c939c41377eff",
+    "alpha17": {
+      "publishedApkSha256": "ee03e6728bc31c1c62151bd99c58881450aab40ff4e055c8bff7b05f3d1c520c",
+      "deviceApkSha256": "eb75be97baf346c34a53f97e83181183173969169c09d1bc89c7486d77d2f665",
+      "payloadEntriesIdentical": 53,
+      "signingCertificateSha256": "8706452c65664f0a52f8b4d44c596589ecb723ac57978d820e6858c782d85ec4",
+      "reason": "Preserve data from locally signed alpha15; only APK signature changed."
+    },
+    "alpha18": {
+      "sourceCommit": "36ea6dea51654bac3c7a0a48c930062298635047",
+      "version": "0.3.0-alpha18",
+      "versionCode": 26,
+      "runtimeContract": 60,
+      "apkSha256": "3f56524fbbcb0d593b6dd95e733e618dbb2ad0b782529a6c9e54773ef4b6d9cb",
+      "signature": "existing handset local release key; production signature incompatible",
+      "publishedApkSha256": "cc8e62f8e5be7facc5f4820c20aae7af622ad3cb1f253e9338a8f2cb42da6899",
+      "testedApkSha256": "3f56524fbbcb0d593b6dd95e733e618dbb2ad0b782529a6c9e54773ef4b6d9cb",
+      "payloadFiles": 53,
+      "payloadEntrySetMatches": true,
+      "payloadDifferences": []
+    },
+    "lastObservedSelectedModel": "bonsai2-9b",
+    "originalModelSelectionRestored": false,
+    "selectionNote": "Phone disconnected before restoring the previous Empero Qwen3.8 4B Distill selection. Existing models and sessions were retained."
+  },
+  "runtime": {
+    "build": "prism-842b188",
+    "owner": "android-native",
+    "quantization": "PTQ1_0",
+    "context": 4096,
+    "batch": 256,
+    "microbatch": 128,
+    "decodeThreads": 5,
+    "decodeCpuSet": "3-7",
+    "batchThreads": 8,
+    "batchCpuSet": "0-7",
+    "reasoning": "off",
+    "modelProfilesChangedBetweenAlpha17AndAlpha18": false,
+    "sampling": {
+      "temperature": 0.7,
+      "topP": 0.8,
+      "topK": 20,
+      "minP": 0.0,
+      "presencePenalty": 1.5
+    }
+  },
+  "models": [
+    {
+      "id": "bonsai2-4b",
+      "source": {
+        "repository": "prism-ml/Ternary-Bonsai-2-4B-gguf",
+        "revision": "8d6557168168f91ea6697a4a49ed2ef622b53adb"
+      },
+      "artifact": {
+        "file": "Ternary-Bonsai-2-4B-PTQ1_0.gguf",
+        "bytes": 949549920,
+        "sha256": "56711263ec9a9ffeaa74a3a0e58dece8127cf9268404746c721113ca76994d60"
+      },
+      "catalogStatus": "CANDIDATE"
+    },
+    {
+      "id": "bonsai2-9b",
+      "source": {
+        "repository": "prism-ml/Ternary-Bonsai-2-9B-gguf",
+        "revision": "5b2abb02362efbed46bbe204014b02837778b2c2"
+      },
+      "artifact": {
+        "file": "Ternary-Bonsai-2-9B-PTQ1_0.gguf",
+        "bytes": 1997486976,
+        "sha256": "3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b"
+      },
+      "catalogStatus": "CANDIDATE"
+    }
+  ],
+  "cases": [
+    {
+      "modelId": "bonsai2-4b",
+      "appVersion": "0.3.0-alpha17",
+      "case": "exact",
+      "dispatch": "authenticated RPC; fresh Pi session",
+      "promptSha256": "8a018020761dcf5bbce0d3555bbcbc6ad052d09aee16e045e568c7748a34e202",
+      "expectedAnswer": "BONSAI_OK",
+      "answer": "BONSAI_OK",
+      "verdict": "PASS",
+      "note": null,
+      "turn": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 138.902675,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": null,
+        "totalTurnSeconds": 139.654219,
+        "provider": {
+          "outputTokens": 6,
+          "decodeSeconds": 0.923,
+          "decodeTokensPerSecond": 6.5,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "estimated_context_delta_over_visible_ttft",
+            "tokens": 1520,
+            "seconds": 138.902675,
+            "tokensPerSecond": 10.943
+          },
+          "nativeTimings": null
+        },
+        "tools": {
+          "requested": 0,
+          "completed": 0,
+          "failed": 0,
+          "names": [],
+          "executionSeconds": 0.0,
+          "postToolToTerminalSeconds": null
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "fixtureUnchanged": true
+    },
+    {
+      "modelId": "bonsai2-4b",
+      "appVersion": "0.3.0-alpha17",
+      "case": "russian",
+      "dispatch": "authenticated RPC; fresh Pi session",
+      "promptSha256": "aff315ceddc42a1d019a11267dc3a0d98ad74a0023db8d6cbd6bb238259ec2f6",
+      "expectedAnswer": "391",
+      "answer": "391",
+      "verdict": "PASS",
+      "note": null,
+      "turn": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 142.809602,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": null,
+        "totalTurnSeconds": 143.372144,
+        "provider": {
+          "outputTokens": 4,
+          "decodeSeconds": 0.557,
+          "decodeTokensPerSecond": 7.18,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "estimated_context_delta_over_visible_ttft",
+            "tokens": 1532,
+            "seconds": 142.809602,
+            "tokensPerSecond": 10.728
+          },
+          "nativeTimings": null
+        },
+        "tools": {
+          "requested": 0,
+          "completed": 0,
+          "failed": 0,
+          "names": [],
+          "executionSeconds": 0.0,
+          "postToolToTerminalSeconds": null
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "fixtureUnchanged": true
+    },
+    {
+      "modelId": "bonsai2-4b",
+      "appVersion": "0.3.0-alpha17",
+      "case": "read",
+      "dispatch": "authenticated RPC; fresh Pi session",
+      "promptSha256": "2d38eb88a4eb89e74a21967968bd589e5438d984b9baffe46b8330a1a9f2c075",
+      "expectedAnswer": "PI//DECK agent benchmark fixture",
+      "answer": "",
+      "verdict": "FAIL",
+      "note": "alpha17 router extracted tool from use the read tool as the explicit filename. Four tool errors; stopped by RPC abort after capturing the defect. Cancellation latency was not measured.",
+      "turn": {
+        "terminalType": "TURN_ABORTED",
+        "succeeded": false,
+        "dispatchToFirstVisibleTokenSeconds": null,
+        "ttftSource": "unavailable",
+        "dispatchToFirstToolCallSeconds": 156.026543,
+        "totalTurnSeconds": 356.662133,
+        "provider": {
+          "outputTokens": 379,
+          "decodeSeconds": 62.218,
+          "decodeTokensPerSecond": 6.09,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "unavailable",
+            "tokens": null,
+            "seconds": null,
+            "tokensPerSecond": null
+          },
+          "nativeTimings": null
+        },
+        "tools": {
+          "requested": 6,
+          "completed": 6,
+          "failed": 4,
+          "names": [
+            "read",
+            "code_nav"
+          ],
+          "executionSeconds": 0.535503,
+          "postToolToTerminalSeconds": 62.019127
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "fixtureUnchanged": true
+    },
+    {
+      "modelId": "bonsai2-9b",
+      "appVersion": "0.3.0-alpha17",
+      "case": "exact",
+      "dispatch": "authenticated RPC; fresh Pi session",
+      "promptSha256": "8a018020761dcf5bbce0d3555bbcbc6ad052d09aee16e045e568c7748a34e202",
+      "expectedAnswer": "BONSAI_OK",
+      "answer": "BONSAI_OK",
+      "verdict": "PASS",
+      "note": null,
+      "turn": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 259.764408,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": null,
+        "totalTurnSeconds": 261.113683,
+        "provider": {
+          "outputTokens": 6,
+          "decodeSeconds": 1.673,
+          "decodeTokensPerSecond": 3.59,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "estimated_context_delta_over_visible_ttft",
+            "tokens": 1520,
+            "seconds": 259.764408,
+            "tokensPerSecond": 5.851
+          },
+          "nativeTimings": null
+        },
+        "tools": {
+          "requested": 0,
+          "completed": 0,
+          "failed": 0,
+          "names": [],
+          "executionSeconds": 0.0,
+          "postToolToTerminalSeconds": null
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "fixtureUnchanged": true
+    },
+    {
+      "modelId": "bonsai2-9b",
+      "appVersion": "0.3.0-alpha17",
+      "case": "russian",
+      "dispatch": "authenticated RPC; fresh Pi session",
+      "promptSha256": "aff315ceddc42a1d019a11267dc3a0d98ad74a0023db8d6cbd6bb238259ec2f6",
+      "expectedAnswer": "391",
+      "answer": "",
+      "verdict": "INVALID",
+      "note": "Native idle timeout stopped the server during this RPC-only request. UI explicitly reported idle shutdown; this harness bypasses the Android inference lease. No arithmetic answer, crash or OOM was established.",
+      "turn": {
+        "terminalType": "TURN_FAILED",
+        "succeeded": false,
+        "dispatchToFirstVisibleTokenSeconds": null,
+        "ttftSource": "unavailable",
+        "dispatchToFirstToolCallSeconds": null,
+        "totalTurnSeconds": 287.308261,
+        "provider": {
+          "outputTokens": null,
+          "decodeSeconds": null,
+          "decodeTokensPerSecond": null,
+          "speedEstimated": null,
+          "prefill": {
+            "source": "unavailable",
+            "tokens": null,
+            "seconds": null,
+            "tokensPerSecond": null
+          },
+          "nativeTimings": null
+        },
+        "tools": {
+          "requested": 0,
+          "completed": 0,
+          "failed": 0,
+          "names": [],
+          "executionSeconds": 0.0,
+          "postToolToTerminalSeconds": null
+        },
+        "retries": {
+          "rejections": 1,
+          "reasons": [
+            "provider_error"
+          ],
+          "additionalAgentStarts": 3,
+          "dispatchDelaySeconds": [
+            2.02074
+          ],
+          "firstRejectionToTerminalSeconds": 14.11006
+        }
+      },
+      "fixtureUnchanged": true
+    },
+    {
+      "modelId": "bonsai2-9b",
+      "appVersion": "0.3.0-alpha18",
+      "case": "read_and_arithmetic",
+      "dispatch": "Android composer via ADB UI",
+      "prompt": "Use the read tool to read .pideck-bench/<runId>/fixture/README.md. Reply with exactly two lines: first, the first line from that file; second, the number 17 multiplied by 23. Do not guess the file contents.",
+      "expectedAnswer": "PI//DECK agent benchmark fixture\n391",
+      "answer": "PI//DECK agent benchmark fixture\n460",
+      "verdict": "FAIL",
+      "checks": {
+        "fileRead": "PASS",
+        "arithmetic": "FAIL",
+        "backgroundResume": "PASS",
+        "answerVisible": "PASS",
+        "readyUi": "PASS"
+      },
+      "terminalType": "TURN_COMPLETED",
+      "acceptedToTerminalSeconds": 278.722,
+      "provider": {
+        "decodeDurationMs": 24523,
+        "outputTokens": 80,
+        "speedEstimated": false,
+        "tokensPerSecond": 3.26
+      },
+      "toolCalls": [
+        {
+          "toolName": "read",
+          "isError": false,
+          "resultPreview": "{\"content\": [{\"type\": \"text\", \"text\": \"1:677fe5a2| PI//DECK agent benchmark fixture\\n2:913da1f8| \\n3:82217e20| A tiny offline project used only by the authenticated device benchmark.\\n4:3089c464| \"}]}"
+        }
+      ],
+      "backgroundResume": {
+        "durationSeconds": 8,
+        "sameAppPid": true,
+        "sameNativePid": true,
+        "sameActiveOperation": true
+      },
+      "fixtureUnchanged": true,
+      "startedAt": "2026-10-16T19:31:42.252152+00:00",
+      "finishedAt": "2026-10-16T19:36:34.081451+00:00"
+    }
+  ],
+  "memory": {
+    "scope": "Observed native process high-water marks only; not whole-app RAM or a validated worst case.",
+    "bonsai2-4b": {
+      "observedVmHwmKiB": 1534484,
+      "lastSampledVmSwapKiB": 0
+    },
+    "bonsai2-9b": {
+      "observedVmHwmKiB": 2457716,
+      "lastSampledVmSwapKiB": 92
+    }
+  },
+  "interpretation": [
+    "Short exact-answer turns include the full Pi prompt and tool context. TTFT is dispatch to the first visible model token, not raw native model startup.",
+    "Decode rates come from turn receipts, not repeated sustained benchmarks. Initial exact/arithmetic answers contain only 4-6 tokens.",
+    "The 9B combined task finished normally but failed arithmetic (460 instead of 391). TURN_COMPLETED does not mean task correctness.",
+    "The alpha17 RPC-only 9B arithmetic run was invalidated by native idle shutdown. The alpha18 UI run held the inference lease and survived an eight-second background/resume.",
+    "A stale XML dump was observed when uiautomator could not get an idle UI. Busy-state observations used screenshots/events; final answer visibility was checked after the turn.",
+    "Memory and thermal observations do not qualify sustained operation. Both profiles remain manual CANDIDATE entries."
+  ],
+  "notPerformed": [
+    "4B read regression rerun on alpha18",
+    "9B standalone arithmetic retry on alpha18",
+    "Measured UI cancellation and startup/stop latency targets",
+    "Device run_tests/no_tests structured receipt scenario",
+    "Instrumented catalog UI suite",
+    "Full 28-task admission suite and sustained thermal/long-context qualification"
+  ],
+  "fix": {
+    "commit": "36ea6dea51654bac3c7a0a48c930062298635047",
+    "description": "Correct explicit read-path parsing for use/call/invoke the read tool and Russian forms; preserve quoted paths and workspace boundaries.",
+    "productionHookRegressionFailedBeforeFix": true,
+    "productionHookRegressionPassedAfterFix": true,
+    "handsetReadConfirmedOn": "bonsai2-9b / alpha18"
+  },
+  "release": {
+    "tag": "v0.3.0-alpha18",
+    "commit": "36ea6dea51654bac3c7a0a48c930062298635047",
+    "url": "https://github.com/tigrohvost/pi-deck/releases/tag/v0.3.0-alpha18",
+    "publishedAt": "2026-10-16T19:46:43Z",
+    "draft": false,
+    "prerelease": true,
+    "tagCi": {
+      "conclusion": "success",
+      "headSha": "36ea6dea51654bac3c7a0a48c930062298635047",
+      "url": "https://github.com/tigrohvost/pi-deck/actions/runs/38954724409"
+    },
+    "mainCi": {
+      "conclusion": "success",
+      "headSha": "36ea6dea51654bac3c7a0a48c930062298635047",
+      "url": "https://github.com/tigrohvost/pi-deck/actions/runs/38954724548"
+    },
+    "downloadedBundleVerification": {
+      "verified": true,
+      "tag": "v0.3.0-alpha18",
+      "commit": "36ea6dea51654bac3c7a0a48c930062298635047",
+      "assets": 12
+    },
+    "apkPayloadComparison": {
+      "publishedApkSha256": "cc8e62f8e5be7facc5f4820c20aae7af622ad3cb1f253e9338a8f2cb42da6899",
+      "testedApkSha256": "3f56524fbbcb0d593b6dd95e733e618dbb2ad0b782529a6c9e54773ef4b6d9cb",
+      "payloadFiles": 53,
+      "payloadEntrySetMatches": true,
+      "payloadDifferences": [],
+      "sourceCommit": "36ea6dea51654bac3c7a0a48c930062298635047"
+    }
+  },
+  "rawEvidence": [
+    {
+      "path": "build/device-alpha17/device-initial.json",
+      "sha256": "0680f89db8faa87365c988966600ac0dd4d539025e97e9c92767a31c1783b78e"
+    },
+    {
+      "path": "build/device-alpha17/bonsai2-4b-smoke.json",
+      "sha256": "44b070c335b9ab743b0a04744d692864743df750c28a492f3453ccc6b9afffde"
+    },
+    {
+      "path": "build/device-alpha17/bonsai2-9b-exact-russian.json",
+      "sha256": "c86c1fcb20ef92a213af5a0bb038c3e2b575166f9e577b119f961f7610b85b11"
+    },
+    {
+      "path": "build/device-alpha17/bonsai2-9b-ui-read.json",
+      "sha256": "55b04d5f4c63d8b569d20d72eba3743d65bf8e0ac9a9120f37e2d14047550ecb"
+    },
+    {
+      "path": "build/device-alpha17/bonsai2-4b-native-samples.jsonl",
+      "sha256": "fc37cd5af4c9a04386c1ec288d010b151011c8eb1cce3658b94c9a6c93ec2155"
+    },
+    {
+      "path": "build/device-alpha17/bonsai2-9b-memory.json",
+      "sha256": "d2c4cf4eeddf0831c7efff82a50b3f5e6929e7c4b9e93cb0ff58d0f363bbf8e1"
+    },
+    {
+      "path": "build/device-alpha17/9b-stop-reason.xml",
+      "sha256": "bb4c0bb8aeb8225de82752c5af38c6a8d2a9d2e5a9710d56c6f98df6c42cd17e"
+    },
+    {
+      "path": "build/device-alpha17/alpha18-apk-comparison.json",
+      "sha256": "ab5b61b0922718c8ce8df32fa546bd00e97e8e4af35d6958aca1ac91d5eba2e9"
+    },
+    {
+      "path": "build/device-alpha17/alpha18-published-verification.log",
+      "sha256": "3c01ae18f82da628999cee73910ac16a00a474fc10e45bf8ba47e403c93e2996"
+    }
+  ]
+}

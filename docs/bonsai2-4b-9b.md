@@ -69,7 +69,7 @@ actionable incoming files, without their own progress states.
 - Download confirmation includes model limitations and installation space.
   Download failures use the selected UI language.
 
-## Validation scope
+## Initial host validation
 
 Both complete GGUF files were downloaded with `tools/pin_model.py`; independently
 calculated sizes and SHA-256 values matched the publisher's LFS metadata and
@@ -105,6 +105,52 @@ python3 -m unittest discover -s tests/runtime
 python3 tools/validate_benchmark.py
 ```
 
-Device throughput, thermal behavior, RAM use, full Pi tool execution and the
-28-task admission suite remain unvalidated. This environment has no connected
-Android device. Host inference checks cannot replace that acceptance run.
+No handset was connected during that initial validation. The follow-up below
+adds partial device evidence; neither run establishes full model admission.
+
+## Handset follow-up: alpha17 and alpha18
+
+On 16 October, both catalog models were downloaded, SHA-256 verified and
+installed on a Samsung Galaxy S23 Ultra (SM-S918B), Android 16, with about
+10.8 GiB physical RAM. The existing data and sessions were preserved. The
+[device evidence record](../benchmarks/out/bonsai2-4b-9b-sm-s918b-2026-10-16.json)
+contains exact APK/model identities, per-case timings, verdicts and limits.
+
+| Model / version | Check | Observed result |
+| --- | --- | --- |
+| 4B / alpha17 | Exact reply; Russian `17 × 23` | `BONSAI_OK`; correct `391`. First visible token at 138.9 / 142.8 s; decode 6.50 / 7.18 tokens/s. |
+| 4B / alpha17 | Read a synthetic README | Failed: the router extracted `tool` from “use the read tool” as the filename. Four tool errors; turn aborted after capturing the defect. |
+| 9B / alpha17 | Exact reply | `BONSAI_OK`; first visible token at 259.8 s; decode 3.59 tokens/s. |
+| 9B / alpha17 | Standalone arithmetic through RPC | Invalid run: the native idle timer stopped the server. The RPC harness bypassed the Android inference lease. No arithmetic answer was produced. |
+| 9B / alpha18 | Read README, then `17 × 23`, through the Android composer | One successful `read`; correct first line, but wrong arithmetic: `460`, expected `391`. Total 278.7 s; decode 3.26 tokens/s. |
+| 9B / alpha18 | Background for 8 s, then resume during that turn | Same app, native process and active operation; final answer visible, UI returned to READY. |
+
+The read-path defect was fixed in alpha18. A regression against the actual
+extension hook failed before the fix and passed afterward. The handset
+confirmed the repaired read path on 9B. The combined task still **failed**
+overall because of its arithmetic answer; normal turn completion is not a
+correctness verdict.
+
+Observed native-process high-water RSS was approximately 1.46 GiB for 4B and
+2.34 GiB for 9B. These are partial-run observations, not whole-app memory or
+worst-case qualification. Short exact/arithmetic answers contain only 4–6
+output tokens; their decode rates are not sustained benchmarks. First-token
+latency includes the full Pi prompt/tool context and is not model load time.
+
+The final handset installation is **0.3.0-alpha18**, version code 26, runtime
+contract 60. Its existing local release key was retained because the GitHub
+certificate cannot update that installation without removing it. All 53
+non-signature APK entries match the published production APK byte-for-byte.
+The [tag pipeline](https://github.com/tigrohvost/pi-deck/actions/runs/38954724409)
+and main pipeline passed. All twelve published release assets were downloaded
+and independently checked for identity, hashes and APK signature; the
+[alpha18 prerelease](https://github.com/tigrohvost/pi-deck/releases/tag/v0.3.0-alpha18)
+is published, not a draft.
+
+The phone disconnected before the 4B alpha18 read rerun, the 9B standalone
+arithmetic retry, measured UI cancellation/startup/stop checks, and the device
+`run_tests`/`no_tests` scenario. The owner chose to finish with existing results.
+The instrumented catalog suite, full 28-task admission suite, and sustained
+thermal/long-context checks remain unrun. Both models remain manual-only
+`CANDIDATE` entries. The last selected model was 9B; the previous Empero
+selection could not be restored after disconnection.

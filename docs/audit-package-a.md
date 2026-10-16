@@ -20,7 +20,7 @@ The initial nine extension regressions were run against the previous implementat
 - The offline runner supports synchronous zero-argument functions only. Fixtures, classes, marks, decorators exposing wrapped semantics, async/generator results and pytest selection require pytest. Dependencies are not installed automatically.
 - PLAN currently emits `inspection` and `test` evidence. `artifact_check` and `user_acceptance` are reserved contract values, not automatically inferred from model prose. Evidence identifiers and declared paths are visible in the expanded PLAN details.
 - Producer streaming for large searches, performance telemetry, broader error contracts and context/retry optimization belong to Package B or later.
-- No handset was attached for alpha17 development. Host fake-clock tests do not establish the specification's 250 ms / 2 s / 5 s latency targets on a physical Android device. Instrumentation APK compilation is not device execution; the signed release still needs that separate acceptance run.
+- No handset was attached for initial alpha17 development. The later [alpha17/alpha18 handset follow-up](bonsai2-4b-9b.md#handset-follow-up-alpha17-and-alpha18) covers model loading, selected turns, one real file read and background/resume. It does not establish the specification's 250 ms / 2 s / 5 s latency targets or full device acceptance. Instrumentation APK compilation is not device execution.
 
 ## alpha15 repair
 
@@ -35,3 +35,19 @@ That historical signed APK contains `compatibility.appVersion = 0.3.0-alpha14`. 
 and the existing 12-extension/10-tool suite passed. Lint: 0 errors / 13 existing
 warnings. Debug, instrumentation and unsigned release APKs assembled. The
 28-task benchmark contract and workflow/contract syntax checks also passed.
+
+## alpha18 follow-up
+
+Handset testing exposed an explicit-read-path parser bug: “use the read tool”
+could bind the filename `tool`. Alpha18 fixes that parsing and adds production
+hook regressions, including quoted paths and workspace confinement. Runtime
+contract 60 installs the corrected router. Extension, runtime, tooling, RPC,
+JVM and lint checks passed again, and the release APK assembled locally.
+Both GitHub build/signing pipelines and tag publication succeeded. All twelve
+published assets passed an independent download/hash/signature verification.
+
+The 9B handset UI turn successfully read the fixture and survived an eight-second
+background/resume, but returned incorrect arithmetic in the same answer. The
+4B post-fix rerun and device cancellation/test-receipt checks were not completed
+before disconnection. This is partial acceptance evidence, not completion of
+all Package A device targets or admission of either Bonsai model.
