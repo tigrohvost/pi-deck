@@ -49,7 +49,7 @@ export function snapshotName(modelId: string, modelSha: string, contract: string
 
 export type SlotResponse = { status: number; json: unknown };
 export type SlotClient = { post(path: string, body: unknown): Promise<SlotResponse> };
-export type SnapshotOutcome = "restored" | "saved" | "unsupported" | "failed";
+export type SnapshotOutcome = "restored" | "saved" | "warmed" | "unsupported" | "failed";
 
 function field(value: unknown, key: string): unknown {
 	return typeof value === "object" && value !== null ? (value as Record<string, unknown>)[key] : undefined;
@@ -88,16 +88,28 @@ export async function warmPrefixSnapshot(
 	if (prefix === undefined) return "failed";
 	const warm = await client.post("/completion", { prompt: prefix, n_predict: 0, cache_prompt: false });
 	if (warm.status !== 200) return "failed";
-	const saved = await client.post("/slots/0?action=save", { filename: name });
-	return saved.status === 200 ? "saved" : "failed";
+	// Saving is optional once the prefix is in the live slot. A full cache directory or a
+	// failed save response must not force the real request to evaluate that prefix twice.
+	try {
+		const saved = await client.post("/slots/0?action=save", { filename: name });
+		return saved.status === 200 ? "saved" : "warmed";
+	} catch {
+		return "warmed";
+	}
 }
 
 /** A client for the app-owned server only: anything but loopback HTTP is refused. */
-export function loopbackSlotClient(baseUrl: string, apiKey: string | undefined): SlotClient | undefined {
+export function loopbackSlotClient(
+	baseUrl: string,
+	apiKey: string | undefined,
+	signal?: AbortSignal,
+): SlotClient | undefined {
 	const root = baseUrl.replace(/\/v1\/?$/, "");
 	if (!/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(root)) return undefined;
 	return {
 		async post(path, body) {
+			signal?.throwIfAborted();
+			const timeout = AbortSignal.timeout(SLOT_REQUEST_TIMEOUT_MS);
 			const response = await fetch(root + path, {
 				method: "POST",
 				headers: {
@@ -105,7 +117,7 @@ export function loopbackSlotClient(baseUrl: string, apiKey: string | undefined):
 					...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
 				},
 				body: JSON.stringify(body),
-				signal: AbortSignal.timeout(SLOT_REQUEST_TIMEOUT_MS),
+				signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
 			});
 			let json: unknown;
 			try {
@@ -268,15 +280,17 @@ export default function pideckLocalCache(pi: ExtensionAPI) {
 			&& leadingSystem === previousSystem
 			&& (messageSignatures?.length ?? 0) >= 2;
 		let cachePrompt = (messagesExtendPrevious && sameContract) || sharesSessionPrefix;
-		// The first request of a session or Pi process starts from a snapshot of exactly its
-		// system+tools prefix: restored when saved earlier, otherwise evaluated once and saved.
+		// A request that cannot reuse the live slot (for example after context pruning) can
+		// still restore its exact system+tools prefix. Never restore over a growing live
+		// conversation: it holds more useful state than the prefix-only snapshot.
+		// The first request of a session or Pi process also creates a missing snapshot.
 		// When the in-memory checkpoint already covers part of the prefix, only a restore is
 		// worth trying; evaluating the prefix again would cost more than it saves.
 		const firstOfSession = previousMessages === undefined;
 		if (
 			slotSnapshots
 			&& !snapshotsUnavailable
-			&& firstOfSession
+			&& (firstOfSession || !cachePrompt)
 			&& leadingSystem !== undefined
 			&& contract !== undefined
 			&& messages !== undefined
@@ -286,19 +300,26 @@ export default function pideckLocalCache(pi: ExtensionAPI) {
 				const model = context?.model;
 				const auth = model ? await context.modelRegistry.getApiKeyAndHeaders(model) : undefined;
 				const client = model
-					? loopbackSlotClient(String(model.baseUrl ?? ""), auth?.ok ? auth.apiKey : undefined)
+					? loopbackSlotClient(String(model.baseUrl ?? ""), auth?.ok ? auth.apiKey : undefined, context?.signal)
 					: undefined;
 				if (client === undefined) {
 					snapshotsUnavailable = true;
 				} else {
 					const name = snapshotName(String(payload.model ?? ""), modelSha, contract, leadingSystem);
-					const outcome = await warmPrefixSnapshot(client, payload, name, !cachePrompt);
-					if (outcome === "restored" || outcome === "saved") cachePrompt = true;
+					const outcome = await warmPrefixSnapshot(client, payload, name, firstOfSession && !cachePrompt);
+					if (outcome === "restored" || outcome === "saved" || outcome === "warmed") cachePrompt = true;
 					if (outcome === "unsupported") snapshotsUnavailable = true;
 				}
 			} catch {
 				// A snapshot is only an accelerator; the request proceeds as before.
 			}
+		}
+		if (context?.signal?.aborted) {
+			// An interrupted warm-up does not establish a reusable conversation prefix.
+			previousMessages = undefined;
+			previousContract = undefined;
+			previousSystem = undefined;
+			return { ...payload, cache_prompt: false };
 		}
 		previousMessages = messageSignatures;
 		previousContract = contract;

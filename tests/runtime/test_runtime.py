@@ -1099,7 +1099,8 @@ class RuntimeTestCase(unittest.TestCase):
     def test_terminal_prefix_reuse_requires_the_measured_artifact_and_runtime(self) -> None:
         catalog = json.loads((Path(__file__).resolve().parents[2]
                               / "app/src/main/assets/models-v2.json").read_text("utf-8"))
-        expected = {"lfm2.5-2.6b-qad", "k2-horizon-3.7b", "qwen3.8-4b-distill"}
+        expected = {"lfm2.5-2.6b-qad", "k2-horizon-3.7b", "qwen3.8-4b-distill",
+                    "bonsai2-4b", "bonsai2-9b"}
         for entry in catalog["models"]:
             with self.subTest(model=entry["id"]):
                 self.assertEqual(entry["id"] in expected,
@@ -1131,6 +1132,31 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertFalse(model_store.cross_session_prefix(stock))
         self.assertFalse(model_store.cross_session_prefix({}))
         self.assertFalse(model_store.cross_session_prefix({"runtime": "stock"}))
+
+    def test_bonsai_saved_prefix_requires_the_verified_artifact_runtime_and_context(self) -> None:
+        catalog = json.loads((Path(__file__).resolve().parents[2]
+                              / "app/src/main/assets/models-v2.json").read_text("utf-8"))
+        for entry in catalog["models"]:
+            with self.subTest(model=entry["id"]):
+                bonsai = entry["id"] in {"bonsai2-4b", "bonsai2-9b"}
+                self.assertEqual(model_store.cross_session_prefix(entry) or bonsai,
+                                 model_store.slot_snapshots(entry))
+                if not bonsai:
+                    continue
+                self.assertFalse(model_store.cross_session_prefix(entry),
+                                 "saved slots must not enable unverified live checkpoints")
+                for section, field, value in (("artifact", "sha256", "f" * 64),
+                                              ("runtime", "serverFlavor", "unknown"),
+                                              ("runtime", "minimumLlamaCppVersion", "unknown"),
+                                              ("runtime", "recommendedContext", 8192)):
+                    changed = json.loads(json.dumps(entry))
+                    changed[section][field] = value
+                    self.assertFalse(model_store.slot_snapshots(changed))
+                changed = json.loads(json.dumps(entry))
+                changed["id"] = "unverified-bonsai"
+                self.assertFalse(model_store.slot_snapshots(changed))
+        for malformed in ({}, {"runtime": "prism"}, {"id": [], "runtime": {}}, None):
+            self.assertFalse(model_store.slot_snapshots(malformed))
 
     def test_idempotent_server_start_refreshes_stale_pi_model_contract(self) -> None:
         model = tiny_model(b"GGUF")

@@ -1,0 +1,170 @@
+{
+  "startedAt": "2026-10-08T13:40:06.935586+00:00",
+  "label": "lfm26-budget-zero",
+  "modelSha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+  "harnessVersion": 2,
+  "qualityMaxTokens": 512,
+  "requestReasoningBudget": 0,
+  "mode": "tools",
+  "thinking": "on",
+  "device": "SM-S918B",
+  "execution": "adb shell inference; bounded synthetic tools; not app admission",
+  "minimumFrequencyHeadroom": 0.01,
+  "sampling": {
+    "temperature": 0,
+    "topP": 1,
+    "topK": 40,
+    "seed": 42
+  },
+  "samples": [],
+  "cases": [
+    {
+      "label": "exact",
+      "thermalBefore": {
+        "at": "2026-10-08T13:40:22.789461+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 64300,
+        "maxFrequencyHeadroom": 0.7714
+      },
+      "rounds": [
+        {
+          "seconds": 1.622,
+          "firstOutputSeconds": 1.4268891849969805,
+          "firstTextSeconds": 1.426894223997806,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 106,
+            "prompt_ms": 1364.78,
+            "prompt_per_token_ms": 12.875283018867924,
+            "prompt_per_second": 77.66819560661791,
+            "predicted_n": 6,
+            "predicted_ms": 239.263,
+            "predicted_per_token_ms": 39.87716666666667,
+            "predicted_per_second": 25.07700730994763
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "ГОТОВ",
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "ГОТОВ",
+      "passed": false,
+      "seconds": 1.622,
+      "thermalAfter": {
+        "at": "2026-10-08T13:40:26.402275+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 76900,
+        "maxFrequencyHeadroom": 0.7714
+      },
+      "finalSource": null,
+      "manualReview": {
+        "passesInstruction": false,
+        "reason": "ГОТОВ instead of exact ГОТОВО"
+      }
+    },
+    {
+      "label": "russian",
+      "thermalBefore": {
+        "at": "2026-10-08T13:40:28.338813+00:00",
+        "hottestZone": "cpu-0-0",
+        "hottestMilliCelsius": 61700,
+        "maxFrequencyHeadroom": 0.8114
+      },
+      "rounds": [
+        {
+          "seconds": 4.485,
+          "firstOutputSeconds": 1.45568916800039,
+          "firstTextSeconds": 1.4556916049987194,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 120,
+            "prompt_ms": 1354.607,
+            "prompt_per_token_ms": 11.288391666666666,
+            "prompt_per_second": 88.58657898563938,
+            "predicted_n": 57,
+            "predicted_ms": 3109.002,
+            "predicted_per_token_ms": 54.543894736842105,
+            "predicted_per_second": 18.333857617331866
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "Резервные копии файлов — это копии данных, сохранённые в отдельном месте. Они нужны для восстановления информации в случае потери, повреждения или удаления исходных файлов. Два предложения.",
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "Резервные копии файлов — это копии данных, сохранённые в отдельном месте. Они нужны для восстановления информации в случае потери, повреждения или удаления исходных файлов. Два предложения.",
+      "passed": true,
+      "seconds": 4.485,
+      "thermalAfter": {
+        "at": "2026-10-08T13:40:34.739297+00:00",
+        "hottestZone": "cpu-1-5",
+        "hottestMilliCelsius": 81300,
+        "maxFrequencyHeadroom": 0.8114
+      },
+      "finalSource": null,
+      "manualReview": {
+        "passesInstruction": false,
+        "reason": "Three sentences: appended Два предложения. violates the requested two sentences. The automated check only verified Cyrillic content."
+      }
+    }
+  ],
+  "serverSha256": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+  "thermalBeforeLoad": {
+    "at": "2026-10-08T13:40:17.632615+00:00",
+    "hottestZone": "cpu-0-0",
+    "hottestMilliCelsius": 57700,
+    "maxFrequencyHeadroom": 0.6971
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf",
+    "--alias",
+    "lfm26-budget-zero",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18081",
+    "-c",
+    "8192",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "-Crb",
+    "0-7",
+    "--cpu-strict",
+    "1",
+    "--cpu-strict-batch",
+    "1",
+    "-b",
+    "2048",
+    "-ub",
+    "512",
+    "--jinja",
+    "--reasoning",
+    "on",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--no-mmap",
+    "-ngl",
+    "0"
+  ],
+  "loadSeconds": 3.112075601999095,
+  "affinity": "Name:\tlibpideck_llama\nCpus_allowed_list:\t7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0\nName:\tlibpideck_llama\nCpus_allowed_list:\t1\nName:\tlibpideck_llama\nCpus_allowed_list:\t2\nName:\tlibpideck_llama\nCpus_allowed_list:\t3\nName:\tlibpideck_llama\nCpus_allowed_list:\t4\nName:\tlibpideck_llama\nCpus_allowed_list:\t5\nName:\tlibpideck_llama\nCpus_allowed_list:\t6\nName:\tlibpideck_llama\nCpus_allowed_list:\t3\nName:\tlibpideck_llama\nCpus_allowed_list:\t4\nName:\tlibpideck_llama\nCpus_allowed_list:\t5\nName:\tlibpideck_llama\nCpus_allowed_list:\t6\n",
+  "status": "complete",
+  "finishedAt": "2026-10-08T13:40:34.740351+00:00",
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.012.982 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.013.375 W srv  llama_server: -----------------\n0.00.013.394 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set\n0.00.013.395 W srv  llama_server: this can be a security risk (cross-origin attacks)\n0.00.013.396 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655\n0.00.013.397 W srv  llama_server: -----------------\n0.00.015.613 I srv    load_model: loading model '/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf'\n0.02.852.867 I srv  attach_cpu_t: attached CPU affinity thread pools: decode=5, batch=8\n0.02.942.289 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.02.946.257 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve\n0.02.946.282 I srv  llama_server: model loaded\n0.02.946.286 I srv  llama_server: listening on http://127.0.0.1:18081\n0.05.087.574 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.05.087.710 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n0.06.691.810 I slot print_timing: id  0 | task 0 | prompt eval time =    1364.78 ms /   106 tokens (   12.88 ms per token,    77.67 tokens per second)\n0.06.691.819 I slot print_timing: id  0 | task 0 |        eval time =     239.26 ms /     6 tokens (   39.88 ms per token,    25.08 tokens per second)\n0.06.691.821 I slot print_timing: id  0 | task 0 |       total time =    1604.04 ms /   112 tokens\n0.06.691.821 I slot print_timing: id  0 | task 0 |    graphs reused =          5\n0.06.691.858 I slot      release: id  0 | task 0 | stop processing: n_tokens = 111, truncated = 0\n0.10.639.292 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.708 (> 0.100 thold), f_keep = 0.766\n0.10.639.923 I slot launch_slot_: id  0 | task 8 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb400007811b1400d : Invalid argument (22)\n0.15.103.624 I slot print_timing: id  0 | task 8 | prompt eval time =    1354.61 ms /   120 tokens (   11.29 ms per token,    88.59 tokens per second)\n0.15.103.633 I slot print_timing: id  0 | task 8 |        eval time =    3109.00 ms /    57 tokens (   54.54 ms per token,    18.33 tokens per second)\n0.15.103.635 I slot print_timing: id  0 | task 8 |       total time =    4463.61 ms /   177 tokens\n0.15.103.637 I slot print_timing: id  0 | task 8 |    graphs reused =         60\n0.15.103.667 I slot      release: id  0 | task 8 | stop processing: n_tokens = 176, truncated = 0\n"
+}

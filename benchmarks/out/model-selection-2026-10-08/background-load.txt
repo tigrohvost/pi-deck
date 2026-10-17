@@ -1,0 +1,15 @@
+Tasks: 945 total,   2 running, 943 sleeping,   0 stopped,   0 zombie
+  Mem:    11044M total,    10811M used,      233M free,        2M buffers
+ Swap:    12287M total,     3824M used,     8463M free,     2736M cached
+800%cpu 193%user  11%nice 129%sys 446%idle   0%iow  18%irq   4%sirq   0%host
+  PID USER         PR  NI VIRT  RES  SHR S[%CPU] %MEM     TIME+ ARGS
+24344 u0_a514      10 -10 9.1G 227M 131M S  121   2.0  17:30.13 com.comsat.audio
+ 2953 system       18  -2  20G 458M 188M S 53.5   4.1  28:38.96 system_server
+ 1931 system       -3   0 3.0G  28M  19M S 39.2   0.2  14:32.95 surfaceflinger
+ 4678 bluetooth    20   0 9.3G 129M  82M S 21.4   1.1   6:10.54 com.android.bluetooth
+ 1833 system       -3   0 2.6G  13M  10M S 17.8   0.1   5:38.41 vendor.qti.hardware.display.composer-service
+ 7682 shell        20   0 2.0G 5.0M 3.8M R 14.2   0.0   0:00.04 top -b -n 1 -m 10
+ 1816 mediacodec   20   0 2.5G  13M  12M S 10.7   0.1   1:03.61 samsung.software.media.c2@1.0-service
+ 1772 audioserver  20   0 2.8G 7.8M 7.1M S 10.7   0.0   1:32.96 android.hardware.audio.service_64
+ 1920 audioserver  20   0 3.3G  26M  17M S  7.1   0.2   1:37.13 audioserver
+ 1303 root         RT   0    0    0    0 D  7.1   0.0   3:38.37 [crtc_commit:174]

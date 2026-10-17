@@ -154,3 +154,25 @@ The instrumented catalog suite, full 28-task admission suite, and sustained
 thermal/long-context checks remain unrun. Both models remain manual-only
 `CANDIDATE` entries. The last selected model was 9B; the previous Empero
 selection could not be restored after disconnection.
+
+## Prefix-cache optimization, 17 October
+
+The 4B/9B profiles now enable saved system+tools prefix slots on the pinned
+Prism runtime, separately from live cross-session checkpoint reuse. The gate
+requires each exact GGUF SHA and the 4096-token context. Other Prism models
+keep the previous policy. These profiles also preserve the live prompt cache
+when `tool_choice` changes between `auto` and `none`, whose rendered prompts
+are identical for the pinned templates.
+
+The native host probe in `tools/probe_prefix_cache.mjs` exercises the actual
+extension, a server restart between each alternating full-prefill/restore
+sample, a synthetic read-tool round trip, and rewritten history. The first
+use still computes the prefix; subsequent starts restore it. A changed system
+prompt, tool schema or artifact cannot select the old snapshot. Failure to
+write a snapshot now retains the already computed live prefix, and the turn's
+abort signal also cancels prefix requests.
+
+This changes prompt-processing latency, not the single-token decode kernel.
+The handset was unavailable during this work; host results do not establish
+Android speed or complete model admission. See the
+[host evidence and reproduction steps](model-speed-2026-10-17.md).

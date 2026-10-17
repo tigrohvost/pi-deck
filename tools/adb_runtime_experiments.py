@@ -14,6 +14,7 @@ Experiments:
   prism-kernel   baseline versus candidate Prism executable (ABBA): identical answers, prefill
   kv-quant       f16 versus q8_0 KV cache on top of the catalog arguments
   slot-snapshot  cold start: a saved system+tools slot restored into a fresh server
+  prefix-recovery  rewritten conversation: restore its saved prefix instead of full prefill
   runtime-ab     two builds of the stock runtime (ABBA): prefill, decode, identical answer
 """
 
@@ -708,6 +709,88 @@ def experiment_slot_snapshot(device: Device, model: dict, model_path: str, args:
     }
 
 
+def experiment_prefix_recovery(device: Device, model: dict, model_path: str, args: argparse.Namespace) -> dict:
+    """Recover the exact prefix after pruning changes earlier messages in a live session."""
+    slots = f"{DEVICE_DIR}/recovery-slots/"
+    device.shell(f"mkdir -p {slots}")
+    server = server_arguments(model, model_path, extra=["--slot-save-path", slots])
+    device.start_server(server, "prefix-recovery")
+    system = {"role": "system", "content": agent_system_prompt()}
+    rendered = [post_json("/apply-template", {
+        "messages": [system, {"role": "user", "content": text}],
+        "tools": agent_tools(), "tool_choice": "auto",
+    })["prompt"] for text in ("первый вопрос", "совсем другой текст")]
+    prefix = system_prefix(*rendered)
+    warm = post_json("/completion", {"prompt": prefix, "n_predict": 0, "cache_prompt": False})
+    saved = post_json("/slots/0?action=save", {"filename": "recovery.bin"})
+    if not saved.get("n_saved") or saved["n_saved"] != warm.get("tokens_evaluated"):
+        raise ExperimentError("prefix recovery did not save the complete prefix")
+    history = [
+        system,
+        {"role": "user", "content": "Прочитай заметки.\n" + filler_paragraphs(30)},
+        {"role": "assistant", "content": "Заметки прочитаны."},
+        {"role": "user", "content": "Создай файл hello.py, который печатает привет."},
+    ]
+    pruned = [system, {"role": "user", "content": "[Earlier notes compacted]"}, *history[2:]]
+    variants = []
+    for round_index in range(args.repeats):
+        order = (False, True) if round_index % 2 == 0 else (True, False)
+        for recover in order:
+            # Each variant starts with the same old conversation in the only live slot.
+            chat(request_payload(model, history, False, 1))
+            before = device.thermal()
+            started = time.monotonic()
+            restored = post_json("/slots/0?action=restore", {"filename": "recovery.bin"}) if recover else None
+            if recover and restored.get("n_restored") != saved["n_saved"]:
+                raise ExperimentError("prefix recovery restored an incomplete prefix")
+            restore_seconds = time.monotonic() - started if recover else 0
+            body, wall = chat(request_payload(model, pruned, recover, args.max_tokens))
+            entry = {
+                "label": "restored" if recover else "full-prefill", "round": round_index,
+                "thermalBefore": before, "thermalAfter": device.thermal(),
+                "restore": restored, "restoreSeconds": round(restore_seconds, 4),
+                "wallSeconds": round(wall + restore_seconds, 3), **prompt_timings(body),
+            }
+            variants.append(entry)
+            print(json.dumps({key: entry[key] for key in
+                              ("label", "round", "cacheN", "promptN", "promptMs", "wallSeconds")}), flush=True)
+    # A short timing run may cut off a tool's JSON arguments. Also compare a complete
+    # response with enough room for the model's 256-token reasoning budget and tool call.
+    device.start_server(server, "recovery-complete")
+    complete = []
+    for recover in (False, True):
+        before = device.thermal()
+        started = time.monotonic()
+        if recover:
+            restored = post_json("/slots/0?action=restore", {"filename": "recovery.bin"})
+            if restored.get("n_restored") != saved["n_saved"]:
+                raise ExperimentError("complete-response check did not restore the prefix")
+        body, _ = chat(request_payload(model, pruned, recover, 512))
+        complete.append({
+            "label": "restored" if recover else "full-prefill",
+            "thermalBefore": before, "thermalAfter": device.thermal(),
+            "wallSeconds": round(time.monotonic() - started, 3),
+            "finishReason": body["choices"][0]["finish_reason"], **prompt_timings(body),
+        })
+    def mean(label: str, key: str) -> float:
+        values = [row[key] for row in variants if row["label"] == label]
+        return sum(values) / len(values)
+    return {
+        "prefixTokens": warm.get("tokens_evaluated"), "saved": saved, "variants": variants,
+        "timingMaxTokens": args.max_tokens,
+        "completeToolCallCheck": {
+            "maxTokens": 512, "variants": complete,
+            "separateServer": True,
+            "identicalAnswers": answer_signature(complete[0]) == answer_signature(complete[1]),
+        },
+        "verdict": {
+            "identicalAnswers": len({answer_signature(row) for row in variants}) == 1,
+            "prefillSpeedup": round(mean("full-prefill", "promptMs") / mean("restored", "promptMs"), 3),
+            "wallSpeedup": round(mean("full-prefill", "wallSeconds") / mean("restored", "wallSeconds"), 3),
+        },
+    }
+
+
 def experiment_runtime_ab(device: Device, model: dict, model_path: str, args: argparse.Namespace) -> dict:
     """Two builds of the stock runtime, ABBA, same arguments: prefill, decode, identical answer."""
     runtimes = {
@@ -760,6 +843,7 @@ EXPERIMENTS = {
     "batch-threads": experiment_batch_threads,
     "prism-kernel": experiment_prism_kernel,
     "slot-snapshot": experiment_slot_snapshot,
+    "prefix-recovery": experiment_prefix_recovery,
     "runtime-ab": experiment_runtime_ab,
     "kv-quant": lambda device, model, path, args: experiment_memory(
         device, model, path, args, layouts=KV_LAYOUTS

@@ -238,7 +238,7 @@ public class ModelCatalogTest {
                     NativeLlamaService.serverLibraryForFlavor(model.serverFlavor));
             assertEquals("CANDIDATE", model.status);
             assertFalse(ModelCatalog.isRecommendable(model));
-            assertFalse(model.supportsSlotSnapshots());
+            assertTrue(model.supportsSlotSnapshots());
             assertEquals(4096, model.recommendedContext);
             assertEquals("off", model.speculativeMode);
             List<String> args = model.nativeLlamaServerArguments(
@@ -385,7 +385,7 @@ public class ModelCatalogTest {
     }
 
     @Test
-    public void onlyTheVerifiedRuntimeSavesPrefixSnapshots() throws Exception {
+    public void onlyVerifiedRuntimeAndArtifactPairsSavePrefixSnapshots() throws Exception {
         ModelCatalog catalog = ModelCatalog.parse(readUtf8(asset("models-v2.json")));
         ModelSpec stock = catalog.byId("lfm2.5-2.6b-qad").orElseThrow();
         List<String> args = stock.nativeLlamaServerArguments(
@@ -400,6 +400,18 @@ public class ModelCatalogTest {
         assertEquals(-1, prism.nativeLlamaServerArguments(
                 "/private/b.gguf", edgeProfile(), 8080, "key", "/cache/llama-slots"
         ).indexOf("--slot-save-path"));
+        for (String id : List.of("bonsai2-4b", "bonsai2-9b")) {
+            ModelSpec bonsai = catalog.byId(id).orElseThrow();
+            List<String> bonsaiArgs = bonsai.nativeLlamaServerArguments(
+                    "/private/b.gguf", edgeProfile(), 8080, "key", "/cache/llama-slots/");
+            assertEquals("/cache/llama-slots/", bonsaiArgs.get(bonsaiArgs.indexOf("--slot-save-path") + 1));
+            ModelCatalog changed = ModelCatalog.parse(readUtf8(asset("models-v2.json"))
+                    .replace(bonsai.sha256, "f".repeat(64)));
+            assertFalse(changed.byId(id).orElseThrow().supportsSlotSnapshots());
+        }
+        for (String id : List.of("nanbeige4.2-3b", "k2-horizon-3.7b")) {
+            assertFalse(catalog.byId(id).orElseThrow().supportsSlotSnapshots());
+        }
     }
 
     @Test(expected = JSONException.class)

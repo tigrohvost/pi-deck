@@ -1,0 +1,325 @@
+{
+  "startedAt": "2026-10-08T13:29:07.029214+00:00",
+  "label": "spark17-thinking",
+  "modelSha256": "cbb7568374f2a404fbd5814df7bdd69c062793eb6b903fe701be6ae3ca64e749",
+  "harnessVersion": 2,
+  "mode": "tools",
+  "thinking": "on",
+  "device": "SM-S918B",
+  "execution": "adb shell inference; bounded synthetic tools; not app admission",
+  "minimumFrequencyHeadroom": 0.01,
+  "sampling": {
+    "temperature": 1.0,
+    "topP": 0.95,
+    "topK": -1,
+    "seed": 42
+  },
+  "productionContext": false,
+  "samples": [],
+  "cases": [
+    {
+      "label": "missing",
+      "thermalBefore": {
+        "at": "2026-10-08T13:29:14.388282+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 59600,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "rounds": [
+        {
+          "seconds": 19.158,
+          "firstOutputSeconds": 5.331684851000318,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 424,
+            "prompt_ms": 5290.943,
+            "prompt_per_token_ms": 12.478639150943398,
+            "prompt_per_second": 80.13694345223526,
+            "predicted_n": 273,
+            "predicted_ms": 13823.044,
+            "predicted_per_token_ms": 50.82001470588235,
+            "predicted_per_second": 19.677286710510362
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "The user wants me to call the `read` function exactly once for the file `docs/definitely-missing.txt`. If the file doesn't exist, I should report that and stop.\n\nLet me first check if the file exists. Actually, the instructions say to call read once, and if the file doesn't exist, report that and stop.\n\nLet me think about what \"read\" means here. It's a tool for reading a file. I should call it with the path `docs/definitely-missing.txt`. But before calling, I should verify if the file exists? The instruction says \"Если файла нет, сообщи об этом и остановись\" - if the file doesn't exist, report that and stop.\n\nSo my plan:\n1. Call read with path `docs/definitely-missing.txt` exactly once.\n2. If it succeeds (file exists), read its content.\n3. If it fails/not found, report that.\n\nLet me make the call. I should do this as the first step. Since I'm told to call read once, I'll just make that single call.\n\nActually, let me reconsider - should",
+            "tool_calls": [
+              {
+                "id": "MoAexo53Pl8hWHcJz7kTSe0rQNTUAXQV",
+                "type": "function",
+                "function": {
+                  "name": "read",
+                  "arguments": "{\"path\":\"docs/definitely-missing.txt\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 4.619,
+          "firstOutputSeconds": 0.4632867329964938,
+          "firstTextSeconds": 1.2095960129991,
+          "timings": {
+            "cache_n": 696,
+            "prompt_n": 14,
+            "prompt_ms": 403.029,
+            "prompt_per_token_ms": 28.787785714285715,
+            "prompt_per_second": 34.73695441270976,
+            "predicted_n": 78,
+            "predicted_ms": 4153.687,
+            "predicted_per_token_ms": 53.94398701298701,
+            "predicted_per_second": 18.537747307392202
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "Ошибка: файл `docs/definitely-missing.txt` **не найден**. Поскольку указано, что в случае отсутствия файла нужно сообщить об этом и остановиться, я остановил выполнение действий.",
+            "reasoning_content": "The file does not exist. I should report this and stop."
+          }
+        }
+      ],
+      "calls": [
+        {
+          "name": "read",
+          "arguments": {
+            "path": "docs/definitely-missing.txt"
+          },
+          "result": "Error: file not found"
+        }
+      ],
+      "answer": "Ошибка: файл `docs/definitely-missing.txt` **не найден**. Поскольку указано, что в случае отсутствия файла нужно сообщить об этом и остановиться, я остановил выполнение действий.",
+      "passed": true,
+      "seconds": 23.777,
+      "thermalAfter": {
+        "at": "2026-10-08T13:29:40.318783+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 80100,
+        "maxFrequencyHeadroom": 0.6971
+      },
+      "finalSource": null
+    },
+    {
+      "label": "repair",
+      "thermalBefore": {
+        "at": "2026-10-08T13:29:49.770287+00:00",
+        "hottestZone": "cpu-1-2",
+        "hottestMilliCelsius": 54400,
+        "maxFrequencyHeadroom": 0.7371
+      },
+      "rounds": [
+        {
+          "seconds": 21.659,
+          "firstOutputSeconds": 7.579552432998753,
+          "firstTextSeconds": 16.696770807000576,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 479,
+            "prompt_ms": 7459.55,
+            "prompt_per_token_ms": 15.573173277661796,
+            "prompt_per_second": 64.21298871915867,
+            "predicted_n": 236,
+            "predicted_ms": 14076.114,
+            "predicted_per_token_ms": 59.89835744680851,
+            "predicted_per_second": 16.69494862005238
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "Понял задачу. Сначала нужно прочитать файл `src/math_utils.py`, затем исправить `clamp` и запустить проверку.\n\n**Шаг 1: Прочитать исходный файл**\n\n",
+            "reasoning_content": "First, let me understand the task. The user wants me to:\n1. Fix the `clamp` function in `src/math_utils.py` - inside the bounds, the number doesn't change; below the lower bound returns the lower, above the upper returns the upper. So it should clamp the number to the bounds.\n2. First read the file `src/math_utils.py`\n3. Fix it using `pideck_edit_text`\n4. Then run `tests/test_math_utils.py`\n5. Other files should not be modified.\n\nLet me start by reading the file to understand its current state.\n\nThe working directory is `/workspace`. Relative paths are relative to it.\n\nLet me read the file first.",
+            "tool_calls": [
+              {
+                "id": "IQAQRGgK5bLISVY56Ak2w80Xpa2T4A9q",
+                "type": "function",
+                "function": {
+                  "name": "read",
+                  "arguments": "{\"path\":\"/workspace/src/math_utils.py\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 41.903,
+          "firstOutputSeconds": 0.9131780339994293,
+          "firstTextSeconds": 19.25492727999881,
+          "timings": {
+            "cache_n": 714,
+            "prompt_n": 31,
+            "prompt_ms": 849.716,
+            "prompt_per_token_ms": 27.410193548387095,
+            "prompt_per_second": 36.482777775162525,
+            "predicted_n": 512,
+            "predicted_ms": 40989.614,
+            "predicted_per_token_ms": 80.21450880626223,
+            "predicted_per_second": 12.466572629837401
+          },
+          "finishReason": "length",
+          "message": {
+            "role": "assistant",
+            "content": "**Шаг 2: Исправить `clamp`**\n\nИсходный код:\n```python\ndef clamp(value, lower, upper):\n    return min(lower, max(upper, value))\n```\n\nЭта функция не реально \"clamping\" — она просто возвращает `min(lower, max(upper, value))`, то есть не ограничивает `value` внутри границ. В задаче требуется: ниже нижней границы возвращать нижнюю, выше верхней — верхнюю. То есть `value` должно быть ограничено: если `value < lower` → возвращает `lower`; если `value > upper` → возвращает `upper`; иначе возвращает `value`.\n\nТекущая реализация не реализует такой ограничение. Напишу исправленный код:\n\n```python\ndef clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    if value > upper:\n        return upper\n    return value\n```\n\n",
+            "reasoning_content": "Now I can see the current `clamp` function. The issue is:\n- It returns `min(lower, max(upper, value))` which does NOT clamp - it just returns the value clamped to the bounds, but the problem says \"внутри границ число не меняется, ниже нижней возвращается нижняя, выше верхней — верхняя.\" Wait, let me re-read.\n\n\"внутри границ число не меняется, ниже нижней возвращается нижняя, выше верхней — верхняя\"\n\nHmm, this is ambiguous. Let me think about what the intended behavior is. The problem says the number doesn't change inside the bounds, below the lower bound returns the lower, above the upper returns the upper.\n\nWait, the current code returns `min(lower, max(upper, value))`. This doesn't clamp - it just returns the value if it's within bounds, otherwise returns the bound. That's not clamping in the sense of restricting the value to the bounds.\n\nActually, let me re-read. The problem says:"
+          }
+        }
+      ],
+      "calls": [
+        {
+          "name": "read",
+          "arguments": {
+            "path": "/workspace/src/math_utils.py"
+          },
+          "result": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))\n"
+        }
+      ],
+      "answer": "**Шаг 2: Исправить `clamp`**\n\nИсходный код:\n```python\ndef clamp(value, lower, upper):\n    return min(lower, max(upper, value))\n```\n\nЭта функция не реально \"clamping\" — она просто возвращает `min(lower, max(upper, value))`, то есть не ограничивает `value` внутри границ. В задаче требуется: ниже нижней границы возвращать нижнюю, выше верхней — верхнюю. То есть `value` должно быть ограничено: если `value < lower` → возвращает `lower`; если `value > upper` → возвращает `upper`; иначе возвращает `value`.\n\nТекущая реализация не реализует такой ограничение. Напишу исправленный код:\n\n```python\ndef clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    if value > upper:\n        return upper\n    return value\n```\n\n",
+      "passed": false,
+      "seconds": 63.562,
+      "thermalAfter": {
+        "at": "2026-10-08T13:30:55.243606+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 75700,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "finalSource": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))\n"
+    },
+    {
+      "label": "weather",
+      "thermalBefore": {
+        "at": "2026-10-08T13:31:04.216909+00:00",
+        "hottestZone": "cpu-0-0",
+        "hottestMilliCelsius": 58900,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "rounds": [
+        {
+          "seconds": 20.751,
+          "firstOutputSeconds": 9.033229295997444,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 432,
+            "prompt_ms": 8907.491,
+            "prompt_per_token_ms": 20.619192129629628,
+            "prompt_per_second": 48.49850535914097,
+            "predicted_n": 167,
+            "predicted_ms": 11715.65,
+            "predicted_per_token_ms": 70.57620481927711,
+            "predicted_per_second": 14.16908152770013
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "Пользователь спрашивает о погоде в Москве, используя инструмент `weather` один раз. Нужно получить информацию о температуре и осадке, кратко указать.\n\nПрисвоим инструмент данные, получая результат. Поскольку это синтетическая проверка, можно просто обращаться к инструменту и получить ответ.\n\nНужно использовать `weather` для города Москва. Затем кратко указать температуру и осадок.\n\nПервый шаг: вызов `weather` с city = \"Москва\".",
+            "tool_calls": [
+              {
+                "id": "sr1WHQULdDsAwY01ezCi7aHLrk91rENj",
+                "type": "function",
+                "function": {
+                  "name": "weather",
+                  "arguments": "{\"city\":\"Москва\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 10.562,
+          "firstOutputSeconds": 0.9637718009980745,
+          "firstTextSeconds": 8.43268475899822,
+          "timings": {
+            "cache_n": 598,
+            "prompt_n": 44,
+            "prompt_ms": 917.449,
+            "prompt_per_token_ms": 20.851113636363635,
+            "prompt_per_second": 47.95906911446849,
+            "predicted_n": 134,
+            "predicted_ms": 9596.782,
+            "predicted_per_token_ms": 72.15625563909774,
+            "predicted_per_second": 13.858812256024988
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "В Москве сейчас: **температура 13 °C**, **осадки — дождь**.",
+            "reasoning_content": "User asked: \"Какая погода в Москве? Используй weather один раз и кратко укажи температуру и осадки. Это синтетическая проверка инструмента.\"\n\nI used weather once for Moscow. Now need to summarize: temp and precipitation.\n\nFrom result: temperature_c = 13, condition = \"дождь\" (rain). Need to be concise.\n\nResponse in Russian, concise."
+          }
+        }
+      ],
+      "calls": [
+        {
+          "name": "weather",
+          "arguments": {
+            "city": "Москва"
+          },
+          "result": "{\"city\": \"Москва\", \"temperature_c\": 13, \"condition\": \"дождь\", \"test_fixture\": true}"
+        }
+      ],
+      "answer": "В Москве сейчас: **температура 13 °C**, **осадки — дождь**.",
+      "passed": true,
+      "seconds": 31.313000000000002,
+      "thermalAfter": {
+        "at": "2026-10-08T13:31:37.687191+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 73000,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "finalSource": null
+    }
+  ],
+  "serverSha256": "03a469c6a4f72670b4c7087ac403ad59fc21ee8edb00653afb07020616294ab1",
+  "thermalBeforeLoad": {
+    "at": "2026-10-08T13:29:09.994251+00:00",
+    "hottestZone": "cpuss-0",
+    "hottestMilliCelsius": 56000,
+    "maxFrequencyHeadroom": 1.0
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-model-selection-20261008/Spark-X2.5-1.7B-Q4_K_M.gguf",
+    "--alias",
+    "spark17-thinking",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18081",
+    "-c",
+    "8192",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "-Crb",
+    "0-7",
+    "--cpu-strict",
+    "1",
+    "--cpu-strict-batch",
+    "1",
+    "-b",
+    "2048",
+    "-ub",
+    "512",
+    "--jinja",
+    "--reasoning",
+    "on",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--no-mmap",
+    "-ngl",
+    "0"
+  ],
+  "loadSeconds": 2.0919452710004407,
+  "affinity": "Name:\tllama-b10828\nCpus_allowed_list:\t7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0\nName:\tllama-b10828\nCpus_allowed_list:\t1\nName:\tllama-b10828\nCpus_allowed_list:\t2\nName:\tllama-b10828\nCpus_allowed_list:\t3\nName:\tllama-b10828\nCpus_allowed_list:\t4\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t6\nName:\tllama-b10828\nCpus_allowed_list:\t3\nName:\tllama-b10828\nCpus_allowed_list:\t4\nName:\tllama-b10828\nCpus_allowed_list:\t5\nName:\tllama-b10828\nCpus_allowed_list:\t6\nName:\tllama-b10828\nCpus_allowed_list:\t0\nName:\tllama-b10828\nCpus_allowed_list:\t1\nName:\tllama-b10828\nCpus_allowed_list:\t2\nName:\tllama-b10828\nCpus_allowed_list:\t3\nName:\tllama-b10828\nCpus_allowed_list:\t4\nName:\tllama-b10828\nCpus_allowed_list:\t5\nName:\tllama-b10828\nCpus_allowed_list:\t6\nName:\tllama-b10828\nCpus_allowed_list:\t3\nName:\tllama-b10828\nCpus_allowed_list:\t4\nName:\tllama-b10828\nCpus_allowed_list:\t5\nName:\tllama-b10828\nCpus_allowed_list:\t6\nName:\tllama-b10828\nCpus_allowed_list:\t7\n",
+  "status": "complete",
+  "finishedAt": "2026-10-08T13:31:37.688467+00:00",
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.004.199 W DEPRECATED: --mmap and --no-mmap are deprecated. use --load-mode mmap instead\n0.00.004.495 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.004.693 W srv  llama_server: -----------------\n0.00.004.705 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set\n0.00.004.706 W srv  llama_server: this can be a security risk (cross-origin attacks)\n0.00.004.707 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655\n0.00.004.708 W srv  llama_server: -----------------\n0.00.006.137 I srv    load_model: loading model '/data/local/tmp/pideck-model-selection-20261008/Spark-X2.5-1.7B-Q4_K_M.gguf'\n0.01.736.833 I cmn          init: llama threadpool init, n_threads = 5\nwarn: failed to set affinity mask 0xb4000072b7e258cd : Invalid argument (22)\n0.01.864.948 I srv  attach_cpu_t: attached CPU affinity thread pools: decode=5, batch=8\n0.01.959.094 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.01.970.161 W srv          init: chat template supports preserving reasoning, it is enabled by default (may use more tokens, disable via --no-reasoning-preserve)\n0.01.970.182 I srv  llama_server: model loaded\n0.01.970.184 I srv  llama_server: listening on http://127.0.0.1:18081\n0.04.368.530 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.04.368.776 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n0.09.030.156 I slot print_timing: id  0 | task 0 | prompt processing, n_tokens =    381, progress = 0.90, t =   4.66 s / 81.74 tokens per second\n0.09.573.868 I slot print_timing: id  0 | task 0 | prompt processing, n_tokens =    420, progress = 0.99, t =   5.20 s / 80.69 tokens per second\n0.14.408.040 I slot print_timing: id  0 | task 0 | n_gen =    100, tg =  20.85 t/s, tg_3s =  21.06 t/s\n0.17.450.158 I slot print_timing: id  0 | task 0 | n_gen =    159, tg =  20.28 t/s, tg_3s =  19.39 t/s\n0.20.498.889 I slot print_timing: id  0 | task 0 | n_gen =    217, tg =  19.93 t/s, tg_3s =  19.02 t/s\n0.23.482.800 I slot print_timing: id  0 | task 0 | prompt eval time =    5290.94 ms /   424 tokens (   12.48 ms per token,    80.14 tokens per second)\n0.23.482.808 I slot print_timing: id  0 | task 0 |        eval time =   13823.04 ms /   273 tokens (   50.82 ms per token,    19.68 tokens per second)\n0.23.482.809 I slot print_timing: id  0 | task 0 |       total time =   19113.99 ms /   697 tokens\n0.23.482.810 I slot print_timing: id  0 | task 0 |    graphs reused =        271\n0.23.482.884 I slot      release: id  0 | task 0 | stop processing: n_tokens = 696, truncated = 0\n0.23.546.377 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.980 (> 0.100 thold), f_keep = 1.000\n0.23.546.714 I slot launch_slot_: id  0 | task 276 | processing task, is_child = 0\n0.28.103.473 I slot print_timing: id  0 | task 276 | prompt eval time =     403.03 ms /    14 tokens (   28.79 ms per token,    34.74 tokens per second)\n0.28.103.485 I slot print_timing: id  0 | task 276 |        eval time =    4153.69 ms /    78 tokens (   53.94 ms per token,    18.54 tokens per second)\n0.28.103.488 I slot print_timing: id  0 | task 276 |       total time =    4556.72 ms /    92 tokens\n0.28.103.489 I slot print_timing: id  0 | task 276 |    graphs reused =        346\n0.28.103.584 I slot      release: id  0 | task 276 | stop processing: n_tokens = 787, truncated = 0\n0.39.765.789 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.800 (> 0.100 thold), f_keep = 0.487\n0.39.829.752 I slot launch_slot_: id  0 | task 356 | processing task, is_child = 0\n0.45.114.070 I slot print_timing: id  0 | task 356 | prompt processing, n_tokens =    381, progress = 0.80, t =   5.28 s / 72.10 tokens per second\n0.47.081.395 I slot print_timing: id  0 | task 356 | prompt processing, n_tokens =    475, progress = 0.99, t =   7.25 s / 65.50 tokens per second\n0.52.771.586 I slot print_timing: id  0 | task 356 | n_gen =    100, tg =  18.06 t/s, tg_3s =  18.24 t/s\n0.55.810.863 I slot print_timing: id  0 | task 356 | n_gen =    150, tg =  17.49 t/s, tg_3s =  16.45 t/s\n0.58.827.555 I slot print_timing: id  0 | task 356 | n_gen =    199, tg =  17.16 t/s, tg_3s =  16.24 t/s\n1.01.365.478 I slot print_timing: id  0 | task 356 | prompt eval time =    7459.55 ms /   479 tokens (   15.57 ms per token,    64.21 tokens per second)\n1.01.365.500 I slot print_timing: id  0 | task 356 |        eval time =   14076.11 ms /   236 tokens (   59.90 ms per token,    16.69 tokens per second)\n1.01.365.502 I slot print_timing: id  0 | task 356 |       total time =   21535.66 ms /   715 tokens\n1.01.365.504 I slot print_timing: id  0 | task 356 |    graphs reused =        579\n1.01.365.621 I slot      release: id  0 | task 356 | stop processing: n_tokens = 714, truncated = 0\n1.01.432.125 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.958 (> 0.100 thold), f_keep = 1.000\n1.01.432.639 I slot launch_slot_: id  0 | task 595 | processing task, is_child = 0\n1.09.384.817 I slot print_timing: id  0 | task 595 | n_gen =    100, tg =  13.94 t/s, tg_3s =  14.08 t/s\n1.12.440.091 I slot print_timing: id  0 | task 595 | n_gen =    143, tg =  13.98 t/s, tg_3s =  14.07 t/s\n1.15.497.883 I slot print_timing: id  0 | task 595 | n_gen =    186, tg =  14.00 t/s, tg_3s =  14.06 t/s\n1.18.529.239 I slot print_timing: id  0 | task 595 | n_gen =    228, tg =  13.97 t/s, tg_3s =  13.86 t/s\n1.21.550.501 I slot print_timing: id  0 | task 595 | n_gen =    271, tg =  14.01 t/s, tg_3s =  14.23 t/s\n1.24.553.315 I slot print_timing: id  0 | task 595 | n_gen =    314, tg =  14.05 t/s, tg_3s =  14.32 t/s\n1.27.564.478 I slot print_timing: id  0 | task 595 | n_gen =    358, tg =  14.12 t/s, tg_3s =  14.61 t/s\n1.30.648.344 I slot print_timing: id  0 | task 595 | n_gen =    402, tg =  14.14 t/s, tg_3s =  14.27 t/s\n1.33.694.477 I slot print_timing: id  0 | task 595 | n_gen =    433, tg =  13.75 t/s, tg_3s =  10.18 t/s\n1.36.758.735 I slot print_timing: id  0 | task 595 | n_gen =    457, tg =  13.23 t/s, tg_3s =   7.83 t/s\n1.39.814.169 I slot print_timing: id  0 | task 595 | n_gen =    482, tg =  12.82 t/s, tg_3s =   8.18 t/s\n1.42.858.503 I slot print_timing: id  0 | task 595 | n_gen =    507, tg =  12.47 t/s, tg_3s =   8.21 t/s\n1.43.272.018 I slot print_timing: id  0 | task 595 | prompt eval time =     849.72 ms /    31 tokens (   27.41 ms per token,    36.48 tokens per second)\n1.43.272.033 I slot print_timing: id  0 | task 595 |        eval time =   40989.61 ms /   512 tokens (   80.21 ms per token,    12.47 tokens per second)\n1.43.272.036 I slot print_timing: id  0 | task 595 |       total time =   41839.33 ms /   543 tokens\n1.43.272.037 I slot print_timing: id  0 | task 595 |    graphs reused =       1087\n1.43.272.156 I slot      release: id  0 | task 595 | stop processing: n_tokens = 1256, truncated = 0\n1.54.218.046 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.887 (> 0.100 thold), f_keep = 0.305\n1.54.281.070 I slot launch_slot_: id  0 | task 1109 | processing task, is_child = 0\n2.01.860.382 I slot print_timing: id  0 | task 1109 | prompt processing, n_tokens =    381, progress = 0.88, t =   7.58 s / 50.27 tokens per second\n2.03.058.197 I slot print_timing: id  0 | task 1109 | prompt processing, n_tokens =    428, progress = 0.99, t =   8.78 s / 48.76 tokens per second\n2.10.208.592 I slot print_timing: id  0 | task 1109 | n_gen =    100, tg =  14.10 t/s, tg_3s =  14.25 t/s\n2.13.262.206 I slot print_timing: id  0 | task 1109 | n_gen =    143, tg =  14.10 t/s, tg_3s =  14.08 t/s\n2.14.904.282 I slot print_timing: id  0 | task 1109 | prompt eval time =    8907.49 ms /   432 tokens (   20.62 ms per token,    48.50 tokens per second)\n2.14.904.296 I slot print_timing: id  0 | task 1109 |        eval time =   11715.65 ms /   167 tokens (   70.58 ms per token,    14.17 tokens per second)\n2.14.904.299 I slot print_timing: id  0 | task 1109 |       total time =   20623.14 ms /   599 tokens\n2.14.904.300 I slot print_timing: id  0 | task 1109 |    graphs reused =       1251\n2.14.904.406 I slot      release: id  0 | task 1109 | stop processing: n_tokens = 598, truncated = 0\n2.14.954.225 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.931 (> 0.100 thold), f_keep = 1.000\n2.14.954.810 I slot launch_slot_: id  0 | task 1279 | processing task, is_child = 0\n2.22.987.799 I slot print_timing: id  0 | task 1279 | n_gen =    100, tg =  13.91 t/s, tg_3s =  14.05 t/s\n2.25.469.090 I slot print_timing: id  0 | task 1279 | prompt eval time =     917.45 ms /    44 tokens (   20.85 ms per token,    47.96 tokens per second)\n2.25.469.100 I slot print_timing: id  0 | task 1279 |        eval time =    9596.78 ms /   134 tokens (   72.16 ms per token,    13.86 tokens per second)\n2.25.469.103 I slot print_timing: id  0 | task 1279 |       total time =   10514.23 ms /   178 tokens\n2.25.469.104 I slot print_timing: id  0 | task 1279 |    graphs reused =       1382\n2.25.469.213 I slot      release: id  0 | task 1279 | stop processing: n_tokens = 775, truncated = 0\n"
+}

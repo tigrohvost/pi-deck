@@ -1,0 +1,503 @@
+{
+  "startedAt": "2026-10-08T13:21:49.435633+00:00",
+  "label": "lfm12-stock",
+  "modelSha256": "bb741ebb106d543e9de114b843a3d3d73d51c74b5801e69da2abde821a0cb3e1",
+  "mode": "both",
+  "thinking": "off",
+  "device": "SM-S918B",
+  "execution": "adb shell inference; bounded synthetic tools; not app admission",
+  "minimumFrequencyHeadroom": 0.01,
+  "samples": [
+    {
+      "seconds": 6.895,
+      "firstOutputSeconds": 1.4736632389976876,
+      "firstTextSeconds": 1.4736653740001202,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 123,
+        "prompt_ms": 1444.013,
+        "prompt_per_token_ms": 11.739943089430893,
+        "prompt_per_second": 85.17928855211139,
+        "predicted_n": 192,
+        "predicted_ms": 5430.418,
+        "predicted_per_token_ms": 28.283427083333333,
+        "predicted_per_second": 35.35639429598237
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "Программа, когда она работает с файлами, использует различные методы для чтения данных из разных источников. Сначала она обрабатывает структурированные файлы, такие как CSV или JSON, где информация организована в определенном формате. Это позволяет программе распознавать структуру данных и корректно прочитать их содержимое. Например, при чтении CSV-файла, программа распознает заголовки и значения, которые находятся в определённых позициях. Это важно, так как ошибки в формате могут привести к неправильному интерпретации данных.\n\nКогда программа нужна изменить строки, она применяет алгоритмы обработки текста. Это может включать в",
+        "reasoning_content": ""
+      },
+      "index": 0,
+      "warmup": true,
+      "thermalBefore": {
+        "at": "2026-10-08T13:22:03.098747+00:00",
+        "hottestZone": "cpu-1-2",
+        "hottestMilliCelsius": 58000,
+        "maxFrequencyHeadroom": 0.5479
+      },
+      "thermalAfter": {
+        "at": "2026-10-08T13:22:12.098334+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 73800,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "memory": {
+        "VmHWM": 944160,
+        "VmRSS": 944160,
+        "RssAnon": 932124,
+        "RssFile": 11640,
+        "VmSwap": 0
+      },
+      "valid": true
+    },
+    {
+      "seconds": 6.543,
+      "firstOutputSeconds": 1.0032219730019278,
+      "firstTextSeconds": 1.0032241750013782,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 123,
+        "prompt_ms": 973.608,
+        "prompt_per_token_ms": 7.915512195121951,
+        "prompt_per_second": 126.33421253728402,
+        "predicted_n": 192,
+        "predicted_ms": 5537.542,
+        "predicted_per_token_ms": 28.841364583333334,
+        "predicted_per_second": 34.67242325204937
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "Программа приходит к работе с файлами, чтобы читать их содержание, изменить текст и проверить результат тестов. Это процесс, который требует понимания как работы программ, так и структуры данных. В первую очередь, при запуске программы она обычно начинает с чтения файла, открытия его и анализа его структуры. Для этого используют различные методы, такие как чтение строк по шаблонам, поиск определённых слов или паттернов, а также обработка текстовых данных.\n\nКогда программа получает файл, она обычно начинает с поиска определённых ключевых слов или фраз, которые нужно изменить или заменить. Это делается с",
+        "reasoning_content": ""
+      },
+      "index": 1,
+      "warmup": false,
+      "thermalBefore": {
+        "at": "2026-10-08T13:22:14.314150+00:00",
+        "hottestZone": "cpu-0-1",
+        "hottestMilliCelsius": 60100,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "thermalAfter": {
+        "at": "2026-10-08T13:22:23.168814+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 72600,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "memory": {
+        "VmHWM": 948412,
+        "VmRSS": 948412,
+        "RssAnon": 936376,
+        "RssFile": 11640,
+        "VmSwap": 0
+      },
+      "valid": true
+    },
+    {
+      "seconds": 6.082,
+      "firstOutputSeconds": 0.9090881640004227,
+      "firstTextSeconds": 0.9090890110019245,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 123,
+        "prompt_ms": 874.649,
+        "prompt_per_token_ms": 7.110967479674796,
+        "prompt_per_second": 140.62784042513056,
+        "predicted_n": 192,
+        "predicted_ms": 5172.392,
+        "predicted_per_token_ms": 26.939541666666667,
+        "predicted_per_second": 37.120156399592304
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "Программа, работающая с файлами, использует различные методы для чтения данных из файлов, изменения их содержимого и проверки результатов тестов. Сначала важно понять, как программа распознает и обрабатывает файлы. Когда она получает файл, она обычно начинает его анализить с помощью специальных алгоритмов или библиотек, которые позволяют распознавать структуру файла. Например, в текстовых файлах программа может распознавать заголовки, заголовки и контент, чтобы определить, что именно нужная информация содержится. Это процесс, который требует точного понимания логики программы и её взаимодействия с данными.\n\nПосле",
+        "reasoning_content": ""
+      },
+      "index": 2,
+      "warmup": false,
+      "thermalBefore": {
+        "at": "2026-10-08T13:22:25.481348+00:00",
+        "hottestZone": "cpu-0-0",
+        "hottestMilliCelsius": 59300,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "thermalAfter": {
+        "at": "2026-10-08T13:22:33.738446+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 74200,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "memory": {
+        "VmHWM": 952656,
+        "VmRSS": 952612,
+        "RssAnon": 940576,
+        "RssFile": 11640,
+        "VmSwap": 0
+      },
+      "valid": true
+    },
+    {
+      "seconds": 6.59,
+      "firstOutputSeconds": 1.016714208999474,
+      "firstTextSeconds": 1.016715285997634,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 123,
+        "prompt_ms": 986.523,
+        "prompt_per_token_ms": 8.02051219512195,
+        "prompt_per_second": 124.68031662718455,
+        "predicted_n": 192,
+        "predicted_ms": 5573.463,
+        "predicted_per_token_ms": 29.028453125,
+        "predicted_per_second": 34.44895929155716
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "Программа приходит к работе с файлами, чтобы читать их содержание, изменить текст и проверить результат тестов. Это процесс, который требует понимания как работы программ с данными, так и способов их тестирования. В первую очередь, программа должна распознавать структуру файла — это может быть текстовый, изображений или другой формат. Для читания файлов используют стандартные интерфейсы, такие как библиотеки в языке программирования, например, Python. При открытии файла программа обычно начинает с чтения заголовков или определённых секций, чтобы понять, что там что-то и есть. Если файл содержит строки, программа может применять методы анализа",
+        "reasoning_content": ""
+      },
+      "index": 3,
+      "warmup": false,
+      "thermalBefore": {
+        "at": "2026-10-08T13:22:35.958421+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 60700,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "thermalAfter": {
+        "at": "2026-10-08T13:22:44.709577+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 76100,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "memory": {
+        "VmHWM": 956824,
+        "VmRSS": 956820,
+        "RssAnon": 944784,
+        "RssFile": 11640,
+        "VmSwap": 0
+      },
+      "valid": true
+    }
+  ],
+  "cases": [
+    {
+      "label": "exact",
+      "thermalBefore": {
+        "at": "2026-10-08T13:22:47.003183+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 61500,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "rounds": [
+        {
+          "seconds": 1.017,
+          "firstOutputSeconds": 0.8074130880013399,
+          "firstTextSeconds": 0.8074139700001979,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 86,
+            "prompt_ms": 773.217,
+            "prompt_per_token_ms": 8.99089534883721,
+            "prompt_per_second": 111.2236280371487,
+            "predicted_n": 7,
+            "predicted_ms": 208.459,
+            "predicted_per_token_ms": 29.779857142857143,
+            "predicted_per_second": 33.579744697998166
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "ГОТОВО",
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "ГОТОВО",
+      "passed": true,
+      "seconds": 1.017,
+      "thermalAfter": {
+        "at": "2026-10-08T13:22:50.139848+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 63900,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "finalSource": null
+    },
+    {
+      "label": "russian",
+      "thermalBefore": {
+        "at": "2026-10-08T13:22:52.356291+00:00",
+        "hottestZone": "cpu-0-1",
+        "hottestMilliCelsius": 55700,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "rounds": [
+        {
+          "seconds": 2.093,
+          "firstOutputSeconds": 0.7082315589977952,
+          "firstTextSeconds": 0.7082321429988951,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 102,
+            "prompt_ms": 687.072,
+            "prompt_per_token_ms": 6.736,
+            "prompt_per_second": 148.4560570071259,
+            "predicted_n": 52,
+            "predicted_ms": 1382.831,
+            "predicted_per_token_ms": 26.592903846153845,
+            "predicted_per_second": 37.60401668750556
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "Резервные копии файлов важны, чтобы сохранить данные в случае ошибок или утечек.  \nЭти копии помогают восстановить информацию и избежать потерь.",
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "Резервные копии файлов важны, чтобы сохранить данные в случае ошибок или утечек.  \nЭти копии помогают восстановить информацию и избежать потерь.",
+      "passed": true,
+      "seconds": 2.093,
+      "thermalAfter": {
+        "at": "2026-10-08T13:22:56.625416+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 67100,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "finalSource": null
+    },
+    {
+      "label": "missing",
+      "thermalBefore": {
+        "at": "2026-10-08T13:22:58.464681+00:00",
+        "hottestZone": "cpu-0-1",
+        "hottestMilliCelsius": 56900,
+        "maxFrequencyHeadroom": 0.5
+      },
+      "rounds": [
+        {
+          "seconds": 6.568,
+          "firstOutputSeconds": 4.751181321000331,
+          "firstTextSeconds": 4.751181932999316,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 418,
+            "prompt_ms": 4725.913,
+            "prompt_per_token_ms": 11.306011961722486,
+            "prompt_per_second": 88.44851777846948,
+            "predicted_n": 45,
+            "predicted_ms": 1813.315,
+            "predicted_per_token_ms": 40.29588888888889,
+            "predicted_per_second": 24.816427371967915
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "I'll check the file for you. However, I need the full path to the file to use the read function correctly. Could you please provide the complete path for \"docs/definitely-missing.txt\"?",
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "I'll check the file for you. However, I need the full path to the file to use the read function correctly. Could you please provide the complete path for \"docs/definitely-missing.txt\"?",
+      "passed": false,
+      "seconds": 6.568,
+      "thermalAfter": {
+        "at": "2026-10-08T13:23:07.208860+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 63900,
+        "maxFrequencyHeadroom": 0.5
+      },
+      "finalSource": null
+    },
+    {
+      "label": "repair",
+      "thermalBefore": {
+        "at": "2026-10-08T13:23:09.361385+00:00",
+        "hottestZone": "cpu-0-1",
+        "hottestMilliCelsius": 56500,
+        "maxFrequencyHeadroom": 0.5
+      },
+      "rounds": [
+        {
+          "seconds": 9.215,
+          "firstOutputSeconds": 3.407589057002042,
+          "firstTextSeconds": 3.4075898670016613,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 469,
+            "prompt_ms": 3366.2,
+            "prompt_per_token_ms": 7.1773987206823024,
+            "prompt_per_second": 139.32624324163746,
+            "predicted_n": 171,
+            "predicted_ms": 5805.665,
+            "predicted_per_token_ms": 33.95125730994152,
+            "predicted_per_second": 29.45399019750537
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "Исходный код для выполнения задачи:\n\n```python\n# 1. Прочитать файл\npath = \"src/math_utils.py\"\nwith open(path, \"r\", encoding=\"utf-8\") as f:\n    content = f.read()\n\n# 2. Изменить содержимое файла\nold_text = \"내부 클램프: число не меняется\"\nnew_text = \"내부 클램프: число корректно оборачивается\"\npideck_edit_text(path, old_text, new_text)\n\n# 3. Запустить тесты\nrun_tests(path)\n```\n\nЭтот код прочитает файл, заменит нужный текст и запустит тесты.",
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "Исходный код для выполнения задачи:\n\n```python\n# 1. Прочитать файл\npath = \"src/math_utils.py\"\nwith open(path, \"r\", encoding=\"utf-8\") as f:\n    content = f.read()\n\n# 2. Изменить содержимое файла\nold_text = \"내부 클램프: число не меняется\"\nnew_text = \"내부 클램프: число корректно оборачивается\"\npideck_edit_text(path, old_text, new_text)\n\n# 3. Запустить тесты\nrun_tests(path)\n```\n\nЭтот код прочитает файл, заменит нужный текст и запустит тесты.",
+      "passed": false,
+      "seconds": 9.215,
+      "thermalAfter": {
+        "at": "2026-10-08T13:23:20.769702+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 71400,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "finalSource": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))\n"
+    },
+    {
+      "label": "weather",
+      "thermalBefore": {
+        "at": "2026-10-08T13:23:22.978148+00:00",
+        "hottestZone": "cpu-0-0",
+        "hottestMilliCelsius": 60500,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "rounds": [
+        {
+          "seconds": 3.567,
+          "firstOutputSeconds": 3.290410190998955,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 422,
+            "prompt_ms": 3125.514,
+            "prompt_per_token_ms": 7.406431279620853,
+            "prompt_per_second": 135.01779227352685,
+            "predicted_n": 13,
+            "predicted_ms": 399.897,
+            "predicted_per_token_ms": 30.761307692307692,
+            "predicted_per_second": 32.50837090550817
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "",
+            "tool_calls": [
+              {
+                "id": "A1QEt0YQ2mB6MVqBCezvs49agf9B17UW",
+                "type": "function",
+                "function": {
+                  "name": "weather",
+                  "arguments": "{\"city\":\"Москва\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 0.943,
+          "firstOutputSeconds": 0.5131309309981589,
+          "firstTextSeconds": 0.5131319439969957,
+          "timings": {
+            "cache_n": 418,
+            "prompt_n": 58,
+            "prompt_ms": 465.003,
+            "prompt_per_token_ms": 8.017293103448276,
+            "prompt_per_second": 124.73037808358225,
+            "predicted_n": 14,
+            "predicted_ms": 427.637,
+            "predicted_per_token_ms": 30.5455,
+            "predicted_per_second": 32.73804652076411
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "В Москве сейчас 13°C, дождь.",
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "calls": [
+        {
+          "name": "weather",
+          "arguments": {
+            "city": "Москва"
+          },
+          "result": "{\"city\": \"Москва\", \"temperature_c\": 13, \"condition\": \"дождь\", \"test_fixture\": true}"
+        }
+      ],
+      "answer": "В Москве сейчас 13°C, дождь.",
+      "passed": true,
+      "seconds": 4.51,
+      "thermalAfter": {
+        "at": "2026-10-08T13:23:29.653651+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 66300,
+        "maxFrequencyHeadroom": 0.4589
+      },
+      "finalSource": null
+    }
+  ],
+  "serverSha256": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+  "thermalBeforeLoad": {
+    "at": "2026-10-08T13:21:52.641874+00:00",
+    "hottestZone": "cpu-0-1",
+    "hottestMilliCelsius": 54500,
+    "maxFrequencyHeadroom": 0.5479
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-model-selection-20261008/LFM2.5-1.2B-Instruct-QAD-Q4_0.gguf",
+    "--alias",
+    "lfm12-stock",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18081",
+    "-c",
+    "8192",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "-Crb",
+    "0-7",
+    "--cpu-strict",
+    "1",
+    "--cpu-strict-batch",
+    "1",
+    "-b",
+    "2048",
+    "-ub",
+    "512",
+    "--jinja",
+    "--reasoning",
+    "off",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--no-mmap",
+    "-ngl",
+    "0"
+  ],
+  "loadSeconds": 8.371965919999639,
+  "affinity": "Name:\tlibpideck_llama\nCpus_allowed_list:\t7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0\nName:\tlibpideck_llama\nCpus_allowed_list:\t1\nName:\tlibpideck_llama\nCpus_allowed_list:\t2\nName:\tlibpideck_llama\nCpus_allowed_list:\t3\nName:\tlibpideck_llama\nCpus_allowed_list:\t4\nName:\tlibpideck_llama\nCpus_allowed_list:\t5\nName:\tlibpideck_llama\nCpus_allowed_list:\t6\nName:\tlibpideck_llama\nCpus_allowed_list:\t3\nName:\tlibpideck_llama\nCpus_allowed_list:\t4\nName:\tlibpideck_llama\nCpus_allowed_list:\t5\nName:\tlibpideck_llama\nCpus_allowed_list:\t6\n",
+  "medianDecodeTokensPerSecond": 34.67242325204937,
+  "status": "complete",
+  "finishedAt": "2026-10-08T13:23:29.654768+00:00",
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.028.931 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.030.095 W srv  llama_server: -----------------\n0.00.030.116 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set\n0.00.030.118 W srv  llama_server: this can be a security risk (cross-origin attacks)\n0.00.030.119 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655\n0.00.030.120 W srv  llama_server: -----------------\n0.00.032.304 I srv    load_model: loading model '/data/local/tmp/pideck-model-selection-20261008/LFM2.5-1.2B-Instruct-QAD-Q4_0.gguf'\n0.07.732.516 I srv  attach_cpu_t: attached CPU affinity thread pools: decode=5, batch=8\n0.07.967.378 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.07.973.755 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve\n0.07.973.818 I srv  llama_server: model loaded\n0.07.973.822 I srv  llama_server: listening on http://127.0.0.1:18081\n0.10.378.357 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.10.378.539 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n0.14.836.893 I slot print_timing: id  0 | task 0 | n_decoded =    111, tg =  36.82 t/s, tg_3s =  36.82 t/s\n0.17.253.088 I slot print_timing: id  0 | task 0 | prompt eval time =    1444.01 ms /   123 tokens (   11.74 ms per token,    85.18 tokens per second)\n0.17.253.101 I slot print_timing: id  0 | task 0 |        eval time =    5430.42 ms /   192 tokens (   28.28 ms per token,    35.36 tokens per second)\n0.17.253.102 I slot print_timing: id  0 | task 0 |       total time =    6874.43 ms /   315 tokens\n0.17.253.104 I slot print_timing: id  0 | task 0 |    graphs reused =        190\n0.17.253.160 I slot      release: id  0 | task 0 | stop processing: n_tokens = 314, truncated = 0\n0.21.598.219 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.561 (> 0.100 thold), f_keep = 0.220\n0.21.604.304 I slot launch_slot_: id  0 | task 194 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000078e9d2e80d : Invalid argument (22)\n0.25.585.397 I slot print_timing: id  0 | task 194 | n_decoded =    105, tg =  34.91 t/s, tg_3s =  34.91 t/s\n0.28.115.553 I slot print_timing: id  0 | task 194 | prompt eval time =     973.61 ms /   123 tokens (    7.92 ms per token,   126.33 tokens per second)\n0.28.115.564 I slot print_timing: id  0 | task 194 |        eval time =    5537.54 ms /   192 tokens (   28.84 ms per token,    34.67 tokens per second)\n0.28.115.566 I slot print_timing: id  0 | task 194 |       total time =    6511.15 ms /   315 tokens\n0.28.115.568 I slot print_timing: id  0 | task 194 |    graphs reused =        379\n0.28.115.625 I slot      release: id  0 | task 194 | stop processing: n_tokens = 314, truncated = 0\n0.32.769.028 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.561 (> 0.100 thold), f_keep = 0.220\n0.32.776.058 I slot launch_slot_: id  0 | task 388 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000078e9d2e80d : Invalid argument (22)\n0.36.666.128 I slot print_timing: id  0 | task 388 | n_decoded =    113, tg =  37.48 t/s, tg_3s =  37.47 t/s\n0.38.823.203 I slot print_timing: id  0 | task 388 | prompt eval time =     874.65 ms /   123 tokens (    7.11 ms per token,   140.63 tokens per second)\n0.38.823.214 I slot print_timing: id  0 | task 388 |        eval time =    5172.39 ms /   192 tokens (   26.94 ms per token,    37.12 tokens per second)\n0.38.823.216 I slot print_timing: id  0 | task 388 |       total time =    6047.04 ms /   315 tokens\n0.38.823.218 I slot print_timing: id  0 | task 388 |    graphs reused =        568\n0.38.823.269 I slot      release: id  0 | task 388 | stop processing: n_tokens = 314, truncated = 0\n0.43.241.732 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.561 (> 0.100 thold), f_keep = 0.220\n0.43.248.169 I slot launch_slot_: id  0 | task 582 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000078e9d2e80d : Invalid argument (22)\n0.47.262.107 I slot print_timing: id  0 | task 582 | n_decoded =    105, tg =  34.68 t/s, tg_3s =  34.68 t/s\n0.49.808.268 I slot print_timing: id  0 | task 582 | prompt eval time =     986.52 ms /   123 tokens (    8.02 ms per token,   124.68 tokens per second)\n0.49.808.280 I slot print_timing: id  0 | task 582 |        eval time =    5573.46 ms /   192 tokens (   29.03 ms per token,    34.45 tokens per second)\n0.49.808.282 I slot print_timing: id  0 | task 582 |       total time =    6559.99 ms /   315 tokens\n0.49.808.283 I slot print_timing: id  0 | task 582 |    graphs reused =        757\n0.49.808.328 I slot      release: id  0 | task 582 | stop processing: n_tokens = 314, truncated = 0\n0.54.289.667 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.756 (> 0.100 thold), f_keep = 0.207\n0.54.297.409 I slot launch_slot_: id  0 | task 776 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000078e9d2e80d : Invalid argument (22)\n0.55.279.466 I slot print_timing: id  0 | task 776 | prompt eval time =     773.22 ms /    86 tokens (    8.99 ms per token,   111.22 tokens per second)\n0.55.279.489 I slot print_timing: id  0 | task 776 |        eval time =     208.46 ms /     7 tokens (   29.78 ms per token,    33.58 tokens per second)\n0.55.279.492 I slot print_timing: id  0 | task 776 |       total time =     981.68 ms /    93 tokens\n0.55.279.493 I slot print_timing: id  0 | task 776 |    graphs reused =        762\n0.55.279.521 I slot      release: id  0 | task 776 | stop processing: n_tokens = 92, truncated = 0\n0.59.637.977 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.637 (> 0.100 thold), f_keep = 0.707\n0.59.638.415 I slot launch_slot_: id  0 | task 785 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000078e9d2e80d : Invalid argument (22)\n1.01.708.395 I slot print_timing: id  0 | task 785 | prompt eval time =     687.07 ms /   102 tokens (    6.74 ms per token,   148.46 tokens per second)\n1.01.708.406 I slot print_timing: id  0 | task 785 |        eval time =    1382.83 ms /    52 tokens (   26.59 ms per token,    37.60 tokens per second)\n1.01.708.408 I slot print_timing: id  0 | task 785 |       total time =    2069.90 ms /   154 tokens\n1.01.708.410 I slot print_timing: id  0 | task 785 |    graphs reused =        812\n1.01.708.443 I slot      release: id  0 | task 785 | stop processing: n_tokens = 153, truncated = 0\n1.05.748.434 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.141 (> 0.100 thold), f_keep = 0.386\n1.05.750.727 I slot launch_slot_: id  0 | task 839 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000078e9d2e80d : Invalid argument (22)\n1.10.352.535 I slot print_timing: id  0 | task 839 | prompt processing, n_tokens =    414, progress = 0.99, t =   4.60 s / 89.97 tokens per second\n1.12.290.043 I slot print_timing: id  0 | task 839 | prompt eval time =    4725.91 ms /   418 tokens (   11.31 ms per token,    88.45 tokens per second)\n1.12.290.060 I slot print_timing: id  0 | task 839 |        eval time =    1813.32 ms /    45 tokens (   40.30 ms per token,    24.82 tokens per second)\n1.12.290.062 I slot print_timing: id  0 | task 839 |       total time =    6539.23 ms /   463 tokens\n1.12.290.064 I slot print_timing: id  0 | task 839 |    graphs reused =        855\n1.12.290.212 I slot      release: id  0 | task 839 | stop processing: n_tokens = 462, truncated = 0\n1.16.660.712 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.804 (> 0.100 thold), f_keep = 0.816\n1.16.663.393 I slot launch_slot_: id  0 | task 886 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000078e9d2e80d : Invalid argument (22)\n1.19.963.239 I slot print_timing: id  0 | task 886 | prompt processing, n_tokens =    465, progress = 0.99, t =   3.30 s / 140.92 tokens per second\n1.23.448.066 I slot print_timing: id  0 | task 886 | n_decoded =    100, tg =  29.25 t/s, tg_3s =  29.25 t/s\n1.25.835.408 I slot print_timing: id  0 | task 886 | prompt eval time =    3366.20 ms /   469 tokens (    7.18 ms per token,   139.33 tokens per second)\n1.25.835.423 I slot print_timing: id  0 | task 886 |        eval time =    5805.66 ms /   171 tokens (   33.95 ms per token,    29.45 tokens per second)\n1.25.835.425 I slot print_timing: id  0 | task 886 |       total time =    9171.86 ms /   640 tokens\n1.25.835.426 I slot print_timing: id  0 | task 886 |    graphs reused =       1023\n1.25.835.537 I slot      release: id  0 | task 886 | stop processing: n_tokens = 639, truncated = 0\n1.30.274.902 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.893 (> 0.100 thold), f_keep = 0.590\n1.30.277.624 I slot launch_slot_: id  0 | task 1059 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb4000078e9d2e80d : Invalid argument (22)\n1.33.298.912 I slot print_timing: id  0 | task 1059 | prompt processing, n_tokens =    418, progress = 0.99, t =   3.02 s / 138.36 tokens per second\n1.33.803.260 I slot print_timing: id  0 | task 1059 | prompt eval time =    3125.51 ms /   422 tokens (    7.41 ms per token,   135.02 tokens per second)\n1.33.803.273 I slot print_timing: id  0 | task 1059 |        eval time =     399.90 ms /    13 tokens (   30.76 ms per token,    32.51 tokens per second)\n1.33.803.276 I slot print_timing: id  0 | task 1059 |       total time =    3525.41 ms /   435 tokens\n1.33.803.278 I slot print_timing: id  0 | task 1059 |    graphs reused =       1034\n1.33.803.385 I slot      release: id  0 | task 1059 | stop processing: n_tokens = 434, truncated = 0\n1.33.855.406 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.897 (> 0.100 thold), f_keep = 0.984\n1.33.855.968 I slot launch_slot_: id  0 | task 1074 | processing task, is_child = 0\n1.34.748.697 I slot print_timing: id  0 | task 1074 | prompt eval time =     465.00 ms /    58 tokens (    8.02 ms per token,   124.73 tokens per second)\n1.34.748.709 I slot print_timing: id  0 | task 1074 |        eval time =     427.64 ms /    14 tokens (   30.55 ms per token,    32.74 tokens per second)\n1.34.748.711 I slot print_timing: id  0 | task 1074 |       total time =     892.64 ms /    72 tokens\n1.34.748.712 I slot print_timing: id  0 | task 1074 |    graphs reused =       1046\n1.34.748.786 I slot      release: id  0 | task 1074 | stop processing: n_tokens = 489, truncated = 0\n"
+}

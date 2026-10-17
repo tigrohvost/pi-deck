@@ -428,7 +428,7 @@ public final class ModelSpec {
 
     /**
      * @param slotDirectory where prefix snapshots are saved; used only by the runtime whose
-     *                      restore of a system+tools slot was verified on device
+     *                      restore of a system+tools slot was checked (device or host)
      */
     public List<String> nativeLlamaServerArguments(
             String privateModelPath,
@@ -454,9 +454,17 @@ public final class ModelSpec {
         return Collections.unmodifiableList(withSlots);
     }
 
-    /** Stock b10092: a restored prefix slot was measured to extend without rollback. */
+    /** Exact prefix restore: stock device evidence and Bonsai 4B/9B host integration checks. */
     public boolean supportsSlotSnapshots() {
-        return "stock".equals(serverFlavor) && "b10092".equals(nativeRuntimeBuild());
+        if ("stock".equals(serverFlavor) && "b10092".equals(nativeRuntimeBuild())) return true;
+        if (!"prism".equals(serverFlavor) || !"prism-842b188".equals(nativeRuntimeBuild())
+                || recommendedContext != 4096) return false;
+        // Mirrors model_store.slot_snapshots(); untested Prism models keep their existing path.
+        return switch (id) {
+            case "bonsai2-4b" -> "56711263ec9a9ffeaa74a3a0e58dece8127cf9268404746c721113ca76994d60".equals(sha256);
+            case "bonsai2-9b" -> "3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b".equals(sha256);
+            default -> false;
+        };
     }
 
     private List<String> llamaServerArguments(

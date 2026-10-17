@@ -1,0 +1,161 @@
+{
+  "startedAt": "2026-10-08T13:35:00.586369+00:00",
+  "label": "lfm26-fast-chat",
+  "modelSha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+  "harnessVersion": 2,
+  "qualityMaxTokens": 512,
+  "mode": "tools",
+  "thinking": "off",
+  "device": "SM-S918B",
+  "execution": "adb shell inference; bounded synthetic tools; not app admission",
+  "minimumFrequencyHeadroom": 0.01,
+  "sampling": {
+    "temperature": 0,
+    "topP": 1,
+    "topK": 40,
+    "seed": 42
+  },
+  "samples": [],
+  "cases": [
+    {
+      "label": "exact",
+      "thermalBefore": {
+        "at": "2026-10-08T13:35:20.385945+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 60700,
+        "maxFrequencyHeadroom": 0.7371
+      },
+      "rounds": [
+        {
+          "seconds": 4.303,
+          "firstOutputSeconds": 1.5224266609984625,
+          "firstTextSeconds": 4.089276039001561,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 106,
+            "prompt_ms": 1493.407,
+            "prompt_per_token_ms": 14.088745283018866,
+            "prompt_per_second": 70.97864145541035,
+            "predicted_n": 58,
+            "predicted_ms": 2779.897,
+            "predicted_per_token_ms": 47.92925862068965,
+            "predicted_per_second": 20.86408237427502
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "ГОТОВО",
+            "reasoning_content": "The user is asking me to respond with exactly one word: \"ГОТОВО\" (which means \"READY\" in Russian). They want me to answer in Russian, briefly, and only with one word. I should comply with this instruction precisely."
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "ГОТОВО",
+      "passed": true,
+      "seconds": 4.303,
+      "thermalAfter": {
+        "at": "2026-10-08T13:35:26.773165+00:00",
+        "hottestZone": "cpu-1-5",
+        "hottestMilliCelsius": 84000,
+        "maxFrequencyHeadroom": 0.7371
+      },
+      "finalSource": null
+    },
+    {
+      "label": "russian",
+      "thermalBefore": {
+        "at": "2026-10-08T13:35:28.839516+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 63900,
+        "maxFrequencyHeadroom": 0.7371
+      },
+      "rounds": [
+        {
+          "seconds": 10.88,
+          "firstOutputSeconds": 1.68195253399972,
+          "firstTextSeconds": 6.751451423002436,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 120,
+            "prompt_ms": 1662.674,
+            "prompt_per_token_ms": 13.855616666666666,
+            "prompt_per_second": 72.17289739299466,
+            "predicted_n": 163,
+            "predicted_ms": 9197.17,
+            "predicted_per_token_ms": 56.42435582822086,
+            "predicted_per_second": 17.72284300496783
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "Резервные копии файлов нужны для защиты от потери данных из-за сбоев оборудования, случайного удаления или повреждения файлов. Они позволяют восстановить информацию в случае катастрофы или нехватки места на основном носителе.",
+            "reasoning_content": "The user is asking me to explain in Russian (briefly) why file backups are needed, in two sentences. I need to provide a concise answer in Russian. Let me think about the key reasons for file backups:\n\n1. To protect against data loss (hardware failure, accidental deletion, corruption)\n2. To ensure business continuity and recovery in case of disasters\n\nI should write this in Russian, two sentences, and be brief as requested."
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "Резервные копии файлов нужны для защиты от потери данных из-за сбоев оборудования, случайного удаления или повреждения файлов. Они позволяют восстановить информацию в случае катастрофы или нехватки места на основном носителе.",
+      "passed": true,
+      "seconds": 10.88,
+      "thermalAfter": {
+        "at": "2026-10-08T13:35:41.893631+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 80900,
+        "maxFrequencyHeadroom": 0.5479
+      },
+      "finalSource": null
+    }
+  ],
+  "serverSha256": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c",
+  "thermalBeforeLoad": {
+    "at": "2026-10-08T13:35:04.085679+00:00",
+    "hottestZone": "cpu-1-2",
+    "hottestMilliCelsius": 56000,
+    "maxFrequencyHeadroom": 0.7371
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf",
+    "--alias",
+    "lfm26-fast-chat",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18081",
+    "-c",
+    "8192",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "-Crb",
+    "0-7",
+    "--cpu-strict",
+    "1",
+    "--cpu-strict-batch",
+    "1",
+    "-b",
+    "2048",
+    "-ub",
+    "512",
+    "--jinja",
+    "--reasoning",
+    "on",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--no-mmap",
+    "-ngl",
+    "0"
+  ],
+  "loadSeconds": 13.585183454000799,
+  "affinity": "Name:\tlibpideck_llama\nCpus_allowed_list:\t7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0\nName:\tlibpideck_llama\nCpus_allowed_list:\t1\nName:\tlibpideck_llama\nCpus_allowed_list:\t2\nName:\tlibpideck_llama\nCpus_allowed_list:\t3\nName:\tlibpideck_llama\nCpus_allowed_list:\t4\nName:\tlibpideck_llama\nCpus_allowed_list:\t5\nName:\tlibpideck_llama\nCpus_allowed_list:\t6\nName:\tlibpideck_llama\nCpus_allowed_list:\t3\nName:\tlibpideck_llama\nCpus_allowed_list:\t4\nName:\tlibpideck_llama\nCpus_allowed_list:\t5\nName:\tlibpideck_llama\nCpus_allowed_list:\t6\n",
+  "status": "complete",
+  "finishedAt": "2026-10-08T13:35:41.894721+00:00",
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.007.934 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.008.289 W srv  llama_server: -----------------\n0.00.008.307 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set\n0.00.008.309 W srv  llama_server: this can be a security risk (cross-origin attacks)\n0.00.008.310 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655\n0.00.008.311 W srv  llama_server: -----------------\n0.00.010.011 I srv    load_model: loading model '/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf'\n0.13.387.268 I srv  attach_cpu_t: attached CPU affinity thread pools: decode=5, batch=8\n0.13.479.129 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.13.483.197 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve\n0.13.483.221 I srv  llama_server: model loaded\n0.13.483.224 I srv  llama_server: listening on http://127.0.0.1:18081\n0.16.251.606 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.16.251.833 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n0.20.525.186 I slot print_timing: id  0 | task 0 | prompt eval time =    1493.41 ms /   106 tokens (   14.09 ms per token,    70.98 tokens per second)\n0.20.525.210 I slot print_timing: id  0 | task 0 |        eval time =    2779.90 ms /    58 tokens (   47.93 ms per token,    20.86 tokens per second)\n0.20.525.212 I slot print_timing: id  0 | task 0 |       total time =    4273.30 ms /   164 tokens\n0.20.525.213 I slot print_timing: id  0 | task 0 |    graphs reused =         57\n0.20.525.253 I slot      release: id  0 | task 0 | stop processing: n_tokens = 163, truncated = 0\n0.24.694.990 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, sim_best = 0.708 (> 0.100 thold), f_keep = 0.521\n0.24.695.561 I slot launch_slot_: id  0 | task 60 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb400007c5ae6380d : Invalid argument (22)\n0.31.806.820 I slot print_timing: id  0 | task 60 | n_decoded =    100, tg =  18.35 t/s, tg_3s =  18.35 t/s\n0.34.812.767 I slot print_timing: id  0 | task 60 | n_decoded =    151, tg =  17.86 t/s, tg_3s =  16.97 t/s\n0.35.555.551 I slot print_timing: id  0 | task 60 | prompt eval time =    1662.67 ms /   120 tokens (   13.86 ms per token,    72.17 tokens per second)\n0.35.555.562 I slot print_timing: id  0 | task 60 |        eval time =    9197.17 ms /   163 tokens (   56.42 ms per token,    17.72 tokens per second)\n0.35.555.563 I slot print_timing: id  0 | task 60 |       total time =   10859.84 ms /   283 tokens\n0.35.555.564 I slot print_timing: id  0 | task 60 |    graphs reused =        217\n0.35.555.597 I slot      release: id  0 | task 60 | stop processing: n_tokens = 282, truncated = 0\n"
+}

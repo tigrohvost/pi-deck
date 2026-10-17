@@ -1,0 +1,694 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-17",
+  "scope": "Host verification of prefix-cache optimization; no handset connected",
+  "sourceCommit": "f04d09d6f7e1df482db27a9ac2e9efa73b8000d3",
+  "workingTree": "Uncommitted implementation, including pre-existing local prefix-recovery changes",
+  "implementationSha256": {
+    "app/src/main/assets/runtime/pideck-local-cache.ts": "5a3d0e101587b1c6aec6224ec69a6f8ff8092f0ad7e674f2e05ed40f0a3c2018",
+    "app/src/main/assets/runtime/pideck_runtime/model_store.py": "074143d4a39705a8ba4a92a24fab7519a520fb1919034c62cfe4982c6e0b806f",
+    "app/src/main/assets/runtime/pideck_runtime/bridge.py": "cd8adab9013fbb65c72e7284dfb39ec7a34cef39def0fa7414fc3d99d82c9964",
+    "app/src/main/assets/runtime/pideck_runtime/launcher.py": "75705b5ad2a94a548fa68a24f708e9f3978e09f1813a08dd1a6292964279c6f6",
+    "app/src/main/java/dev/pideck/app/core/ModelSpec.java": "23cabf59ce466bcb835844e61a0f3363bed7ba49d6947e8376ad369049667081"
+  },
+  "hostBuild": {
+    "runtimeSource": {
+      "flavor": "prism",
+      "build": "prism-842b188",
+      "repository": "https://github.com/PrismML-Eng/llama.cpp.git",
+      "commit": "842b1880415d6f508f03b789e5ce70194def7bfd",
+      "sourceArchiveSha256": "84ec38b7e7fb45a9f076e923e064e967e7c30b946b71b3b778444b05e8459c3c",
+      "ndkRevision": "28.2.13676358",
+      "file": "libpideck_prism_server.so",
+      "patchSet": "pideck-prism1",
+      "patches": [
+        {
+          "name": "0001-cpu-affinity-retry.patch",
+          "sha256": "e7ebe407839b11990497e9531c841fcc68c29d3dcc038ec75689b46b4371e92f"
+        },
+        {
+          "name": "0002-ptq1-two-token-dot-arm.patch",
+          "sha256": "e9bfadef4437e11b320f35aa352128c6010d7be4b988f77ffb90fe9da3b94f1b"
+        }
+      ]
+    },
+    "hostCompiler": "Android NDK 28.2 host Clang 19.0.1 with local GCC 15 C++ headers/libraries",
+    "hostFlags": "Release, GGML_NATIVE=ON, GGML_OPENMP=OFF, BUILD_SHARED_LIBS=OFF, no accelerator backend",
+    "nativeVersion": "version: 0.2.0-dev (build 10734, commit 842b188)\nbuilt with Clang 19.0.1 for Linux x86_64",
+    "binarySha256": "e80fe587c9b932617513dcc87a61d8ffa58a9617ce21a7f61a0b50ffb21f4777"
+  },
+  "appVerification": {
+    "apk": {
+      "type": "debug; not a production release",
+      "file": "app/build/outputs/apk/debug/app-debug.apk",
+      "bytes": 26611092,
+      "sha256": "d1f21b1818ca54bb2b204afd01bb4834ba8dd5069f197c9533d579bb2afa96f6"
+    },
+    "packagedRuntimeAssetsMatchSource": [
+      "runtime/pideck-local-cache.ts",
+      "runtime/pideck_runtime/model_store.py",
+      "runtime/pideck_runtime/bridge.py",
+      "runtime/pideck_runtime/launcher.py"
+    ],
+    "packagedPrismSha256": "402f8118e8adf02ab3757cc62035b2bb92e7bc3c6e361856d51e7a8491a17b75",
+    "jvmTests": 239,
+    "runtimeTests": 145,
+    "piProtocolTests": 2,
+    "extensions": 12,
+    "extensionTools": 10,
+    "benchmarkContractTasks": 28,
+    "lintErrors": 0,
+    "lintWarnings": 13,
+    "gradleTasks": [
+      "testDebugUnitTest",
+      "lintDebug",
+      "assembleDebug",
+      "assembleDebugAndroidTest"
+    ],
+    "instrumentedTestsExecuted": false,
+    "deviceAvailable": false
+  },
+  "probes": [
+    {
+      "schemaVersion": 1,
+      "modelId": "bonsai2-4b",
+      "artifact": {
+        "file": "Ternary-Bonsai-2-4B-PTQ1_0.gguf",
+        "bytes": 949549920,
+        "sha256": "56711263ec9a9ffeaa74a3a0e58dece8127cf9268404746c721113ca76994d60"
+      },
+      "runtimeBuild": "prism-842b188",
+      "serverSha256": "e80fe587c9b932617513dcc87a61d8ffa58a9617ce21a7f61a0b50ffb21f4777",
+      "extensionSha256": "5a3d0e101587b1c6aec6224ec69a6f8ff8092f0ad7e674f2e05ed40f0a3c2018",
+      "platform": "linux x64 12th Gen Intel(R) Core(TM) i7-1255U",
+      "threads": 4,
+      "context": 4096,
+      "serverArgs": [
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "--reasoning-budget",
+        "0",
+        "--repeat-penalty",
+        "1.0",
+        "--repeat-last-n",
+        "64",
+        "--cache-ram",
+        "512"
+      ],
+      "promptFixture": "Bounded system prompt + one read tool; not the full Pi agent prompt",
+      "limits": "Host CPU timings only; no Android throughput or full agent admission claim. Tool results are synthetic.",
+      "startedAt": "2026-10-17T09:18:03.845Z",
+      "cases": [
+        {
+          "label": "create-snapshot",
+          "hookMs": 62730.810467999996,
+          "wallMs": 68275.04099899999,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 26,
+            "prompt_ms": 5032.752,
+            "prompt_per_token_ms": 193.56738461538464,
+            "prompt_per_second": 5.166159588233237,
+            "predicted_n": 3,
+            "predicted_ms": 505.041,
+            "predicted_per_token_ms": 252.5205,
+            "predicted_per_second": 3.9600745286026284
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "restart-0-full",
+          "hookMs": 0.003787000008742325,
+          "wallMs": 65032.25602700001,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 305,
+            "prompt_ms": 64496.649,
+            "prompt_per_token_ms": 211.46442295081965,
+            "prompt_per_second": 4.728927854840955,
+            "predicted_n": 3,
+            "predicted_ms": 529.79,
+            "predicted_per_token_ms": 264.895,
+            "predicted_per_second": 3.7750806923497993
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "restart-1-restore",
+          "hookMs": 19.529321000009077,
+          "wallMs": 7476.742329000001,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 26,
+            "prompt_ms": 6748.544,
+            "prompt_per_token_ms": 259.5593846153846,
+            "prompt_per_second": 3.852682889820382,
+            "predicted_n": 3,
+            "predicted_ms": 701.995,
+            "predicted_per_token_ms": 350.9975,
+            "predicted_per_second": 2.8490231411904645
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "restart-2-restore",
+          "hookMs": 16.081697999994503,
+          "wallMs": 7621.251959999994,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 26,
+            "prompt_ms": 6909.981,
+            "prompt_per_token_ms": 265.7685,
+            "prompt_per_second": 3.7626731535151836,
+            "predicted_n": 3,
+            "predicted_ms": 688.365,
+            "predicted_per_token_ms": 344.1825,
+            "predicted_per_second": 2.905435343168232
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "restart-3-full",
+          "hookMs": 0.005338999995728955,
+          "wallMs": 65120.05536500001,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 305,
+            "prompt_ms": 64563.922,
+            "prompt_per_token_ms": 211.68499016393443,
+            "prompt_per_second": 4.724000502943424,
+            "predicted_n": 3,
+            "predicted_ms": 549.995,
+            "predicted_per_token_ms": 274.9975,
+            "predicted_per_second": 3.6363966945154047
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "tool-restore",
+          "hookMs": 27.535112000012305,
+          "wallMs": 11930.912413999991,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 29,
+            "prompt_ms": 5797.865,
+            "prompt_per_token_ms": 199.92637931034483,
+            "prompt_per_second": 5.001841194991605,
+            "predicted_n": 26,
+            "predicted_ms": 6099.177,
+            "predicted_per_token_ms": 243.96707999999998,
+            "predicted_per_second": 4.098913673107044
+          },
+          "answer": {
+            "content": "",
+            "calls": [
+              {
+                "name": "read",
+                "arguments": {
+                  "path": "smoke.txt"
+                }
+              }
+            ]
+          },
+          "finishReason": "tool_calls"
+        },
+        {
+          "label": "tool-result-live",
+          "hookMs": 0.12262499998905696,
+          "wallMs": 4709.8616609999735,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 333,
+            "prompt_n": 21,
+            "prompt_ms": 3979.902,
+            "prompt_per_token_ms": 189.51914285714287,
+            "prompt_per_second": 5.276511833708468,
+            "predicted_n": 4,
+            "predicted_ms": 722.906,
+            "predicted_per_token_ms": 240.96866666666665,
+            "predicted_per_second": 4.149917139987772
+          },
+          "answer": {
+            "content": "CACHE_TOOL_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "tool-result-full",
+          "hookMs": 0.003815000003669411,
+          "wallMs": 74268.33921699997,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 354,
+            "prompt_ms": 73205.758,
+            "prompt_per_token_ms": 206.79592655367233,
+            "prompt_per_second": 4.835685192959821,
+            "predicted_n": 4,
+            "predicted_ms": 1055.382,
+            "predicted_per_token_ms": 351.79400000000004,
+            "predicted_per_second": 2.842572641943865
+          },
+          "answer": {
+            "content": "CACHE_TOOL_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "tool-full",
+          "hookMs": 0.0052770000183954835,
+          "wallMs": 75706.55580700003,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 308,
+            "prompt_ms": 66689.955,
+            "prompt_per_token_ms": 216.52582792207792,
+            "prompt_per_second": 4.618386682072285,
+            "predicted_n": 26,
+            "predicted_ms": 9008.388,
+            "predicted_per_token_ms": 360.33552000000003,
+            "predicted_per_second": 2.775191299486656
+          },
+          "answer": {
+            "content": "",
+            "calls": [
+              {
+                "name": "read",
+                "arguments": {
+                  "path": "smoke.txt"
+                }
+              }
+            ]
+          },
+          "finishReason": "tool_calls"
+        },
+        {
+          "label": "rewritten-history-restore",
+          "hookMs": 33.73117500002263,
+          "wallMs": 6463.206296999997,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 24,
+            "prompt_ms": 5581.834,
+            "prompt_per_token_ms": 232.57641666666666,
+            "prompt_per_second": 4.299662082390841,
+            "predicted_n": 4,
+            "predicted_ms": 839.946,
+            "predicted_per_token_ms": 279.982,
+            "predicted_per_second": 3.57165817802573
+          },
+          "answer": {
+            "content": "NEW_CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "rewritten-history-full",
+          "hookMs": 0.006228999991435558,
+          "wallMs": 65358.48898800003,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 303,
+            "prompt_ms": 64565.995,
+            "prompt_per_token_ms": 213.08909240924092,
+            "prompt_per_second": 4.692872773044077,
+            "predicted_n": 4,
+            "predicted_ms": 785.202,
+            "predicted_per_token_ms": 261.734,
+            "predicted_per_second": 3.820672896910604
+          },
+          "answer": {
+            "content": "NEW_CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        }
+      ],
+      "passed": true,
+      "sameAutoNoneTemplate": true,
+      "snapshots": [
+        {
+          "name": "pideck-bonsai2-4b-6c22ea86f13b065c78392c36.bin",
+          "bytes": 61840744
+        }
+      ],
+      "restartComparison": {
+        "fullWallMs": 65076.15569600001,
+        "restoredWallMs": 7548.997144499997,
+        "wallSpeedup": 8.620503419240634,
+        "fullPromptTokens": 305,
+        "restoredPromptTokens": 26
+      },
+      "finishedAt": "2026-10-17T09:25:46.850Z",
+      "nativeLaunches": 5
+    },
+    {
+      "schemaVersion": 1,
+      "modelId": "bonsai2-9b",
+      "artifact": {
+        "file": "Ternary-Bonsai-2-9B-PTQ1_0.gguf",
+        "bytes": 1997486976,
+        "sha256": "3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b"
+      },
+      "runtimeBuild": "prism-842b188",
+      "serverSha256": "e80fe587c9b932617513dcc87a61d8ffa58a9617ce21a7f61a0b50ffb21f4777",
+      "extensionSha256": "5a3d0e101587b1c6aec6224ec69a6f8ff8092f0ad7e674f2e05ed40f0a3c2018",
+      "piVersion": "0.82.1",
+      "platform": "linux x64 12th Gen Intel(R) Core(TM) i7-1255U",
+      "threads": 4,
+      "context": 4096,
+      "serverArgs": [
+        "-b",
+        "256",
+        "-ub",
+        "128",
+        "--reasoning-budget",
+        "0",
+        "--repeat-penalty",
+        "1.0",
+        "--repeat-last-n",
+        "64",
+        "--cache-ram",
+        "512"
+      ],
+      "requestSampling": {
+        "temperature": 0,
+        "seed": 7,
+        "max_tokens": 128
+      },
+      "promptFixture": "Bounded system prompt + one read tool; not the full Pi agent prompt",
+      "limits": "Host CPU timings only; no Android throughput or full agent admission claim. Tool results are synthetic.",
+      "startedAt": "2026-10-17T09:26:10.985Z",
+      "cases": [
+        {
+          "label": "create-snapshot",
+          "hookMs": 119612.588205,
+          "wallMs": 130197.780522,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 26,
+            "prompt_ms": 9705.847,
+            "prompt_per_token_ms": 373.3018076923077,
+            "prompt_per_second": 2.678797636105329,
+            "predicted_n": 3,
+            "predicted_ms": 872.48,
+            "predicted_per_token_ms": 436.24,
+            "predicted_per_second": 2.292316156244269
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "restart-0-full",
+          "hookMs": 0.004155000002356246,
+          "wallMs": 126260.45454500002,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 305,
+            "prompt_ms": 125397.494,
+            "prompt_per_token_ms": 411.13932459016394,
+            "prompt_per_second": 2.432265512419251,
+            "predicted_n": 3,
+            "predicted_ms": 856.728,
+            "predicted_per_token_ms": 428.364,
+            "predicted_per_second": 2.3344632135286814
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "restart-1-restore",
+          "hookMs": 13.903042000019923,
+          "wallMs": 12903.124591000029,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 26,
+            "prompt_ms": 11625.226,
+            "prompt_per_token_ms": 447.1240769230769,
+            "prompt_per_second": 2.2365156599966314,
+            "predicted_n": 3,
+            "predicted_ms": 1258.386,
+            "predicted_per_token_ms": 629.193,
+            "predicted_per_second": 1.5893374528960114
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "restart-2-restore",
+          "hookMs": 17.62722899997607,
+          "wallMs": 11914.559942999971,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 26,
+            "prompt_ms": 10961.931,
+            "prompt_per_token_ms": 421.6127307692308,
+            "prompt_per_second": 2.371844887547641,
+            "predicted_n": 3,
+            "predicted_ms": 928.697,
+            "predicted_per_token_ms": 464.3485,
+            "predicted_per_second": 2.153554926956801
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "restart-3-full",
+          "hookMs": 0.0043409999925643206,
+          "wallMs": 120318.863862,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 305,
+            "prompt_ms": 119458.522,
+            "prompt_per_token_ms": 391.6672852459016,
+            "prompt_per_second": 2.553187456981931,
+            "predicted_n": 3,
+            "predicted_ms": 855.298,
+            "predicted_per_token_ms": 427.649,
+            "predicted_per_second": 2.3383662770168994
+          },
+          "answer": {
+            "content": "CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "tool-restore",
+          "hookMs": 23.731323999993037,
+          "wallMs": 23062.321803,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 29,
+            "prompt_ms": 10210.899,
+            "prompt_per_token_ms": 352.09996551724134,
+            "prompt_per_second": 2.840102521824964,
+            "predicted_n": 26,
+            "predicted_ms": 12821.635,
+            "predicted_per_token_ms": 512.8654,
+            "predicted_per_second": 1.949829331438619
+          },
+          "answer": {
+            "content": "",
+            "calls": [
+              {
+                "name": "read",
+                "arguments": {
+                  "path": "smoke.txt"
+                }
+              }
+            ]
+          },
+          "finishReason": "tool_calls"
+        },
+        {
+          "label": "tool-result-live",
+          "hookMs": 0.12789299996802583,
+          "wallMs": 13579.03420699999,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 333,
+            "prompt_n": 21,
+            "prompt_ms": 11412.552,
+            "prompt_per_token_ms": 543.4548571428571,
+            "prompt_per_second": 1.8400792390694036,
+            "predicted_n": 4,
+            "predicted_ms": 2156.62,
+            "predicted_per_token_ms": 718.8733333333333,
+            "predicted_per_second": 1.3910656490248632
+          },
+          "answer": {
+            "content": "CACHE_TOOL_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "tool-result-full",
+          "hookMs": 0.004736999981105328,
+          "wallMs": 145507.337978,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 354,
+            "prompt_ms": 144202.973,
+            "prompt_per_token_ms": 407.35303107344635,
+            "prompt_per_second": 2.4548731044539562,
+            "predicted_n": 4,
+            "predicted_ms": 1293.609,
+            "predicted_per_token_ms": 431.203,
+            "predicted_per_second": 2.3190933272727694
+          },
+          "answer": {
+            "content": "CACHE_TOOL_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "tool-full",
+          "hookMs": 0.003801999962888658,
+          "wallMs": 140702.62702399993,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 308,
+            "prompt_ms": 126150.966,
+            "prompt_per_token_ms": 409.58105844155847,
+            "prompt_per_second": 2.4415191557074563,
+            "predicted_n": 26,
+            "predicted_ms": 14545.453,
+            "predicted_per_token_ms": 581.81812,
+            "predicted_per_second": 1.718750182617207
+          },
+          "answer": {
+            "content": "",
+            "calls": [
+              {
+                "name": "read",
+                "arguments": {
+                  "path": "smoke.txt"
+                }
+              }
+            ]
+          },
+          "finishReason": "tool_calls"
+        },
+        {
+          "label": "rewritten-history-restore",
+          "hookMs": 40.150828999932855,
+          "wallMs": 14626.005500999978,
+          "cachePrompt": true,
+          "timings": {
+            "cache_n": 279,
+            "prompt_n": 24,
+            "prompt_ms": 12806.23,
+            "prompt_per_token_ms": 533.5929166666666,
+            "prompt_per_second": 1.8740878463060557,
+            "predicted_n": 4,
+            "predicted_ms": 1771.602,
+            "predicted_per_token_ms": 590.534,
+            "predicted_per_second": 1.6933825994777605
+          },
+          "answer": {
+            "content": "NEW_CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        },
+        {
+          "label": "rewritten-history-full",
+          "hookMs": 0.009313000016845763,
+          "wallMs": 126622.22009899991,
+          "cachePrompt": false,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 303,
+            "prompt_ms": 125209.287,
+            "prompt_per_token_ms": 413.2319702970297,
+            "prompt_per_second": 2.419948290257415,
+            "predicted_n": 4,
+            "predicted_ms": 1405.362,
+            "predicted_per_token_ms": 468.454,
+            "predicted_per_second": 2.1346813134267184
+          },
+          "answer": {
+            "content": "NEW_CACHE_OK",
+            "calls": []
+          },
+          "finishReason": "stop"
+        }
+      ],
+      "passed": true,
+      "sameAutoNoneTemplate": true,
+      "snapshots": [
+        {
+          "name": "pideck-bonsai2-9b-2e48a31dc6d1bcfb4e9eb0d2.bin",
+          "bytes": 61840744
+        }
+      ],
+      "restartComparison": {
+        "fullWallMs": 123289.6592035,
+        "restoredWallMs": 12408.842267,
+        "wallSpeedup": 9.935629493121674,
+        "fullPromptTokens": 305,
+        "restoredPromptTokens": 26
+      },
+      "finishedAt": "2026-10-17T09:40:53.853Z",
+      "nativeLaunches": 5
+    }
+  ],
+  "passed": true
+}

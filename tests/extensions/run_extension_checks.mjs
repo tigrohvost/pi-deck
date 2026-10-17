@@ -347,6 +347,19 @@ try {
 		"a missing snapshot was rebuilt although an in-memory checkpoint already covered the prefix");
 	assert.equal(await localCache.warmPrefixSnapshot({ post: async () => ({ status: 501, json: {} }) },
 		snapshotPayload, "x.bin", true), "unsupported");
+	for (const throws of [false, true]) {
+		const slots = fakeSlots(new Set());
+		const saveFailure = { post: async (path, body) => {
+			if (path === "/slots/0?action=save") {
+				if (throws) throw new Error("save connection closed");
+				return { status: 500, json: { error: "cache directory full" } };
+			}
+			return slots.post(path, body);
+		} };
+		assert.equal(await localCache.warmPrefixSnapshot(saveFailure, snapshotPayload, "x.bin", true), "warmed",
+			"a failed disk save discarded the already evaluated live prefix");
+		assert.equal(slots.calls.filter((path) => path === "/completion").length, 1);
+	}
 	assert.equal(localCache.loopbackSlotClient("https://api.example.com/v1", "k"), undefined,
 		"slot requests may only reach the app-owned loopback server");
 	assert.notEqual(localCache.loopbackSlotClient("http://127.0.0.1:8080/v1", "k"), undefined);
@@ -386,6 +399,59 @@ try {
 		hookCalls.length = 0;
 		assert.equal((await secondProcess({ ...snapshotPayload, messages: [...snapshotPayload.messages, { role: "assistant", content: "A" }] })).cache_prompt, true);
 		assert.deepEqual(hookCalls, [], "a growing session touched slot snapshots again");
+		// Context pruning rewrites history within the same session. Only the exact saved
+		// system+tools prefix is safe to recover; no old conversation state may survive.
+		hookCalls.length = 0;
+		const pruned = { ...snapshotPayload, messages: [snapshotPayload.messages[0],
+			{ role: "user", content: "Pruned history" }] };
+		assert.equal((await secondProcess(pruned)).cache_prompt, true);
+		assert.deepEqual(hookCalls, ["/slots/0?action=restore"], "a rewritten history re-evaluated the saved prefix");
+		hookCalls.length = 0;
+		const changedTools = { ...pruned, tools: [{ type: "function", function: { name: "new_tool" } }] };
+		assert.equal((await secondProcess(changedTools)).cache_prompt, false,
+			"a changed tool schema reused another contract's snapshot");
+		assert.deepEqual(hookCalls, ["/slots/0?action=restore"], "a mid-session miss evaluated an extra prefix");
+		hookCalls.length = 0;
+		assert.equal((await secondProcess(pruned)).cache_prompt, true, "returning to a saved contract lost its prefix");
+		assert.deepEqual(hookCalls, ["/slots/0?action=restore"]);
+		hookCalls.length = 0;
+		assert.equal((await secondProcess({ ...pruned, messages: [{ role: "system", content: "Different system" }, pruned.messages[1]] })).cache_prompt, false);
+		assert.deepEqual(hookCalls, ["/slots/0?action=restore"], "a system change created a snapshot mid-session");
+		hookCalls.length = 0;
+		assert.equal((await secondProcess({ ...pruned, messages: [pruned.messages[1]] })).cache_prompt, false);
+		assert.deepEqual(hookCalls, [], "a payload without a system message tried to recover a prefix");
+		const workingFetch = globalThis.fetch;
+		globalThis.fetch = async () => { throw new Error("server unavailable"); };
+		assert.equal((await secondProcess(pruned)).cache_prompt, false, "a failed restore reused unknown state");
+		globalThis.fetch = workingFetch;
+		// A save failure leaves a usable live prefix; the provider must not prefill it again.
+		served.clear();
+		globalThis.fetch = async (url, init) => String(url).endsWith("/slots/0?action=save")
+			? { status: 500, json: async () => ({ error: "cache directory full" }) }
+			: workingFetch(url, init);
+		assert.equal((await startProcess()(snapshotPayload)).cache_prompt, true);
+		globalThis.fetch = workingFetch;
+		// The user can abort a long prefix warm-up, including before the real provider fetch.
+		const controller = new AbortController();
+		snapshotContext.signal = controller.signal;
+		hookCalls.length = 0;
+		globalThis.fetch = async (url, init) => {
+			if (!String(url).endsWith("/completion")) return workingFetch(url, init);
+			return new Promise((_resolve, reject) => {
+				init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
+				controller.abort(new Error("user stopped warm-up"));
+			});
+		};
+		const cancelledProcess = startProcess();
+		assert.equal((await cancelledProcess(snapshotPayload)).cache_prompt, false,
+			"an aborted warm-up authorized unknown recurrent state");
+		assert.ok(controller.signal.aborted);
+		assert.ok(!hookCalls.includes("/slots/0?action=save"), "an aborted warm-up saved incomplete state");
+		globalThis.fetch = workingFetch;
+		delete snapshotContext.signal;
+		hookCalls.length = 0;
+		assert.equal((await cancelledProcess(snapshotPayload)).cache_prompt, true);
+		assert.ok(hookCalls.includes("/completion"), "a cancelled request was treated as a growing live conversation");
 		process.env.PIDECK_SLOT_SNAPSHOTS = "0";
 		hookCalls.length = 0;
 		assert.equal((await startProcess()(snapshotPayload)).cache_prompt, false);

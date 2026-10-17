@@ -143,8 +143,30 @@ def adaptive_thinking_enabled(model: dict[str, Any]) -> bool:
     )
 
 
+PRISM_PREFIX_ARTIFACTS = {
+    "bonsai2-4b": "56711263ec9a9ffeaa74a3a0e58dece8127cf9268404746c721113ca76994d60",
+    "bonsai2-9b": "3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b",
+}
+
+
+def _verified_prism_prefix(model: dict[str, Any]) -> bool:
+    """Exact text-only GGUF/runtime pairs exercised by the host prefix-cache probe."""
+    if not isinstance(model, dict) or not isinstance(model.get("id"), str):
+        return False
+    artifact, runtime = model.get("artifact"), model.get("runtime")
+    return (
+        isinstance(artifact, dict) and isinstance(runtime, dict)
+        and model["id"] in PRISM_PREFIX_ARTIFACTS
+        and artifact.get("sha256") == PRISM_PREFIX_ARTIFACTS[model["id"]]
+        and runtime.get("serverFlavor") == "prism"
+        and runtime.get("minimumLlamaCppVersion") == "prism-842b188"
+    )
+
+
 def stable_tool_choice_prefix(model: dict[str, Any]) -> bool:
-    """Exact GGUF/runtime pairs whose auto/none rendered prompts were checked on device."""
+    """Exact GGUF/runtime pairs with identical auto/none rendered prompts."""
+    if _verified_prism_prefix(model):
+        return True
     verified = {
         "lfm2.5-2.6b-qad": (
             "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
@@ -188,6 +210,19 @@ def cross_session_prefix(model: dict[str, Any]) -> bool:
     return (
         runtime.get("serverFlavor"), runtime.get("minimumLlamaCppVersion")
     ) in CROSS_SESSION_PREFIX_RUNTIMES
+
+
+def slot_snapshots(model: dict[str, Any]) -> bool:
+    """Saved exact-prefix restore is separate from live cross-session checkpoints.
+
+    Stock b10092 has handset evidence. Bonsai 2 4B/9B on the pinned Prism fork
+    have host restart, tool-result and rewritten-history checks at context 4096;
+    their Android speed remains unmeasured. Keep other Prism artifacts disabled.
+    Mirrors ModelSpec.supportsSlotSnapshots().
+    """
+    return cross_session_prefix(model) or (
+        _verified_prism_prefix(model) and model["runtime"].get("recommendedContext") == 4096
+    )
 
 
 def _project_settings_state(value: os.stat_result) -> tuple[int, int, int, int, int]:

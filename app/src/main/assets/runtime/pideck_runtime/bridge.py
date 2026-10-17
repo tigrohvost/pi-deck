@@ -50,6 +50,7 @@ from .model_store import (
     adaptive_thinking_enabled,
     stable_tool_choice_prefix,
     cross_session_prefix,
+    slot_snapshots,
     ensure_pi_compaction_settings,
     model_by_id,
 )
@@ -1422,7 +1423,7 @@ class PiRpcChild:
             "1" if cross_session_prefix(model) else "0"
         )
         # The app starts that server with --slot-save-path; snapshots are keyed by the exact GGUF.
-        environment["PIDECK_SLOT_SNAPSHOTS"] = environment["PIDECK_CROSS_SESSION_PREFIX"]
+        environment["PIDECK_SLOT_SNAPSHOTS"] = "1" if slot_snapshots(model) else "0"
         environment["PIDECK_MODEL_SHA256"] = str(model["artifact"]["sha256"])
         environment.update(system_prompt_environment(config, SYSTEM_PROMPT_FILE))
         # The anchored-edit tool is one tool across two profiles that disagree about

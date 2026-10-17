@@ -1,0 +1,251 @@
+{
+  "startedAt": "2026-10-08T13:38:25.350789+00:00",
+  "label": "lfm26-b10828",
+  "modelSha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+  "harnessVersion": 2,
+  "qualityMaxTokens": 512,
+  "requestReasoningBudget": null,
+  "mode": "speed",
+  "thinking": "on",
+  "device": "SM-S918B",
+  "execution": "adb shell inference; bounded synthetic tools; not app admission",
+  "minimumFrequencyHeadroom": 0.01,
+  "sampling": {
+    "temperature": 0,
+    "topP": 1,
+    "topK": 40,
+    "seed": 42
+  },
+  "samples": [
+    {
+      "seconds": 12.201,
+      "firstOutputSeconds": 1.6172020719968714,
+      "firstTextSeconds": 9.427984407997428,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 114,
+        "prompt_ms": 1586.996,
+        "prompt_per_token_ms": 13.92101754385965,
+        "prompt_per_second": 71.83382944884549,
+        "predicted_n": 192,
+        "predicted_ms": 10577.518,
+        "predicted_per_token_ms": 55.37967539267016,
+        "predicted_per_second": 18.057166151832597
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "Программы читают файлы с помощью операций ввода-вывода, которые обычно предоставляются операционной системой. Когда программа начинает работу с файлом, она открывает его в",
+        "reasoning_content": "The user wants a detailed explanation in Russian about how programs read files, modify lines, and test results with tests. The response must be at least 400 words, in Russian, and concise (but not too short). I need to cover:\n1. How programs read files (opening, reading, buffering, etc.)\n2. How they modify lines (writing, editing, in-place vs new file)\n3. How they test results (unit tests, assertions, etc.)\n\nI should write a comprehensive answer in Russian, ensuring it's at least 400 words. I'll structure it clearly with paragraphs. No tool use needed for this task as it's a theoretical explanation. Let me write the response."
+      },
+      "index": 0,
+      "warmup": true,
+      "thermalBefore": {
+        "at": "2026-10-08T13:38:36.332274+00:00",
+        "hottestZone": "cpu-1-5",
+        "hottestMilliCelsius": 58000,
+        "maxFrequencyHeadroom": 0.6629
+      },
+      "thermalAfter": {
+        "at": "2026-10-08T13:38:50.723118+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 81300,
+        "maxFrequencyHeadroom": 0.6629
+      },
+      "memory": {
+        "VmHWM": 1982316,
+        "VmRSS": 1982260,
+        "RssAnon": 1973776,
+        "RssFile": 8120,
+        "VmSwap": 0
+      },
+      "valid": true
+    },
+    {
+      "seconds": 14.577,
+      "firstOutputSeconds": 2.438410663002287,
+      "firstTextSeconds": null,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 114,
+        "prompt_ms": 2412.857,
+        "prompt_per_token_ms": 21.165412280701755,
+        "prompt_per_second": 47.246894449194464,
+        "predicted_n": 192,
+        "predicted_ms": 12136.577,
+        "predicted_per_token_ms": 63.54228795811518,
+        "predicted_per_second": 15.737551040956607
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "The user wants a detailed explanation in Russian about how programs read files, modify lines, and test the results with tests. The response must be at least 400 words, in Russian, and should be accurate and not fabricated. I need to provide a comprehensive explanation covering:\n\n1. How programs read files (opening, reading, buffering, etc.)\n2. How they modify lines (writing, editing, in-place vs. new files)\n3. How they test the results (unit tests, integration tests, verification)\n\nI should write at least 400 words. Let me structure the response:\n\n- Introduction (brief)\n- File reading process\n- Line modification techniques\n- Testing methods\n- Conclusion\n\nMake sure it's in Russian, natural, and meets the word count. I'll count words roughly. Aim for ~450-500 words.\n\nLet me draft:\n\n\"Программы читают файлы, изменяют"
+      },
+      "index": 1,
+      "warmup": false,
+      "thermalBefore": {
+        "at": "2026-10-08T13:38:59.516701+00:00",
+        "hottestZone": "cpu-0-1",
+        "hottestMilliCelsius": 58500,
+        "maxFrequencyHeadroom": 0.7371
+      },
+      "thermalAfter": {
+        "at": "2026-10-08T13:39:16.160841+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 80900,
+        "maxFrequencyHeadroom": 0.6971
+      },
+      "memory": {
+        "VmHWM": 1987976,
+        "VmRSS": 1987976,
+        "RssAnon": 1979492,
+        "RssFile": 8120,
+        "VmSwap": 0
+      },
+      "valid": true
+    },
+    {
+      "seconds": 14.106,
+      "firstOutputSeconds": 1.885348226998758,
+      "firstTextSeconds": 10.864301150999381,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 114,
+        "prompt_ms": 1860.301,
+        "prompt_per_token_ms": 16.318429824561402,
+        "prompt_per_second": 61.280405697787614,
+        "predicted_n": 192,
+        "predicted_ms": 12220.046,
+        "predicted_per_token_ms": 63.97929842931937,
+        "predicted_per_second": 15.630055729741114
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "Программы читают файлы с помощью операций ввода-вывода, которые обычно предоставляются операционной системой. Основной процесс состоит из открытия файла, чтения его содержимого и",
+        "reasoning_content": "The user wants a detailed explanation in Russian about how programs read files, modify lines, and test results with tests. The response must be at least 400 words, in Russian, and concise (but not too short). I need to cover:\n1. How programs read files (opening, reading, buffering, etc.)\n2. How they modify lines (writing, editing, in-place vs new file)\n3. How they test results (unit tests, assertions, etc.)\n\nI should use the available tools if needed, but this is a general knowledge question. I can answer directly without tool use. Let me write a comprehensive response in Russian, ensuring it's at least 400 words."
+      },
+      "index": 2,
+      "warmup": false,
+      "thermalBefore": {
+        "at": "2026-10-08T13:39:25.407190+00:00",
+        "hottestZone": "cpu-0-0",
+        "hottestMilliCelsius": 55300,
+        "maxFrequencyHeadroom": 0.7371
+      },
+      "thermalAfter": {
+        "at": "2026-10-08T13:39:41.644023+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 82100,
+        "maxFrequencyHeadroom": 0.6629
+      },
+      "memory": {
+        "VmHWM": 1993696,
+        "VmRSS": 1993692,
+        "RssAnon": 1985208,
+        "RssFile": 8120,
+        "VmSwap": 0
+      },
+      "valid": true
+    },
+    {
+      "seconds": 14.04,
+      "firstOutputSeconds": 1.5458227199997054,
+      "firstTextSeconds": null,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 114,
+        "prompt_ms": 1516.638,
+        "prompt_per_token_ms": 13.303842105263158,
+        "prompt_per_second": 75.16625588967176,
+        "predicted_n": 192,
+        "predicted_ms": 12492.611,
+        "predicted_per_token_ms": 65.40634031413613,
+        "predicted_per_second": 15.289037655939177
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "The user wants a detailed explanation in Russian about how programs read files, modify lines, and test results with tests. The response must be at least 400 words, in Russian, and should be accurate and not fabricated. I need to provide a comprehensive explanation covering:\n1. How programs read files (opening, reading, buffering, etc.)\n2. How they modify lines (writing, editing, in-place vs new files)\n3. How they test results (unit tests, assertions, etc.)\n\nI should write at least 400 words. Let me structure the response clearly.\n\nKey points to cover:\n- File I/O basics: opening files, reading in chunks or line by line\n- Modification: creating new files, in-place editing (with caution), using temporary files\n- Testing: unit tests, assertions, comparing expected vs actual output, using frameworks like pytest or unittest\n\nI'll write in Russian, ensuring the word"
+      },
+      "index": 3,
+      "warmup": false,
+      "thermalBefore": {
+        "at": "2026-10-08T13:39:50.651869+00:00",
+        "hottestZone": "cpu-1-3",
+        "hottestMilliCelsius": 58800,
+        "maxFrequencyHeadroom": 0.7714
+      },
+      "thermalAfter": {
+        "at": "2026-10-08T13:40:06.731491+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 80900,
+        "maxFrequencyHeadroom": 0.6971
+      },
+      "memory": {
+        "VmHWM": 1999388,
+        "VmRSS": 1999388,
+        "RssAnon": 1990904,
+        "RssFile": 8120,
+        "VmSwap": 0
+      },
+      "valid": true
+    }
+  ],
+  "cases": [],
+  "serverSha256": "03a469c6a4f72670b4c7087ac403ad59fc21ee8edb00653afb07020616294ab1",
+  "thermalBeforeLoad": {
+    "at": "2026-10-08T13:38:30.161147+00:00",
+    "hottestZone": "cpuss-0",
+    "hottestMilliCelsius": 56800,
+    "maxFrequencyHeadroom": 0.6629
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf",
+    "--alias",
+    "lfm26-b10828",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18081",
+    "-c",
+    "8192",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "-Crb",
+    "0-7",
+    "--cpu-strict",
+    "1",
+    "--cpu-strict-batch",
+    "1",
+    "-b",
+    "2048",
+    "-ub",
+    "512",
+    "--jinja",
+    "--reasoning",
+    "on",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--no-mmap",
+    "-ngl",
+    "0"
+  ],
+  "loadSeconds": 3.139848824001092,
+  "affinity": "Name:\tllama-b10828\nCpus_allowed_list:\t7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0-7\nName:\tllama-b10828\nCpus_allowed_list:\t0\nName:\tllama-b10828\nCpus_allowed_list:\t1\nName:\tllama-b10828\nCpus_allowed_list:\t2\nName:\tllama-b10828\nCpus_allowed_list:\t3\nName:\tllama-b10828\nCpus_allowed_list:\t4\nName:\tllama-b10828\nCpus_allowed_list:\t5\nName:\tllama-b10828\nCpus_allowed_list:\t6\nName:\tllama-b10828\nCpus_allowed_list:\t3\nName:\tllama-b10828\nCpus_allowed_list:\t4\nName:\tllama-b10828\nCpus_allowed_list:\t5\nName:\tllama-b10828\nCpus_allowed_list:\t6\nName:\tllama-b10828\nCpus_allowed_list:\t0\nName:\tllama-b10828\nCpus_allowed_list:\t1\nName:\tllama-b10828\nCpus_allowed_list:\t2\nName:\tllama-b10828\nCpus_allowed_list:\t3\nName:\tllama-b10828\nCpus_allowed_list:\t4\nName:\tllama-b10828\nCpus_allowed_list:\t5\nName:\tllama-b10828\nCpus_allowed_list:\t6\nName:\tllama-b10828\nCpus_allowed_list:\t3\nName:\tllama-b10828\nCpus_allowed_list:\t4\nName:\tllama-b10828\nCpus_allowed_list:\t5\nName:\tllama-b10828\nCpus_allowed_list:\t6\nName:\tllama-b10828\nCpus_allowed_list:\t7\n",
+  "medianDecodeTokensPerSecond": 15.630055729741114,
+  "status": "complete",
+  "finishedAt": "2026-10-08T13:40:06.767111+00:00",
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.004.546 W DEPRECATED: --mmap and --no-mmap are deprecated. use --load-mode mmap instead\n0.00.004.887 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.005.074 W srv  llama_server: -----------------\n0.00.005.090 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set\n0.00.005.092 W srv  llama_server: this can be a security risk (cross-origin attacks)\n0.00.005.093 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655\n0.00.005.094 W srv  llama_server: -----------------\n0.00.006.551 I srv    load_model: loading model '/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf'\n0.02.710.734 I cmn          init: llama threadpool init, n_threads = 5\n0.02.960.480 I srv  attach_cpu_t: attached CPU affinity thread pools: decode=5, batch=8\n0.03.059.141 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'\n0.03.065.516 W srv          init: chat template supports preserving reasoning, it is enabled by default (may use more tokens, disable via --no-reasoning-preserve)\n0.03.065.540 I srv  llama_server: model loaded\n0.03.065.543 I srv  llama_server: listening on http://127.0.0.1:18081\n0.06.138.196 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.06.138.433 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n0.12.871.886 I slot print_timing: id  0 | task 0 | n_gen =    100, tg =  19.24 t/s, tg_3s =  19.43 t/s\n0.15.889.015 I slot print_timing: id  0 | task 0 | n_gen =    152, tg =  18.50 t/s, tg_3s =  17.23 t/s\n0.18.302.986 I slot print_timing: id  0 | task 0 | prompt eval time =    1587.00 ms /   114 tokens (   13.92 ms per token,    71.83 tokens per second)\n0.18.302.995 I slot print_timing: id  0 | task 0 |        eval time =   10577.52 ms /   192 tokens (   55.38 ms per token,    18.06 tokens per second)\n0.18.302.997 I slot print_timing: id  0 | task 0 |       total time =   12164.51 ms /   306 tokens\n0.18.302.999 I slot print_timing: id  0 | task 0 |    graphs reused =        190\n0.18.303.035 I slot      release: id  0 | task 0 | stop processing: n_tokens = 305, truncated = 0\n0.29.306.726 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.544 (> 0.100 thold), f_keep = 0.203\n0.29.317.668 I slot launch_slot_: id  0 | task 194 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb400007d87d0380d : Invalid argument (22)\n0.37.801.520 I slot print_timing: id  0 | task 194 | n_gen =    100, tg =  16.31 t/s, tg_3s =  16.47 t/s\n0.40.851.338 I slot print_timing: id  0 | task 194 | n_gen =    147, tg =  16.01 t/s, tg_3s =  15.41 t/s\n0.43.867.201 I slot print_timing: id  0 | task 194 | prompt eval time =    2412.86 ms /   114 tokens (   21.17 ms per token,    47.25 tokens per second)\n0.43.867.211 I slot print_timing: id  0 | task 194 |        eval time =   12136.58 ms /   192 tokens (   63.54 ms per token,    15.74 tokens per second)\n0.43.867.213 I slot print_timing: id  0 | task 194 |       total time =   14549.43 ms /   306 tokens\n0.43.867.214 I slot print_timing: id  0 | task 194 |    graphs reused =        379\n0.43.867.264 I slot      release: id  0 | task 194 | stop processing: n_tokens = 305, truncated = 0\n0.55.198.956 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.544 (> 0.100 thold), f_keep = 0.203\n0.55.207.169 I slot launch_slot_: id  0 | task 388 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb400007d87d0380d : Invalid argument (22)\n1.03.163.600 I slot print_timing: id  0 | task 388 | n_gen =    100, tg =  16.24 t/s, tg_3s =  16.40 t/s\n1.06.176.806 I slot print_timing: id  0 | task 388 | n_gen =    145, tg =  15.81 t/s, tg_3s =  14.93 t/s\n1.09.225.115 I slot print_timing: id  0 | task 388 | n_gen =    191, tg =  15.63 t/s, tg_3s =  15.09 t/s\n1.09.287.606 I slot print_timing: id  0 | task 388 | prompt eval time =    1860.30 ms /   114 tokens (   16.32 ms per token,    61.28 tokens per second)\n1.09.287.614 I slot print_timing: id  0 | task 388 |        eval time =   12220.05 ms /   192 tokens (   63.98 ms per token,    15.63 tokens per second)\n1.09.287.616 I slot print_timing: id  0 | task 388 |       total time =   14080.35 ms /   306 tokens\n1.09.287.617 I slot print_timing: id  0 | task 388 |    graphs reused =        568\n1.09.287.653 I slot      release: id  0 | task 388 | stop processing: n_tokens = 305, truncated = 0\n1.20.446.621 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.544 (> 0.100 thold), f_keep = 0.203\n1.20.456.148 I slot launch_slot_: id  0 | task 582 | processing task, is_child = 0\nwarn: failed to set affinity mask 0xb400007d87d0380d : Invalid argument (22)\n1.28.198.267 I slot print_timing: id  0 | task 582 | n_gen =    100, tg =  15.90 t/s, tg_3s =  16.06 t/s\n1.31.239.959 I slot print_timing: id  0 | task 582 | n_gen =    145, tg =  15.54 t/s, tg_3s =  14.79 t/s\n1.34.262.030 I slot print_timing: id  0 | task 582 | n_gen =    189, tg =  15.30 t/s, tg_3s =  14.56 t/s\n1.34.465.515 I slot print_timing: id  0 | task 582 | prompt eval time =    1516.64 ms /   114 tokens (   13.30 ms per token,    75.17 tokens per second)\n1.34.465.524 I slot print_timing: id  0 | task 582 |        eval time =   12492.61 ms /   192 tokens (   65.41 ms per token,    15.29 tokens per second)\n1.34.465.525 I slot print_timing: id  0 | task 582 |       total time =   14009.25 ms /   306 tokens\n1.34.465.527 I slot print_timing: id  0 | task 582 |    graphs reused =        757\n1.34.465.571 I slot      release: id  0 | task 582 | stop processing: n_tokens = 305, truncated = 0\n"
+}
