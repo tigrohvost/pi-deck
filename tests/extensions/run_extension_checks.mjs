@@ -26,6 +26,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
+import { createServer } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -371,16 +372,26 @@ try {
 	const realFetch = globalThis.fetch;
 	const served = new Set();
 	const hookCalls = [];
-	globalThis.fetch = async (url, init) => {
-		const path = String(url).replace("http://127.0.0.1:8080", "");
+	let serveSlot = async (path, body) => {
 		hookCalls.push(path);
-		assert.equal(init.headers.Authorization, "Bearer secret", "the server key was not sent");
-		const response = await fakeSlots(served).post(path, JSON.parse(init.body));
-		return { status: response.status, json: async () => response.json };
+		return fakeSlots(served).post(path, body);
 	};
+	const server = createServer(async (request, response) => {
+		try {
+			assert.equal(request.headers.authorization, "Bearer secret", "the server key was not sent");
+			let body = "";
+			for await (const chunk of request) body += chunk;
+			const result = await serveSlot(request.url, JSON.parse(body), response);
+			if (result === undefined) return;
+			response.writeHead(result.status, { "Content-Type": "application/json" });
+			response.end(JSON.stringify(result.json));
+		} catch { response.destroy(); }
+	});
+	await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+	const slotUrl = `http://127.0.0.1:${server.address().port}/v1`;
 	try {
 		const snapshotContext = {
-			model: { baseUrl: "http://127.0.0.1:8080/v1" },
+			model: { baseUrl: slotUrl },
 			modelRegistry: { getApiKeyAndHeaders: async () => ({ ok: true, apiKey: "secret" }) },
 		};
 		const startProcess = () => {
@@ -420,34 +431,34 @@ try {
 		hookCalls.length = 0;
 		assert.equal((await secondProcess({ ...pruned, messages: [pruned.messages[1]] })).cache_prompt, false);
 		assert.deepEqual(hookCalls, [], "a payload without a system message tried to recover a prefix");
-		const workingFetch = globalThis.fetch;
-		globalThis.fetch = async () => { throw new Error("server unavailable"); };
+		const workingServe = serveSlot;
+		serveSlot = async () => { throw new Error("server unavailable"); };
 		assert.equal((await secondProcess(pruned)).cache_prompt, false, "a failed restore reused unknown state");
-		globalThis.fetch = workingFetch;
+		serveSlot = workingServe;
 		// A save failure leaves a usable live prefix; the provider must not prefill it again.
 		served.clear();
-		globalThis.fetch = async (url, init) => String(url).endsWith("/slots/0?action=save")
-			? { status: 500, json: async () => ({ error: "cache directory full" }) }
-			: workingFetch(url, init);
+		serveSlot = async (path, body) => path === "/slots/0?action=save"
+			? { status: 500, json: { error: "cache directory full" } }
+			: workingServe(path, body);
 		assert.equal((await startProcess()(snapshotPayload)).cache_prompt, true);
-		globalThis.fetch = workingFetch;
+		serveSlot = workingServe;
 		// The user can abort a long prefix warm-up, including before the real provider fetch.
 		const controller = new AbortController();
 		snapshotContext.signal = controller.signal;
 		hookCalls.length = 0;
-		globalThis.fetch = async (url, init) => {
-			if (!String(url).endsWith("/completion")) return workingFetch(url, init);
-			return new Promise((_resolve, reject) => {
-				init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
-				controller.abort(new Error("user stopped warm-up"));
-			});
+		let closedWarmup;
+		serveSlot = async (path, body, response) => {
+			if (path !== "/completion") return workingServe(path, body);
+			closedWarmup = new Promise(resolve => response.on("close", resolve));
+			controller.abort(new Error("user stopped warm-up"));
 		};
 		const cancelledProcess = startProcess();
 		assert.equal((await cancelledProcess(snapshotPayload)).cache_prompt, false,
 			"an aborted warm-up authorized unknown recurrent state");
 		assert.ok(controller.signal.aborted);
+		await closedWarmup;
 		assert.ok(!hookCalls.includes("/slots/0?action=save"), "an aborted warm-up saved incomplete state");
-		globalThis.fetch = workingFetch;
+		serveSlot = workingServe;
 		delete snapshotContext.signal;
 		hookCalls.length = 0;
 		assert.equal((await cancelledProcess(snapshotPayload)).cache_prompt, true);
@@ -456,8 +467,24 @@ try {
 		hookCalls.length = 0;
 		assert.equal((await startProcess()(snapshotPayload)).cache_prompt, false);
 		assert.deepEqual(hookCalls, [], "snapshots ran without their runtime gate");
+		// Exercise delayed headers through real sockets without depending on global fetch.
+		// The optional probe_slot_http_timeout.mjs reproduces the actual 300 s boundary.
+		globalThis.fetch = () => { throw new Error("independent fetch headers timeout"); };
+		serveSlot = async () => {
+			await new Promise(resolve => setTimeout(resolve, 100));
+			return { status: 200, json: { delayed: true } };
+		};
+		const client = localCache.loopbackSlotClient(slotUrl, "secret");
+		assert.deepEqual(await client.post("/completion", {}), { status: 200, json: { delayed: true } });
+		serveSlot = async (_path, _body, response) => {
+			response.writeHead(200);
+			response.end("x".repeat(2 * 1024 * 1024 + 1));
+		};
+		await assert.rejects(client.post("/completion", {}), /size limit/u);
 	} finally {
 		globalThis.fetch = realFetch;
+		server.closeAllConnections();
+		await new Promise(resolve => server.close(resolve));
 		delete process.env.PIDECK_CROSS_SESSION_PREFIX;
 		delete process.env.PIDECK_SLOT_SNAPSHOTS;
 		delete process.env.PIDECK_MODEL_SHA256;

@@ -9,6 +9,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { request as httpRequest } from "node:http";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -21,6 +22,7 @@ const USER_TURN_MARKERS = [
 	"[INST]",
 ];
 const SLOT_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
+const MAX_SLOT_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 /**
  * The rendered text two prompts with different user messages share, cut before the user-turn
@@ -109,23 +111,42 @@ export function loopbackSlotClient(
 	return {
 		async post(path, body) {
 			signal?.throwIfAborted();
-			const timeout = AbortSignal.timeout(SLOT_REQUEST_TIMEOUT_MS);
-			const response = await fetch(root + path, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-				},
-				body: JSON.stringify(body),
-				signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+			// A cold 9B prefix can take more than five minutes on a warm phone. Node's
+			// fetch has an independent 300 s headers timeout, even with a 600 s signal;
+			// it can cancel the warm-up and force the real request to prefill again.
+			// Core HTTP gives this loopback request one explicit, cancellable deadline.
+			return new Promise<SlotResponse>((resolveResponse, reject) => {
+				const encoded = JSON.stringify(body);
+				const request = httpRequest(root + path, {
+					method: "POST", signal, agent: false,
+					headers: {
+						"Content-Type": "application/json",
+						"Content-Length": Buffer.byteLength(encoded),
+						...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+					},
+				}, response => {
+					const chunks: Buffer[] = [];
+					let bytes = 0;
+					response.on("data", (chunk: Buffer) => {
+						bytes += chunk.length;
+						if (bytes > MAX_SLOT_RESPONSE_BYTES) {
+							response.destroy(new Error("Local slot response exceeded its size limit"));
+						} else chunks.push(chunk);
+					});
+					response.on("error", reject);
+					response.on("end", () => {
+						let json: unknown;
+						try { json = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
+						catch { json = undefined; }
+						resolveResponse({ status: response.statusCode ?? 0, json });
+					});
+				});
+				const timer = setTimeout(() => request.destroy(new Error("Local slot request timed out")),
+					SLOT_REQUEST_TIMEOUT_MS);
+				request.on("close", () => clearTimeout(timer));
+				request.on("error", reject);
+				request.end(encoded);
 			});
-			let json: unknown;
-			try {
-				json = await response.json();
-			} catch {
-				json = undefined;
-			}
-			return { status: response.status, json };
 		},
 	};
 }
