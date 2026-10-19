@@ -443,6 +443,18 @@ public final class DeckPreferences {
         return id;
     }
 
+    public void clearSessionHistory() {
+        SharedPreferences.Editor editor = prefs.edit()
+                .remove(KEY_TRANSCRIPT).remove(KEY_PLAN_LEDGER)
+                .putString(KEY_SESSION_ID, SessionId.create().toString())
+                .putBoolean(KEY_HAS_SESSION, false);
+        for (String key : prefs.getAll().keySet()) {
+            if (key.startsWith("session_alias_")) editor.remove(key);
+        }
+        editor.apply();
+        clearBridgeCursor();
+    }
+
     /**
      * The bridge event cursor advances on every streamed event. It lives in its own tiny file so
      * each acknowledgement rewrites a few bytes instead of every other deck preference.

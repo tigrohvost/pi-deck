@@ -4355,6 +4355,89 @@ class SessionListingTestCase(unittest.TestCase):
         self.assertEqual(0, listing["totalBytes"])
         self.assertFalse(listing["totalBytesPartial"])
 
+    def test_current_pi_filename_and_nested_message_have_resumable_id_and_title(self) -> None:
+        session_id = session_v7()
+        entry = common.BASE / "sessions" / f"2026-10-19T10-20-30-000Z_{session_id}.jsonl"
+        entry.write_text(json.dumps({"type": "message", "message": {
+            "role": "user", "content": [{"type": "text", "text": "my project"}]
+        }}) + "\n", encoding="utf-8")
+        session = launcher.list_sessions()["sessions"][0]
+        self.assertEqual(session_id, session["id"])
+        self.assertEqual("my project", session["title"])
+        self.assertEqual(1, launcher.archive_session({"sessionId": session_id})["archivedEntries"])
+        self.assertFalse(entry.exists())
+
+    def test_clear_history_stops_writer_and_deletes_archive_without_following_symlinks(self) -> None:
+        sentinel = common.BASE / "workspace" / "keep.txt"
+        sentinel.write_text("keep", encoding="utf-8")
+        history = common.BASE / "sessions" / "current.jsonl"
+        history.write_text("private conversation", encoding="utf-8")
+        (common.BASE / "sessions" / "linked-workspace").symlink_to(sentinel.parent, target_is_directory=True)
+        archived = common.BASE / "session-archive" / "old"
+        archived.mkdir()
+        (archived / "history.jsonl").write_text("archived conversation", encoding="utf-8")
+        for path in (bridge.EVENT_JOURNAL, bridge.SESSION_CHECKPOINT, bridge.AUDIT_LOG):
+            path.write_text("conversation residue", encoding="utf-8")
+        (common.BASE / "tool-results" / "read.txt").write_text("old tool output", encoding="utf-8")
+
+        def stopped():
+            self.assertTrue(history.exists(), "history was deleted before writer shutdown")
+            return {"state": "STOPPED"}
+
+        with mock.patch.object(bridge, "_stop_bridge_locked", side_effect=stopped):
+            result = bridge.clear_session_history()
+            self.assertTrue(result["historyDeleted"])
+        with mock.patch.object(bridge, "_stop_bridge_locked"):
+            bridge.clear_session_history()  # Idempotent after application/recovery retry.
+        self.assertEqual("keep", sentinel.read_text(encoding="utf-8"))
+        for name in ("sessions", "session-archive", "tool-results"):
+            self.assertEqual([], list((common.BASE / name).iterdir()))
+        self.assertFalse(bridge.EVENT_JOURNAL.exists())
+        self.assertFalse(bridge.SESSION_CHECKPOINT.exists())
+        self.assertFalse(bridge.AUDIT_LOG.exists())
+
+    def test_clear_history_refuses_unconfirmed_shutdown_without_deleting_anything(self) -> None:
+        entry = common.BASE / "sessions" / "keep.jsonl"
+        entry.write_text("keep", encoding="utf-8")
+        with mock.patch.object(bridge, "_stop_bridge_locked", side_effect=common.PiDeckError(
+                "BRIDGE_STOP_UNCONFIRMED", "still running")):
+            with self.assertRaises(common.PiDeckError):
+                bridge.clear_session_history()
+        self.assertEqual("keep", entry.read_text(encoding="utf-8"))
+
+    def test_clear_history_unlinks_root_symlink_instead_of_deleting_target(self) -> None:
+        archive = common.BASE / "session-archive"
+        archive.rmdir()
+        archive.symlink_to(common.BASE / "workspace", target_is_directory=True)
+        sentinel = common.BASE / "workspace" / "keep"
+        sentinel.write_text("keep", encoding="utf-8")
+        with mock.patch.object(bridge, "_stop_bridge_locked"):
+            bridge.clear_session_history()
+        self.assertTrue(sentinel.is_file())
+        self.assertTrue(archive.is_dir())
+        self.assertFalse(archive.is_symlink())
+
+    def test_clear_dispatch_requires_explicit_boolean_confirmation(self) -> None:
+        with mock.patch.object(launcher, "clear_session_history") as clear:
+            for request in ({}, {"confirmDelete": "true"}, {"confirmDelete": False}):
+                with mock.patch.object(launcher, "read_stdin_json", return_value=request):
+                    with self.assertRaises(common.PiDeckError) as raised:
+                        launcher.dispatch("clear-sessions")
+                    self.assertEqual("CONFIRMATION_REQUIRED", raised.exception.code)
+            clear.assert_not_called()
+
+    def test_clear_history_preserves_data_while_one_shot_agent_is_alive(self) -> None:
+        entry = common.BASE / "sessions" / "keep.jsonl"
+        entry.write_text("keep", encoding="utf-8")
+        common.atomic_write_json(common.BASE / "processes" / "agent-test.json", {"pid": 123})
+        with mock.patch.object(bridge, "process_alive", return_value=True), \
+                mock.patch.object(bridge, "_stop_bridge_locked") as stop:
+            with self.assertRaises(common.PiDeckError) as raised:
+                bridge.clear_session_history()
+            self.assertEqual("AGENT_BUSY", raised.exception.code)
+            stop.assert_not_called()
+        self.assertEqual("keep", entry.read_text(encoding="utf-8"))
+
     def test_listing_titles_a_session_from_its_first_user_message(self) -> None:
         identifier = str(uuid.uuid4())
         transcript = common.BASE / "sessions" / f"{identifier}.jsonl"

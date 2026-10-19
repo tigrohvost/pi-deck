@@ -210,6 +210,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private boolean recoveryProbeInFlight;
     private String currentApprovalId;
     private String observedBridgeInstance;
+    private String clearedHistoryBridgeInstance;
+    private boolean clearingSessionHistory;
     private String pendingModelDocumentId;
     private String pendingDiagnosticReport;
     private SessionContextUsage contextUsage;
@@ -291,6 +293,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         bridgeTokenStore = new BridgeTokenStore(this);
         rpc = new RpcBridgeClient(bridgeTokenStore.getOrCreate());
         observedBridgeInstance = prefs.bridgeInstanceId();
+        OperationRecord restoredOperation = operations.active();
+        clearingSessionHistory = restoredOperation != null
+                && restoredOperation.kind == OperationKind.CLEAR_SESSIONS;
+        if (clearingSessionHistory) clearedHistoryBridgeInstance = observedBridgeInstance;
 
         getWindow().setSoftInputMode(
                 WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
@@ -1556,6 +1562,46 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                             "Сессию не удалось архивировать.\n", "Could not archive the session.\n"
                     ) + runtimeError(result));
                 }
+            }
+            case CLEAR_SESSIONS -> {
+                clearingSessionHistory = false;
+                if (runtimeState(result, "READY")) {
+                    bridgeReady = false;
+                    bridgeConnected = false;
+                    bridgeFault = "";
+                    prefs.clearSessionHistory();
+                    planLedger = PlanLedger.empty();
+                    deck.setPlanLedger(planLedger);
+                    contextUsage = SessionContextUsage.empty(selectedModel.recommendedContext);
+                    smartCompactionAttemptSession = null;
+                    smartCompactionAttemptTokens = -1L;
+                    deck.setGenerationSpeed(null);
+                    clearConsole();
+                    transcript.flush();
+                    sessions = new JSONArray();
+                    sessionCount = 0;
+                    sessionBytes = 0L;
+                    sessionBytesPartial = false;
+                    sessionsFault = "";
+                    sessionsRequested = true;
+                    try {
+                        operationStore.clearCompletedHistory(result.operationId);
+                        appendStatus(t("История сессий удалена.", "Session history deleted."));
+                    } catch (RuntimeException error) {
+                        append(ConsoleEntry.Channel.ERROR, t(
+                                "Сессии удалены, но журнал операций очистить не удалось: ",
+                                "Sessions deleted, but the operation history could not be cleared: "
+                        ) + readableException(error));
+                    }
+                    if (serverReady) main.post(this::startBridge);
+                } else {
+                    clearedHistoryBridgeInstance = null;
+                    append(ConsoleEntry.Channel.ERROR, t(
+                            "Очистка не завершилась. Часть истории могла остаться.\n",
+                            "Clearing did not finish. Some history may remain.\n"
+                    ) + runtimeError(result));
+                }
+                setBusy(false, null);
             }
             case ABORT_AGENT -> {
                 if (result.isSuccess()) {
@@ -3893,12 +3939,54 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
     }
 
+    private void confirmClearSessions() {
+        if (!canClearSessions()) return;
+        new AlertDialog.Builder(this)
+                .setTitle(t("Удалить все сессии?", "Delete all sessions?"))
+                .setMessage(t(
+                        "История всех сессий, включая текущую и архив, будет удалена без "
+                                + "возможности восстановления. Откроется пустая сессия.",
+                        "All session history, including the current session and archive, will be "
+                                + "permanently deleted. An empty session will open."
+                ))
+                .setNegativeButton(t("Отмена", "Cancel"), null)
+                .setPositiveButton(t("Удалить всё", "Delete all"), (dialog, which) -> {
+                    // A turn can start while the confirmation is open: check again at commit.
+                    if (!canClearSessions()) return;
+                    dispatchOperation(
+                            OperationKind.CLEAR_SESSIONS,
+                            json("confirmDelete", true),
+                            t("Удаляю историю сессий", "Deleting session history"),
+                            operationId -> {
+                                clearingSessionHistory = true;
+                                clearedHistoryBridgeInstance = observedBridgeInstance;
+                                bridgeReady = false;
+                                try {
+                                    termux.runRuntime(operationId, OperationKind.CLEAR_SESSIONS,
+                                            "clear-sessions", "{\"confirmDelete\":true}");
+                                } catch (RuntimeException error) {
+                                    clearingSessionHistory = false;
+                                    clearedHistoryBridgeInstance = null;
+                                    throw error;
+                                }
+                            }
+                    );
+                })
+                .show();
+    }
+
+    private boolean canClearSessions() {
+        return !busy && queuedPrompt == null && prefs.isCoreReady()
+                && runtimeAssetsCurrent() && termuxEnvironment.canRunCommands();
+    }
+
     private void renderSessionsRoot() {
         SessionsScreen.Input input = new SessionsScreen.Input();
         input.sessions = sessions;
         input.activeSession = prefs.sessionId();
         input.nowMs = System.currentTimeMillis();
         input.canStartNew = bridgeReady && !busy;
+        input.canClear = canClearSessions();
         input.fault = sessionsFault;
         input.requested = sessionsRequested;
         input.count = sessionCount;
@@ -3925,6 +4013,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             @Override
             public void archiveAll() {
                 archiveSessions();
+            }
+
+            @Override
+            public void clearAll() {
+                confirmClearSessions();
             }
 
             @Override
@@ -4342,8 +4435,15 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         );
     }
 
+    private boolean ignoreClearedHistory(String instanceId) {
+        return clearingSessionHistory
+                || (clearedHistoryBridgeInstance != null
+                && clearedHistoryBridgeInstance.equals(instanceId));
+    }
+
     private void handleBridgeState(JSONObject state) {
         String instanceId = state.optString("bridgeInstanceId", "");
+        if (ignoreClearedHistory(instanceId)) return;
         if (instanceId.isBlank()) return;
         bridgeDisconnectFailures = 0;
         bridgeDisconnectedSinceMs = 0L;
@@ -4490,6 +4590,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void handleBridgeGap(String instanceId, long earliestReceived) {
+        if (ignoreClearedHistory(instanceId)) return;
         // A gap invalidates the speculative preview. The terminal event remains authoritative and
         // can reconstruct the answer without promoting an incomplete row into the transcript.
         deck.discardStreaming();
@@ -4561,6 +4662,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     }
 
     private void handleBridgeEvent(BridgeEvent event, RpcCompletion completion) {
+        if (ignoreClearedHistory(event.bridgeInstanceId)) return;
         observedBridgeInstance = event.bridgeInstanceId;
         if (event.operationId != null
                 && stallState != null

@@ -41,6 +41,28 @@ public class OperationCoreTest {
     }
 
     @Test
+    public void clearingHistoryRemovesCompletedPromptsButKeepsReceiptAndActiveOperations() throws Exception {
+        OperationRecord old = store.create(OperationKind.AGENT_TURN,
+                new JSONObject().put("prompt", "old private prompt"));
+        store.transition(old.operationId, OperationState.DISPATCHED);
+        store.recordResult(new CommandResult(
+                old.operationId, old.kind, "old answer", "", 0, 0, ""));
+        OperationRecord receipt = store.create(OperationKind.CLEAR_SESSIONS, new JSONObject());
+        store.transition(receipt.operationId, OperationState.DISPATCHED);
+        store.recordResult(new CommandResult(
+                receipt.operationId, receipt.kind, "cleared", "", 0, 0, ""));
+        OperationRecord active = store.create(OperationKind.RECONCILE, new JSONObject());
+
+        store.clearCompletedHistory(receipt.operationId);
+
+        assertNull(store.load(old.operationId));
+        assertFalse(Files.exists(temporary.resolve(old.operationId + ".json")));
+        assertEquals(2, store.list().size());
+        assertEquals(receipt.operationId, store.load(receipt.operationId).operationId);
+        assertEquals(active.operationId, store.load(active.operationId).operationId);
+    }
+
+    @Test
     public void retentionTrimsToALowWaterMarkAndThenLeavesRoomWithoutScanning() {
         for (int i = 0; i < OperationStore.MAX_COMPLETED + 1; i++) {
             OperationRecord record = store.create(OperationKind.PROBE_RUNTIME, new JSONObject());

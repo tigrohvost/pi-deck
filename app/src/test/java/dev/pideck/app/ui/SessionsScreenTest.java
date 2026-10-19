@@ -26,6 +26,7 @@ public class SessionsScreenTest {
         @Override public void rename(String id, String title) { calls.add("rename " + id + " " + title); }
         @Override public void archive(String id) { calls.add("archive " + id); }
         @Override public void archiveAll() { calls.add("archiveAll"); }
+        @Override public void clearAll() { calls.add("clearAll"); }
         @Override public void newSession() { calls.add("new"); }
     };
 
@@ -49,6 +50,18 @@ public class SessionsScreenTest {
         in.aliases = Map.of(OLD, "Мой проект")::get;
         in.language = language;
         return in;
+    }
+
+    @Test
+    public void clearActionIsAvailableWithoutListedSessionsButOnlyWhenIdle() {
+        SessionsScreen.Input in = new SessionsScreen.Input();
+        assertNull(SessionsScreen.build(in, actions).onClear);
+        in.canClear = true;
+        // An empty current list can still have archived history to delete.
+        SessionsScreen.build(in, actions).onClear.run();
+        assertEquals(List.of("clearAll"), calls);
+        in.canClear = false;
+        assertNull(SessionsScreen.build(in, actions).onClear);
     }
 
     @Test

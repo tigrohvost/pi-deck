@@ -30,6 +30,8 @@ public final class SessionsScreen {
 
         void archiveAll();
 
+        void clearAll();
+
         void newSession();
     }
 
@@ -39,6 +41,7 @@ public final class SessionsScreen {
         public String activeSession = "";
         public long nowMs;
         public boolean canStartNew;
+        public boolean canClear;
         public String fault = "";
         public boolean requested;
         public int count;
@@ -55,6 +58,7 @@ public final class SessionsScreen {
         UiLanguage language = in.language;
         SessionsRootView.State state = new SessionsRootView.State();
         state.onNewSession = in.canStartNew ? actions::newSession : null;
+        state.onClear = in.canClear ? actions::clearAll : null;
 
         SessionsRootView.Group today = new SessionsRootView.Group(language.pick("Сегодня", "Today"));
         SessionsRootView.Group earlier = new SessionsRootView.Group(language.pick("Раньше", "Earlier"));

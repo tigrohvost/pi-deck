@@ -33,6 +33,36 @@ public final class ConversationLayoutDeviceTest {
             DeckStyle.TEXT_SCALES[DeckStyle.TEXT_SCALES.length - 1];
 
     @Test
+    public void clearSessionsIconFitsBesideNewAtLargestTextScale() {
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Context context = instrumentation.getTargetContext();
+        instrumentation.runOnMainSync(() -> {
+            for (UiLanguage language : UiLanguage.values()) {
+                SessionsRootView root = new SessionsRootView(context,
+                        new DeckStyle(context, Palette.deck(), MAX_TEXT_SCALE), language);
+                SessionsRootView.State state = new SessionsRootView.State();
+                int[] clicks = {0};
+                state.onNewSession = () -> { };
+                state.onClear = () -> clicks[0]++;
+                root.render(state);
+                measureAt360Dp(context, root);
+                View clear = findDescription(root, language.pick("Очистить сессии", "Clear sessions"));
+                assertNotNull(clear);
+                Rect bounds = boundsIn(root, clear);
+                assertTrue(bounds.right <= root.getWidth());
+                int target = Math.round(48f * context.getResources().getDisplayMetrics().density);
+                assertTrue(clear.getWidth() >= target && clear.getHeight() >= target);
+                clear.performClick();
+                assertEquals(1, clicks[0]);
+                state.onClear = null;
+                root.render(state);
+                assertEquals(null, findDescription(root,
+                        language.pick("Очистить сессии", "Clear sessions")));
+            }
+        });
+    }
+
+    @Test
     public void answerMetricsAndIconsShareOneRowAtLargestTextScale() {
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
         Context context = instrumentation.getTargetContext();

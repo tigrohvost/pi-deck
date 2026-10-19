@@ -18,6 +18,7 @@ public enum OperationKind {
     LIST_SESSIONS(false, 45_000L),
     ARCHIVE_SESSIONS(true, 300_000L),
     ARCHIVE_SESSION(true, 60_000L),
+    CLEAR_SESSIONS(true, 300_000L),
     RECONCILE(false, 60_000L);
 
     private final boolean mutating;

@@ -31,6 +31,7 @@ from .bridge import (
     agent_base_prompt,
     autonomous_until_ms,
     bootstrap_bridge,
+    clear_session_history,
     parse_system_prompt_request,
     persist_system_prompt,
     serve,
@@ -418,22 +419,14 @@ def _session_summary(entry: Path) -> tuple[str, int, bool]:
                     continue
                 if not isinstance(value, dict):
                     continue
-                role = value.get("role") or (value.get("message") or {}).get("role")
+                role, text = _message_role_and_text(value)
                 if not role:
                     continue
                 messages += 1
                 if title or role != "user":
                     continue
-                content = value.get("content")
-                if isinstance(content, list):
-                    parts = [
-                        part.get("text", "")
-                        for part in content
-                        if isinstance(part, dict) and part.get("type") == "text"
-                    ]
-                    content = " ".join(part for part in parts if part)
-                if isinstance(content, str) and content.strip():
-                    title = bounded_text(content.strip(), 160)
+                if text:
+                    title = bounded_text(text, 160)
     except OSError:
         return title, messages, truncated
     return title, messages, truncated
@@ -510,6 +503,16 @@ def _session_recent(entry: Path) -> list[dict[str, str]]:
     return recent[-MAX_RECENT_MESSAGES:]
 
 
+def _session_id(entry: Path) -> str:
+    name = entry.stem if entry.is_file() else entry.name
+    # Pi 0.82 writes timestamp_UUID.jsonl, while older installations used UUID.jsonl.
+    candidate = name.rsplit("_", 1)[-1]
+    try:
+        return require_session_id({"sessionId": candidate})
+    except PiDeckError:
+        return name
+
+
 def archive_session(request: dict[str, Any]) -> dict[str, Any]:
     """Moves one inactive session into the archive; nothing is deleted."""
     session_id = require_session_id(request)
@@ -523,7 +526,7 @@ def archive_session(request: dict[str, Any]) -> dict[str, Any]:
                 raise
     matches = [
         entry for entry in (source.iterdir() if source.is_dir() else [])
-        if (entry.stem if entry.is_file() else entry.name) == session_id
+        if _session_id(entry) == session_id
     ]
     if not matches:
         raise PiDeckError("SESSION_NOT_FOUND", "No saved session has this id")
@@ -566,7 +569,7 @@ def list_sessions() -> dict[str, Any]:
         title, messages, messages_truncated = _session_summary(entry)
         sessions.append(
             {
-                "id": entry.stem if entry.is_file() else entry.name,
+                "id": _session_id(entry),
                 "title": title,
                 "messages": messages,
                 "messagesTruncated": messages_truncated,
@@ -842,6 +845,11 @@ def dispatch(command: str) -> dict[str, Any]:
         return result_ok(**abort_agent(read_stdin_json()))
     if command == "archive-sessions":
         return result_ok(**archive_sessions())
+    if command == "clear-sessions":
+        request = read_stdin_json()
+        if request.get("confirmDelete") is not True:
+            raise PiDeckError("CONFIRMATION_REQUIRED", "Permanent history deletion requires confirmation")
+        return result_ok(**clear_session_history())
     if command == "list-sessions":
         return result_ok(**list_sessions())
     if command == "archive-session":

@@ -130,6 +130,21 @@ public final class OperationStore {
         return result;
     }
 
+    /** Remove old prompts/results as well as visible history; retain the clearing receipt. */
+    public void clearCompletedHistory(OperationId clearingOperation) {
+        synchronized (FILE_LOCK) {
+            for (OperationRecord record : list()) {
+                if (record.state.isTerminal() && !record.operationId.equals(clearingOperation)) {
+                    try {
+                        Files.deleteIfExists(fileFor(record.operationId).toPath());
+                    } catch (IOException error) {
+                        throw new IllegalStateException("Could not clear saved operation history", error);
+                    }
+                }
+            }
+        }
+    }
+
     public OperationRecord latestActive() {
         OperationRecord latest = null;
         for (OperationRecord record : list()) {

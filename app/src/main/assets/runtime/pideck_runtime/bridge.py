@@ -10,6 +10,7 @@ import json
 import os
 import re
 import signal
+import shutil
 import socket
 import stat
 import subprocess
@@ -4101,6 +4102,27 @@ def _bootstrap_bridge_locked(request: dict[str, Any]) -> dict[str, Any]:
 def stop_bridge() -> dict[str, Any]:
     with exclusive_file_lock(BRIDGE_LIFECYCLE_LOCK):
         return _stop_bridge_locked()
+
+
+def clear_session_history() -> dict[str, Any]:
+    """Stop the writer before deleting history, excluding concurrent bridge startup."""
+    with exclusive_file_lock(BRIDGE_LIFECYCLE_LOCK):
+        for metadata in (BASE / "processes").glob("agent-*.json"):
+            if process_alive(read_json(metadata)):
+                raise PiDeckError("AGENT_BUSY", "Wait for the active one-shot agent to finish")
+        _stop_bridge_locked()  # A failed/unconfirmed shutdown must leave history intact.
+        for name in ("sessions", "session-archive", "tool-results"):
+            directory = BASE / name
+            # Never follow a directory symlink into the workspace or another app directory.
+            if directory.is_symlink():
+                directory.unlink()
+            elif directory.exists():
+                shutil.rmtree(directory)
+            directory.mkdir(mode=0o700)
+        for path in (EVENT_JOURNAL, SESSION_CHECKPOINT, AUDIT_LOG, BRIDGE_CONFIG,
+                     PI_STDERR_LOG, BASE / "logs" / "bridge.log"):
+            path.unlink(missing_ok=True)
+        return {"state": "READY", "historyDeleted": True}
 
 
 def _stop_bridge_locked() -> dict[str, Any]:

@@ -2,10 +2,12 @@ package dev.pideck.app.ui;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.ImageButton;
 import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -14,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import dev.pideck.app.core.UiLanguage;
+import dev.pideck.app.R;
 
 /**
  * СЕССИИ: what is on disk, and how to get back to it.
@@ -73,6 +76,7 @@ public final class SessionsRootView extends ScrollView {
         public String archiveLabel = "";
         public Runnable onArchive;
         public Runnable onNewSession;
+        public Runnable onClear;
     }
 
     private final DeckStyle style;
@@ -111,6 +115,20 @@ public final class SessionsRootView extends ScrollView {
             header.addView(style.inlineAction(
                     t("+ Новая", "+ New"), style.palette.accent, state.onNewSession
             ));
+        }
+        if (state.onClear != null) {
+            ImageButton clear = new ImageButton(getContext());
+            clear.setImageResource(R.drawable.ic_delete);
+            clear.setImageTintList(ColorStateList.valueOf(style.palette.muted));
+            String label = t("Очистить сессии", "Clear sessions");
+            clear.setContentDescription(label);
+            clear.setTooltipText(label);
+            clear.setBackground(new android.graphics.drawable.RippleDrawable(
+                    ColorStateList.valueOf(style.palette.stroke), null, style.round(0xffffffff, 24)));
+            int padding = style.dp(14);
+            clear.setPadding(padding, padding, padding, padding);
+            style.clickable(clear, state.onClear);
+            header.addView(clear, new LinearLayout.LayoutParams(style.dp(48), style.dp(48)));
         }
         column.addView(header);
 
@@ -170,6 +188,7 @@ public final class SessionsRootView extends ScrollView {
                 .append(state.footer).append('|')
                 .append(state.archiveLabel).append('|')
                 .append(state.onNewSession != null).append('|')
+                .append(state.onClear != null).append('|')
                 .append(state.onArchive != null);
         for (Group group : state.groups) {
             value.append('|').append(group.label);
