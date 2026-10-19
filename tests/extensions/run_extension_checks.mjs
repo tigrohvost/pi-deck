@@ -944,14 +944,16 @@ try {
 		[...AUTONOMOUS_CORE, "web_research"],
 		"direct lookup rewrote the session schema instead of appending its tool",
 	);
-	assert.equal(
-		(await routerBeforeProviderRequest({
+	const lookupTools = ["read", "web_research"].map((name) => ({ type: "function", function: { name } }));
+	const lookupSelection = await routerBeforeProviderRequest({
 			type: "before_provider_request",
-			payload: { model: "pideck", max_tokens: 1536 },
-		})).max_tokens,
-		256,
-		"direct lookup did not cap provider output",
-	);
+			payload: { model: "pideck", max_tokens: 1536, tools: lookupTools },
+		});
+	assert.equal(lookupSelection.max_tokens, 256, "direct lookup did not cap tool selection");
+	assert.equal(lookupSelection.tool_choice, "required",
+		"a repeated lookup could answer from stale session results without making a new call");
+	assert.deepEqual(lookupSelection.tools, [lookupTools[1]], "the forced lookup could select an unrelated tool");
+	assert.equal(lookupTools.length, 2, "lookup narrowing mutated the session schema");
 	const lookupNote = await routerBeforeAgentStart(
 		{
 			type: "before_agent_start",
