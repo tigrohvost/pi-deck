@@ -1192,17 +1192,9 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 		if (taskTerminal || taskAllowedTools?.size === 0) {
 			return { ...payload, tool_choice: "none", parallel_tool_calls: false };
 		}
-		// A repeated lookup must fetch again even when old results remain in the session.
-		// Otherwise a small model can replay the old answer without obtaining current data.
-		if (mode === "agent" && directLookupTool !== undefined) {
-			const tools = (payload as Record<string, unknown>).tools;
-			const selected = Array.isArray(tools) ? tools.filter((tool) =>
-				tool?.type === "function" && tool.function?.name === directLookupTool) : [];
-			if (selected.length !== 1) throw new Error(`Required lookup tool is unavailable: ${directLookupTool}`);
-			// The pinned llama.cpp accepts string tool_choice values, not a named-function object.
-			// Narrow this request only; the session schema remains intact for the final answer.
-			return { ...payload, tools: selected, tool_choice: "required", parallel_tool_calls: false };
-		}
+		// Do not force tool_choice=required: the local grammar permits arbitrary prose
+		// before a call but forbids stopping, trapping small models in repeated answers.
+		// The bridge rejects an ungrounded live answer and requests one bounded retry.
 		return { ...payload, parallel_tool_calls: false };
 	});
 

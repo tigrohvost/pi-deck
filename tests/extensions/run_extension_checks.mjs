@@ -942,14 +942,13 @@ try {
 	const lookupTools = ["read", "web_research"].map((name) => ({ type: "function", function: { name } }));
 	const lookupSelection = await routerBeforeProviderRequest({
 			type: "before_provider_request",
-			payload: { model: "pideck", max_tokens: 1536, tools: lookupTools },
+			payload: { model: "pideck", max_tokens: 1536, tools: lookupTools, tool_choice: "auto" },
 		});
 	assert.equal(lookupSelection.max_tokens, 1536,
 		"the first lookup round could truncate prose before the required tool call");
-	assert.equal(lookupSelection.tool_choice, "required",
-		"a repeated lookup could answer from stale session results without making a new call");
-	assert.deepEqual(lookupSelection.tools, [lookupTools[1]], "the forced lookup could select an unrelated tool");
-	assert.equal(lookupTools.length, 2, "lookup narrowing mutated the session schema");
+	assert.equal(lookupSelection.tool_choice, "auto",
+		"a required-call grammar could trap a prose-first model instead of allowing the bridge retry");
+	assert.deepEqual(lookupSelection.tools, lookupTools, "lookup changed the stable session schema");
 	const lookupNote = await routerBeforeAgentStart(
 		{
 			type: "before_agent_start",
