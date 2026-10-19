@@ -4119,7 +4119,7 @@ def clear_session_history() -> dict[str, Any]:
             elif directory.exists():
                 shutil.rmtree(directory)
             directory.mkdir(mode=0o700)
-        for path in (EVENT_JOURNAL, SESSION_CHECKPOINT, AUDIT_LOG, BRIDGE_CONFIG,
+        for path in (EVENT_JOURNAL, SESSION_CHECKPOINT, AUDIT_LOG, BRIDGE_CONFIG, BRIDGE_TOKEN,
                      PI_STDERR_LOG, BASE / "logs" / "bridge.log"):
             path.unlink(missing_ok=True)
         return {"state": "READY", "historyDeleted": True}

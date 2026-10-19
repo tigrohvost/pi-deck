@@ -4405,6 +4405,19 @@ class SessionListingTestCase(unittest.TestCase):
                 bridge.clear_session_history()
         self.assertEqual("keep", entry.read_text(encoding="utf-8"))
 
+    def test_confirmed_clear_leaves_no_half_endpoint_and_can_repeat_without_restart(self) -> None:
+        common.atomic_write_json(bridge.BRIDGE_CONFIG, {"port": 8787})
+        bridge.BRIDGE_TOKEN.write_text("A" * 43, encoding="ascii")
+        with mock.patch.object(bridge, "_loopback_listener_present", return_value=False), \
+                mock.patch.object(launcher, "read_stdin_json", return_value={"confirmDelete": True}):
+            # Exercise the real stop path: retaining a token without config blocks both retry
+            # and the next bootstrap with BRIDGE_STOP_UNCONFIRMED.
+            self.assertEqual("READY", launcher.dispatch("clear-sessions")["state"])
+            self.assertFalse(bridge.BRIDGE_CONFIG.exists())
+            self.assertFalse(bridge.BRIDGE_TOKEN.exists())
+            self.assertEqual("READY", launcher.dispatch("clear-sessions")["state"])
+            self.assertEqual("STOPPED", bridge.stop_bridge()["state"])
+
     def test_clear_history_unlinks_root_symlink_instead_of_deleting_target(self) -> None:
         archive = common.BASE / "session-archive"
         archive.rmdir()
