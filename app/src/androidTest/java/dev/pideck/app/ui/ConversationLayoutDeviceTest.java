@@ -9,6 +9,7 @@ import android.content.Context;
 import android.graphics.Rect;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -32,13 +33,13 @@ public final class ConversationLayoutDeviceTest {
             DeckStyle.TEXT_SCALES[DeckStyle.TEXT_SCALES.length - 1];
 
     @Test
-    public void answerMetricsSitAboveActionsAtLargestTextScale() {
+    public void answerMetricsAndIconsShareOneRowAtLargestTextScale() {
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
         Context context = instrumentation.getTargetContext();
         AtomicReference<DeckView> deckRef = new AtomicReference<>();
         AtomicReference<TextView> rateRef = new AtomicReference<>();
-        AtomicReference<TextView> copyRef = new AtomicReference<>();
-        AtomicReference<TextView> shareRef = new AtomicReference<>();
+        AtomicReference<View> copyRef = new AtomicReference<>();
+        AtomicReference<View> shareRef = new AtomicReference<>();
 
         instrumentation.runOnMainSync(() -> {
             DeckView deck = new DeckView(
@@ -61,14 +62,14 @@ public final class ConversationLayoutDeviceTest {
                     .toUpperCase(Locale.getDefault());
             deckRef.set(deck);
             rateRef.set(findText(deck, rate));
-            copyRef.set(findText(deck, "КОПИРОВАТЬ"));
-            shareRef.set(findText(deck, "ПОДЕЛИТЬСЯ"));
+            copyRef.set(findDescription(deck, "Копировать ответ"));
+            shareRef.set(findDescription(deck, "Поделиться ответом"));
         });
 
         DeckView deck = deckRef.get();
         TextView rate = rateRef.get();
-        TextView copy = copyRef.get();
-        TextView share = shareRef.get();
+        View copy = copyRef.get();
+        View share = shareRef.get();
         assertNotNull(rate);
         assertNotNull(copy);
         assertNotNull(share);
@@ -76,9 +77,17 @@ public final class ConversationLayoutDeviceTest {
         Rect rateBounds = boundsIn(deck, rate);
         Rect copyBounds = boundsIn(deck, copy);
         Rect shareBounds = boundsIn(deck, share);
-        assertTrue(rateBounds.bottom <= copyBounds.top);
+        assertTrue(copy instanceof ImageButton);
+        assertTrue(share instanceof ImageButton);
+        assertTrue(Math.abs(rateBounds.centerY() - copyBounds.centerY()) <= 1);
+        assertEquals(copyBounds.centerY(), shareBounds.centerY());
+        assertTrue(rateBounds.right <= copyBounds.left);
         assertTrue(copyBounds.right <= shareBounds.left);
         assertTrue(shareBounds.right <= deck.getWidth());
+        assertEquals(0, rate.getLayout().getEllipsisCount(0));
+        int target = Math.round(48f * context.getResources().getDisplayMetrics().density);
+        assertTrue(copy.getWidth() >= target && copy.getHeight() >= target);
+        assertTrue(share.getWidth() >= target && share.getHeight() >= target);
     }
 
     @Test
@@ -135,7 +144,7 @@ public final class ConversationLayoutDeviceTest {
         AtomicReference<DeckView> deckRef = new AtomicReference<>();
         AtomicReference<TextView> codeRef = new AtomicReference<>();
         AtomicReference<TextView> proseRef = new AtomicReference<>();
-        AtomicReference<TextView> shareRef = new AtomicReference<>();
+        AtomicReference<View> shareRef = new AtomicReference<>();
 
         instrumentation.runOnMainSync(() -> {
             DeckView deck = new DeckView(
@@ -151,7 +160,7 @@ public final class ConversationLayoutDeviceTest {
             deckRef.set(deck);
             codeRef.set(findText(deck, "def divide(a, b):\n    return a / b"));
             proseRef.set(findText(deck, "Исправил деление:"));
-            shareRef.set(findText(deck, "ПОДЕЛИТЬСЯ"));
+            shareRef.set(findDescription(deck, "Поделиться ответом"));
         });
 
         assertNotNull("fenced code was not rendered as its own block", codeRef.get());
@@ -183,6 +192,17 @@ public final class ConversationLayoutDeviceTest {
         if (!(view instanceof ViewGroup group)) return null;
         for (int index = 0; index < group.getChildCount(); index++) {
             TextView found = findText(group.getChildAt(index), expected);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static View findDescription(View view, String expected) {
+        if (expected.contentEquals(view.getContentDescription() == null
+                ? "" : view.getContentDescription())) return view;
+        if (!(view instanceof ViewGroup group)) return null;
+        for (int index = 0; index < group.getChildCount(); index++) {
+            View found = findDescription(group.getChildAt(index), expected);
             if (found != null) return found;
         }
         return null;

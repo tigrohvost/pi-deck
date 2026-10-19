@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-19T07:16:10.923Z",
+  "scope": "Host code_nav latency only; no model inference or handset claim",
+  "environment": {
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-1255U",
+    "node": "v22.23.3",
+    "ripgrep": "ripgrep 15.2.0 (rev e89fff89ac)",
+    "pi": "0.82.1"
+  },
+  "baselineCommit": "d840a5428419a0ed845dead083df678ecc7d714c",
+  "baselineSourceSha256": "057f00ac3d080cc759eb29cac344c934be9bb6cae60764490d0f181768c461c2",
+  "candidateSourceSha256": "72afc3ea508563233d39e8c7dadffed28c6153ec342adc610bb43559df18c240",
+  "fixture": {
+    "bytes": 68853674,
+    "sha256": "ba653c1352df825bf41cc2e7305050fe1154f1aa60e5ad50f61a2ba333d4e877",
+    "matchingLines": 1024,
+    "description": "one text file, matches at the beginning, nonmatching filler; warm OS cache"
+  },
+  "method": "five ABBA blocks; 10 samples per variant; full navigate() call, excluding module load",
+  "baselineMedianMs": 22.80539699999997,
+  "candidateMedianMs": 6.5657329999999945,
+  "medianSpeedup": 3.473396953546541,
+  "exactReturnedMatchesEqual": true,
+  "samples": [
+    {
+      "block": 0,
+      "variant": "baseline",
+      "elapsedMs": 23.69920000000002,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 0,
+      "variant": "candidate",
+      "elapsedMs": 6.623559,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 0,
+      "variant": "candidate",
+      "elapsedMs": 6.507906999999989,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 0,
+      "variant": "baseline",
+      "elapsedMs": 24.014995999999996,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 1,
+      "variant": "baseline",
+      "elapsedMs": 22.71826199999998,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 1,
+      "variant": "candidate",
+      "elapsedMs": 6.83952400000004,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 1,
+      "variant": "candidate",
+      "elapsedMs": 7.667160999999965,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 1,
+      "variant": "baseline",
+      "elapsedMs": 21.390449999999987,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 2,
+      "variant": "baseline",
+      "elapsedMs": 22.896672999999964,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 2,
+      "variant": "candidate",
+      "elapsedMs": 5.754384999999957,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 2,
+      "variant": "candidate",
+      "elapsedMs": 6.048239999999964,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 2,
+      "variant": "baseline",
+      "elapsedMs": 21.984460000000013,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 3,
+      "variant": "baseline",
+      "elapsedMs": 22.387792999999988,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 3,
+      "variant": "candidate",
+      "elapsedMs": 6.471825000000081,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 3,
+      "variant": "candidate",
+      "elapsedMs": 5.497154000000023,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 3,
+      "variant": "baseline",
+      "elapsedMs": 22.89253199999996,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 4,
+      "variant": "baseline",
+      "elapsedMs": 20.185044999999946,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 4,
+      "variant": "candidate",
+      "elapsedMs": 7.565598000000023,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 4,
+      "variant": "candidate",
+      "elapsedMs": 9.267462000000023,
+      "textMatches": 24,
+      "outputChars": 1099,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    },
+    {
+      "block": 4,
+      "variant": "baseline",
+      "elapsedMs": 24.364321000000018,
+      "textMatches": 24,
+      "outputChars": 1042,
+      "matchesSha256": "fb11e1c797fa5cda7c6a5efaa10030e62b6aaf41da40fdd9219a8d21d51c70ad"
+    }
+  ]
+}

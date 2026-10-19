@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "PI DECK navigation metadata v1 (Package A)",
+  "title": "PI DECK navigation metadata v1",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -32,6 +32,13 @@
     "textMatches": {
       "type": "integer",
       "minimum": 0
+    },
+    "limitReasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["file_limit", "match_limit", "byte_limit", "line_limit", "output_limit", "timeout"]
+      }
     },
     "truncated": {
       "type": "boolean"

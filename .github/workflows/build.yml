@@ -63,6 +63,8 @@ jobs:
             "$PWD/build/pi-protocol/node_modules"
           node tests/extensions/run_audit_checks.mjs \
             "$PWD/build/pi-protocol/node_modules"
+          node tests/extensions/run_navigation_checks.mjs \
+            "$PWD/build/pi-protocol/node_modules"
 
       - name: Generate supply-chain bundle
         run: |

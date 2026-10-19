@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-19",
+  "baselineCommit": "d840a5428419a0ed845dead083df678ecc7d714c",
+  "testSourceSha256": "afac208ab44409d3f37184c13acba968078668a9a3508e75a891f0c69454614e",
+  "candidateSourceSha256": "72afc3ea508563233d39e8c7dadffed28c6153ec342adc610bb43559df18c240",
+  "method": "Identical 13 real-process checks run against baseline source and candidate with Pi 0.82.1 loader.",
+  "baseline": {
+    "checks": [
+      {
+        "passed": true,
+        "result": "PASS complete, empty and source text are distinguished"
+      },
+      {
+        "passed": false,
+        "result": "FAIL large real search returns bounded matches, not maxBuffer failure: Error: code_nav search failed: stdout maxBuffer length exceeded"
+      },
+      {
+        "passed": false,
+        "result": "FAIL a long matching line retains a bounded, marked excerpt: Error: code_nav search failed: stdout maxBuffer length exceeded"
+      },
+      {
+        "passed": true,
+        "result": "PASS option-shaped file paths remain operands"
+      },
+      {
+        "passed": true,
+        "result": "PASS workspace and symlink escapes stay forbidden"
+      },
+      {
+        "passed": false,
+        "result": "FAIL bounded empty inventory never claims a complete negative: Error: code_nav search failed: stdout maxBuffer length exceeded"
+      },
+      {
+        "passed": false,
+        "result": "FAIL a file name containing a newline is one candidate: AssertionError [ERR_ASSERTION]: The input did not match the regular expression /line\\\\nneedle\\.txt/u. Input:"
+      },
+      {
+        "passed": true,
+        "result": "PASS pre-cancelled navigation launches no producers"
+      },
+      {
+        "passed": false,
+        "result": "FAIL a newline in a matching filename cannot forge extra text results: AssertionError [ERR_ASSERTION]: The input did not match the regular expression /\"line\\\\nneedle\\.txt\":1:1:FILE_VALUE/u. Input:"
+      },
+      {
+        "passed": false,
+        "result": "FAIL cancel reaps both producers and descendants: AssertionError [ERR_ASSERTION]: a producer or descendant survived"
+      },
+      {
+        "passed": false,
+        "result": "FAIL failure reaps both producers and descendants: AssertionError [ERR_ASSERTION]: a producer or descendant survived"
+      },
+      {
+        "passed": false,
+        "result": "FAIL timeout reaps both producers and descendants: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "passed": true,
+        "result": "PASS missing ripgrep is reported as a tool failure"
+      }
+    ],
+    "summary": "13 navigation checks, 8 failures"
+  },
+  "candidate": {
+    "checks": [
+      {
+        "passed": true,
+        "result": "PASS complete, empty and source text are distinguished"
+      },
+      {
+        "passed": true,
+        "result": "PASS large real search returns bounded matches, not maxBuffer failure"
+      },
+      {
+        "passed": true,
+        "result": "PASS a long matching line retains a bounded, marked excerpt"
+      },
+      {
+        "passed": true,
+        "result": "PASS option-shaped file paths remain operands"
+      },
+      {
+        "passed": true,
+        "result": "PASS workspace and symlink escapes stay forbidden"
+      },
+      {
+        "passed": true,
+        "result": "PASS bounded empty inventory never claims a complete negative"
+      },
+      {
+        "passed": true,
+        "result": "PASS a file name containing a newline is one candidate"
+      },
+      {
+        "passed": true,
+        "result": "PASS pre-cancelled navigation launches no producers"
+      },
+      {
+        "passed": true,
+        "result": "PASS a newline in a matching filename cannot forge extra text results"
+      },
+      {
+        "passed": true,
+        "result": "PASS cancel reaps both producers and descendants"
+      },
+      {
+        "passed": true,
+        "result": "PASS failure reaps both producers and descendants"
+      },
+      {
+        "passed": true,
+        "result": "PASS timeout reaps both producers and descendants"
+      },
+      {
+        "passed": true,
+        "result": "PASS missing ripgrep is reported as a tool failure"
+      }
+    ],
+    "summary": "13 navigation checks, 0 failures"
+  }
+}

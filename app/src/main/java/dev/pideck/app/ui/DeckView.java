@@ -5,6 +5,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Typeface;
 import android.graphics.Insets;
@@ -31,6 +32,7 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.ScrollView;
@@ -43,6 +45,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import dev.pideck.app.R;
 import dev.pideck.app.core.AgentMode;
 import dev.pideck.app.core.GenerationSpeed;
 import dev.pideck.app.core.PlanLedger;
@@ -1483,7 +1486,7 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
 
     /**
      * Prose with inline spans and fenced code as scrollable monospace blocks with their own Copy.
-     * Long-press keeps Android's partial selection; the Copy chip below copies the whole answer.
+     * Long-press keeps Android's partial selection; the Copy icon below copies the whole answer.
      */
     private View renderedAnswer(String text) {
         List<MarkdownBlocks.Block> parsed = MarkdownBlocks.parse(text);
@@ -1566,35 +1569,27 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     }
 
     private View answerFooter(ConsoleEntry entry) {
-        if (!entry.hasExactSpeed()) return actionChips(entry.text);
         LinearLayout footer = new LinearLayout(getContext());
         footer.setOrientation(LinearLayout.VERTICAL);
-        GenerationSpeed speed = GenerationSpeed.exact(
-                entry.tokensPerSecond, entry.outputTokens
-        );
-        TextView rate = style.monoAt(
-                speed.label(language.locale, language), 10f, p.accent, true
-        );
+        LinearLayout actions = chipRow();
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+        TextView rate = style.monoAt("", 10f, p.accent, true);
         rate.setSingleLine(true);
-        rate.setContentDescription(speed.contentDescription(language.locale, language));
-        footer.addView(rate, wrap());
+        rate.setEllipsize(TextUtils.TruncateAt.END);
+        if (entry.hasExactSpeed()) {
+            GenerationSpeed speed = GenerationSpeed.exact(entry.tokensPerSecond, entry.outputTokens);
+            rate.setText(speed.label(language.locale, language).toUpperCase(Locale.getDefault()));
+            rate.setContentDescription(speed.contentDescription(language.locale, language));
+        } else {
+            rate.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+        actions.addView(rate, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        actions.addView(answerAction(R.drawable.ic_copy, t("Копировать ответ", "Copy answer"),
+                () -> copyToClipboard(entry.text)));
+        actions.addView(answerAction(R.drawable.ic_share, t("Поделиться ответом", "Share answer"),
+                () -> share(entry.text)));
+        footer.addView(actions, matchWidth());
 
-        LinearLayout.LayoutParams actionsLp = matchWidth();
-        actionsLp.topMargin = style.dp(10);
-        footer.addView(actionChips(entry.text), actionsLp);
-        return footer;
-    }
-
-    private LinearLayout.LayoutParams chipsLp() {
-        LinearLayout.LayoutParams lp = matchWidth();
-        lp.topMargin = style.dp(14);
-        return lp;
-    }
-
-    /** The chip set follows what the turn actually touched. */
-    private View actionChips(String answer) {
-        LinearLayout rows = new LinearLayout(getContext());
-        rows.setOrientation(LinearLayout.VERTICAL);
         String written = lastWrittenPath;
         if (!written.isEmpty()) {
             LinearLayout fileRow = chipRow();
@@ -1602,20 +1597,31 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                     t("Открыть файл", "Open file"),
                     () -> listener.onOpenFile(written)
             ), chipLp());
-            rows.addView(fileRow);
+            footer.addView(fileRow);
         }
+        return footer;
+    }
 
-        LinearLayout shareRow = chipRow();
-        shareRow.addView(style.chip(
-                t("Копировать", "Copy"), () -> copyToClipboard(answer)
-        ), chipLp());
-        shareRow.addView(style.chip(
-                t("Поделиться", "Share"), () -> share(answer)
-        ), chipLp());
-        LinearLayout.LayoutParams shareLp = wrap();
-        if (!written.isEmpty()) shareLp.topMargin = style.dp(8);
-        rows.addView(shareRow, shareLp);
-        return rows;
+    private ImageButton answerAction(int drawable, String label, Runnable action) {
+        ImageButton button = new ImageButton(getContext());
+        button.setImageResource(drawable);
+        button.setImageTintList(ColorStateList.valueOf(p.muted));
+        button.setContentDescription(label);
+        button.setTooltipText(label);
+        button.setBackground(new android.graphics.drawable.RippleDrawable(
+                ColorStateList.valueOf(p.stroke), null, style.round(0xffffffff, 24)));
+        int padding = style.dp(14);
+        button.setPadding(padding, padding, padding, padding);
+        button.setLayoutParams(new LinearLayout.LayoutParams(
+                style.dp(DeckStyle.MIN_TOUCH_DP), style.dp(DeckStyle.MIN_TOUCH_DP)));
+        style.clickable(button, action);
+        return button;
+    }
+
+    private LinearLayout.LayoutParams chipsLp() {
+        LinearLayout.LayoutParams lp = matchWidth();
+        lp.topMargin = style.dp(4);
+        return lp;
     }
 
     private LinearLayout chipRow() {

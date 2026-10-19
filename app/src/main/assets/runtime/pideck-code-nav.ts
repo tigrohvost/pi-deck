@@ -6,21 +6,24 @@
  * returns both filename candidates and exact line matches, and never leaves the workspace.
  */
 
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { realpathSync, statSync } from "node:fs";
-import { promisify } from "node:util";
+import { StringDecoder } from "node:string_decoder";
 import { basename, dirname, resolve, relative, sep } from "node:path";
 
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const execFileAsync = promisify(execFile);
 const MAX_QUERY_CHARS = 240;
 const MAX_PATH_CHARS = 1_024;
 const MAX_OUTPUT_CHARS = 8_000;
 const MAX_FILE_CANDIDATES = 12;
 const MAX_TEXT_MATCHES = 24;
-const MAX_COMMAND_BUFFER = 256 * 1024;
+const MAX_SCAN_BYTES = 256 * 1024;
+const MAX_RECORD_CHARS = 2_048;
+const SEARCH_TIMEOUT_MS = 8_000;
+type LimitReason = "file_limit" | "match_limit" | "byte_limit" | "line_limit" | "output_limit" | "timeout";
+type SearchResult = { lines: string[]; limit?: LimitReason };
 const GENERIC_QUERY_WORDS = new Set([
 	"class",
 	"definition",
@@ -119,41 +122,119 @@ function displayPath(root: string, absolute: string): string {
 	return value || ".";
 }
 
-async function ripgrep(
+/** Read and filter while the producer runs; never capture an unbounded result first. */
+function ripgrep(
 	args: string[],
 	cwd: string,
+	options: { delimiter: string; accepts(line: string): boolean; maxRecords: number;
+		maxChars: number; countLimit: LimitReason; fileNames?: boolean; nulPath?: boolean },
 	signal?: AbortSignal,
-): Promise<string> {
-	try {
-		const result = await execFileAsync("rg", args, {
-			cwd,
-			encoding: "utf8",
-			maxBuffer: MAX_COMMAND_BUFFER,
-			timeout: 8_000,
-			signal,
+): Promise<SearchResult> {
+	return new Promise((resolveResult, reject) => {
+		if (signal?.aborted) { reject(signal.reason); return; }
+		const child = spawn("rg", args, { cwd, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+		const decoder = new StringDecoder("utf8");
+		const lines: string[] = [];
+		let pending = "", stderr = "", bytes = 0, chars = 0;
+		let limit: LimitReason | undefined;
+		let failure: Error | undefined;
+		let stopping = false, closed = false;
+		let hardKill: ReturnType<typeof setTimeout> | undefined;
+		// Android/Termux and the host runner use POSIX process groups. Killing only the
+		// direct process leaves descendants holding pipes open after cancellation.
+		const kill = (kind: NodeJS.Signals) => {
+			if (child.pid) { try { process.kill(-child.pid, kind); } catch {} }
+		};
+		const stop = () => {
+			if (stopping || closed) return;
+			stopping = true;
+			kill("SIGTERM");
+			hardKill = setTimeout(() => kill("SIGKILL"), 250);
+		};
+		const limited = (reason: LimitReason) => { limit ??= reason; stop(); };
+		const abort = () => stop();
+		const timer = setTimeout(() => limited("timeout"), SEARCH_TIMEOUT_MS);
+		signal?.addEventListener("abort", abort, { once: true });
+		const record = (raw: string, clipped = false) => {
+			let line = raw.replace(/^\.\/+/, "");
+			if (options.nulPath) {
+				const end = line.indexOf("\0");
+				if (end < 0) return; // A clipped path cannot identify a matching source line.
+				const path = line.slice(0, end);
+				line = (/\p{Cc}/u.test(path) ? JSON.stringify(path) : path) + ":" + line.slice(end + 1);
+			}
+			if (!line || !options.accepts(line)) return;
+			if (lines.length >= options.maxRecords) { limited(options.countLimit); return; }
+			if (options.fileNames) {
+				// A clipped filename cannot identify a real path. Quote embedded control
+				// characters so one candidate cannot masquerade as several result rows.
+				if (clipped) return;
+				if (/[\x00-\x1f\x7f]/u.test(line)) line = JSON.stringify(line);
+			} else line = line.trimEnd();
+			const remaining = options.maxChars - chars - 1;
+			if (line.length > remaining || clipped) {
+				if (!options.fileNames && remaining > 80) {
+					line = line.slice(0, Math.max(0, remaining - 20)) + " …[line clipped]";
+					lines.push(line); chars += line.length + 1;
+				}
+				limited(clipped ? "line_limit" : "output_limit");
+				return;
+			}
+			lines.push(line); chars += line.length + 1;
+		};
+		const consume = (text: string) => {
+			pending += text;
+			while (!stopping) {
+				const pathEnd = options.nulPath ? pending.indexOf("\0") : -1;
+				const end = options.nulPath && pathEnd < 0 ? -1
+					: pending.indexOf(options.delimiter, pathEnd + 1);
+				if (end < 0) break;
+				const value = pending.slice(0, Math.min(end, MAX_RECORD_CHARS));
+				pending = pending.slice(end + options.delimiter.length);
+				record(value, end > MAX_RECORD_CHARS);
+				if (end > MAX_RECORD_CHARS) limited("line_limit");
+			}
+			if (!stopping && pending.length > MAX_RECORD_CHARS) {
+				record(pending.slice(0, MAX_RECORD_CHARS), true);
+				limited("line_limit");
+			}
+			if (stopping) pending = "";
+		};
+		child.stdout.on("data", (chunk: Buffer) => {
+			if (stopping) return;
+			const accepted = chunk.subarray(0, Math.max(0, MAX_SCAN_BYTES - bytes));
+			bytes += accepted.length;
+			consume(decoder.write(accepted));
+			if (!stopping && bytes >= MAX_SCAN_BYTES) limited("byte_limit");
 		});
-		return result.stdout;
-	} catch (error) {
-		const value = error as { code?: number | string; killed?: boolean; message?: string };
-		if (value.code === 1 || value.code === "1") return "";
-		if (signal?.aborted) throw error;
-		throw new Error(`code_nav search failed: ${value.message || "ripgrep error"}`);
-	}
-}
-
-function bounded(lines: string[]): string {
-	const output: string[] = [];
-	let size = 0;
-	for (const line of lines) {
-		const next = line.length + 1;
-		if (size + next > MAX_OUTPUT_CHARS) {
-			output.push("…output truncated; narrow query or path");
-			break;
-		}
-		output.push(line);
-		size += next;
-	}
-	return output.join("\n");
+		child.stderr.on("data", (chunk: Buffer) => {
+			const remaining = 4_096 - Buffer.byteLength(stderr);
+			stderr += chunk.subarray(0, Math.max(0, remaining)).toString("utf8");
+			if (chunk.length > remaining) {
+				failure ??= new Error("ripgrep error output exceeded its limit"); stop();
+			}
+		});
+		child.on("error", error => { failure ??= error; stop(); });
+		child.on("exit", (code, exitSignal) => {
+			if ((code !== null && code > 1) || (!stopping && code === null)) {
+				failure ??= new Error(stderr.trim() || `ripgrep exited ${code ?? exitSignal}`); stop();
+			}
+		});
+		child.on("close", (code, exitSignal) => {
+			if (!stopping) {
+				consume(decoder.end());
+				if (pending && !stopping) record(pending);
+			}
+			closed = true;
+			clearTimeout(timer); clearTimeout(hardKill);
+			signal?.removeEventListener("abort", abort);
+			if (stopping) kill("SIGKILL");
+			if (signal?.aborted) reject(signal.reason);
+			else if (failure || (limit === undefined && code !== 0 && code !== 1)) {
+				reject(new Error(`code_nav search failed: ${failure?.message || stderr.trim() || exitSignal}`));
+			} else resolveResult({ lines, limit });
+		});
+	});
 }
 
 export async function navigate(
@@ -162,7 +243,9 @@ export async function navigate(
 	cwd: string,
 	signal?: AbortSignal,
 ): Promise<{ text: string; schemaVersion: 1; status: "complete" | "partial";
-	scope: string; truncated: boolean; fileCandidates: number; textMatches: number }> {
+	scope: string; truncated: boolean; fileCandidates: number; textMatches: number;
+	limitReasons: LimitReason[] }> {
+	signal?.throwIfAborted();
 	const normalizedQuery = query.trim();
 	if (!normalizedQuery || normalizedQuery.length > MAX_QUERY_CHARS) {
 		throw new Error("code_nav query is empty or too long");
@@ -176,12 +259,30 @@ export async function navigate(
 	const targetArgument = targetIsDirectory ? "." : basename(target);
 	const scopeLabel = displayPath(root, target);
 	const searchTerms = navigationQueryTerms(normalizedQuery);
+	const header = [
+		`code_nav query: ${normalizedQuery}`,
+		...(searchTerms.length > 1 ? [`search terms: ${searchTerms.join(" | ")}`] : []),
+		`scope: ${scopeLabel}`,
+	].join("\n");
+	const textBudget = MAX_OUTPUT_CHARS - Math.min(header.length, 1_800) - 1_200 - 512;
 	const patternArguments = searchTerms.flatMap((term) => ["--regexp", term]);
 	const common = ["--hidden", "--glob", "!.git/**", "--glob", "!build/**"];
 
-	const [rawFiles, rawMatches] = await Promise.all([
-		ripgrep(["--files", ...common, targetArgument], searchCwd, signal),
+	const foldedTerms = searchTerms.map((term) => term.toLocaleLowerCase());
+	const siblingAbort = new AbortController();
+	const searchSignal = signal ? AbortSignal.any([signal, siblingAbort.signal]) : siblingAbort.signal;
+	const pending = [
+		ripgrep(["--files", "--null", ...common, "--", targetArgument], searchCwd, {
+			delimiter: "\0", accepts: value => foldedTerms.some(term => value.toLocaleLowerCase().includes(term)),
+			maxRecords: MAX_FILE_CANDIDATES, maxChars: 1_200, countLimit: "file_limit", fileNames: true,
+		}, searchSignal),
 		ripgrep([
+			"--line-buffered",
+			"--with-filename",
+			"--null",
+			// One extra matching line proves that the public result limit was exceeded.
+			// Bound each file inside rg as well, before its worker can buffer the file.
+			"--max-count", String(MAX_TEXT_MATCHES + 1),
 			"--line-number",
 			"--column",
 			"--smart-case",
@@ -193,44 +294,37 @@ export async function navigate(
 			...common,
 			"--",
 			targetArgument,
-		], searchCwd, signal),
-	]);
-
-	const foldedTerms = searchTerms.map((term) => term.toLocaleLowerCase());
-	const allFiles = rawFiles
-		.split("\n")
-		.map((value) => value.trim())
-		.filter(Boolean)
-		.map((value) => value.replace(/^\.\/+/, ""))
-		.filter((value) => foldedTerms.some((term) =>
-			value.toLocaleLowerCase().includes(term)));
-	const files = allFiles.slice(0, MAX_FILE_CANDIDATES);
-	const allMatches = rawMatches
-		.split("\n")
-		.map((value) => value.trimEnd())
-		.filter(Boolean)
-		.map((value) => value.replace(/^\.\/+/, ""));
-	const matches = allMatches.slice(0, MAX_TEXT_MATCHES);
-	const limited = allFiles.length > files.length || allMatches.length > matches.length;
-
-	const lines = [
-		`code_nav query: ${normalizedQuery}`,
-		...(searchTerms.length > 1 ? [`search terms: ${searchTerms.join(" | ")}`] : []),
-		`scope: ${scopeLabel}`,
+		], searchCwd, { delimiter: "\n", accepts: () => true,
+			maxRecords: MAX_TEXT_MATCHES, maxChars: textBudget, countLimit: "match_limit", nulPath: true }, searchSignal),
 	];
+	let results: SearchResult[];
+	try { results = await Promise.all(pending); }
+	catch (error) {
+		siblingAbort.abort();
+		await Promise.allSettled(pending);
+		throw error;
+	}
+	const [files, matches] = results.map(result => result.lines);
+	const limitReasons = [...new Set(results.flatMap(result => result.limit ? [result.limit] : []))];
+
+	const lines = [header.slice(0, 1_800)];
+	if (header.length > 1_800 && !limitReasons.includes("output_limit")) limitReasons.push("output_limit");
 	if (files.length > 0) lines.push("", "File candidates:", ...files);
 	if (matches.length > 0) lines.push("", "Text matches:", ...matches);
-	if (files.length === 0 && matches.length === 0) {
+	if (limitReasons.length > 0) {
+		lines.push("", `Partial search result (${limitReasons.join(", ")}); narrow query or path. `
+			+ "Search is incomplete and does not establish absence of other matches.");
+	} else if (files.length === 0 && matches.length === 0) {
 		lines.push("", "No filename or text match. Stop or try one narrower synonym.");
 	} else {
 		lines.push(
 			"",
-			limited ? "Partial search result; narrow query or path to inspect omitted matches."
-				: "Search complete. Answer from these matches; read the exact range only if file contents are needed before editing.",
+			"Search complete. Answer from these matches; read the exact range only if file contents are needed before editing.",
 		);
 	}
-	const text = bounded(lines);
-	const truncated = limited || text !== lines.join("\n");
+	const text = lines.join("\n");
+	if (text.length > MAX_OUTPUT_CHARS) throw new Error("code_nav output budget exceeded");
+	const truncated = limitReasons.length > 0;
 	return {
 		text,
 		schemaVersion: 1,
@@ -239,6 +333,7 @@ export async function navigate(
 		truncated,
 		fileCandidates: files.length,
 		textMatches: matches.length,
+		limitReasons,
 	};
 }
 
@@ -289,6 +384,7 @@ export default function pideckCodeNav(pi: ExtensionAPI) {
 					requestedPath,
 					fileCandidates: result.fileCandidates,
 					textMatches: result.textMatches,
+					limitReasons: result.limitReasons,
 				},
 			};
 		},
