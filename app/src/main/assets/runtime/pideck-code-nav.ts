@@ -58,6 +58,13 @@ export function explicitNavigationScope(text: string): string | undefined {
 		/(?:в\s+(?:каталоге|папке|директории)|(?:in|under)\s+(?:the\s+)?(?:directory|folder))\s+[`"'«]?([^\s`"'»<>]+)[`"'»]?/iu,
 	);
 	if (cue?.[1]) return cleanScope(cue[1]);
+	// Dot-relative paths are unambiguous even without "directory": small models
+	// often omit path after "In .pideck-bench/..." and otherwise search every fixture.
+	// Do not treat ordinary prose such as "in English" or "in tokens/s" as a path.
+	const relative = text.match(
+		/(?:^|\s)(?:in|under|в)\s+[`"'«]?((?:\.{1,2}\/|\.[\p{L}\p{N}_-][\p{L}\p{N}._-]*\/)[^\s`"'»<>]*)[`"'»]?/iu,
+	);
+	if (relative?.[1]) return cleanScope(relative[1]);
 	const absolute = text.match(/(?:^|\s)(\/[^\s`"'«»<>]+)/u);
 	return cleanScope(absolute?.[1]);
 }

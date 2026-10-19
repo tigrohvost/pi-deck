@@ -35,6 +35,35 @@ try {
         chmodSync(join(fakeBin, "rg"), 0o700);
         process.env.PATH = `${fakeBin}:${originalPath}`;
     };
+    await check("an explicit dot-relative scope survives omitted model arguments", async () => {
+        const scope = ".pideck-bench/current/fixture";
+        const other = ".pideck-bench/other/fixture";
+        for (const directory of [scope, other]) {
+            mkdirSync(join(cwd, directory), { recursive: true });
+            writeFileSync(join(cwd, directory, "calculator.py"), "def divide(left, right): return left / right\n");
+        }
+        const hooks = new Map(); let tool;
+        nav.default({ on: (name, callback) => hooks.set(name, callback), registerTool: value => { tool = value; } });
+        for (const prompt of [
+            `In ${scope}, find the definition of function divide.`,
+            `Under ./${scope}, find the definition of function divide.`,
+            `В ${scope} найди определение функции divide.`,
+        ]) {
+            hooks.get("input")({ text: prompt });
+            const result = await tool.execute("scope-check", { query: "divide" }, undefined, undefined, { cwd });
+            assert.equal(result.details.scope, scope, "the model's omitted path widened the user's search");
+            assert.equal(result.details.textMatches, 1);
+            assert.doesNotMatch(result.content[0].text, /other\/fixture/u);
+        }
+        for (const prompt of ["Explain in English.", "Report speed in tokens/s."]) {
+            assert.equal(nav.explicitNavigationScope(prompt), undefined);
+        }
+        hooks.get("input")({ text: "In ../outside, find function divide." });
+        await assert.rejects(tool.execute("escape-check", { query: "divide" }, undefined, undefined, { cwd }), /stay inside/u);
+        hooks.get("session_start")();
+        const all = await tool.execute("reset-check", { query: "divide" }, undefined, undefined, { cwd });
+        assert.equal(all.details.scope, ".", "a new session retained the previous user's scope");
+    });
     await check("complete, empty and source text are distinguished", async () => {
         writeFileSync(join(cwd, "needle.py"), 'value = "no matches" # needle\n');
         const found = await nav.navigate("needle", ".", cwd);
