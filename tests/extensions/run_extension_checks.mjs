@@ -685,11 +685,6 @@ try {
 		router.directLiveLookupTool("Найди текущую версию Pi, затем сравни её с прошлой"),
 		undefined,
 	);
-	assert.deepEqual(
-		router.capDirectLookupProviderRequest({ model: "pideck", max_tokens: 1024 }, true),
-		{ model: "pideck", max_tokens: 256 },
-	);
-	assert.equal(router.capDirectLookupProviderRequest({ max_tokens: 1024 }, false), undefined);
 	assert.deepEqual(router.detectCapabilities("Найди функцию divide"), ["files"]);
 	assert.deepEqual(
 		router.detectCapabilities(
@@ -949,7 +944,8 @@ try {
 			type: "before_provider_request",
 			payload: { model: "pideck", max_tokens: 1536, tools: lookupTools },
 		});
-	assert.equal(lookupSelection.max_tokens, 256, "direct lookup did not cap tool selection");
+	assert.equal(lookupSelection.max_tokens, 1536,
+		"the first lookup round could truncate prose before the required tool call");
 	assert.equal(lookupSelection.tool_choice, "required",
 		"a repeated lookup could answer from stale session results without making a new call");
 	assert.deepEqual(lookupSelection.tools, [lookupTools[1]], "the forced lookup could select an unrelated tool");
@@ -969,6 +965,8 @@ try {
 		/PI\/\/DECK TASK TOOLS: this request permits only web_research\./u,
 		"direct lookup did not tell the model which tool it may use",
 	);
+	assert.match(lookupNote.message.content, /Call web_research now, before writing any answer/u);
+	assert.match(lookupNote.message.content, /earlier search results and answers in this session are stale/u);
 	const lookupShell = await routerToolCall({
 		type: "tool_call",
 		toolName: "bash",

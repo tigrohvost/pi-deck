@@ -34,7 +34,6 @@ export type ToolCapability = "files" | "web" | "weather" | "exact_edit";
 
 const LOADER_TOOL = "pideck_load_tools";
 export const INTERNAL_RETRY_PREFIX = "[[PI//DECK:ANSWER_RETRY]]\n";
-export const DIRECT_LIVE_LOOKUP_MAX_TOKENS = 256;
 const PREFETCH_MAX_FILES = 3;
 const PREFETCH_MAX_FILE_BYTES = 4 * 1024;
 const PREFETCH_MAX_TOTAL_BYTES = 6 * 1024;
@@ -895,25 +894,6 @@ export function directLiveLookupTool(text: string): "web_research" | "weather" |
 	return undefined;
 }
 
-/** Caps the initial tool-selection round; the answer needs the model's full output budget. */
-export function capDirectLookupProviderRequest(
-	payload: unknown,
-	active: boolean,
-): unknown {
-	if (!active || typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-		return undefined;
-	}
-	const request = payload as Record<string, unknown>;
-	const configured = request.max_tokens;
-	if (typeof configured !== "number" || !Number.isFinite(configured) || configured <= 0) {
-		return undefined;
-	}
-	return {
-		...request,
-		max_tokens: Math.min(configured, DIRECT_LIVE_LOOKUP_MAX_TOKENS),
-	};
-}
-
 /** Hard-removes every tool when the user explicitly wants a direct, provided answer. */
 export function disablesTools(text: string): boolean {
 	const candidate = text.toLocaleLowerCase().replace(/\s+/g, " ").trim();
@@ -1057,6 +1037,12 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			return "PI//DECK TASK TOOLS: none. Answer this request directly from the message; "
 				+ "every tool call will be refused.";
 		}
+		if (directLookupTool !== undefined && !taskTerminal) {
+			return `PI//DECK TASK TOOLS: this request permits only ${directLookupTool}. `
+				+ `Call ${directLookupTool} now, before writing any answer or introduction. `
+				+ "This request needs a fresh result; earlier search results and answers in this session are stale. "
+				+ "After the tool returns, give a concise answer grounded in its new result.";
+		}
 		return `PI//DECK TASK TOOLS: this request permits only ${[...taskAllowedTools].join(", ")}. `
 			+ "Other tools are refused; if none of these fits, answer directly.";
 	}
@@ -1198,17 +1184,16 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			context?.abort?.();
 			throw new Error("PI//DECK: достигнут предел шагов задачи; выполненные изменения сохранены.");
 		}
-		const payload = capDirectLookupProviderRequest(
-			event.payload, directLookupTool !== undefined && !taskTerminal && providerRounds === 1,
-		)
-			?? event.payload;
+		// Even required tool calls can start with prose. Keep the model's full budget in
+		// every round rather than truncating an answer before the tool call is reached.
+		const payload = event.payload;
 		if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return undefined;
 		// The provider enforces completion. A verbal refusal alone leaves a small model looping.
 		if (taskTerminal || taskAllowedTools?.size === 0) {
 			return { ...payload, tool_choice: "none", parallel_tool_calls: false };
 		}
 		// A repeated lookup must fetch again even when old results remain in the session.
-		// Otherwise a small model can spend the selection budget replaying the old answer.
+		// Otherwise a small model can replay the old answer without obtaining current data.
 		if (mode === "agent" && directLookupTool !== undefined) {
 			const tools = (payload as Record<string, unknown>).tools;
 			const selected = Array.isArray(tools) ? tools.filter((tool) =>
