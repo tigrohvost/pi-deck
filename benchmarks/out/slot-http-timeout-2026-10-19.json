@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-19T07:39:34.579Z",
+  "node": "v22.23.3",
+  "scope": "Real loopback HTTP timeout reproduction; no model inference or speed comparison",
+  "baselineCommit": "47371632529638928e0c998b79d3ee3d22af12c8",
+  "baselineSourceSha256": "5a3d0e101587b1c6aec6224ec69a6f8ff8092f0ad7e674f2e05ed40f0a3c2018",
+  "candidateSourceSha256": "a3dcec9f9cc02a9f50d8f037916020a267c0de1971518f828c4a9da4985e7ba6",
+  "responseDelaySeconds": 310,
+  "clientDeadlineSeconds": 600,
+  "results": [
+    {
+      "variant": "baseline",
+      "status": "rejected",
+      "error": "fetch failed",
+      "cause": "UND_ERR_HEADERS_TIMEOUT",
+      "elapsedSeconds": 300.829017481
+    },
+    {
+      "variant": "candidate",
+      "status": "resolved",
+      "response": {
+        "status": 200,
+        "json": {
+          "n_saved": 1414
+        }
+      },
+      "elapsedSeconds": 310.021750791
+    }
+  ]
+}

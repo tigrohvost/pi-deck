@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "118a2153fe3bffe95387d14edff6dce1a9b177fa",
+  "candidateCommit": "f8e4a1f0a3593c1eb01999d1350fd224a8eede3c",
+  "baselineChecks": 14,
+  "baselineFailures": 1,
+  "candidateChecks": 14,
+  "candidateFailures": 0,
+  "baselineOutput": "FAIL an explicit dot-relative scope survives omitted model arguments: AssertionError [ERR_ASSERTION]: the model's omitted path widened the user's search\n+ actual - expected\n\n+ '.'\n- '.pideck-bench/current/fixture'\n\n    at file:///home/che/dev/pi_deck/tests/extensions/run_navigation_checks.mjs:54:20\n    at async check (file:///home/che/dev/pi_deck/tests/extensions/run_navigation_checks.mjs:16:11)\n    at async file:///home/che/dev/pi_deck/tests/extensions/run_navigation_checks.mjs:38:5\nPASS complete, empty and source text are distinguished\nPASS large real search returns bounded matches, not maxBuffer failure\nPASS a long matching line retains a bounded, marked excerpt\nPASS option-shaped file paths remain operands\nPASS workspace and symlink escapes stay forbidden\nPASS bounded empty inventory never claims a complete negative\nPASS a file name containing a newline is one candidate\nPASS pre-cancelled navigation launches no producers\nPASS a newline in a matching filename cannot forge extra text results\nPASS cancel reaps both producers and descendants\nPASS failure reaps both producers and descendants\nPASS timeout reaps both producers and descendants\nPASS missing ripgrep is reported as a tool failure\n14 navigation checks, 1 failures\n",
+  "candidateOutput": "PASS an explicit dot-relative scope survives omitted model arguments\nPASS complete, empty and source text are distinguished\nPASS large real search returns bounded matches, not maxBuffer failure\nPASS a long matching line retains a bounded, marked excerpt\nPASS option-shaped file paths remain operands\nPASS workspace and symlink escapes stay forbidden\nPASS bounded empty inventory never claims a complete negative\nPASS a file name containing a newline is one candidate\nPASS pre-cancelled navigation launches no producers\nPASS a newline in a matching filename cannot forge extra text results\nPASS cancel reaps both producers and descendants\nPASS failure reaps both producers and descendants\nPASS timeout reaps both producers and descendants\nPASS missing ripgrep is reported as a tool failure\n14 navigation checks, 0 failures\n",
+  "candidateSourceSha256": "196b1e96e284c638d185880e2f0c7df9684ace0da29fa42d0e52f2489eb38f44"
+}

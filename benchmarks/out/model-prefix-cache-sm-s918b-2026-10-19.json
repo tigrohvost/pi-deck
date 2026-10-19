@@ -1,0 +1,2031 @@
+{
+  "schemaVersion": 1,
+  "device": {
+    "model": "SM-S918B",
+    "androidVersion": "16",
+    "nodeVersion": "v26.4.0",
+    "piVersion": "0.82.1"
+  },
+  "localCacheSourceSha256": "a3dcec9f9cc02a9f50d8f037916020a267c0de1971518f828c4a9da4985e7ba6",
+  "installation": "Release APK signed with the existing local handset key; data preserved",
+  "scope": "Full Pi system prompt through the real Android composer; requests explicitly forbid tools unless stated. Each case starts a fresh Pi session. Timings are observations, not a paired engine-speed benchmark.",
+  "limitations": [
+    "Phone is USB-powered and thermally throttles; cooldown requests and actual results are retained.",
+    "Short exact replies do not measure sustained generation throughput.",
+    "The earlier direct-bridge baseline hit Android idle shutdown without a UI inference lease and is excluded from speed comparisons.",
+    "The old fetch transport UI probe was interrupted by USB loss; native inference continued and was explicitly aborted after diagnosis."
+  ],
+  "ui": {
+    "conversationLayoutDeviceTests": 4,
+    "layout": "20 dp copy/share icons in speed row, 48 dp hit targets; tested at 360 dp and maximum app text size",
+    "copyTap": "Copied toast observed for CACHE_UI_OK",
+    "shareTap": "Android text chooser displayed CACHE_UI_OK; dismissed without sending",
+    "sessionCleanup": {
+      "clearButtonVisible": true,
+      "confirmationMentionsCurrentAndArchive": true,
+      "confirmationMentionsIrreversibleDeletion": true,
+      "cancelVerified": true,
+      "unchangedHistoryFiles": 174,
+      "historyHashBefore": "50f7e571e7ed21f8b4c467b8550b25775c4cedf0039cda389178689901bde54a",
+      "historyHashAfter": "50f7e571e7ed21f8b4c467b8550b25775c4cedf0039cda389178689901bde54a",
+      "phoneDeletionExecuted": false,
+      "sourceCommit": "0dc01217869d9e4275d6f39c435e17f12b0f6a06",
+      "apkSha256": "f32337d14b4b97f7ecef406533eac2360a46f5a53ea67a73b2548195a35c705c"
+    },
+    "sourceCommit": "0dc01217869d9e4275d6f39c435e17f12b0f6a06"
+  },
+  "beforeFixNativeLog": [
+    "0.00.012.300 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)",
+    "0.00.019.287 I srv    load_model: loading model '/data/user/0/dev.pideck.app/files/models/bonsai2-9b/Ternary-Bonsai-2-9B-PTQ1_0.gguf'",
+    "0.02.096.323 I cmn          init: llama threadpool init, n_threads = 5",
+    "0.12.169.736 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 4096, kv_unified = 'false'",
+    "0.12.183.665 I srv  llama_server: model loaded",
+    "0.12.183.686 I srv  llama_server: listening on http://127.0.0.1:8080",
+    "0.12.183.687 W srv  llama_server: NOTICE: server default port will be changed to :9931 in a future release",
+    "0.12.183.688 W srv  llama_server:         ref: https://github.com/ggml-org/llama.cpp/pull/26508",
+    "1.01.045.269 E llama_state_seq_load_file: error loading sequence state file: failed to open /data/user/0/dev.pideck.app/cache/llama-slots/pideck-bonsai2-9b-cdb1653a25d25a22fd2264b1.bin: No such file or directory",
+    "1.01.045.837 E srv    send_error: task id = 0, error: Unable to restore slot: No available space in KV cache or invalid slot save file",
+    "1.01.045.977 W srv          stop: cancel task, id_task = 0",
+    "1.01.227.078 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1",
+    "1.01.227.155 I slot launch_slot_: id  0 | task 2 | processing task, is_child = 0",
+    "2.18.303.752 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =    256, progress = 0.17, t =  77.08 s / 3.32 tokens per second",
+    "3.05.564.747 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =    512, progress = 0.34, t = 124.34 s / 4.12 tokens per second",
+    "4.08.637.261 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =    768, progress = 0.51, t = 187.41 s / 4.10 tokens per second",
+    "4.55.253.745 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1024, progress = 0.68, t = 234.03 s / 4.38 tokens per second",
+    "6.01.373.965 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1280, progress = 0.86, t = 300.15 s / 4.26 tokens per second",
+    "6.02.786.740 W srv          stop: cancel task, id_task = 2",
+    "6.24.833.527 I slot      release: id  0 | task 2 | stop processing: n_tokens = 1365, truncated = 0",
+    "6.24.833.548 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.879 (> 0.100 thold), f_keep = 1.000",
+    "6.24.836.543 I slot launch_slot_: id  0 | task 12 | processing task, is_child = 0",
+    "7.15.190.464 I slot print_timing: id  0 | task 12 | prompt processing, n_tokens =    256, progress = 0.16, t =  50.35 s / 5.08 tokens per second",
+    "8.04.320.540 I slot print_timing: id  0 | task 12 | prompt processing, n_tokens =    512, progress = 0.33, t =  99.48 s / 5.15 tokens per second",
+    "8.53.513.379 I slot print_timing: id  0 | task 12 | prompt processing, n_tokens =    768, progress = 0.49, t = 148.68 s / 5.17 tokens per second",
+    "11.49.695.206 I slot print_timing: id  0 | task 12 | prompt processing, n_tokens =   1024, progress = 0.66, t = 324.86 s / 3.15 tokens per second",
+    "14.19.718.930 W srv          stop: cancel task, id_task = 12"
+  ],
+  "runs": [
+    {
+      "schemaVersion": 1,
+      "modelId": "bonsai2-9b",
+      "createdAt": "2026-10-19T07:38:54.591080+00:00",
+      "transport": "real Android composer via adb input; bridge is telemetry only",
+      "apkSha256": "b9cf3de5ee02701f427d55ce918d5079ecb0891fa33b909ed148304537bfa05a",
+      "finishedAt": "2026-10-19T07:47:50.774028+00:00",
+      "sourceCommit": "118a2153fe3bffe95387d14edff6dce1a9b177fa",
+      "cases": [
+        {
+          "id": "P01",
+          "prompt": "Reply exactly CACHE_UI_OK and nothing else. Do not use tools.",
+          "cooldown": {
+            "waitedSeconds": 8.74,
+            "targetHeadroom": 0.85,
+            "met": true,
+            "snapshot": {
+              "monotonicSeconds": 130106.837788,
+              "batteryLevelPercent": 88,
+              "batteryTemperatureC": 38.5,
+              "batteryVoltageV": 4.196,
+              "usbPowered": true,
+              "acPowered": false,
+              "wirelessPowered": false,
+              "bigCoreScalingMaxHz": 3187200,
+              "bigCoreNominalMaxHz": 3360000,
+              "bigCoreHeadroom": 0.949,
+              "hottestCpuC": null,
+              "batteryCurrentA": null,
+              "batteryVoltageSysfsV": null,
+              "chargeCounterAh": null,
+              "energyCounterWh": null,
+              "androidThermalStatus": 1
+            }
+          },
+          "score": {
+            "id": "P01",
+            "category": "full_agent_prefix_first_use",
+            "outcome": "pass",
+            "signals": {
+              "turn_completed": {
+                "passed": true,
+                "evidence": "TURN_COMPLETED"
+              },
+              "outside_sentinel_unchanged": {
+                "passed": true,
+                "evidence": "reserved outside sentinel unchanged"
+              },
+              "exact_answer": {
+                "passed": true,
+                "evidence": "answer='CACHE_UI_OK'"
+              },
+              "bounded_tool_calls": {
+                "passed": true,
+                "evidence": "0 <= 0; tools=[]"
+              },
+              "no_file_changes": {
+                "passed": true,
+                "evidence": "changed=[]"
+              }
+            },
+            "changedPaths": [],
+            "answer": "CACHE_UI_OK",
+            "toolNames": [],
+            "timing": {
+              "succeeded": true,
+              "terminalType": "TURN_COMPLETED",
+              "dispatchToFirstVisibleTokenSeconds": 372.796653,
+              "totalTurnSeconds": 373.909276,
+              "outputTokens": 4,
+              "tokensPerSecond": 3.63,
+              "timingSource": "bridge event timestamps from TURN_ACCEPTED, excluding UI input time"
+            },
+            "environment": {
+              "samples": 49,
+              "start": {
+                "monotonicSeconds": 130116.0475,
+                "batteryLevelPercent": 88,
+                "batteryTemperatureC": 38.5,
+                "batteryVoltageV": 4.206,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3187200,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 0.949,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 1
+              },
+              "end": {
+                "monotonicSeconds": 130497.116651,
+                "batteryLevelPercent": 88,
+                "batteryTemperatureC": 41.3,
+                "batteryVoltageV": 4.162,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 1843200,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 0.549,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 3
+              },
+              "minimumBigCoreHeadroom": 0.509,
+              "maximumCpuTemperatureC": null,
+              "thermalThrottlingEvents": 1,
+              "batteryDeltaPercent": 0.0,
+              "power": {
+                "kind": "unavailable",
+                "reason": "battery current_now/voltage_now were not both readable"
+              }
+            }
+          },
+          "firstOutputEvent": {
+            "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+            "operationId": "07f5633f-3915-40b2-86c1-fcc717a756f0",
+            "payload": {
+              "delta": "CACHE"
+            },
+            "schemaVersion": 1,
+            "sequence": 12,
+            "sessionId": "01a15319-83e1-7e58-b6fe-62eda307a3e6",
+            "timestamp": "2026-10-19T07:45:23.483555Z",
+            "type": "MODEL_OUTPUT_DELTA"
+          },
+          "events": [
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "07f5633f-3915-40b2-86c1-fcc717a756f0",
+              "payload": {
+                "accepted": true
+              },
+              "schemaVersion": 1,
+              "sequence": 9,
+              "sessionId": "01a15319-83e1-7e58-b6fe-62eda307a3e6",
+              "timestamp": "2026-10-19T07:39:10.686902Z",
+              "type": "TURN_ACCEPTED"
+            },
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "07f5633f-3915-40b2-86c1-fcc717a756f0",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 10,
+              "sessionId": "01a15319-83e1-7e58-b6fe-62eda307a3e6",
+              "timestamp": "2026-10-19T07:39:10.688243Z",
+              "type": "TURN_STARTED"
+            },
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "07f5633f-3915-40b2-86c1-fcc717a756f0",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 11,
+              "sessionId": "01a15319-83e1-7e58-b6fe-62eda307a3e6",
+              "timestamp": "2026-10-19T07:39:10.689198Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "07f5633f-3915-40b2-86c1-fcc717a756f0",
+              "payload": {
+                "answer": "CACHE_UI_OK",
+                "decodeDurationMs": 1103,
+                "outputTokens": 4,
+                "speedEstimated": false,
+                "tokensPerSecond": 3.63
+              },
+              "schemaVersion": 1,
+              "sequence": 15,
+              "sessionId": "01a15319-83e1-7e58-b6fe-62eda307a3e6",
+              "timestamp": "2026-10-19T07:45:24.596178Z",
+              "type": "TURN_COMPLETED"
+            }
+          ],
+          "fixturePath": ".pideck-bench/87f89821-7de9-4d9e-bd64-45ebe5cff104/fixture"
+        },
+        {
+          "id": "P02",
+          "prompt": "Reply exactly CACHE_UI_OK and nothing else. Do not use tools.",
+          "cooldown": {
+            "waitedSeconds": 62.472,
+            "targetHeadroom": 0.85,
+            "met": true,
+            "snapshot": {
+              "monotonicSeconds": 130559.647753,
+              "batteryLevelPercent": 88,
+              "batteryTemperatureC": 40.9,
+              "batteryVoltageV": 4.214,
+              "usbPowered": true,
+              "acPowered": false,
+              "wirelessPowered": false,
+              "bigCoreScalingMaxHz": 3360000,
+              "bigCoreNominalMaxHz": 3360000,
+              "bigCoreHeadroom": 1.0,
+              "hottestCpuC": null,
+              "batteryCurrentA": null,
+              "batteryVoltageSysfsV": null,
+              "chargeCounterAh": null,
+              "energyCounterWh": null,
+              "androidThermalStatus": 2
+            }
+          },
+          "score": {
+            "id": "P02",
+            "category": "full_agent_prefix_new_session",
+            "outcome": "pass",
+            "signals": {
+              "turn_completed": {
+                "passed": true,
+                "evidence": "TURN_COMPLETED"
+              },
+              "outside_sentinel_unchanged": {
+                "passed": true,
+                "evidence": "reserved outside sentinel unchanged"
+              },
+              "exact_answer": {
+                "passed": true,
+                "evidence": "answer='CACHE_UI_OK'"
+              },
+              "bounded_tool_calls": {
+                "passed": true,
+                "evidence": "0 <= 0; tools=[]"
+              },
+              "no_file_changes": {
+                "passed": true,
+                "evidence": "changed=[]"
+              }
+            },
+            "changedPaths": [],
+            "answer": "CACHE_UI_OK",
+            "toolNames": [],
+            "timing": {
+              "succeeded": true,
+              "terminalType": "TURN_COMPLETED",
+              "dispatchToFirstVisibleTokenSeconds": 14.369625,
+              "totalTurnSeconds": 15.430373,
+              "outputTokens": 4,
+              "tokensPerSecond": 3.78,
+              "timingSource": "bridge event timestamps from TURN_ACCEPTED, excluding UI input time"
+            },
+            "environment": {
+              "samples": 4,
+              "start": {
+                "monotonicSeconds": 130569.38653,
+                "batteryLevelPercent": 89,
+                "batteryTemperatureC": 40.8,
+                "batteryVoltageV": 4.204,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "end": {
+                "monotonicSeconds": 130593.795022,
+                "batteryLevelPercent": 89,
+                "batteryTemperatureC": 40.7,
+                "batteryVoltageV": 4.193,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "minimumBigCoreHeadroom": 1.0,
+              "maximumCpuTemperatureC": null,
+              "thermalThrottlingEvents": 0,
+              "batteryDeltaPercent": 0.0,
+              "power": {
+                "kind": "unavailable",
+                "reason": "battery current_now/voltage_now were not both readable"
+              }
+            }
+          },
+          "firstOutputEvent": {
+            "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+            "operationId": "bec0c83f-b450-41e1-be6b-4b8a0e5ad045",
+            "payload": {
+              "delta": "CACHE"
+            },
+            "schemaVersion": 1,
+            "sequence": 24,
+            "sessionId": "01a15320-6c86-7b84-b311-a0f954dd8426",
+            "timestamp": "2026-10-19T07:46:58.578917Z",
+            "type": "MODEL_OUTPUT_DELTA"
+          },
+          "events": [
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "bec0c83f-b450-41e1-be6b-4b8a0e5ad045",
+              "payload": {
+                "accepted": true
+              },
+              "schemaVersion": 1,
+              "sequence": 21,
+              "sessionId": "01a15320-6c86-7b84-b311-a0f954dd8426",
+              "timestamp": "2026-10-19T07:46:44.209292Z",
+              "type": "TURN_ACCEPTED"
+            },
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "bec0c83f-b450-41e1-be6b-4b8a0e5ad045",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 22,
+              "sessionId": "01a15320-6c86-7b84-b311-a0f954dd8426",
+              "timestamp": "2026-10-19T07:46:44.211312Z",
+              "type": "TURN_STARTED"
+            },
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "bec0c83f-b450-41e1-be6b-4b8a0e5ad045",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 23,
+              "sessionId": "01a15320-6c86-7b84-b311-a0f954dd8426",
+              "timestamp": "2026-10-19T07:46:44.212005Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "bec0c83f-b450-41e1-be6b-4b8a0e5ad045",
+              "payload": {
+                "answer": "CACHE_UI_OK",
+                "decodeDurationMs": 1058,
+                "outputTokens": 4,
+                "speedEstimated": false,
+                "tokensPerSecond": 3.78
+              },
+              "schemaVersion": 1,
+              "sequence": 27,
+              "sessionId": "01a15320-6c86-7b84-b311-a0f954dd8426",
+              "timestamp": "2026-10-19T07:46:59.639665Z",
+              "type": "TURN_COMPLETED"
+            }
+          ],
+          "fixturePath": ".pideck-bench/755eab46-ff72-4923-b749-7261657f3d16/fixture"
+        },
+        {
+          "id": "P03",
+          "prompt": "Calculate 17 * 23. Reply only with the number. Do not use tools.",
+          "cooldown": {
+            "waitedSeconds": 7.832,
+            "targetHeadroom": 0.85,
+            "met": true,
+            "snapshot": {
+              "monotonicSeconds": 130601.663061,
+              "batteryLevelPercent": 89,
+              "batteryTemperatureC": 40.7,
+              "batteryVoltageV": 4.193,
+              "usbPowered": true,
+              "acPowered": false,
+              "wirelessPowered": false,
+              "bigCoreScalingMaxHz": 3360000,
+              "bigCoreNominalMaxHz": 3360000,
+              "bigCoreHeadroom": 1.0,
+              "hottestCpuC": null,
+              "batteryCurrentA": null,
+              "batteryVoltageSysfsV": null,
+              "chargeCounterAh": null,
+              "energyCounterWh": null,
+              "androidThermalStatus": 2
+            }
+          },
+          "score": {
+            "id": "P03",
+            "category": "arithmetic",
+            "outcome": "fail",
+            "signals": {
+              "turn_completed": {
+                "passed": true,
+                "evidence": "TURN_COMPLETED"
+              },
+              "outside_sentinel_unchanged": {
+                "passed": true,
+                "evidence": "reserved outside sentinel unchanged"
+              },
+              "exact_answer": {
+                "passed": false,
+                "evidence": "answer='401'"
+              },
+              "bounded_tool_calls": {
+                "passed": true,
+                "evidence": "0 <= 0; tools=[]"
+              },
+              "no_file_changes": {
+                "passed": true,
+                "evidence": "changed=[]"
+              }
+            },
+            "changedPaths": [],
+            "answer": "401",
+            "toolNames": [],
+            "timing": {
+              "succeeded": true,
+              "terminalType": "TURN_COMPLETED",
+              "dispatchToFirstVisibleTokenSeconds": 16.390521,
+              "totalTurnSeconds": 17.455546,
+              "outputTokens": 4,
+              "tokensPerSecond": 3.76,
+              "timingSource": "bridge event timestamps from TURN_ACCEPTED, excluding UI input time"
+            },
+            "environment": {
+              "samples": 4,
+              "start": {
+                "monotonicSeconds": 130610.71163,
+                "batteryLevelPercent": 89,
+                "batteryTemperatureC": 40.8,
+                "batteryVoltageV": 4.202,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "end": {
+                "monotonicSeconds": 130634.196923,
+                "batteryLevelPercent": 89,
+                "batteryTemperatureC": 40.7,
+                "batteryVoltageV": 4.142,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "minimumBigCoreHeadroom": 1.0,
+              "maximumCpuTemperatureC": null,
+              "thermalThrottlingEvents": 0,
+              "batteryDeltaPercent": 0.0,
+              "power": {
+                "kind": "unavailable",
+                "reason": "battery current_now/voltage_now were not both readable"
+              }
+            }
+          },
+          "firstOutputEvent": {
+            "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+            "operationId": "0417773d-cea6-4f7f-9c97-3624d6f9309c",
+            "payload": {
+              "delta": "4"
+            },
+            "schemaVersion": 1,
+            "sequence": 36,
+            "sessionId": "01a15321-10b0-70d0-a40e-ca41ff204b74",
+            "timestamp": "2026-10-19T07:47:41.656548Z",
+            "type": "MODEL_OUTPUT_DELTA"
+          },
+          "events": [
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "0417773d-cea6-4f7f-9c97-3624d6f9309c",
+              "payload": {
+                "accepted": true
+              },
+              "schemaVersion": 1,
+              "sequence": 33,
+              "sessionId": "01a15321-10b0-70d0-a40e-ca41ff204b74",
+              "timestamp": "2026-10-19T07:47:25.266027Z",
+              "type": "TURN_ACCEPTED"
+            },
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "0417773d-cea6-4f7f-9c97-3624d6f9309c",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 34,
+              "sessionId": "01a15321-10b0-70d0-a40e-ca41ff204b74",
+              "timestamp": "2026-10-19T07:47:25.266765Z",
+              "type": "TURN_STARTED"
+            },
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "0417773d-cea6-4f7f-9c97-3624d6f9309c",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 35,
+              "sessionId": "01a15321-10b0-70d0-a40e-ca41ff204b74",
+              "timestamp": "2026-10-19T07:47:25.268847Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "7093461e-f750-4f4c-af89-a8c58954be17",
+              "operationId": "0417773d-cea6-4f7f-9c97-3624d6f9309c",
+              "payload": {
+                "answer": "401",
+                "decodeDurationMs": 1063,
+                "outputTokens": 4,
+                "speedEstimated": false,
+                "tokensPerSecond": 3.76
+              },
+              "schemaVersion": 1,
+              "sequence": 39,
+              "sessionId": "01a15321-10b0-70d0-a40e-ca41ff204b74",
+              "timestamp": "2026-10-19T07:47:42.721573Z",
+              "type": "TURN_COMPLETED"
+            }
+          ],
+          "fixturePath": ".pideck-bench/8f0e0541-3d7f-426c-8448-ad759e40c9a8/fixture"
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "modelId": "bonsai2-9b",
+      "createdAt": "2026-10-19T07:49:38.039676+00:00",
+      "transport": "real Android composer via adb input; bridge is telemetry only",
+      "apkSha256": "b9cf3de5ee02701f427d55ce918d5079ecb0891fa33b909ed148304537bfa05a",
+      "finishedAt": "2026-10-19T07:50:17.806043+00:00",
+      "sourceCommit": "118a2153fe3bffe95387d14edff6dce1a9b177fa",
+      "cases": [
+        {
+          "id": "P04",
+          "prompt": "Reply exactly CACHE_UI_OK and nothing else. Do not use tools.",
+          "cooldown": {
+            "waitedSeconds": 7.694,
+            "targetHeadroom": 0.85,
+            "met": true,
+            "snapshot": {
+              "monotonicSeconds": 130749.22795,
+              "batteryLevelPercent": 90,
+              "batteryTemperatureC": 40.0,
+              "batteryVoltageV": 4.22,
+              "usbPowered": true,
+              "acPowered": false,
+              "wirelessPowered": false,
+              "bigCoreScalingMaxHz": 3360000,
+              "bigCoreNominalMaxHz": 3360000,
+              "bigCoreHeadroom": 1.0,
+              "hottestCpuC": null,
+              "batteryCurrentA": null,
+              "batteryVoltageSysfsV": null,
+              "chargeCounterAh": null,
+              "energyCounterWh": null,
+              "androidThermalStatus": 2
+            }
+          },
+          "score": {
+            "id": "P04",
+            "category": "full_agent_prefix_after_native_restart",
+            "outcome": "pass",
+            "signals": {
+              "turn_completed": {
+                "passed": true,
+                "evidence": "TURN_COMPLETED"
+              },
+              "outside_sentinel_unchanged": {
+                "passed": true,
+                "evidence": "reserved outside sentinel unchanged"
+              },
+              "exact_answer": {
+                "passed": true,
+                "evidence": "answer='CACHE_UI_OK'"
+              },
+              "bounded_tool_calls": {
+                "passed": true,
+                "evidence": "0 <= 0; tools=[]"
+              },
+              "no_file_changes": {
+                "passed": true,
+                "evidence": "changed=[]"
+              }
+            },
+            "changedPaths": [],
+            "answer": "CACHE_UI_OK",
+            "toolNames": [],
+            "timing": {
+              "succeeded": true,
+              "terminalType": "TURN_COMPLETED",
+              "dispatchToFirstVisibleTokenSeconds": 16.354429,
+              "totalTurnSeconds": 17.390128,
+              "outputTokens": 4,
+              "tokensPerSecond": 3.9,
+              "timingSource": "bridge event timestamps from TURN_ACCEPTED, excluding UI input time"
+            },
+            "environment": {
+              "samples": 4,
+              "start": {
+                "monotonicSeconds": 130757.882255,
+                "batteryLevelPercent": 90,
+                "batteryTemperatureC": 40.0,
+                "batteryVoltageV": 4.214,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "end": {
+                "monotonicSeconds": 130781.232117,
+                "batteryLevelPercent": 90,
+                "batteryTemperatureC": 39.9,
+                "batteryVoltageV": 4.142,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "minimumBigCoreHeadroom": 1.0,
+              "maximumCpuTemperatureC": null,
+              "thermalThrottlingEvents": 0,
+              "batteryDeltaPercent": 0.0,
+              "power": {
+                "kind": "unavailable",
+                "reason": "battery current_now/voltage_now were not both readable"
+              }
+            }
+          },
+          "firstOutputEvent": {
+            "bridgeInstanceId": "26795e5d-1939-4774-88da-3eaee3ddcbd4",
+            "operationId": "dc9038d1-c56b-4226-8fd7-dc6274e2cdb9",
+            "payload": {
+              "delta": "CACHE"
+            },
+            "schemaVersion": 1,
+            "sequence": 15,
+            "sessionId": "01a15323-5115-7291-a7e7-64bad5b6ed94",
+            "timestamp": "2026-10-19T07:50:09.193803Z",
+            "type": "MODEL_OUTPUT_DELTA"
+          },
+          "events": [
+            {
+              "bridgeInstanceId": "26795e5d-1939-4774-88da-3eaee3ddcbd4",
+              "operationId": "dc9038d1-c56b-4226-8fd7-dc6274e2cdb9",
+              "payload": {
+                "accepted": true
+              },
+              "schemaVersion": 1,
+              "sequence": 12,
+              "sessionId": "01a15323-5115-7291-a7e7-64bad5b6ed94",
+              "timestamp": "2026-10-19T07:49:52.839374Z",
+              "type": "TURN_ACCEPTED"
+            },
+            {
+              "bridgeInstanceId": "26795e5d-1939-4774-88da-3eaee3ddcbd4",
+              "operationId": "dc9038d1-c56b-4226-8fd7-dc6274e2cdb9",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 13,
+              "sessionId": "01a15323-5115-7291-a7e7-64bad5b6ed94",
+              "timestamp": "2026-10-19T07:49:52.853101Z",
+              "type": "TURN_STARTED"
+            },
+            {
+              "bridgeInstanceId": "26795e5d-1939-4774-88da-3eaee3ddcbd4",
+              "operationId": "dc9038d1-c56b-4226-8fd7-dc6274e2cdb9",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 14,
+              "sessionId": "01a15323-5115-7291-a7e7-64bad5b6ed94",
+              "timestamp": "2026-10-19T07:49:52.853682Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "26795e5d-1939-4774-88da-3eaee3ddcbd4",
+              "operationId": "dc9038d1-c56b-4226-8fd7-dc6274e2cdb9",
+              "payload": {
+                "answer": "CACHE_UI_OK",
+                "decodeDurationMs": 1027,
+                "outputTokens": 4,
+                "speedEstimated": false,
+                "tokensPerSecond": 3.9
+              },
+              "schemaVersion": 1,
+              "sequence": 18,
+              "sessionId": "01a15323-5115-7291-a7e7-64bad5b6ed94",
+              "timestamp": "2026-10-19T07:50:10.229502Z",
+              "type": "TURN_COMPLETED"
+            }
+          ],
+          "fixturePath": ".pideck-bench/ec627a22-75d2-48f4-9c62-2646e3db6add/fixture"
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "modelId": "bonsai2-4b",
+      "createdAt": "2026-10-19T07:51:47.354231+00:00",
+      "transport": "real Android composer via adb input; bridge is telemetry only",
+      "apkSha256": "b9cf3de5ee02701f427d55ce918d5079ecb0891fa33b909ed148304537bfa05a",
+      "finishedAt": "2026-10-19T08:01:14.954757+00:00",
+      "sourceCommit": "118a2153fe3bffe95387d14edff6dce1a9b177fa",
+      "cases": [
+        {
+          "id": "P01",
+          "prompt": "Reply exactly CACHE_UI_OK and nothing else. Do not use tools.",
+          "cooldown": {
+            "waitedSeconds": 8.747,
+            "targetHeadroom": 0.85,
+            "met": true,
+            "snapshot": {
+              "monotonicSeconds": 130879.59846,
+              "batteryLevelPercent": 90,
+              "batteryTemperatureC": 39.4,
+              "batteryVoltageV": 4.217,
+              "usbPowered": true,
+              "acPowered": false,
+              "wirelessPowered": false,
+              "bigCoreScalingMaxHz": 3360000,
+              "bigCoreNominalMaxHz": 3360000,
+              "bigCoreHeadroom": 1.0,
+              "hottestCpuC": null,
+              "batteryCurrentA": null,
+              "batteryVoltageSysfsV": null,
+              "chargeCounterAh": null,
+              "energyCounterWh": null,
+              "androidThermalStatus": 2
+            }
+          },
+          "score": {
+            "id": "P01",
+            "category": "full_agent_prefix_first_use",
+            "outcome": "pass",
+            "signals": {
+              "turn_completed": {
+                "passed": true,
+                "evidence": "TURN_COMPLETED"
+              },
+              "outside_sentinel_unchanged": {
+                "passed": true,
+                "evidence": "reserved outside sentinel unchanged"
+              },
+              "exact_answer": {
+                "passed": true,
+                "evidence": "answer='CACHE_UI_OK'"
+              },
+              "bounded_tool_calls": {
+                "passed": true,
+                "evidence": "0 <= 0; tools=[]"
+              },
+              "no_file_changes": {
+                "passed": true,
+                "evidence": "changed=[]"
+              }
+            },
+            "changedPaths": [],
+            "answer": "CACHE_UI_OK",
+            "toolNames": [],
+            "timing": {
+              "succeeded": true,
+              "terminalType": "TURN_COMPLETED",
+              "dispatchToFirstVisibleTokenSeconds": 159.176077,
+              "totalTurnSeconds": 159.821477,
+              "outputTokens": 4,
+              "tokensPerSecond": 6.26,
+              "timingSource": "bridge event timestamps from TURN_ACCEPTED, excluding UI input time"
+            },
+            "environment": {
+              "samples": 24,
+              "start": {
+                "monotonicSeconds": 130888.478736,
+                "batteryLevelPercent": 90,
+                "batteryTemperatureC": 39.4,
+                "batteryVoltageV": 4.224,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "end": {
+                "monotonicSeconds": 131059.319316,
+                "batteryLevelPercent": 90,
+                "batteryTemperatureC": 41.1,
+                "batteryVoltageV": 4.147,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 2592000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 0.771,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 3
+              },
+              "minimumBigCoreHeadroom": 0.771,
+              "maximumCpuTemperatureC": null,
+              "thermalThrottlingEvents": 1,
+              "batteryDeltaPercent": 0.0,
+              "power": {
+                "kind": "unavailable",
+                "reason": "battery current_now/voltage_now were not both readable"
+              }
+            }
+          },
+          "firstOutputEvent": {
+            "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+            "operationId": "19c0e400-a3aa-40e1-a262-a5398287b89f",
+            "payload": {
+              "delta": "CACHE"
+            },
+            "schemaVersion": 1,
+            "sequence": 12,
+            "sessionId": "01a15325-4e79-77b5-9068-fe31864667fa",
+            "timestamp": "2026-10-19T07:54:42.445442Z",
+            "type": "MODEL_OUTPUT_DELTA"
+          },
+          "events": [
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "19c0e400-a3aa-40e1-a262-a5398287b89f",
+              "payload": {
+                "accepted": true
+              },
+              "schemaVersion": 1,
+              "sequence": 9,
+              "sessionId": "01a15325-4e79-77b5-9068-fe31864667fa",
+              "timestamp": "2026-10-19T07:52:03.269365Z",
+              "type": "TURN_ACCEPTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "19c0e400-a3aa-40e1-a262-a5398287b89f",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 10,
+              "sessionId": "01a15325-4e79-77b5-9068-fe31864667fa",
+              "timestamp": "2026-10-19T07:52:03.270523Z",
+              "type": "TURN_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "19c0e400-a3aa-40e1-a262-a5398287b89f",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 11,
+              "sessionId": "01a15325-4e79-77b5-9068-fe31864667fa",
+              "timestamp": "2026-10-19T07:52:03.271626Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "19c0e400-a3aa-40e1-a262-a5398287b89f",
+              "payload": {
+                "answer": "CACHE_UI_OK",
+                "decodeDurationMs": 639,
+                "outputTokens": 4,
+                "speedEstimated": false,
+                "tokensPerSecond": 6.26
+              },
+              "schemaVersion": 1,
+              "sequence": 15,
+              "sessionId": "01a15325-4e79-77b5-9068-fe31864667fa",
+              "timestamp": "2026-10-19T07:54:43.090842Z",
+              "type": "TURN_COMPLETED"
+            }
+          ],
+          "fixturePath": ".pideck-bench/3c3d4f16-b8f7-45f3-8ef7-38f462165015/fixture"
+        },
+        {
+          "id": "P02",
+          "prompt": "Reply exactly CACHE_UI_OK and nothing else. Do not use tools.",
+          "cooldown": {
+            "waitedSeconds": 27.156,
+            "targetHeadroom": 0.85,
+            "met": true,
+            "snapshot": {
+              "monotonicSeconds": 131086.516136,
+              "batteryLevelPercent": 90,
+              "batteryTemperatureC": 41.1,
+              "batteryVoltageV": 4.225,
+              "usbPowered": true,
+              "acPowered": false,
+              "wirelessPowered": false,
+              "bigCoreScalingMaxHz": 3360000,
+              "bigCoreNominalMaxHz": 3360000,
+              "bigCoreHeadroom": 1.0,
+              "hottestCpuC": null,
+              "batteryCurrentA": null,
+              "batteryVoltageSysfsV": null,
+              "chargeCounterAh": null,
+              "energyCounterWh": null,
+              "androidThermalStatus": 3
+            }
+          },
+          "score": {
+            "id": "P02",
+            "category": "full_agent_prefix_new_session",
+            "outcome": "pass",
+            "signals": {
+              "turn_completed": {
+                "passed": true,
+                "evidence": "TURN_COMPLETED"
+              },
+              "outside_sentinel_unchanged": {
+                "passed": true,
+                "evidence": "reserved outside sentinel unchanged"
+              },
+              "exact_answer": {
+                "passed": true,
+                "evidence": "answer='CACHE_UI_OK'"
+              },
+              "bounded_tool_calls": {
+                "passed": true,
+                "evidence": "0 <= 0; tools=[]"
+              },
+              "no_file_changes": {
+                "passed": true,
+                "evidence": "changed=[]"
+              }
+            },
+            "changedPaths": [],
+            "answer": "CACHE_UI_OK",
+            "toolNames": [],
+            "timing": {
+              "succeeded": true,
+              "terminalType": "TURN_COMPLETED",
+              "dispatchToFirstVisibleTokenSeconds": 9.253075,
+              "totalTurnSeconds": 9.868113,
+              "outputTokens": 4,
+              "tokensPerSecond": 6.53,
+              "timingSource": "bridge event timestamps from TURN_ACCEPTED, excluding UI input time"
+            },
+            "environment": {
+              "samples": 3,
+              "start": {
+                "monotonicSeconds": 131095.778489,
+                "batteryLevelPercent": 91,
+                "batteryTemperatureC": 41.0,
+                "batteryVoltageV": 4.228,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 3
+              },
+              "end": {
+                "monotonicSeconds": 131111.532863,
+                "batteryLevelPercent": 91,
+                "batteryTemperatureC": 40.8,
+                "batteryVoltageV": 4.146,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 3
+              },
+              "minimumBigCoreHeadroom": 1.0,
+              "maximumCpuTemperatureC": null,
+              "thermalThrottlingEvents": 0,
+              "batteryDeltaPercent": 0.0,
+              "power": {
+                "kind": "unavailable",
+                "reason": "battery current_now/voltage_now were not both readable"
+              }
+            }
+          },
+          "firstOutputEvent": {
+            "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+            "operationId": "a871665f-7c5d-4ad8-a599-5f00c0e47dac",
+            "payload": {
+              "delta": "CACHE"
+            },
+            "schemaVersion": 1,
+            "sequence": 24,
+            "sessionId": "01a15328-76a8-7b12-8d83-65a252efa3ac",
+            "timestamp": "2026-10-19T07:55:39.389071Z",
+            "type": "MODEL_OUTPUT_DELTA"
+          },
+          "events": [
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "a871665f-7c5d-4ad8-a599-5f00c0e47dac",
+              "payload": {
+                "accepted": true
+              },
+              "schemaVersion": 1,
+              "sequence": 21,
+              "sessionId": "01a15328-76a8-7b12-8d83-65a252efa3ac",
+              "timestamp": "2026-10-19T07:55:30.135996Z",
+              "type": "TURN_ACCEPTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "a871665f-7c5d-4ad8-a599-5f00c0e47dac",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 22,
+              "sessionId": "01a15328-76a8-7b12-8d83-65a252efa3ac",
+              "timestamp": "2026-10-19T07:55:30.137436Z",
+              "type": "TURN_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "a871665f-7c5d-4ad8-a599-5f00c0e47dac",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 23,
+              "sessionId": "01a15328-76a8-7b12-8d83-65a252efa3ac",
+              "timestamp": "2026-10-19T07:55:30.137759Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "a871665f-7c5d-4ad8-a599-5f00c0e47dac",
+              "payload": {
+                "answer": "CACHE_UI_OK",
+                "decodeDurationMs": 613,
+                "outputTokens": 4,
+                "speedEstimated": false,
+                "tokensPerSecond": 6.53
+              },
+              "schemaVersion": 1,
+              "sequence": 27,
+              "sessionId": "01a15328-76a8-7b12-8d83-65a252efa3ac",
+              "timestamp": "2026-10-19T07:55:40.004109Z",
+              "type": "TURN_COMPLETED"
+            }
+          ],
+          "fixturePath": ".pideck-bench/612a8c7d-e45a-401f-91d3-9612549ec97f/fixture"
+        },
+        {
+          "id": "P03",
+          "prompt": "Calculate 17 * 23. Reply only with the number. Do not use tools.",
+          "cooldown": {
+            "waitedSeconds": 7.845,
+            "targetHeadroom": 0.85,
+            "met": true,
+            "snapshot": {
+              "monotonicSeconds": 131119.415421,
+              "batteryLevelPercent": 91,
+              "batteryTemperatureC": 40.8,
+              "batteryVoltageV": 4.146,
+              "usbPowered": true,
+              "acPowered": false,
+              "wirelessPowered": false,
+              "bigCoreScalingMaxHz": 3360000,
+              "bigCoreNominalMaxHz": 3360000,
+              "bigCoreHeadroom": 1.0,
+              "hottestCpuC": null,
+              "batteryCurrentA": null,
+              "batteryVoltageSysfsV": null,
+              "chargeCounterAh": null,
+              "energyCounterWh": null,
+              "androidThermalStatus": 3
+            }
+          },
+          "score": {
+            "id": "P03",
+            "category": "arithmetic",
+            "outcome": "pass",
+            "signals": {
+              "turn_completed": {
+                "passed": true,
+                "evidence": "TURN_COMPLETED"
+              },
+              "outside_sentinel_unchanged": {
+                "passed": true,
+                "evidence": "reserved outside sentinel unchanged"
+              },
+              "exact_answer": {
+                "passed": true,
+                "evidence": "answer='391'"
+              },
+              "bounded_tool_calls": {
+                "passed": true,
+                "evidence": "0 <= 0; tools=[]"
+              },
+              "no_file_changes": {
+                "passed": true,
+                "evidence": "changed=[]"
+              }
+            },
+            "changedPaths": [],
+            "answer": "391",
+            "toolNames": [],
+            "timing": {
+              "succeeded": true,
+              "terminalType": "TURN_COMPLETED",
+              "dispatchToFirstVisibleTokenSeconds": 12.254877,
+              "totalTurnSeconds": 12.844618,
+              "outputTokens": 4,
+              "tokensPerSecond": 6.81,
+              "timingSource": "bridge event timestamps from TURN_ACCEPTED, excluding UI input time"
+            },
+            "environment": {
+              "samples": 4,
+              "start": {
+                "monotonicSeconds": 131126.559623,
+                "batteryLevelPercent": 91,
+                "batteryTemperatureC": 40.8,
+                "batteryVoltageV": 4.225,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 3
+              },
+              "end": {
+                "monotonicSeconds": 131148.501618,
+                "batteryLevelPercent": 91,
+                "batteryTemperatureC": 40.7,
+                "batteryVoltageV": 4.162,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "minimumBigCoreHeadroom": 1.0,
+              "maximumCpuTemperatureC": null,
+              "thermalThrottlingEvents": 0,
+              "batteryDeltaPercent": 0.0,
+              "power": {
+                "kind": "unavailable",
+                "reason": "battery current_now/voltage_now were not both readable"
+              }
+            }
+          },
+          "firstOutputEvent": {
+            "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+            "operationId": "ff476a96-475c-4f94-8ca6-f25392369cce",
+            "payload": {
+              "delta": "3"
+            },
+            "schemaVersion": 1,
+            "sequence": 36,
+            "sessionId": "01a15328-f726-7bc4-8263-87a936be0e41",
+            "timestamp": "2026-10-19T07:56:16.276980Z",
+            "type": "MODEL_OUTPUT_DELTA"
+          },
+          "events": [
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "ff476a96-475c-4f94-8ca6-f25392369cce",
+              "payload": {
+                "accepted": true
+              },
+              "schemaVersion": 1,
+              "sequence": 33,
+              "sessionId": "01a15328-f726-7bc4-8263-87a936be0e41",
+              "timestamp": "2026-10-19T07:56:04.022103Z",
+              "type": "TURN_ACCEPTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "ff476a96-475c-4f94-8ca6-f25392369cce",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 34,
+              "sessionId": "01a15328-f726-7bc4-8263-87a936be0e41",
+              "timestamp": "2026-10-19T07:56:04.023348Z",
+              "type": "TURN_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "ff476a96-475c-4f94-8ca6-f25392369cce",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 35,
+              "sessionId": "01a15328-f726-7bc4-8263-87a936be0e41",
+              "timestamp": "2026-10-19T07:56:04.024981Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "ff476a96-475c-4f94-8ca6-f25392369cce",
+              "payload": {
+                "answer": "391",
+                "decodeDurationMs": 588,
+                "outputTokens": 4,
+                "speedEstimated": false,
+                "tokensPerSecond": 6.81
+              },
+              "schemaVersion": 1,
+              "sequence": 39,
+              "sessionId": "01a15328-f726-7bc4-8263-87a936be0e41",
+              "timestamp": "2026-10-19T07:56:16.866721Z",
+              "type": "TURN_COMPLETED"
+            }
+          ],
+          "fixturePath": ".pideck-bench/2f666d0d-c782-420c-8d41-c9440f0fa8df/fixture"
+        },
+        {
+          "id": "N01",
+          "prompt": "In .pideck-bench/213b1767-775e-4c8d-9123-1d158d77b63f/fixture, find the definition of function divide. Use code_nav first, then report the relative file and line number. Do not change anything.",
+          "cooldown": {
+            "waitedSeconds": 8.125,
+            "targetHeadroom": 0.85,
+            "met": true,
+            "snapshot": {
+              "monotonicSeconds": 131156.668449,
+              "batteryLevelPercent": 91,
+              "batteryTemperatureC": 40.8,
+              "batteryVoltageV": 4.221,
+              "usbPowered": true,
+              "acPowered": false,
+              "wirelessPowered": false,
+              "bigCoreScalingMaxHz": 3360000,
+              "bigCoreNominalMaxHz": 3360000,
+              "bigCoreHeadroom": 1.0,
+              "hottestCpuC": null,
+              "batteryCurrentA": null,
+              "batteryVoltageSysfsV": null,
+              "chargeCounterAh": null,
+              "energyCounterWh": null,
+              "androidThermalStatus": 2
+            }
+          },
+          "score": {
+            "id": "N01",
+            "category": "code_navigation_english_smoke",
+            "outcome": "pass",
+            "signals": {
+              "turn_completed": {
+                "passed": true,
+                "evidence": "TURN_COMPLETED"
+              },
+              "outside_sentinel_unchanged": {
+                "passed": true,
+                "evidence": "reserved outside sentinel unchanged"
+              },
+              "answer_regex": {
+                "passed": true,
+                "evidence": "pattern=src/calculator\\.py.*(?:line|строк)[^0-9]*1|src/calculator\\.py:1; answer='The function `divide` is defined in the file `.pideck-bench/213b1767-775e-4c8d-9123-1d158d77b63f/fixture/src/calculator.py` at line 1.\\n\\n**Relative file:** `src/calculator.py`  \\n**Line number:** `1`'"
+              },
+              "required_tool:code_nav": {
+                "passed": true,
+                "evidence": "tools=['code_nav']"
+              },
+              "bounded_tool_calls": {
+                "passed": true,
+                "evidence": "1 <= 2; tools=['code_nav']"
+              },
+              "no_file_changes": {
+                "passed": true,
+                "evidence": "changed=[]"
+              }
+            },
+            "changedPaths": [],
+            "answer": "The function `divide` is defined in the file `.pideck-bench/213b1767-775e-4c8d-9123-1d158d77b63f/fixture/src/calculator.py` at line 1.\n\n**Relative file:** `src/calculator.py`  \n**Line number:** `1`",
+            "toolNames": [
+              "code_nav"
+            ],
+            "timing": {
+              "succeeded": true,
+              "terminalType": "TURN_COMPLETED",
+              "dispatchToFirstVisibleTokenSeconds": 236.316512,
+              "totalTurnSeconds": 257.346142,
+              "outputTokens": 111,
+              "tokensPerSecond": 4.55,
+              "timingSource": "bridge event timestamps from TURN_ACCEPTED, excluding UI input time"
+            },
+            "environment": {
+              "samples": 32,
+              "start": {
+                "monotonicSeconds": 131166.003592,
+                "batteryLevelPercent": 91,
+                "batteryTemperatureC": 40.8,
+                "batteryVoltageV": 4.225,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "end": {
+                "monotonicSeconds": 131438.375624,
+                "batteryLevelPercent": 91,
+                "batteryTemperatureC": 42.1,
+                "batteryVoltageV": 4.16,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 1593600,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 0.474,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 3
+              },
+              "minimumBigCoreHeadroom": 0.44,
+              "maximumCpuTemperatureC": null,
+              "thermalThrottlingEvents": 1,
+              "batteryDeltaPercent": 0.0,
+              "power": {
+                "kind": "unavailable",
+                "reason": "battery current_now/voltage_now were not both readable"
+              }
+            }
+          },
+          "firstOutputEvent": {
+            "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+            "operationId": "7968986b-1023-45d8-9e14-c40f59f14689",
+            "payload": {
+              "delta": "The"
+            },
+            "schemaVersion": 1,
+            "sequence": 52,
+            "sessionId": "01a15329-8889-7b67-978b-3edb76768dd3",
+            "timestamp": "2026-10-19T08:00:40.755534Z",
+            "type": "MODEL_OUTPUT_DELTA"
+          },
+          "events": [
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "7968986b-1023-45d8-9e14-c40f59f14689",
+              "payload": {
+                "accepted": true
+              },
+              "schemaVersion": 1,
+              "sequence": 45,
+              "sessionId": "01a15329-8889-7b67-978b-3edb76768dd3",
+              "timestamp": "2026-10-19T07:56:44.439022Z",
+              "type": "TURN_ACCEPTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "7968986b-1023-45d8-9e14-c40f59f14689",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 46,
+              "sessionId": "01a15329-8889-7b67-978b-3edb76768dd3",
+              "timestamp": "2026-10-19T07:56:44.447443Z",
+              "type": "TURN_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "7968986b-1023-45d8-9e14-c40f59f14689",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 47,
+              "sessionId": "01a15329-8889-7b67-978b-3edb76768dd3",
+              "timestamp": "2026-10-19T07:56:44.448644Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "7968986b-1023-45d8-9e14-c40f59f14689",
+              "payload": {
+                "args": "{\"query\": \"divide\"}",
+                "toolCallId": "ts0oQo4KejFBeev5pAgA7CCPKxDJ0IyW",
+                "toolName": "code_nav"
+              },
+              "schemaVersion": 1,
+              "sequence": 48,
+              "sessionId": "01a15329-8889-7b67-978b-3edb76768dd3",
+              "timestamp": "2026-10-19T07:57:07.423772Z",
+              "type": "TOOL_CALL_REQUESTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "7968986b-1023-45d8-9e14-c40f59f14689",
+              "payload": {
+                "args": "{\"query\": \"divide\"}",
+                "toolCallId": "ts0oQo4KejFBeev5pAgA7CCPKxDJ0IyW",
+                "toolName": "code_nav"
+              },
+              "schemaVersion": 1,
+              "sequence": 49,
+              "sessionId": "01a15329-8889-7b67-978b-3edb76768dd3",
+              "timestamp": "2026-10-19T07:57:07.427912Z",
+              "type": "TOOL_CALL_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "7968986b-1023-45d8-9e14-c40f59f14689",
+              "payload": {
+                "isError": false,
+                "resultPreview": "{\"content\": [{\"type\": \"text\", \"text\": \"code_nav query: divide\\nscope: .\\n\\nText matches:\\n.pideck-bench/213b1767-775e-4c8d-9123-1d158d77b63f/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/2f666d0d-c782-420c-8d41-c9440f0fa8df/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/612a8c7d-e45a-401f-91d3-9612549ec97f/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/61fe4338-b877-423f-8f67-02ebaa6a15da/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/b88ec9ed-7148-4b71-9a55-a0cf28fc53d9/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/dd73bb95-08c1-48e2-a6a2-422f887c13e9/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/8f0e0541-3d7f-426c-8448-ad759e40c9a8/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/9122994e-e081-424a-9c34-26332dceeec3/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/8b120679-58fa-4826-9baa-2676dd9b16fc/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/755eab46-ff72-4923-b749-7261657f3d16/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/93e6f5ef-2586-4414-8a38-85449032e27c/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/87f89821-7de9-4d9e-bd64-45ebe5cff104/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/03617bef-e7cc-40ab-a023-028fe36697e1/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/5ddc7bb3-6eb1-49d6-9153-3560f9f60165/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/4e0794da-3415-48f7-87b1-192e46cfd864/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/cd5a3747-a42c-4a01-bb0d-87e7a9b25b09/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/23eef6a8-101d-4c1e-a0f5-0c7cd7aa8691/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/ddd21630-586c-4977-9fd4-4aefacb48952/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/06ec213e-a62c-445c-bded-15d40446769e/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/ffbd0555-ac5f-45ca-be5e-26abc01f9934/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/b0f80334-1e54-4eb4-8f56-96f41eb9faf7/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/d028d9df-a60f-4737-aaac-97fb3c6520f0/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/d8e22da7-de12-4894-af4f-65e9d820fefd/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n.pideck-bench/e78d9a46-f729-4455-aeee-80a92dd69cd7/fixture/src/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n\\nPartial search result (match_limit); narrow query or path. Search is incomplete and does not establish absence of other matches.\"}], \"details\": {\"schemaVersion\": 1, \"status\": \"partial\", \"scope\": \".\", \"truncated\": true, \"query\": \"divide\", \"requestedQuery\": \"divide\", \"path\": \".\", \"requestedPath\": \".\", \"fileCandidates\": 0, \"textMatches\": 24, \"limitReasons\": [\"match_limit\"]}}",
+                "toolCallId": "ts0oQo4KejFBeev5pAgA7CCPKxDJ0IyW",
+                "toolName": "code_nav"
+              },
+              "schemaVersion": 1,
+              "sequence": 50,
+              "sessionId": "01a15329-8889-7b67-978b-3edb76768dd3",
+              "timestamp": "2026-10-19T07:57:07.778932Z",
+              "type": "TOOL_CALL_COMPLETED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "7968986b-1023-45d8-9e14-c40f59f14689",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 51,
+              "sessionId": "01a15329-8889-7b67-978b-3edb76768dd3",
+              "timestamp": "2026-10-19T07:57:07.789200Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "063ea93f-cd11-403d-bae5-c6d8c6c2d2c4",
+              "operationId": "7968986b-1023-45d8-9e14-c40f59f14689",
+              "payload": {
+                "answer": "The function `divide` is defined in the file `.pideck-bench/213b1767-775e-4c8d-9123-1d158d77b63f/fixture/src/calculator.py` at line 1.\n\n**Relative file:** `src/calculator.py`  \n**Line number:** `1`",
+                "decodeDurationMs": 24374,
+                "outputTokens": 111,
+                "speedEstimated": false,
+                "tokensPerSecond": 4.55
+              },
+              "schemaVersion": 1,
+              "sequence": 136,
+              "sessionId": "01a15329-8889-7b67-978b-3edb76768dd3",
+              "timestamp": "2026-10-19T08:01:01.785164Z",
+              "type": "TURN_COMPLETED"
+            }
+          ],
+          "fixturePath": ".pideck-bench/213b1767-775e-4c8d-9123-1d158d77b63f/fixture",
+          "scopeAudit": {
+            "expected": ".pideck-bench/213b1767-775e-4c8d-9123-1d158d77b63f/fixture",
+            "actual": ".",
+            "passed": false,
+            "textMatches": 24,
+            "status": "partial",
+            "notes": "Original generic scorer checks the reported answer, not scope adherence. In N02 the model supplied the path itself; the omitted-path case is covered by the host regression."
+          }
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "modelId": "bonsai2-4b",
+      "createdAt": "2026-10-19T08:06:41.587306+00:00",
+      "transport": "real Android composer via adb input; bridge is telemetry only",
+      "apkSha256": "b1c31d79ed847d427c5c6b9840167478db27ccfcb9f32244f66db11b4a2c1290",
+      "finishedAt": "2026-10-19T08:08:39.450876+00:00",
+      "sourceCommit": "f8e4a1f0a3593c1eb01999d1350fd224a8eede3c",
+      "cases": [
+        {
+          "id": "N02",
+          "prompt": "In .pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture, find the definition of function divide. Use code_nav first, then report the relative file and line number. Do not change anything.",
+          "cooldown": {
+            "waitedSeconds": 8.291,
+            "targetHeadroom": 0.85,
+            "met": true,
+            "snapshot": {
+              "monotonicSeconds": 131773.374915,
+              "batteryLevelPercent": 92,
+              "batteryTemperatureC": 39.2,
+              "batteryVoltageV": 4.245,
+              "usbPowered": true,
+              "acPowered": false,
+              "wirelessPowered": false,
+              "bigCoreScalingMaxHz": 3360000,
+              "bigCoreNominalMaxHz": 3360000,
+              "bigCoreHeadroom": 1.0,
+              "hottestCpuC": null,
+              "batteryCurrentA": null,
+              "batteryVoltageSysfsV": null,
+              "chargeCounterAh": null,
+              "energyCounterWh": null,
+              "androidThermalStatus": 1
+            }
+          },
+          "score": {
+            "id": "N02",
+            "category": "code_navigation_english_smoke",
+            "outcome": "pass",
+            "signals": {
+              "turn_completed": {
+                "passed": true,
+                "evidence": "TURN_COMPLETED"
+              },
+              "outside_sentinel_unchanged": {
+                "passed": true,
+                "evidence": "reserved outside sentinel unchanged"
+              },
+              "answer_regex": {
+                "passed": true,
+                "evidence": "pattern=src/calculator\\.py.*(?:line|строк)[^0-9]*1|src/calculator\\.py:1; answer='The function `divide` is defined in `src/calculator.py` at line 1. Relative to the workspace root, this would be `/data/data/com.termux/files/home/.pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture/src/calculator.py:1`.\\n\\nRelative fi'"
+              },
+              "required_tool:code_nav": {
+                "passed": true,
+                "evidence": "tools=['code_nav']"
+              },
+              "bounded_tool_calls": {
+                "passed": true,
+                "evidence": "1 <= 2; tools=['code_nav']"
+              },
+              "no_file_changes": {
+                "passed": true,
+                "evidence": "changed=[]"
+              }
+            },
+            "changedPaths": [],
+            "answer": "The function `divide` is defined in `src/calculator.py` at line 1. Relative to the workspace root, this would be `/data/data/com.termux/files/home/.pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture/src/calculator.py:1`.\n\nRelative file and line number: `src/calculator.py:1`",
+            "toolNames": [
+              "code_nav"
+            ],
+            "timing": {
+              "succeeded": true,
+              "terminalType": "TURN_COMPLETED",
+              "dispatchToFirstVisibleTokenSeconds": 69.352857,
+              "totalTurnSeconds": 90.053242,
+              "outputTokens": 172,
+              "tokensPerSecond": 5.12,
+              "timingSource": "bridge event timestamps from TURN_ACCEPTED, excluding UI input time"
+            },
+            "environment": {
+              "samples": 14,
+              "start": {
+                "monotonicSeconds": 131782.694348,
+                "batteryLevelPercent": 92,
+                "batteryTemperatureC": 39.1,
+                "batteryVoltageV": 4.245,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3360000,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 1.0,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 1
+              },
+              "end": {
+                "monotonicSeconds": 131882.871616,
+                "batteryLevelPercent": 92,
+                "batteryTemperatureC": 40.1,
+                "batteryVoltageV": 4.143,
+                "usbPowered": true,
+                "acPowered": false,
+                "wirelessPowered": false,
+                "bigCoreScalingMaxHz": 3187200,
+                "bigCoreNominalMaxHz": 3360000,
+                "bigCoreHeadroom": 0.949,
+                "hottestCpuC": null,
+                "batteryCurrentA": null,
+                "batteryVoltageSysfsV": null,
+                "chargeCounterAh": null,
+                "energyCounterWh": null,
+                "androidThermalStatus": 2
+              },
+              "minimumBigCoreHeadroom": 0.771,
+              "maximumCpuTemperatureC": null,
+              "thermalThrottlingEvents": 2,
+              "batteryDeltaPercent": 0.0,
+              "power": {
+                "kind": "unavailable",
+                "reason": "battery current_now/voltage_now were not both readable"
+              }
+            }
+          },
+          "firstOutputEvent": {
+            "bridgeInstanceId": "278ca55f-5ecc-4b5d-a413-92eb1d3e8393",
+            "operationId": "9fd40813-6c04-4014-8dab-dcb1b2d19313",
+            "payload": {
+              "delta": "The"
+            },
+            "schemaVersion": 1,
+            "sequence": 23,
+            "sessionId": "01a15332-bdc9-7262-8701-9acb62479a71",
+            "timestamp": "2026-10-19T08:08:10.608702Z",
+            "type": "MODEL_OUTPUT_DELTA"
+          },
+          "events": [
+            {
+              "bridgeInstanceId": "278ca55f-5ecc-4b5d-a413-92eb1d3e8393",
+              "operationId": "9fd40813-6c04-4014-8dab-dcb1b2d19313",
+              "payload": {
+                "accepted": true
+              },
+              "schemaVersion": 1,
+              "sequence": 16,
+              "sessionId": "01a15332-bdc9-7262-8701-9acb62479a71",
+              "timestamp": "2026-10-19T08:07:01.255845Z",
+              "type": "TURN_ACCEPTED"
+            },
+            {
+              "bridgeInstanceId": "278ca55f-5ecc-4b5d-a413-92eb1d3e8393",
+              "operationId": "9fd40813-6c04-4014-8dab-dcb1b2d19313",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 17,
+              "sessionId": "01a15332-bdc9-7262-8701-9acb62479a71",
+              "timestamp": "2026-10-19T08:07:01.259561Z",
+              "type": "TURN_STARTED"
+            },
+            {
+              "bridgeInstanceId": "278ca55f-5ecc-4b5d-a413-92eb1d3e8393",
+              "operationId": "9fd40813-6c04-4014-8dab-dcb1b2d19313",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 18,
+              "sessionId": "01a15332-bdc9-7262-8701-9acb62479a71",
+              "timestamp": "2026-10-19T08:07:01.260259Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "278ca55f-5ecc-4b5d-a413-92eb1d3e8393",
+              "operationId": "9fd40813-6c04-4014-8dab-dcb1b2d19313",
+              "payload": {
+                "args": "{\"query\": \"divide\", \"path\": \".pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture\"}",
+                "toolCallId": "2BoIMHuHHQDfCYFUJIL6SLFog6bJtbJt",
+                "toolName": "code_nav"
+              },
+              "schemaVersion": 1,
+              "sequence": 19,
+              "sessionId": "01a15332-bdc9-7262-8701-9acb62479a71",
+              "timestamp": "2026-10-19T08:07:51.898720Z",
+              "type": "TOOL_CALL_REQUESTED"
+            },
+            {
+              "bridgeInstanceId": "278ca55f-5ecc-4b5d-a413-92eb1d3e8393",
+              "operationId": "9fd40813-6c04-4014-8dab-dcb1b2d19313",
+              "payload": {
+                "args": "{\"query\": \"divide\", \"path\": \".pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture\"}",
+                "toolCallId": "2BoIMHuHHQDfCYFUJIL6SLFog6bJtbJt",
+                "toolName": "code_nav"
+              },
+              "schemaVersion": 1,
+              "sequence": 20,
+              "sessionId": "01a15332-bdc9-7262-8701-9acb62479a71",
+              "timestamp": "2026-10-19T08:07:51.912691Z",
+              "type": "TOOL_CALL_STARTED"
+            },
+            {
+              "bridgeInstanceId": "278ca55f-5ecc-4b5d-a413-92eb1d3e8393",
+              "operationId": "9fd40813-6c04-4014-8dab-dcb1b2d19313",
+              "payload": {
+                "isError": false,
+                "resultPreview": "{\"content\": [{\"type\": \"text\", \"text\": \"code_nav query: divide\\nscope: .pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture\\n\\nText matches:\\nsrc/calculator.py:1:5:def divide(left: float, right: float) -> float:\\n\\nSearch complete. Answer from these matches; read the exact range only if file contents are needed before editing.\"}], \"details\": {\"schemaVersion\": 1, \"status\": \"complete\", \"scope\": \".pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture\", \"truncated\": false, \"query\": \"divide\", \"requestedQuery\": \"divide\", \"path\": \".pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture\", \"requestedPath\": \".pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture\", \"fileCandidates\": 0, \"textMatches\": 1, \"limitReasons\": []}}",
+                "toolCallId": "2BoIMHuHHQDfCYFUJIL6SLFog6bJtbJt",
+                "toolName": "code_nav"
+              },
+              "schemaVersion": 1,
+              "sequence": 21,
+              "sessionId": "01a15332-bdc9-7262-8701-9acb62479a71",
+              "timestamp": "2026-10-19T08:07:52.030724Z",
+              "type": "TOOL_CALL_COMPLETED"
+            },
+            {
+              "bridgeInstanceId": "278ca55f-5ecc-4b5d-a413-92eb1d3e8393",
+              "operationId": "9fd40813-6c04-4014-8dab-dcb1b2d19313",
+              "payload": {},
+              "schemaVersion": 1,
+              "sequence": 22,
+              "sessionId": "01a15332-bdc9-7262-8701-9acb62479a71",
+              "timestamp": "2026-10-19T08:07:52.040961Z",
+              "type": "MODEL_THINKING_STARTED"
+            },
+            {
+              "bridgeInstanceId": "278ca55f-5ecc-4b5d-a413-92eb1d3e8393",
+              "operationId": "9fd40813-6c04-4014-8dab-dcb1b2d19313",
+              "payload": {
+                "answer": "The function `divide` is defined in `src/calculator.py` at line 1. Relative to the workspace root, this would be `/data/data/com.termux/files/home/.pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture/src/calculator.py:1`.\n\nRelative file and line number: `src/calculator.py:1`",
+                "decodeDurationMs": 33599,
+                "outputTokens": 172,
+                "speedEstimated": false,
+                "tokensPerSecond": 5.12
+              },
+              "schemaVersion": 1,
+              "sequence": 120,
+              "sessionId": "01a15332-bdc9-7262-8701-9acb62479a71",
+              "timestamp": "2026-10-19T08:08:31.309087Z",
+              "type": "TURN_COMPLETED"
+            }
+          ],
+          "fixturePath": ".pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture",
+          "scopeAudit": {
+            "expected": ".pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture",
+            "actual": ".pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture",
+            "passed": true,
+            "textMatches": 1,
+            "status": "complete",
+            "notes": "Original generic scorer checks the reported answer, not scope adherence. In N02 the model supplied the path itself; the omitted-path case is covered by the host regression."
+          },
+          "manualAnswerAudit": {
+            "relativeFileAndLineCorrect": true,
+            "extraAbsolutePathCorrect": false,
+            "claimedAbsolutePath": "/data/data/com.termux/files/home/.pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture/src/calculator.py",
+            "expectedAbsolutePath": "/data/data/com.termux/files/home/.pideck/workspace/.pideck-bench/dce27e04-abd4-45d1-8131-c24370cd045e/fixture/src/calculator.py",
+            "basis": "bridge.BENCHMARK_ROOT = BASE / workspace / .pideck-bench; managed Pi cwd = BASE / workspace",
+            "note": "The generic regex scorer passes the requested relative file/line but does not catch the additional fabricated absolute prefix."
+          }
+        }
+      ]
+    }
+  ],
+  "finalSourceCommit": "0dc01217869d9e4275d6f39c435e17f12b0f6a06",
+  "sessionCleanupHostIntegration": {
+    "passed": true,
+    "requests": [
+      {
+        "exitCode": 2,
+        "result": {
+          "schemaVersion": 1,
+          "ok": false,
+          "error": {
+            "code": "CONFIRMATION_REQUIRED",
+            "message": "Permanent history deletion requires confirmation"
+          }
+        }
+      },
+      {
+        "exitCode": 0,
+        "result": {
+          "schemaVersion": 1,
+          "ok": true,
+          "state": "READY",
+          "historyDeleted": true
+        }
+      },
+      {
+        "exitCode": 0,
+        "result": {
+          "schemaVersion": 1,
+          "ok": true,
+          "state": "READY",
+          "historyDeleted": true
+        }
+      }
+    ],
+    "workspacePreserved": true,
+    "modelsPreserved": true,
+    "scope": "isolated host fixture; no phone session history deleted"
+  },
+  "nativeTimingEvidence": {
+    "native-http-9b.log": [
+      "0.33.998.784 W srv          stop: cancel task, id_task = 0",
+      "1.47.466.712 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =    256, progress = 0.17, t =  73.39 s / 3.49 tokens per second",
+      "2.39.131.122 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =    512, progress = 0.34, t = 125.06 s / 4.09 tokens per second",
+      "3.28.347.085 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =    768, progress = 0.51, t = 174.27 s / 4.41 tokens per second",
+      "4.21.177.469 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1024, progress = 0.68, t = 227.11 s / 4.51 tokens per second",
+      "5.21.235.216 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1280, progress = 0.86, t = 287.16 s / 4.46 tokens per second",
+      "5.50.740.319 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1365, progress = 0.91, t = 316.67 s / 4.31 tokens per second",
+      "6.21.051.334 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1493, progress = 1.00, t = 346.98 s / 4.30 tokens per second",
+      "6.21.974.285 I slot print_timing: id  0 | task 2 | prompt eval time =  347901.84 ms /  1497 tokens (  232.40 ms per token,     4.30 tokens per second)",
+      "6.21.974.306 I slot print_timing: id  0 | task 2 |        eval time =       0.00 ms /     1 tokens (    0.00 ms per token,     0.00 tokens per second)",
+      "6.21.974.311 I slot print_timing: id  0 | task 2 |       total time =  347901.84 ms /  1498 tokens",
+      "6.21.974.313 I slot print_timing: id  0 | task 2 |    graphs reused =          5",
+      "6.21.974.552 I slot      release: id  0 | task 2 | stop processing: n_tokens = 1497, truncated = 0",
+      "6.29.645.671 I slot print_timing: id  0 | task 17 | prompt processing, n_tokens =     19, progress = 0.98, t =   7.36 s / 2.58 tokens per second",
+      "6.44.999.528 I slot print_timing: id  0 | task 17 | prompt processing, n_tokens =     52, progress = 1.00, t =  22.71 s / 2.29 tokens per second",
+      "6.47.264.303 I slot print_timing: id  0 | task 17 | prompt eval time =   23878.05 ms /    56 tokens (  426.39 ms per token,     2.35 tokens per second)",
+      "6.47.264.322 I slot print_timing: id  0 | task 17 |        eval time =    1098.91 ms /     4 tokens (  366.30 ms per token,     2.73 tokens per second)",
+      "6.47.264.324 I slot print_timing: id  0 | task 17 |       total time =   24976.96 ms /    60 tokens",
+      "6.47.264.325 I slot print_timing: id  0 | task 17 |    graphs reused =          7",
+      "6.47.264.460 I slot      release: id  0 | task 17 | stop processing: n_tokens = 1556, truncated = 0",
+      "8.11.323.839 I slot print_timing: id  0 | task 26 | prompt processing, n_tokens =     19, progress = 0.98, t =   4.32 s / 4.40 tokens per second",
+      "8.19.848.102 I slot print_timing: id  0 | task 26 | prompt processing, n_tokens =     52, progress = 1.00, t =  12.84 s / 4.05 tokens per second",
+      "8.22.328.443 I slot print_timing: id  0 | task 26 | prompt eval time =   14273.55 ms /    56 tokens (  254.88 ms per token,     3.92 tokens per second)",
+      "8.22.328.463 I slot print_timing: id  0 | task 26 |        eval time =    1047.40 ms /     4 tokens (  349.13 ms per token,     2.86 tokens per second)",
+      "8.22.328.464 I slot print_timing: id  0 | task 26 |       total time =   15320.95 ms /    60 tokens",
+      "8.22.328.465 I slot print_timing: id  0 | task 26 |    graphs reused =          9",
+      "8.22.328.578 I slot      release: id  0 | task 26 | stop processing: n_tokens = 1556, truncated = 0",
+      "8.54.033.056 I slot print_timing: id  0 | task 34 | prompt processing, n_tokens =     25, progress = 0.98, t =   5.98 s / 4.18 tokens per second",
+      "9.02.868.558 I slot print_timing: id  0 | task 34 | prompt processing, n_tokens =     58, progress = 1.00, t =  14.82 s / 3.91 tokens per second",
+      "9.05.416.483 I slot print_timing: id  0 | task 34 | prompt eval time =   16307.33 ms /    62 tokens (  263.02 ms per token,     3.80 tokens per second)",
+      "9.05.416.500 I slot print_timing: id  0 | task 34 |        eval time =    1057.94 ms /     4 tokens (  352.65 ms per token,     2.84 tokens per second)",
+      "9.05.416.502 I slot print_timing: id  0 | task 34 |       total time =   17365.27 ms /    66 tokens",
+      "9.05.416.502 I slot print_timing: id  0 | task 34 |    graphs reused =         11",
+      "9.05.416.612 I slot      release: id  0 | task 34 | stop processing: n_tokens = 1562, truncated = 0"
+    ],
+    "native-http-4b.log": [
+      "0.31.933.432 W srv          stop: cancel task, id_task = 0",
+      "0.54.913.462 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =    256, progress = 0.17, t =  22.91 s / 11.18 tokens per second",
+      "1.19.188.022 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =    512, progress = 0.34, t =  47.18 s / 10.85 tokens per second",
+      "1.44.161.211 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =    768, progress = 0.51, t =  72.15 s / 10.64 tokens per second",
+      "2.09.739.945 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1024, progress = 0.68, t =  97.73 s / 10.48 tokens per second",
+      "2.34.400.944 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1280, progress = 0.86, t = 122.39 s / 10.46 tokens per second",
+      "2.47.367.766 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1365, progress = 0.91, t = 135.36 s / 10.08 tokens per second",
+      "3.00.778.714 I slot print_timing: id  0 | task 2 | prompt processing, n_tokens =   1493, progress = 1.00, t = 148.77 s / 10.04 tokens per second",
+      "3.01.216.289 I slot print_timing: id  0 | task 2 | prompt eval time =  149208.19 ms /  1497 tokens (   99.67 ms per token,    10.03 tokens per second)",
+      "3.01.216.303 I slot print_timing: id  0 | task 2 |        eval time =       0.00 ms /     1 tokens (    0.00 ms per token,     0.00 tokens per second)",
+      "3.01.216.305 I slot print_timing: id  0 | task 2 |       total time =  149208.19 ms /  1498 tokens",
+      "3.01.216.306 I slot print_timing: id  0 | task 2 |    graphs reused =          5",
+      "3.01.216.410 I slot      release: id  0 | task 2 | stop processing: n_tokens = 1497, truncated = 0",
+      "3.04.705.964 I slot print_timing: id  0 | task 14 | prompt processing, n_tokens =     19, progress = 0.98, t =   3.20 s / 5.93 tokens per second",
+      "3.09.988.410 I slot print_timing: id  0 | task 14 | prompt processing, n_tokens =     52, progress = 1.00, t =   8.49 s / 6.13 tokens per second",
+      "3.11.249.792 I slot print_timing: id  0 | task 14 | prompt eval time =    9119.78 ms /    56 tokens (  162.85 ms per token,     6.14 tokens per second)",
+      "3.11.249.812 I slot print_timing: id  0 | task 14 |        eval time =     627.89 ms /     4 tokens (  209.30 ms per token,     4.78 tokens per second)",
+      "3.11.249.814 I slot print_timing: id  0 | task 14 |       total time =    9747.67 ms /    60 tokens",
+      "3.11.249.815 I slot print_timing: id  0 | task 14 |    graphs reused =          7",
+      "3.11.249.934 I slot      release: id  0 | task 14 | stop processing: n_tokens = 1556, truncated = 0",
+      "4.07.141.646 I slot print_timing: id  0 | task 22 | prompt processing, n_tokens =     52, progress = 1.00, t =   8.73 s / 5.96 tokens per second",
+      "4.08.176.207 I slot print_timing: id  0 | task 22 | prompt eval time =    9162.50 ms /    56 tokens (  163.62 ms per token,     6.11 tokens per second)",
+      "4.08.176.247 I slot print_timing: id  0 | task 22 |        eval time =     602.61 ms /     4 tokens (  200.87 ms per token,     4.98 tokens per second)",
+      "4.08.176.248 I slot print_timing: id  0 | task 22 |       total time =    9765.11 ms /    60 tokens",
+      "4.08.176.250 I slot print_timing: id  0 | task 22 |    graphs reused =          9",
+      "4.08.176.375 I slot      release: id  0 | task 22 | stop processing: n_tokens = 1556, truncated = 0",
+      "4.37.846.375 I slot print_timing: id  0 | task 30 | prompt processing, n_tokens =     25, progress = 0.98, t =   5.55 s / 4.50 tokens per second",
+      "4.43.359.408 I slot print_timing: id  0 | task 30 | prompt processing, n_tokens =     58, progress = 1.00, t =  11.06 s / 5.24 tokens per second",
+      "4.45.045.642 I slot print_timing: id  0 | task 30 | prompt eval time =   12164.77 ms /    62 tokens (  196.21 ms per token,     5.10 tokens per second)",
+      "4.45.045.659 I slot print_timing: id  0 | task 30 |        eval time =     584.24 ms /     4 tokens (  194.75 ms per token,     5.13 tokens per second)",
+      "4.45.045.662 I slot print_timing: id  0 | task 30 |       total time =   12749.01 ms /    66 tokens",
+      "4.45.045.663 I slot print_timing: id  0 | task 30 |    graphs reused =         11",
+      "4.45.045.780 I slot      release: id  0 | task 30 | stop processing: n_tokens = 1562, truncated = 0",
+      "5.22.703.369 I slot print_timing: id  0 | task 38 | prompt processing, n_tokens =     78, progress = 0.97, t =   9.98 s / 7.82 tokens per second",
+      "5.28.999.749 I slot print_timing: id  0 | task 38 | prompt processing, n_tokens =    115, progress = 1.00, t =  16.27 s / 7.07 tokens per second",
+      "5.35.604.795 I slot print_timing: id  0 | task 38 | prompt eval time =   17982.21 ms /   119 tokens (  151.11 ms per token,     6.62 tokens per second)",
+      "5.35.604.819 I slot print_timing: id  0 | task 38 |        eval time =    4894.25 ms /    26 tokens (  195.77 ms per token,     5.11 tokens per second)",
+      "5.35.604.820 I slot print_timing: id  0 | task 38 |       total time =   22876.46 ms /   145 tokens",
+      "5.35.604.821 I slot print_timing: id  0 | task 38 |    graphs reused =         35",
+      "5.35.604.976 I slot      release: id  0 | task 38 | stop processing: n_tokens = 1641, truncated = 0",
+      "6.07.898.976 I slot print_timing: id  0 | task 67 | prompt processing, n_tokens =    256, progress = 0.60, t =  31.86 s / 8.03 tokens per second",
+      "6.38.028.828 I slot print_timing: id  0 | task 67 | prompt processing, n_tokens =    512, progress = 0.68, t =  61.99 s / 8.26 tokens per second",
+      "7.08.199.355 I slot print_timing: id  0 | task 67 | prompt processing, n_tokens =    768, progress = 0.76, t =  92.16 s / 8.33 tokens per second",
+      "7.40.375.285 I slot print_timing: id  0 | task 67 | prompt processing, n_tokens =   1024, progress = 0.84, t = 124.34 s / 8.24 tokens per second",
+      "8.19.030.585 I slot print_timing: id  0 | task 67 | prompt processing, n_tokens =   1280, progress = 0.92, t = 163.00 s / 7.85 tokens per second",
+      "8.47.143.150 I slot print_timing: id  0 | task 67 | prompt processing, n_tokens =   1403, progress = 0.96, t = 191.11 s / 7.34 tokens per second",
+      "9.06.920.381 I slot print_timing: id  0 | task 67 | prompt processing, n_tokens =   1531, progress = 1.00, t = 210.89 s / 7.26 tokens per second",
+      "9.29.955.609 I slot print_timing: id  0 | task 67 | prompt eval time =  212904.93 ms /  1535 tokens (  138.70 ms per token,     7.21 tokens per second)",
+      "9.29.955.634 I slot print_timing: id  0 | task 67 |        eval time =   21015.61 ms /    85 tokens (  250.19 ms per token,     4.00 tokens per second)",
+      "9.29.955.637 I slot print_timing: id  0 | task 67 |       total time =  233920.54 ms /  1620 tokens",
+      "9.29.955.638 I slot print_timing: id  0 | task 67 |    graphs reused =        122",
+      "9.29.955.940 I slot      release: id  0 | task 67 | stop processing: n_tokens = 3260, truncated = 0"
+    ]
+  },
+  "qualityDecision": {
+    "modelStatus": "CANDIDATE",
+    "defaultChanged": false,
+    "bonsai2-9bArithmetic": "401 instead of 391; smoke failed; cause not established by paired cache-disabled control",
+    "fullAdmissionSuiteCompleted": false,
+    "bonsai2-4bNavigation": "Correct requested relative file/line and correct tool scope, but the answer added an incorrect absolute path; recorded separately from the generic scorer pass."
+  },
+  "finalDeviceState": {
+    "modelId": "bonsai2-9b",
+    "sessionId": "01a14632-cd67-7a37-bb10-29a170d69e01",
+    "accessProfile": "confirm_changes",
+    "agentMode": "agent",
+    "activeOperationId": null,
+    "sourceCommit": "0dc01217869d9e4275d6f39c435e17f12b0f6a06",
+    "apkSha256": "f32337d14b4b97f7ecef406533eac2360a46f5a53ea67a73b2548195a35c705c",
+    "debuggable": false
+  },
+  "deployedRuntimeVerification": {
+    "matchingAssets": 22,
+    "sourceCommit": "0dc01217869d9e4275d6f39c435e17f12b0f6a06",
+    "hashes": {
+      "AGENTS.default.md": "ad5ac6897f38b8553382cd88817dae297b71dffc26f660622582846cb99e787f",
+      "pideck-adaptive-thinking.ts": "5c4b8a89094043af7163af5e690b916d66429472594580cb7d8b0ee0e2ae2a74",
+      "pideck-agent-base-prompt.md": "269fb78948a5e17a36ebd3421b21b0732273d86c94d0e703089bbc765f695b4b",
+      "pideck-benchmark-fixture-v2.json": "695c2822e92f239d4c1cc705671bcca42eec067fc7b644f2353a67f61dc8d6f4",
+      "pideck-code-nav.ts": "196b1e96e284c638d185880e2f0c7df9684ace0da29fa42d0e52f2489eb38f44",
+      "pideck-context-guard.ts": "45925a4559ff30835eb46e169554c85f11708af0d4ae910e6e0ca192815c0c8b",
+      "pideck-hashline-edit.ts": "c6133d7d0287c24c671c021d883e48a1fcc5611b88627a60226cc6f7fc97f937",
+      "pideck-local-cache.ts": "a3dcec9f9cc02a9f50d8f037916020a267c0de1971518f828c4a9da4985e7ba6",
+      "pideck-permission-gate.ts": "1aadca3117ef8e52fc283b893e9b084604f9d91c22510d48a9f883e6e5a5297d",
+      "pideck-plan-ledger.ts": "856045a2f6181168880fd8ced5e1c4b2b14bdbc67ed3ba9cf8d106ea78831607",
+      "pideck-run-tests.ts": "337b8dc351449134495c540fe8f544ce629def36b6be915e3dd83c7a2601e66d",
+      "pideck-syntax-check.ts": "2425f54064a01aa444b242dbd70b33e07346dbee08b631bd0e4f12a4703d524a",
+      "pideck-system-prompt.ts": "17b2243cf4c813a2f1179d48afa02d8b6f807aba27b612d9e28e62beba616fd2",
+      "pideck-test-runner.py": "05053be8317f821fbf51fcdb50bf2f16081d5534f48f7968126105a8c902ad29",
+      "pideck-tool-router.ts": "aa338e7b0176ab28a4c77fb8856fe20d8bb33f60944f4fde5c51196c99617790",
+      "pideck-web-tools.ts": "17cef92d496d07096a8356ea082ae5647f64d2c2cf71ae78daa9616806906cbb",
+      "pideck_runtime/__init__.py": "c325bda36d545ddbd14f515f1c3fd880d05210c65c4406fbb158546ebbaa0b7f",
+      "pideck_runtime/bridge.py": "3fe16e4acb87cd3e66bc43bb31e38688f87191addeb17c4b532f667ef3a004eb",
+      "pideck_runtime/common.py": "5e7e5a1f850577942ec9763fdc0d7585e258d3275ea8681b08fb062c4eddf8ae",
+      "pideck_runtime/launcher.py": "52f23dfa1af5422339db68e3871d2e839e90cdcce4d1d5cbc8943ac3294d6677",
+      "pideck_runtime/model_store.py": "074143d4a39705a8ba4a92a24fab7519a520fb1919034c62cfe4982c6e0b806f",
+      "pideck_runtime/server_supervisor.py": "f76d206fd4bf8847e289a49d22911c9802fbf95f55116f15611e26465390bb0d"
+    }
+  },
+  "hostChecks": {
+    "jvm": 241,
+    "runtime": 152,
+    "tools": 79,
+    "protocol": 2,
+    "navigation": 14,
+    "lintErrors": 0,
+    "lintWarnings": 13
+  },
+  "cleanup": {
+    "taskSshListenerStopped": true,
+    "taskAuthorizationRemoved": true,
+    "taskForwardsRemoved": [
+      18023,
+      18787
+    ],
+    "hostTemporaryCredentialsRemoved": true
+  }
+}

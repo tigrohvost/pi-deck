@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "0dc01217869d9e4275d6f39c435e17f12b0f6a06",
+  "runId": 39221443322,
+  "runUrl": "https://github.com/tigrohvost/pi-deck/actions/runs/39221443322",
+  "artifactId": 12172577155,
+  "artifactUrl": "https://github.com/tigrohvost/pi-deck/actions/runs/39221443322/artifacts/12172577155",
+  "artifactName": "pi-deck-signed-release",
+  "apkSha256": "ef8543d5acc9cc0d16e844d2cfe071604439ac2ad93a593fe441a1cb91db4680",
+  "certificateSha256": "5cabadf644565c636857dfb329b6baa73deb5b498f7739e31e0c939c41377eff",
+  "bundleVerifierPassed": true,
+  "runtimeAssetsMatchSourceAndDeviceApk": 22,
+  "debuggable": false,
+  "tag": "v0.3.0-alpha18",
+  "publication": "Signed workflow artifact; no new release tag created"
+}
