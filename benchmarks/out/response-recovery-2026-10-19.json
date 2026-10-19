@@ -1,0 +1,66 @@
+{
+  "sourceCommit": "35a45154c6137a7a2fb9249420f98b8b072837f8",
+  "ciRunUrl": "https://github.com/tigrohvost/pi-deck/actions/runs/39231215478",
+  "ciConclusion": "success",
+  "signedBundleVerifiedAssets": 12,
+  "githubApkSha256": "119912089ff986f702758b4a38ba76540fdb7f6c4fd0e974d7fdbb68e8e895d7",
+  "deviceApkSha256": "88363f916ef2dcba60c44b8f326e660ac0fbeb89e880418ea147ebbc438816dd",
+  "runtimeAssetsMatchSourceAndDeviceApk": 22,
+  "tests": {
+    "jvm": 242,
+    "runtimePython": 153,
+    "exactPiRpc": 2,
+    "extensions": 12,
+    "registeredTools": 10,
+    "physicalUi": 5,
+    "lintErrors": 0,
+    "lintExistingWarnings": 13
+  },
+  "originalFailure": {
+    "reason": "token_limit",
+    "outputTokensPerAttempt": [
+      256,
+      256
+    ],
+    "partialTextDiscarded": true
+  },
+  "fixedBehavior": {
+    "artificialLookupLimitRemoved": true,
+    "modelBudget": 1536,
+    "tokenLimitDraftsPersist": true
+  },
+  "latestPhoneScenario": {
+    "modelId": "qwen3.8-4b-distill",
+    "submission": "Android original-prompt Retry menu",
+    "elapsedSeconds": 196.79,
+    "terminalType": "TURN_FAILED",
+    "rejections": [
+      {
+        "reason": "live_tool_required",
+        "attempt": 1,
+        "willRetry": true
+      },
+      {
+        "reason": "live_tool_required",
+        "attempt": 2,
+        "willRetry": false
+      }
+    ],
+    "toolCalls": 0
+  },
+  "freshSessionCheck": {
+    "terminal": "TURN_COMPLETED",
+    "elapsedSeconds": 172.03,
+    "outputTokens": 735,
+    "tokensPerSecond": 7.0,
+    "answerCharacters": 2033,
+    "successfulWebCalls": 1,
+    "rejections": 0,
+    "answerSurvivesAppProcessRestart": true,
+    "qualityLimitation": "Model added year 2025 to a request that did not specify a year; this is not validation of current news quality.",
+    "coreRestoredIdle": true
+  },
+  "publication": "signed workflow artifact; no new release tag created",
+  "artifactId": 12178191970,
+  "artifactUrl": "https://github.com/tigrohvost/pi-deck/actions/runs/39231215478/artifacts/12178191970"
+}

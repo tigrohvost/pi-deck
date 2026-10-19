@@ -9,7 +9,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
-**[Download the latest release APK](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha18/pi-deck.apk)**
+**[Download the latest release APK](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha19/pi-deck.apk)**
 
 </div>
 
@@ -26,15 +26,18 @@ authenticated loopback RPC bridge, with no root required.
 
 ## Release and device validation
 
-The current source version is `0.3.0-alpha18` (`versionCode 26`, runtime contract 60). It fixes
-read-path routing found during Bonsai handset testing: tool names and sentence
-punctuation no longer replace the requested filename. It includes
-[audit Package A](docs/audit-package-a.md): trustworthy test/PLAN results, cancellable
-native startup and complete verified release publication. It also includes
-Bonsai 2 4B/9B, a compact model catalog, and the October inference and interface
-improvements. Historical alpha14 measurements are in
-[validation evidence](docs/validation/alpha14); these do not constitute device
-acceptance of the new production-signed CI APK.
+The current source version is `0.3.0-alpha19` (`versionCode 27`, runtime contract 60).
+It reuses Bonsai 2 4B/9B prefix snapshots, bounds agent navigation, places copy/share
+icons beside answer speed, and adds confirmed permanent session cleanup. Live
+lookups use the model's normal output budget; an answer that reaches that budget
+is retained as an incomplete draft. See the [changelog](CHANGELOG.md) and
+[phone measurements and limitations](docs/agent-speed-2026-10-19.md).
+
+A fresh-session web lookup completed and its answer survived an app restart on
+the test handset. Repeated lookup in an old session can still fail when the model
+skips the tool, and the model can introduce an unwanted year into the query.
+These checks used the handset's existing signing key; they do not constitute
+device acceptance of the production-signed CI APK.
 
 The earlier `0.3.0-alpha13` (`versionCode 21`, runtime contract 56) build was
 validated as follows. On 2026-08-26 its exact debug APK passed handset acceptance on a Samsung
