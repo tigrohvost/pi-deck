@@ -1360,6 +1360,16 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                     pendingTurnPrompt = null;
                     yield answerBlock(entry, true);
                 }
+                case INCOMPLETE -> {
+                    LinearLayout draft = answerBlock(entry, true);
+                    TextView label = style.caption(t(
+                            "Незавершённый ответ · достигнут лимит вывода",
+                            "Incomplete answer · output limit reached"
+                    ));
+                    label.setTextColor(p.warn);
+                    draft.addView(label, 0, matchWidth());
+                    yield draft;
+                }
                 case ERROR -> {
                     View notice = noticeBlock(entry.text, p.error, p.errorText);
                     // A live failure of the turn in flight offers the same prompt again.
@@ -1813,6 +1823,14 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 exactSpeed.tokensPerSecond,
                 exactSpeed.outputTokens
         );
+    }
+
+    /** Keeps a truncated attempt visible without treating it as a completed answer. */
+    public void retainIncompleteStreaming(String partialAnswer) {
+        discardStreaming();
+        if (partialAnswer != null && !partialAnswer.isBlank()) {
+            addEntry(new ConsoleEntry(ConsoleEntry.Channel.INCOMPLETE, partialAnswer));
+        }
     }
 
     public void discardStreaming() {

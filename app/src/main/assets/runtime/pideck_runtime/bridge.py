@@ -2413,7 +2413,7 @@ class PiDeckBridge:
             and not self.abort_requested
             and not self.active_failed_reason
         ):
-            self._reject_incomplete_answer("token_limit")
+            self._reject_incomplete_answer("token_limit", effective_answer)
         elif (
             effective_answer
             and is_degenerate_answer(effective_answer)
@@ -2998,7 +2998,7 @@ class PiDeckBridge:
             {"requiredTools": sorted(self.required_live_tools)},
         )
 
-    def _reject_incomplete_answer(self, reason: str) -> None:
+    def _reject_incomplete_answer(self, reason: str, partial_answer: str = "") -> None:
         retry_message = (
             TOKEN_LIMIT_RETRY_MESSAGE
             if reason == "token_limit"
@@ -3009,8 +3009,15 @@ class PiDeckBridge:
         self._reject_answer(
             reason,
             retry_message,
-            "Модель дважды завершила ответ обрывком; неполный текст не показан.",
-            {"stopReason": "length"} if reason == "token_limit" else None,
+            "Модель дважды достигла лимита вывода и не завершила ответ."
+            if reason == "token_limit"
+            else "Модель дважды завершила ответ обрывком; неполный текст не показан.",
+            {
+                "stopReason": "length",
+                # Retain useful text as an explicitly incomplete draft, never as a successful
+                # terminal answer. The event carries it even if the client missed the deltas.
+                "partialAnswer": bounded_text(partial_answer, 64 * 1024),
+            } if reason == "token_limit" else None,
         )
 
     def _reject_recoverable_pi_failure(

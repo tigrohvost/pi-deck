@@ -895,7 +895,7 @@ export function directLiveLookupTool(text: string): "web_research" | "weather" |
 	return undefined;
 }
 
-/** Caps both the tool-selection round and its final-answer round without touching other tasks. */
+/** Caps the initial tool-selection round; the answer needs the model's full output budget. */
 export function capDirectLookupProviderRequest(
 	payload: unknown,
 	active: boolean,
@@ -1198,7 +1198,9 @@ export default function pideckToolRouter(pi: ExtensionAPI) {
 			context?.abort?.();
 			throw new Error("PI//DECK: достигнут предел шагов задачи; выполненные изменения сохранены.");
 		}
-		const payload = capDirectLookupProviderRequest(event.payload, directLookupTool !== undefined)
+		const payload = capDirectLookupProviderRequest(
+			event.payload, directLookupTool !== undefined && !taskTerminal && providerRounds === 1,
+		)
 			?? event.payload;
 		if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return undefined;
 		// The provider enforces completion. A verbal refusal alone leaves a small model looping.

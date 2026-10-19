@@ -975,6 +975,18 @@ try {
 	}, { cwd: workspace });
 	assert.equal(lookupShell.block, true, "direct lookup let the stable schema run shell");
 	assert.match(lookupShell.reason, /web_research/u);
+	await routerToolResult({ type: "tool_result", toolName: "web_research", input: {},
+		isError: false, content: [{ type: "text", text: "Two sources with URLs." }] });
+	const lookupAnswer = await routerBeforeProviderRequest({ type: "before_provider_request",
+		payload: { model: "pideck", max_tokens: 1536 } });
+	assert.equal(lookupAnswer.max_tokens, 1536, "the final answer was truncated to the tool-selection budget");
+	assert.equal(lookupAnswer.tool_choice, "none", "final answer reopened completed search tools");
+	await routerInput({ type: "input", source: "rpc",
+		text: "[[PI//DECK:ANSWER_RETRY]]\nПредыдущий ответ достиг лимита вывода. Ответь короче." });
+	const lookupRetry = await routerBeforeProviderRequest({ type: "before_provider_request",
+		payload: { model: "pideck", max_tokens: 1536 } });
+	assert.equal(lookupRetry.max_tokens, 1536, "the recovery retry reused the exhausted 256-token cap");
+	assert.equal(lookupRetry.tool_choice, "none");
 	await routerInput({
 		type: "input",
 		text: "Ответь ровно OK. Не используй инструменты.",

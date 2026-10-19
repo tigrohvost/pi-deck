@@ -2378,6 +2378,33 @@ class RuntimeTestCase(unittest.TestCase):
         terminal = [event for event in events if event["type"] == "TURN_COMPLETED"]
         self.assertEqual(answer, terminal[-1]["payload"]["answer"])
 
+    def test_length_limited_attempts_survive_as_drafts_without_success_or_extra_retry(self) -> None:
+        value = fake_bridge()
+        value.command({
+            "schemaVersion": 1, "operationId": operation_id(), "type": "PROMPT",
+            "payload": {"message": "Поищи в сети новости про ai агентов",
+                        "sessionId": value.session_id},
+        })
+        value.successful_live_tools.add("web_research")
+        drafts = ["Первая новость и начало второй", "Короткий повтор с незаконченной ссылкой https://"]
+        for partial in drafts:
+            # A client may miss streaming deltas: the rejection must carry the authoritative text.
+            value.handle_pi_message({"type": "message_end", "message": {
+                "role": "assistant", "content": [{"type": "text", "text": partial}],
+                "stopReason": "length", "usage": {"output": 256},
+            }})
+            value.handle_pi_message({"type": "agent_settled"})
+        _gap, events = value.journal.after(0, 0)
+        rejected = [event["payload"] for event in events if event["type"] == "MODEL_OUTPUT_REJECTED"]
+        self.assertEqual(drafts, [event["partialAnswer"] for event in rejected])
+        self.assertEqual([True, False], [event["willRetry"] for event in rejected])
+        self.assertEqual(2, len([command for command in value.child.sent if command["type"] == "prompt"]))
+        self.assertFalse(any(event["type"] == "TURN_COMPLETED" for event in events))
+        failure = [event["payload"] for event in events if event["type"] == "TURN_FAILED"]
+        self.assertEqual(1, len(failure))
+        self.assertEqual("", failure[0]["answer"])
+        self.assertIn("лимита вывода", failure[0]["error"])
+
     def test_rejected_answer_retry_prompt_failure_finishes_original_turn(self) -> None:
         value = fake_bridge()
         original_operation = operation_id()

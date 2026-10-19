@@ -33,6 +33,36 @@ public final class ConversationLayoutDeviceTest {
             DeckStyle.TEXT_SCALES[DeckStyle.TEXT_SCALES.length - 1];
 
     @Test
+    public void truncatedAnswersRemainVisibleAcrossRetryFailureAndRestore() {
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Context context = instrumentation.getTargetContext();
+        instrumentation.runOnMainSync(() -> {
+            DeckView deck = new DeckView(context, noOpListener(), Palette.deck(),
+                    MAX_TEXT_SCALE, UiLanguage.RUSSIAN);
+            deck.hideBootPanel();
+            deck.addEntry(new ConsoleEntry(ConsoleEntry.Channel.USER, "Поищи новости"));
+            deck.appendStreaming("Первый фрагмент");
+            deck.retainIncompleteStreaming("Первый фрагмент");
+            deck.appendStreaming("Второй фрагмент");
+            deck.retainIncompleteStreaming("Второй фрагмент");
+            deck.discardStreaming();
+            deck.addEntry(new ConsoleEntry(ConsoleEntry.Channel.ERROR, "Достигнут лимит вывода"));
+            assertNotNull(findText(deck, "Первый фрагмент"));
+            assertNotNull(findText(deck, "Второй фрагмент"));
+            assertNotNull(findText(deck, "ПОВТОРИТЬ ЗАПРОС"));
+            List<ConsoleEntry> saved = deck.entries();
+            assertEquals(4, saved.size());
+            assertEquals(ConsoleEntry.Channel.INCOMPLETE, saved.get(1).channel);
+            assertEquals(ConsoleEntry.Channel.INCOMPLETE, saved.get(2).channel);
+            deck.setEntries(saved);
+            measureAt360Dp(context, deck);
+            assertNotNull(findText(deck, "Первый фрагмент"));
+            assertNotNull(findText(deck, "Второй фрагмент"));
+            assertNotNull(findText(deck, "Незавершённый ответ · достигнут лимит вывода"));
+        });
+    }
+
+    @Test
     public void clearSessionsIconFitsBesideNewAtLargestTextScale() {
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
         Context context = instrumentation.getTargetContext();

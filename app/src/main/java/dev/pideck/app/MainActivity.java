@@ -4731,7 +4731,11 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
             case MODEL_OUTPUT_REJECTED -> {
                 if (event.operationId != null
                         && event.operationId.equals(operations.activeOperationId())) {
-                    deck.discardStreaming();
+                    if ("token_limit".equals(event.payload.optString("reason"))) {
+                        deck.retainIncompleteStreaming(event.payload.optString("partialAnswer"));
+                    } else {
+                        deck.discardStreaming();
+                    }
                     transcript.save(deck.entries());
                     turnClock.restartOutput(SystemClock.uptimeMillis());
                     deck.setGenerationSpeed(null);
@@ -4951,8 +4955,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 else deck.discardStreaming();
                 append(ConsoleEntry.Channel.ERROR,
                         t(
-                                "Pi turn завершился ошибкой; запрос не повторялся.\n",
-                                "The Pi turn failed; the request was not retried.\n"
+                                "Не удалось завершить ответ.\n",
+                                "Could not complete the answer.\n"
                         ) + error);
             }
             if (exactSpeed != null) {

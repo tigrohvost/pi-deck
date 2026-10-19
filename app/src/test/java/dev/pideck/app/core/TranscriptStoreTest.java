@@ -71,6 +71,15 @@ public class TranscriptStoreTest {
     }
 
     @Test
+    public void incompleteDraftSurvivesPersistenceWithoutBecomingACompletedAnswer() throws Exception {
+        ConsoleEntry draft = new ConsoleEntry(ConsoleEntry.Channel.INCOMPLETE, "Ответ оборвался", 7L);
+        ConsoleEntry restored = TranscriptStore.decode(TranscriptStore.encode(List.of(draft))).get(0);
+        assertEquals(ConsoleEntry.Channel.INCOMPLETE, restored.channel);
+        assertEquals(draft.text, restored.text);
+        assertFalse(restored.hasExactSpeed());
+    }
+
+    @Test
     public void exactSpeedSurvivesTheRoundTrip() throws Exception {
         ConsoleEntry answer = new ConsoleEntry(
                 ConsoleEntry.Channel.AGENT, "done", 5L, "", "", 16.47d, 128L

@@ -11,6 +11,7 @@ public final class ConsoleEntry {
     public enum Channel {
         USER,
         AGENT,
+        INCOMPLETE,
         SYSTEM,
         TOOL,
         ERROR
