@@ -9,17 +9,13 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
-[Latest main build](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml) · [Published releases](https://github.com/tigrohvost/pi-deck/releases)
+[Download signed APK (0.3.0-alpha20)](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha20/pi-deck.apk) · [Published releases](https://github.com/tigrohvost/pi-deck/releases)
 
 </div>
 
 PI//DECK runs the language model on your phone. It can explain a project, find
 code, edit files and run checks through [Pi](https://github.com/earendil-works/pi)
 and Termux. No cloud model or root is required.
-
-This README describes the current `main` branch. Tagged releases may lag behind
-these screenshots. To get the current APK, open a successful **build** run and
-download its **pi-deck-signed-release** artifact.
 
 ## The interface
 

@@ -9,7 +9,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
-[Свежая сборка main](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml) · [Опубликованные релизы](https://github.com/tigrohvost/pi-deck/releases)
+[Скачать подписанный APK (0.3.0-alpha20)](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha20/pi-deck.apk) · [Опубликованные релизы](https://github.com/tigrohvost/pi-deck/releases)
 
 </div>
 
@@ -17,10 +17,6 @@ PI//DECK запускает языковую модель на телефоне.
 проект, найти код, изменить файлы и запустить проверки через
 [Pi](https://github.com/earendil-works/pi) и Termux. Облачная модель и root
 не требуются.
-
-README описывает актуальную ветку `main`. Опубликованный релиз может отставать
-от скриншотов. Чтобы получить текущий APK, откройте успешный запуск **build**
-и скачайте артефакт **pi-deck-signed-release**.
 
 ## Интерфейс
 
