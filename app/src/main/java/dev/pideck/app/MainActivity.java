@@ -58,6 +58,7 @@ import dev.pideck.app.core.CommandResult;
 import dev.pideck.app.core.DeckPreferences;
 import dev.pideck.app.core.DiagnosticReport;
 import dev.pideck.app.core.GenerationSpeed;
+import dev.pideck.app.core.RuntimeTelemetry;
 import dev.pideck.app.core.IdleShutdown;
 import dev.pideck.app.core.InferenceDisplayPolicy;
 import dev.pideck.app.core.ServerProgress;
@@ -242,6 +243,10 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         }
     };
 
+    private final RuntimeTelemetry.Listener telemetryObserver = sample ->
+            deck.addTelemetrySample(sample.timeMs(), sample.speed(), sample.estimated(),
+                    sample.usedRam(), sample.totalRam(), sample.batteryCelsius());
+
     private final Runnable inferenceProgressTicker = new Runnable() {
         @Override
         public void run() {
@@ -390,6 +395,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         NativeLlamaService.backgroundHint(this, false);
         CommandEvents.addListener(this);
         main.post(heartbeat);
+        deck.clearTelemetryHistory();
+        RuntimeTelemetry.get(this).observe(telemetryObserver);
         main.post(startupProbeRetry);
         scheduleComposerWarmup();
         startRpcPolling();
@@ -457,6 +464,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         NativeLlamaService.backgroundHint(this, true);
         CommandEvents.removeListener(this);
         main.removeCallbacks(heartbeat);
+        RuntimeTelemetry.get(this).removeObserver(telemetryObserver);
         main.removeCallbacks(composerWarmup);
         main.removeCallbacks(persistComposerDraft);
         main.removeCallbacks(startupProbeRetry);
@@ -477,6 +485,7 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         cancelWatchdog(null);
         main.removeCallbacks(persistComposerDraft);
         if (rpc != null) rpc.close();
+        if (transcript != null) transcript.close();
         io.shutdownNow();
         super.onDestroy();
     }
@@ -2836,9 +2845,9 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (!turnClock.rateDue(now)) return;
         GenerationSpeed speed = turnClock.speed(now);
         if (speed == null) return;
+        RuntimeTelemetry.get(this).recordStreamingSpeed(speed);
         deck.setGenerationSpeed(speed);
-        setBusy(true, t("Печатает · ", "Writing · ")
-                + speed.label(uiLanguage.locale, uiLanguage));
+        setBusy(true, t("Печатает ответ", "Writing answer"));
     }
 
     private String formatTurnElapsed(long seconds) {
@@ -3329,19 +3338,8 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         OperationRecord active = operations.active();
         String installingModelId = active != null && active.kind == OperationKind.INSTALL_MODEL
                 ? active.request.optString("modelId") : null;
-        java.util.LinkedHashSet<String> primaryModels = new java.util.LinkedHashSet<>();
-        primaryModels.add(selectedModel.id);
-        primaryModels.add(recommendedModel.id);
-        primaryModels.addAll(java.util.List.of(
-                "bonsai2-4b", "bonsai2-9b", "k2-horizon-3.7b", "qwen3.8-4b-distill"));
-        for (String id : primaryModels) {
-            modelCatalog.byId(id).ifPresent(model -> state.models.add(
-                    modelRow(model, recommendedModel, installingModelId)));
-        }
         for (ModelSpec model : modelCatalog.all()) {
-            if (!primaryModels.contains(model.id)) {
-                state.models.add(modelRow(model, recommendedModel, installingModelId));
-            }
+            state.models.add(modelRow(model, recommendedModel, installingModelId));
         }
 
         String systemPrompt = prefs.systemPrompt();
@@ -3711,8 +3709,6 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
                 action,
                 secondaryLabel,
                 secondary,
-                selected || recommended || privateReady || incoming || download.isActive()
-                        || download.phase == ModelDownloadManager.Phase.FAILED,
                 () -> showModelDetails(model)
         );
     }
@@ -3761,39 +3757,13 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
     private String speedProfile(ModelSpec model) {
         return switch (model.id) {
             case "lfm2.5-2.6b-qad" -> t(
-                    "AGENT · reasoning ≤256 · ≈15,7–16,5 ток/с",
-                    "AGENT · reasoning up to 256 · ≈15.7–16.5 tok/s"
+                    "Оптимальная · ≈16 ток/с",
+                    "Balanced · ≈16 tok/s"
             );
-            case "qwen3.5-0.8b" -> t("Быстро · ≈52 ток/с", "Fast · ≈52 tok/s");
-            case "qwen3.5-2b" -> t(
-                    "FAST · без скрытого рассуждения · ≈19 ток/с",
-                    "FAST · direct · ≈19 tok/s"
-            );
-            case "qwen3.8-2b-distill" -> t(
-                    "Reasoning-кандидат · ≈15,8 ток/с · tools не пройдены",
-                    "Reasoning candidate · ≈15.8 tok/s · tools failed"
-            );
-            case "qwen3.5-4b" -> t(
-                    "DEEP вручную · reasoning ≤512 · ≈7 ток/с",
-                    "Manual DEEP · reasoning up to 512 · ≈7 tok/s"
-            );
-            case "qwen3.5-9b" -> t("Эксперимент · медленно", "Experimental · slow");
-            case "ministral-3-3b-instruct-2512" -> t(
-                    "Кандидат · smoke ≈0,5 ток/с",
-                    "Candidate · smoke ≈0.5 tok/s"
-            );
-            case "nanbeige4.2-3b" -> t(
-                    "Agentic-кандидат · скорость не измерена",
-                    "Agentic candidate · speed not measured"
-            );
-            case "granite-4.2-3b" -> t(
-                    "Tool-кандидат · ≈11,0 ток/с · loop не пройден",
-                    "Tool candidate · ≈11.0 tok/s · loop failed"
-            );
-            case "bonsai-27b" -> t("Не для диалога · ≈1 ток/с", "Not for chat · ≈1 tok/s");
-            case "bonsai2-4b", "bonsai2-9b" -> t(
-                    "Ternary · кандидат · скорость не измерена",
-                    "Ternary · candidate · speed not measured"
+            case "qwen3.5-0.8b" -> t("Быстрая · простые задачи", "Fast · simple tasks");
+            case "bonsai2-9b" -> t(
+                    "Сложные задачи · ≈3,3 ток/с",
+                    "Complex tasks · ≈3.3 tok/s"
             );
             default -> t(
                     "Скорость зависит от телефона",
@@ -3806,47 +3776,16 @@ public final class MainActivity extends Activity implements DeckView.Listener, C
         if (uiLanguage != UiLanguage.ENGLISH) return model.note;
         return switch (model.id) {
             case "lfm2.5-2.6b-qad" ->
-                    "The primary agent/coding profile for a >15 tok/s target: the SM-S918B "
-                            + "median is 16.47 tok/s at 128 tokens and 15.71 at 192, with a "
-                            + "reasoning budget of 256. The full 28-task admission suite is "
-                            + "not complete yet.";
+                    "The balanced choice for speed and tool use. Around 16 tok/s on the "
+                            + "SM-S918B; reading, editing and running tests have been checked. "
+                            + "The full agent test suite is not complete yet.";
             case "qwen3.5-0.8b" ->
-                    "The fastest profile for phones with limited available memory.";
-            case "qwen3.5-2b" ->
-                    "FAST: direct answers without hidden reasoning for everyday edits.";
-            case "qwen3.8-2b-distill" ->
-                    "A compact reasoning candidate derived from Qwen3.5 2B. On the SM-S918B "
-                            + "with stock b10092 it measured 15.82 tok/s at 192 tokens and "
-                            + "2,783 MiB peak RSS. Russian and suite-v2 Q01 passed, but Q04 "
-                            + "failed because the model printed code instead of calling read. "
-                            + "It remains manual-only.";
-            case "qwen3.5-4b" ->
-                    "A manual DEEP profile that is stronger on some difficult repairs, but runs "
-                            + "at about 7 tok/s and is outside the automatic ladder. Reasoning is "
-                            + "capped at 512 tokens.";
-            case "qwen3.5-9b" ->
-                    "A multi-step profile with high OOM risk; it needs a separate device benchmark.";
-            case "ministral-3-3b-instruct-2512" ->
-                    "Official edge instruct model with native tool calls and JSON. A minimal "
-                            + "SM-S918B smoke passed; Russian and suite-v1/v2 are not validated yet.";
-            case "nanbeige4.2-3b" ->
-                    "Looped agentic model with a separate pinned Nanbeige runtime. The vendor "
-                            + "lists English and Chinese; Russian, suite-v1/v2, and speed are "
-                            + "not validated yet.";
-            case "granite-4.2-3b" ->
-                    "IBM's official reasoning/tool candidate. On the SM-S918B with stock b10092 "
-                            + "it measured 11.04 tok/s at 192 tokens and 4,612 MiB peak RSS. "
-                            + "Russian and suite-v2 Q01 passed, but the tool smoke made four "
-                            + "calls instead of one and did not finish successfully within "
-                            + "420 seconds. It remains manual-only.";
-            case "bonsai-27b" ->
-                    "27B in a 1-bit packing: it fits a flagship's memory but decodes at about "
-                            + "1.2 tok/s. Hand-picked only.";
-            case "bonsai2-4b", "bonsai2-9b" ->
-                    "The same ternary language weights as the official MLX 2-bit model, "
-                            + "in compact GGUF PTQ1_0 for Android. Text chat and agent profile "
-                            + "with thinking off; image input is not enabled. Phone speed and "
-                            + "the full agent suite have not been validated. Manual selection only.";
+                    "The fast choice for short answers and simple tasks. Prefer LFM2.5 "
+                            + "or Bonsai 2 for complex edits.";
+            case "bonsai2-9b" ->
+                    "A slower choice for complex questions. Around 3.3 tok/s on the SM-S918B "
+                            + "with a cooling fan; exact output and project navigation have "
+                            + "been checked. Text only; the full agent suite is not complete yet.";
             default -> model.note;
         };
     }

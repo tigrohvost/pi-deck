@@ -1,0 +1,30 @@
+{
+  "lfm3-qad": {
+    "automaticCasesPassed": 4,
+    "automaticCasesTotal": 5,
+    "manualReview": {
+      "exact": "Failed: ГОТОВ instead of ГОТОВО",
+      "russian": "Two natural Russian sentences; no obvious grammar error",
+      "repair": "Read, edited clamp and passed four bounded fixture cases"
+    },
+    "admitted": false
+  },
+  "spark26-4b": {
+    "automaticCasesPassed": 5,
+    "automaticCasesTotal": 5,
+    "manualReview": {
+      "russian": "Failed manual language review: живой запасом is ungrammatical; full data security is an overclaim. The automated Cyrillic-presence gate is insufficient.",
+      "repair": "Read, edited clamp and passed four bounded fixture cases"
+    },
+    "admitted": false
+  },
+  "bonsai9b-tools": {
+    "automaticCasesPassed": 2,
+    "automaticCasesTotal": 2,
+    "manualReview": {
+      "repair": "Passed in 245.184 s after four reads, one edit and one test call; slower and less direct than LFM3 and Spark in these small probes."
+    },
+    "samplingCaveat": "Greedy diagnostic (temperature 0), not the catalog sampling profile",
+    "admitted": false
+  }
+}

@@ -2,12 +2,15 @@ package dev.pideck.app.ui;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import android.widget.ImageButton;
+import dev.pideck.app.R;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -42,8 +45,6 @@ public final class CoreRootView extends ScrollView {
         public final Runnable action;
         public final String secondaryLabel;
         public final Runnable secondary;
-        /** Keep selected, recommended and locally available models in the compact list. */
-        public final boolean showInCompactList;
         public final Runnable details;
 
         public ModelRow(
@@ -58,7 +59,6 @@ public final class CoreRootView extends ScrollView {
                 Runnable action,
                 String secondaryLabel,
                 Runnable secondary,
-                boolean showInCompactList,
                 Runnable details
         ) {
             this.title = title;
@@ -72,7 +72,6 @@ public final class CoreRootView extends ScrollView {
             this.action = action;
             this.secondaryLabel = secondaryLabel;
             this.secondary = secondary;
-            this.showInCompactList = showInCompactList;
             this.details = details;
         }
     }
@@ -156,8 +155,6 @@ public final class CoreRootView extends ScrollView {
     private final LinearLayout column;
     private final UiLanguage language;
     private String lastSignature = "";
-    private boolean showAllModels;
-    private State latestState;
 
     public CoreRootView(
             Context context,
@@ -180,7 +177,6 @@ public final class CoreRootView extends ScrollView {
     }
 
     public void render(State state) {
-        latestState = state;
         String signature = signature(state);
         if (signature.equals(lastSignature)) return;
         lastSignature = signature;
@@ -189,23 +185,8 @@ public final class CoreRootView extends ScrollView {
         column.addView(style.screenTitle(t("Ядро", "Core")));
 
         section(t("Модель", "Model"));
-        int hiddenModels = 0;
         for (ModelRow model : state.models) {
-            if (!model.showInCompactList) hiddenModels++;
-            if (showAllModels || model.showInCompactList) column.addView(modelRow(model));
-        }
-        if (hiddenModels > 0) {
-            addSpaced(style.inlineAction(
-                    showAllModels
-                            ? t("Свернуть каталог", "Collapse catalog")
-                            : t("Все модели · ", "All models · ") + state.models.size(),
-                    style.palette.accent,
-                    () -> {
-                        showAllModels = !showAllModels;
-                        if (!showAllModels) scrollTo(0, 0);
-                        render(latestState);
-                    }
-            ), 0);
+            column.addView(modelRow(model));
         }
 
         section(t("Режим работы", "Operating mode"));
@@ -408,7 +389,6 @@ public final class CoreRootView extends ScrollView {
 
     private String signature(State state) {
         StringBuilder value = new StringBuilder()
-                .append(showAllModels).append('|')
                 .append(state.schemeId).append('|')
                 .append(state.textScale).append('|')
                 .append(state.agentMode).append('|')
@@ -430,7 +410,7 @@ public final class CoreRootView extends ScrollView {
             value.append('|').append(row.title).append('|').append(row.meta)
                     .append('|').append(row.state).append('|').append(row.selected)
                     .append('|').append(row.available).append('|').append(row.progressPercent)
-                    .append('|').append(row.stateColor).append('|').append(row.showInCompactList)
+                    .append('|').append(row.stateColor)
                     .append('|').append(row.actionLabel).append('|').append(row.action != null)
                     .append('|').append(row.secondaryLabel).append('|').append(row.secondary != null)
                     .append('|').append(row.details != null);
@@ -496,6 +476,19 @@ public final class CoreRootView extends ScrollView {
         );
         titleLp.leftMargin = style.dp(11);
         head.addView(title, titleLp);
+        if (model.details != null) {
+            ImageButton info = new ImageButton(getContext());
+            info.setImageResource(R.drawable.ic_info);
+            info.setImageTintList(ColorStateList.valueOf(style.palette.muted));
+            info.setContentDescription(t("Подробнее", "Details"));
+            info.setTooltipText(t("Подробнее о модели", "Model details"));
+            info.setPadding(style.dp(14), style.dp(14), style.dp(14), style.dp(14));
+            info.setBackground(new android.graphics.drawable.RippleDrawable(
+                    ColorStateList.valueOf(style.palette.stroke), null,
+                    style.round(0xffffffff, 24)));
+            style.clickable(info, model.details);
+            head.addView(info, new LinearLayout.LayoutParams(style.dp(48), style.dp(48)));
+        }
         row.addView(head);
         if (model.selected) {
             TextView selected = style.monoTrace(t("Выбрана", "Selected"), style.palette.accent);
@@ -532,9 +525,9 @@ public final class CoreRootView extends ScrollView {
 
         if (model.actionLabel != null || model.secondaryLabel != null) {
             LinearLayout actions = new LinearLayout(getContext());
-            // Full-width, wrapping actions keep long translations accessible at 320 dp and
-            // large text sizes; horizontal wrap-content buttons used to escape the card.
-            actions.setOrientation(LinearLayout.VERTICAL);
+            // Equal bounded columns wrap translations without letting a button escape the card.
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            actions.setBaselineAligned(false);
             if (model.actionLabel != null) {
                 actions.addView(modelAction(model.actionLabel, style.palette.accent,
                         model.action, model.available));
@@ -548,10 +541,6 @@ public final class CoreRootView extends ScrollView {
             );
             row.addView(actions, actionsLp);
         }
-        if (model.details != null) {
-            row.addView(modelAction(t("Подробнее", "Details"), style.palette.muted,
-                    model.details, true));
-        }
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -563,8 +552,11 @@ public final class CoreRootView extends ScrollView {
 
     private TextView modelAction(String label, int color, Runnable action, boolean available) {
         TextView button = style.inlineAction(label, color, action == null ? () -> { } : action);
+        button.setTextSize(10.5f * style.textScale());
+        button.setLetterSpacing(.02f);
+        button.setPadding(style.dp(6), style.dp(4), style.dp(6), style.dp(4));
         button.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ));
         button.setEnabled(available && action != null);
         if (!button.isEnabled()) button.setAlpha(0.5f);
@@ -638,6 +630,7 @@ public final class CoreRootView extends ScrollView {
     ) {
         LinearLayout group = new LinearLayout(getContext());
         group.setOrientation(LinearLayout.HORIZONTAL);
+        group.setBaselineAligned(false);
         group.setBackground(style.outlined(style.palette.cardFill, style.palette.stroke, 7));
         group.setPadding(style.dp(4), style.dp(4), style.dp(4), style.dp(4));
         for (int index = 0; index < labels.length; index++) {
@@ -652,7 +645,7 @@ public final class CoreRootView extends ScrollView {
             Object value = values[index];
             if (!active) style.clickable(segment, () -> chosen.accept(value));
             group.addView(segment, new LinearLayout.LayoutParams(
-                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                    0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
             ));
         }
         return group;

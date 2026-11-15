@@ -149,8 +149,9 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private final Palette p;
     private final UiLanguage language;
 
-    private final TextView coreStatusLabel;
-    private final StatusDot coreStatusDot;
+    private final TelemetryView telemetry;
+    private TextView coreStatusLabel;
+    private StatusDot coreStatusDot;
     private final LinearLayout consoleRoot;
     private final CoreRootView coreRoot;
     private final SessionsRootView sessionsRoot;
@@ -174,7 +175,6 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private TextView sendButton;
     private LinearLayout.LayoutParams sendButtonLayout;
     private TextView contextLabel;
-    private TextView generationRateLabel;
     private TextView compactContextAction;
     private TextView newSessionAction;
     private TextView planStatusLabel;
@@ -195,7 +195,10 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private int queuedPromptCount;
     private String contextLabelFull = "";
     private String contextLabelBusy = "";
-    private boolean generationProgressVisible;
+    private CoreStatus currentCoreStatus = CoreStatus.SLEEPING;
+    private String currentCoreDetail = "";
+    private String generationProgress = "";
+    private String contextLabelShort = "CTX —";
 
     private final List<ConsoleEntry> entries = new ArrayList<>();
     /** The block each entry was drawn into; several trace entries share one feed. */
@@ -249,46 +252,8 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         root.setOrientation(LinearLayout.VERTICAL);
         addView(root, match());
 
-        LinearLayout header = new LinearLayout(context);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(style.dp(22), style.dp(12), style.dp(22), style.dp(12));
-        header.setMinimumHeight(style.dp(48));
-
-        SpannableString brandText = new SpannableString("π//DECK");
-        brandText.setSpan(
-                new ForegroundColorSpan(p.accentAlt), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        );
-        brandText.setSpan(
-                new ForegroundColorSpan(p.accent), 1, brandText.length(),
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        );
-        TextView brand = style.wordmark("π//DECK");
-        brand.setText(brandText);
-        brand.setSingleLine(true);
-        header.addView(brand, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        // A long status (a model title, a load estimate) shortens itself; the wordmark never wraps.
-        header.addView(new View(context), new LinearLayout.LayoutParams(0, 0, 1f));
-
-        coreStatusDot = new StatusDot(context, p.error);
-        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(
-                style.dp(6), style.dp(6)
-        );
-        dotLp.leftMargin = style.dp(12);
-        dotLp.rightMargin = style.dp(6);
-        header.addView(coreStatusDot, dotLp);
-        coreStatusLabel = style.monoAt(
-                t("Ядро не запущено", "Core is stopped"), 11f, p.error, true
-        );
-        coreStatusLabel.setSingleLine(true);
-        coreStatusLabel.setEllipsize(TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        header.addView(coreStatusLabel, statusLp);
-        root.addView(header, matchWidth());
+        telemetry = new TelemetryView(context, style, p, this.language);
+        root.addView(telemetry, matchWidth());
         root.addView(divider(), dividerLp());
 
         FrameLayout contentHost = new FrameLayout(context);
@@ -376,19 +341,26 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(style.dp(22), style.dp(7), style.dp(18), 0);
 
-        contextLabel = style.monoTrace("", p.muted);
+        row.setBaselineAligned(false);
+        coreStatusDot = new StatusDot(context, p.error);
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(style.dp(5), style.dp(5));
+        dotLp.rightMargin = style.dp(6);
+        row.addView(coreStatusDot, dotLp);
+        coreStatusLabel = style.monoAt("", 10f, p.muted, false);
+        coreStatusLabel.setLetterSpacing(0);
+        coreStatusLabel.setSingleLine(true);
+        coreStatusLabel.setMaxWidth(style.dp(92));
+        coreStatusLabel.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams statusLp = wrap();
+        statusLp.rightMargin = style.dp(10);
+        row.addView(coreStatusLabel, statusLp);
+
+        contextLabel = style.monoTrace("CTX —", p.muted);
+        contextLabel.setLetterSpacing(0);
         configureAdaptiveMetric(contextLabel);
         row.addView(contextLabel, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ));
-        generationRateLabel = style.monoTrace("", p.accent);
-        configureAdaptiveMetric(generationRateLabel);
-        generationRateLabel.setGravity(Gravity.END);
-        generationRateLabel.setVisibility(GONE);
-        LinearLayout.LayoutParams rateLp = wrap();
-        rateLp.leftMargin = style.dp(8);
-        rateLp.rightMargin = style.dp(8);
-        row.addView(generationRateLabel, rateLp);
         compactContextAction = style.inlineAction(
                 t("Ускорить", "Speed up"), p.accent, listener::onCompactSession
         );
@@ -419,18 +391,11 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         );
     }
 
-    private void setGenerationMetricFlexible(boolean flexible) {
-        LinearLayout.LayoutParams layout =
-                (LinearLayout.LayoutParams) generationRateLabel.getLayoutParams();
-        layout.width = flexible ? 0 : ViewGroup.LayoutParams.WRAP_CONTENT;
-        layout.weight = flexible ? 1f : 0f;
-        generationRateLabel.setLayoutParams(layout);
-    }
-
     private void refreshContextLabel() {
-        contextLabel.setText(generationProgressVisible ? contextLabelBusy : contextLabelFull);
-        // TalkBack keeps the descriptive, fully grouped value even while the visual row is tight.
-        contextLabel.setContentDescription(contextLabelFull);
+        contextLabel.setText(compactContextAction.getVisibility() == VISIBLE
+                ? contextLabelShort : contextLabelBusy.isBlank() ? "CTX —" : contextLabelBusy);
+        contextLabel.setContentDescription(contextLabelFull.isBlank()
+                ? t("Контекст пока неизвестен", "Context is not yet known") : contextLabelFull);
     }
 
     private LinearLayout buildConsoleRoot(Context context) {
@@ -613,6 +578,8 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     private LinearLayout buildInput(Context context) {
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.HORIZONTAL);
+        // Align touch targets by their bounds, not the multiline input's text baseline.
+        row.setBaselineAligned(false);
         row.setGravity(Gravity.BOTTOM);
         row.setPadding(style.dp(18), style.dp(14), style.dp(18), style.dp(14));
 
@@ -817,11 +784,17 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 tab == TabBarView.TAB_CONSOLE && planLedgerVisible ? VISIBLE : GONE
         );
         contextRow.setVisibility(
-                tab == TabBarView.TAB_CONSOLE && contextAvailable ? VISIBLE : GONE
+                tab == TabBarView.TAB_CONSOLE ? VISIBLE : GONE
         );
-        if (tab != TabBarView.TAB_CONSOLE && promptInput.hasFocus()) {
+        if (tab != TabBarView.TAB_CONSOLE) {
             promptInput.clearFocus();
             requestFocus();
+            android.view.inputmethod.InputMethodManager keyboard =
+                    (android.view.inputmethod.InputMethodManager) getContext()
+                            .getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (keyboard != null && getWindowToken() != null) {
+                keyboard.hideSoftInputFromWindow(getWindowToken(), 0);
+            }
         }
     }
 
@@ -930,27 +903,44 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         listener.onLanguageChosen(language);
     }
 
-    /** The header says one thing at a time: can the core answer, or what is it waiting on. */
+    /** A compact state shares the context row; full progress remains accessible. */
     public void setCoreStatus(CoreStatus status, String detail) {
-        int color = switch (status) {
+        currentCoreStatus = status;
+        currentCoreDetail = detail == null ? "" : detail;
+        if (status != CoreStatus.BUSY && status != CoreStatus.STARTING) generationProgress = "";
+        refreshCoreStatus();
+    }
+
+    private void refreshCoreStatus() {
+        int color = switch (currentCoreStatus) {
             case READY, BUSY -> p.ok;
             case AWAITING_USER, STARTING -> p.warn;
             case FAILED -> p.errorText;
-            case SLEEPING -> p.error;
+            case SLEEPING -> p.muted;
         };
-        String label = switch (status) {
-            case READY -> detail == null || detail.isBlank()
-                    ? t("Ядро живо", "Core online") : detail;
-            case BUSY -> detail == null || detail.isBlank()
-                    ? t("Работаю", "Working") : detail;
-            case STARTING -> t("Поднимаю ядро", "Starting core");
-            case AWAITING_USER -> t("Ждёт вас", "Waiting for you");
-            case FAILED -> t("Ядро упало", "Core failed");
-            case SLEEPING -> t("Ядро не запущено", "Core is stopped");
+        String label = switch (currentCoreStatus) {
+            case READY -> t("Готово", "Ready");
+            case BUSY -> t("Работаю", "Working");
+            case STARTING -> t("Запуск", "Starting");
+            case AWAITING_USER -> t("Жду вас", "Waiting");
+            case FAILED -> t("Ошибка", "Error");
+            case SLEEPING -> t("Ядро спит", "Core idle");
         };
+        if (!generationProgress.isBlank()) {
+            Matcher percent = Pattern.compile("(?:Читаю промпт|Reading prompt) (\\d+)%")
+                    .matcher(generationProgress);
+            if (percent.find()) label = t("Промпт ", "Prompt ") + percent.group(1) + "%";
+            else if (generationProgress.startsWith("Думаю") || generationProgress.startsWith("Thinking")) {
+                label = t("Думаю", "Thinking");
+            }
+        }
+        String description = !generationProgress.isBlank() ? generationProgress
+                : currentCoreDetail.isBlank() ? label : currentCoreDetail;
         coreStatusDot.setColor(color);
         coreStatusLabel.setTextColor(color);
-        coreStatusLabel.setText(label.toUpperCase(Locale.getDefault()));
+        coreStatusLabel.setText(label);
+        coreStatusLabel.setContentDescription(description);
+        coreStatusLabel.setTooltipText(description);
     }
 
     public void setBootState(
@@ -1102,7 +1092,12 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
     ) {
         contextAvailable = usage != null && usage.known();
         if (!contextAvailable) {
-            contextRow.setVisibility(GONE);
+            contextLabelFull = "";
+            contextLabelBusy = contextLabelShort = "CTX —";
+            compactContextAction.setVisibility(GONE);
+            newSessionAction.setVisibility(GONE);
+            refreshContextLabel();
+            contextRow.setVisibility(activeTab() == TabBarView.TAB_CONSOLE ? VISIBLE : GONE);
             return;
         }
         String prefix = usage.estimated
@@ -1112,8 +1107,8 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
                 + String.format(Locale.getDefault(), "%,d", usage.tokens)
                 + " / "
                 + String.format(Locale.getDefault(), "%,d", usage.contextWindow);
-        contextLabelBusy = "CTX " + (usage.estimated ? "≈" : "") + usage.percent + "% · "
-                + usage.tokens + "/" + usage.contextWindow;
+        contextLabelShort = "CTX " + (usage.estimated ? "≈" : "") + usage.percent + "%";
+        contextLabelBusy = contextLabelShort + " · " + usage.tokens + "/" + usage.contextWindow;
         refreshContextLabel();
         contextLabel.setTextColor(
                 usage.percent >= 85 ? p.errorText : usage.percent >= 70 ? p.warn : p.muted
@@ -1125,47 +1120,30 @@ public final class DeckView extends FrameLayout implements CoreRootView.Listener
         compactContextAction.setVisibility(suggest ? VISIBLE : GONE);
         compactContextAction.setEnabled(!compacting);
         newSessionAction.setVisibility(suggest ? VISIBLE : GONE);
+        refreshContextLabel();
         contextRow.setVisibility(
                 activeTab() == TabBarView.TAB_CONSOLE ? VISIBLE : GONE
         );
     }
 
-    public void setGenerationSpeed(GenerationSpeed speed) {
-        generationProgressVisible = false;
-        setGenerationMetricFlexible(false);
-        refreshContextLabel();
-        if (speed == null) {
-            generationRateLabel.setText("");
-            generationRateLabel.setContentDescription(null);
-            generationRateLabel.setVisibility(GONE);
-            return;
-        }
-        generationRateLabel.setText(speed.label(language.locale, language));
-        generationRateLabel.setContentDescription(
-                speed.contentDescription(language.locale, language)
-        );
-        generationRateLabel.setTextColor(speed.estimated ? p.muted : p.accent);
-        generationRateLabel.setVisibility(VISIBLE);
+    public void clearTelemetryHistory() {
+        telemetry.clearHistory();
     }
 
-    /** Displays an elapsed inference phase before the provider can report generated tokens. */
+    public void addTelemetrySample(long timeMs, double speed, boolean estimated,
+                                   long usedRam, long totalRam, double batteryCelsius) {
+        telemetry.addSample(timeMs, speed, estimated, usedRam, totalRam, batteryCelsius);
+    }
+
+    public void setGenerationSpeed(GenerationSpeed speed) {
+        // Live speed is already in the graph panel; exact totals remain on each answer.
+        generationProgress = "";
+        refreshCoreStatus();
+    }
+
     public void setGenerationProgress(String label) {
-        if (label == null || label.isBlank()) {
-            generationProgressVisible = false;
-            setGenerationMetricFlexible(false);
-            refreshContextLabel();
-            generationRateLabel.setText("");
-            generationRateLabel.setContentDescription(null);
-            generationRateLabel.setVisibility(GONE);
-            return;
-        }
-        generationProgressVisible = true;
-        setGenerationMetricFlexible(true);
-        refreshContextLabel();
-        generationRateLabel.setText(label);
-        generationRateLabel.setContentDescription(label);
-        generationRateLabel.setTextColor(p.muted);
-        generationRateLabel.setVisibility(VISIBLE);
+        generationProgress = label == null ? "" : label;
+        refreshCoreStatus();
     }
 
     /** Every JSONL event moves the execution row, not just the first one. */

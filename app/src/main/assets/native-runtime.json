@@ -7,6 +7,7 @@
   "ndkRevision": "27.1.12297006",
   "cmakeVersion": "3.22.1-g37088a8",
   "patchSet": "pideck-affinity1",
+  "elfPageAlignment": 16384,
   "patches": [
     {
       "name": "0001-android-enable-linux-thread-affinity.patch",
@@ -62,72 +63,72 @@
     {
       "name": "libggml-base.so",
       "bytes": 1161896,
-      "sha256": "4fec3e67d87b98145f1a1d48d189fb061c0cb2135cc94a3346bec19fce500b93"
+      "sha256": "33ccfe3ea1c00d39cc566a113886181a80076ecde6f570b50d05dbb0d4223b9f"
     },
     {
       "name": "libggml-cpu-android_armv8.0_1.so",
-      "bytes": 879600,
-      "sha256": "f20f764e7f2c555804a411fc0f71c32b815e769acb541b35caf64e9e7a9d1506"
+      "bytes": 879488,
+      "sha256": "427971c301a8c369064e550669e8d83392750624003e52025f63347f62f0829b"
     },
     {
       "name": "libggml-cpu-android_armv8.2_1.so",
-      "bytes": 911632,
-      "sha256": "ba648ce30d09f12b92442cbc2545c63ce135627d1e3932916364a08104715963"
+      "bytes": 911512,
+      "sha256": "c1dd2b98e41a6c6ad97099c49663225f68128aa0affb6a4fd6b7ecc657dcc4a6"
     },
     {
       "name": "libggml-cpu-android_armv8.2_2.so",
-      "bytes": 909696,
-      "sha256": "c46e23fbc7bb58c82b4efab8cc8f7c2afdf608c0900637d4cd390a0b41a8d7d7"
+      "bytes": 909576,
+      "sha256": "c0f5b207b450dc1a752b58447158bfc48687f3434e22e0e8929d81d84bcb9ae8"
     },
     {
       "name": "libggml-cpu-android_armv8.6_1.so",
-      "bytes": 920592,
-      "sha256": "1bf1bf35d344350f9b3235b6190351fda1029ee89eb6a6a3a76e943ced111413"
+      "bytes": 920472,
+      "sha256": "bc3d1b69ee65605b3e38399da31a973f518b079202525381d9361d3484223055"
     },
     {
       "name": "libggml-cpu-android_armv9.0_1.so",
-      "bytes": 939040,
-      "sha256": "a624a90b676e174a31e521b408dae69e237ef2b6f98f1fb0a61bbdb54ed461cf"
+      "bytes": 938920,
+      "sha256": "a29394141c88e1c6cc34c93821ba9c2f063f2a5beefb46c34ab7a7393c5c9035"
     },
     {
       "name": "libggml-cpu-android_armv9.2_1.so",
-      "bytes": 939040,
-      "sha256": "02731476be120f8d291cdd51d843af34a6fcc67851a5b0ef62d894d330ec4363"
+      "bytes": 938920,
+      "sha256": "4ff9a666fede264ee9a5eabd8d3721e95822a458eeee526878aa6c389638290e"
     },
     {
       "name": "libggml-cpu-android_armv9.2_2.so",
-      "bytes": 939040,
-      "sha256": "34c41e6d136181927bb8f86378181e87103d8ae608cfde4c55ab335c97e3b70b"
+      "bytes": 938920,
+      "sha256": "6941a2660a41bce18551a489521ee2fbb324aafb62814a47af1f16f4fb6521e9"
     },
     {
       "name": "libggml.so",
       "bytes": 124080,
-      "sha256": "2aeebab24756785d3732d45de35c5ad27c9bbe8235432d8cd43ebacf41a15b0d"
+      "sha256": "e9912f3eaa29b65a923bf11b80697679c45537eccc78aef029df1547f953f229"
     },
     {
       "name": "libllama-common.so",
       "bytes": 4299144,
-      "sha256": "3d235b340bfeff54646ac8d8bbae9911a7ea098596a77c03b572a01eb73d928d"
+      "sha256": "f0c5e11af1742b91a692a822454ef0eda23ff9396b0ada359e3310502adbf5d4"
     },
     {
       "name": "libllama-server-impl.so",
       "bytes": 3609976,
-      "sha256": "51442675ade46984d70c37b059c2214e0f4bb67407e3498daa50d1fbd9d51826"
+      "sha256": "05abf9d754a25bf4ce1be336f5b707e707fca886c1de035a039702e269768b76"
     },
     {
       "name": "libllama.so",
       "bytes": 3428288,
-      "sha256": "8707510ddfa4cb6ac96f3ae78891270fcce5c7ba15e1d0e701ad1aaf270f8712"
+      "sha256": "3d92dc3e659c3a49ba314c15746bd378e810bde0b31c56fd370262b57fbc1c62"
     },
     {
       "name": "libmtmd.so",
       "bytes": 1028144,
-      "sha256": "aa7a146a88ed1eb418cfac0618ee64490752a0a8ccae336e78a64b7c2f12920b"
+      "sha256": "b0c24ce7234df6621e722abe5fab4ae0dd059d008e2f36a146ddfebd42d1504d"
     },
     {
       "name": "libpideck_llama_server.so",
       "bytes": 4368,
-      "sha256": "9abf8e423fcfab5d9a4c031f377588e19e13942a81d7fef40f30a8a64e47497c"
+      "sha256": "08eee74af0f957809f5a9e5ea08d9cd5acd835e0612e3efd943d9ddad0510706"
     },
     {
       "name": "libpideck_nanbeige_server.so",

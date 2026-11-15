@@ -33,6 +33,41 @@ public final class ConversationLayoutDeviceTest {
             DeckStyle.TEXT_SCALES[DeckStyle.TEXT_SCALES.length - 1];
 
     @Test
+    public void stopButtonRemainsInsideComposerAtEveryTextScale() {
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Context context = instrumentation.getTargetContext();
+        instrumentation.runOnMainSync(() -> {
+            float density = context.getResources().getDisplayMetrics().density;
+            for (float scale : DeckStyle.TEXT_SCALES) {
+                for (int widthDp : new int[]{320, 360, 412}) {
+                    DeckView deck = new DeckView(context, noOpListener(), Palette.deck(),
+                            scale, UiLanguage.RUSSIAN);
+                    deck.hideBootPanel();
+                    deck.setComposerAvailability(true, false);
+                    deck.setBusy(true, "Готовлю ответ");
+                    deck.setStopAvailable(true);
+                    int width = Math.round(widthDp * density);
+                    int height = Math.round(640 * density);
+                    deck.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                            View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+                    deck.layout(0, 0, width, height);
+                    TextView stop = findText(deck, "■");
+                    assertNotNull(stop);
+                    View parent = (View) stop.getParent();
+                    String size = "scale=" + scale + ", width=" + widthDp;
+                    assertTrue("Stop is clipped at the top: " + size,
+                            stop.getTop() >= parent.getPaddingTop());
+                    assertTrue("Stop is clipped at the bottom: " + size,
+                            stop.getBottom() <= parent.getHeight() - parent.getPaddingBottom());
+                    assertEquals("Stop must remain circular: " + size,
+                            stop.getWidth(), stop.getHeight());
+                    deck.setBusy(false, "");
+                }
+            }
+        });
+    }
+
+    @Test
     public void truncatedAnswersRemainVisibleAcrossRetryFailureAndRestore() {
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
         Context context = instrumentation.getTargetContext();

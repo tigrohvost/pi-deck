@@ -279,6 +279,7 @@ public final class NativeLlamaService extends Service {
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
+        RuntimeTelemetry.get(this).setCoreRunning(true);
     }
 
     @Override
@@ -297,6 +298,7 @@ public final class NativeLlamaService extends Service {
             String taskId = intent.getStringExtra(EXTRA_TASK_ID);
             if (taskId == null || taskId.isBlank() || !INFERENCE.accepts(generation, taskId, true)) return START_NOT_STICKY;
             inferenceTask = taskId;
+            RuntimeTelemetry.get(this).setInferenceActive(true);
             idleHandler.removeCallbacks(idleShutdown);
             acquireInferenceWakeLock();
             String phase = intent.getStringExtra(EXTRA_PHASE);
@@ -307,6 +309,7 @@ public final class NativeLlamaService extends Service {
             if (!inferenceTask.equals(intent.getStringExtra(EXTRA_TASK_ID))
                     || !INFERENCE.accepts(generation, inferenceTask, false)) return START_NOT_STICKY;
             inferenceTask = "";
+            RuntimeTelemetry.get(this).setInferenceActive(false);
             latestContextTokens = intent.getLongExtra(EXTRA_CONTEXT_TOKENS, -1L);
             latestContextWindow = intent.getIntExtra(EXTRA_CONTEXT_WINDOW, 0);
             releaseInferenceWakeLock();
@@ -351,6 +354,7 @@ public final class NativeLlamaService extends Service {
             if (!generationRunning(generation)) return START_NOT_STICKY;
             activeGeneration = generation;
             inferenceTask = "";
+            RuntimeTelemetry.get(this).setInferenceActive(false);
             releaseInferenceWakeLock();
             writeState("STARTING", operationId, modelId, profile, -1L, "");
         }
@@ -365,6 +369,7 @@ public final class NativeLlamaService extends Service {
 
     @Override
     public void onDestroy() {
+        RuntimeTelemetry.get(this).setCoreRunning(false);
         idleHandler.removeCallbacks(idleShutdown);
         releaseInferenceWakeLock();
         Process current = server;

@@ -1072,7 +1072,7 @@ class RuntimeTestCase(unittest.TestCase):
         self.assertFalse(model_store.adaptive_thinking_enabled(model))
 
     def test_compact_bonsai_profiles_keep_prism_and_text_only_pi_contract(self) -> None:
-        catalog = json.loads((REPOSITORY / "app/src/main/assets/models-v2.json").read_text())
+        catalog = json.loads((REPOSITORY / "tests/fixtures/models-v2-legacy.json").read_text())
         for model_id in ("bonsai2-4b", "bonsai2-9b"):
             with self.subTest(model=model_id):
                 model = next(entry for entry in catalog["models"] if entry["id"] == model_id)

@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "suite-v2",
+  "createdAt": "2026-11-15T17:05:02.943083Z",
+  "deviceId": "e3425a7674ba0e28",
+  "tasksSelected": [
+    "Q01",
+    "Q03"
+  ],
+  "outcomes": [
+    {
+      "id": "Q01",
+      "category": "direct_format",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "exact_answer": {
+          "passed": true,
+          "evidence": "answer='PIDECK_V2_OK'"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "0 <= 0; tools=[]"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "PIDECK_V2_OK",
+      "toolNames": [],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 15.669257,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": null,
+        "totalTurnSeconds": 17.136128,
+        "provider": {
+          "outputTokens": 7,
+          "decodeSeconds": 1.707,
+          "decodeTokensPerSecond": 4.1,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "estimated_context_delta_over_visible_ttft",
+            "tokens": 1563,
+            "seconds": 15.669257,
+            "tokensPerSecond": 99.749
+          },
+          "nativeTimings": null
+        },
+        "tools": {
+          "requested": 0,
+          "completed": 0,
+          "failed": 0,
+          "names": [],
+          "executionSeconds": 0.0,
+          "postToolToTerminalSeconds": null
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 5,
+        "start": {
+          "monotonicSeconds": 33618.415782,
+          "batteryLevelPercent": 77,
+          "batteryTemperatureC": 26.5,
+          "batteryVoltageV": 4.032,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "end": {
+          "monotonicSeconds": 33643.371415,
+          "batteryLevelPercent": 77,
+          "batteryTemperatureC": 26.5,
+          "batteryVoltageV": 3.868,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "minimumBigCoreHeadroom": 1.0,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 0,
+        "batteryDeltaPercent": 0.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    },
+    {
+      "id": "Q03",
+      "category": "code_navigation",
+      "outcome": "pass",
+      "signals": {
+        "turn_completed": {
+          "passed": true,
+          "evidence": "TURN_COMPLETED"
+        },
+        "outside_sentinel_unchanged": {
+          "passed": true,
+          "evidence": "reserved outside sentinel unchanged"
+        },
+        "answer_regex": {
+          "passed": true,
+          "evidence": "pattern=src/calculator\\.py.*(?:line|строк)[^0-9]*1|src/calculator\\.py:1; answer='Функция `divide` определена в файле **src/calculator.py**, строка **1**.'"
+        },
+        "required_tool:code_nav": {
+          "passed": true,
+          "evidence": "tools=['code_nav']"
+        },
+        "bounded_tool_calls": {
+          "passed": true,
+          "evidence": "1 <= 2; tools=['code_nav']"
+        },
+        "no_file_changes": {
+          "passed": true,
+          "evidence": "changed=[]"
+        }
+      },
+      "changedPaths": [],
+      "answer": "Функция `divide` определена в файле **src/calculator.py**, строка **1**.",
+      "toolNames": [
+        "code_nav"
+      ],
+      "timing": {
+        "terminalType": "TURN_COMPLETED",
+        "succeeded": true,
+        "dispatchToFirstVisibleTokenSeconds": 98.340691,
+        "ttftSource": "model_output_delta_receipt",
+        "dispatchToFirstToolCallSeconds": 67.706178,
+        "totalTurnSeconds": 105.194373,
+        "provider": {
+          "outputTokens": 100,
+          "decodeSeconds": 27.862,
+          "decodeTokensPerSecond": 3.59,
+          "speedEstimated": false,
+          "prefill": {
+            "source": "estimated_context_delta_over_visible_ttft",
+            "tokens": 1735,
+            "seconds": 98.340691,
+            "tokensPerSecond": 17.643
+          },
+          "nativeTimings": null
+        },
+        "tools": {
+          "requested": 1,
+          "completed": 1,
+          "failed": 0,
+          "names": [
+            "code_nav"
+          ],
+          "executionSeconds": 0.156459,
+          "postToolToTerminalSeconds": 37.323072
+        },
+        "retries": {
+          "rejections": 0,
+          "reasons": [],
+          "additionalAgentStarts": 0,
+          "dispatchDelaySeconds": [],
+          "firstRejectionToTerminalSeconds": null
+        }
+      },
+      "environment": {
+        "samples": 19,
+        "start": {
+          "monotonicSeconds": 33655.643641,
+          "batteryLevelPercent": 77,
+          "batteryTemperatureC": 26.9,
+          "batteryVoltageV": 3.992,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "end": {
+          "monotonicSeconds": 33768.593889,
+          "batteryLevelPercent": 76,
+          "batteryTemperatureC": 29.2,
+          "batteryVoltageV": 3.857,
+          "usbPowered": true,
+          "acPowered": false,
+          "wirelessPowered": false,
+          "bigCoreScalingMaxHz": 3360000,
+          "bigCoreNominalMaxHz": 3360000,
+          "bigCoreHeadroom": 1.0,
+          "hottestCpuC": null,
+          "batteryCurrentA": null,
+          "batteryVoltageSysfsV": null,
+          "chargeCounterAh": null,
+          "energyCounterWh": null,
+          "androidThermalStatus": 0
+        },
+        "minimumBigCoreHeadroom": 1.0,
+        "maximumCpuTemperatureC": null,
+        "thermalThrottlingEvents": 0,
+        "batteryDeltaPercent": 1.0,
+        "power": {
+          "kind": "unavailable",
+          "reason": "battery current_now/voltage_now were not both readable"
+        }
+      }
+    }
+  ],
+  "modelId": "bonsai2-9b",
+  "accessProfile": "confirm_changes",
+  "device": {
+    "model": "SM-S918B",
+    "build": "CP2A.260605.016.S918BXXUAGZIF"
+  },
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "successRate": 1.0,
+    "medianTtftSeconds": 57.004974,
+    "medianTurnSeconds": 61.16525
+  }
+}

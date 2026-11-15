@@ -190,8 +190,13 @@ def main():
     parser.add_argument("--temperature", type=float, default=0)
     parser.add_argument("--top-p", type=float, default=1)
     parser.add_argument("--top-k", type=int, default=40)
+    parser.add_argument("--repeat-penalty", type=float, default=1.0)
+    parser.add_argument("--min-p", type=float,
+                        help="Optional sampling override; otherwise retain the server default")
+    parser.add_argument("--external-cooling", action="store_true")
     parser.add_argument("--max-tokens", type=int, default=512,
                         help="Per-round quality response budget; speed runs always use 192")
+    parser.add_argument("--context", type=int, default=8192)
     parser.add_argument("--request-reasoning-budget", type=int,
                         help="Send llama.cpp's request-local reasoning_budget_tokens override")
     parser.add_argument("--mode", choices=["speed", "tools", "both"], default="both")
@@ -200,6 +205,8 @@ def main():
     parser.add_argument("--min-headroom", type=float, default=.95,
                         help="Minimum frequency ceiling fraction before each test; recorded in report")
     args = parser.parse_args()
+    if not 1024 <= args.context <= 32768:
+        parser.error("--context must be between 1024 and 32768")
     for path in (args.model, args.executable):
         if not path.startswith("/data/local/tmp/") or any(c not in "/-_.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for c in path):
             parser.error("Use a shell-safe path under /data/local/tmp")
@@ -212,11 +219,14 @@ def main():
     report = {"startedAt": runtime.utc_now(), "label": args.label, "modelSha256": args.sha256,
               "harnessVersion": 2,
               "qualityMaxTokens": args.max_tokens,
+              "contextTokens": args.context,
               "requestReasoningBudget": args.request_reasoning_budget,
               "mode": args.mode, "thinking": args.thinking, "device": "SM-S918B",
               "execution": "adb shell inference; bounded synthetic tools; not app admission",
+              "externalCooling": args.external_cooling,
               "minimumFrequencyHeadroom": args.min_headroom,
-              "sampling": {"temperature": args.temperature, "topP": args.top_p, "topK": args.top_k, "seed": 42},
+              "sampling": {"temperature": args.temperature, "topP": args.top_p,
+                           "topK": args.top_k, "repeatPenalty": args.repeat_penalty, "seed": 42},
               "samples": [], "cases": []}
 
     def save():
@@ -228,24 +238,34 @@ def main():
     def payload(messages, maximum=512, tools=None, cache=False, ignore_eos=False):
         result = {"model": args.label, "messages": messages, "max_tokens": maximum,
                   "temperature": args.temperature, "top_p": args.top_p, "top_k": args.top_k,
+                  "repeat_penalty": args.repeat_penalty,
                   "seed": 42, "cache_prompt": cache, "ignore_eos": ignore_eos,
                   "chat_template_kwargs": {"enable_thinking": args.thinking == "on", "preserve_thinking": True}}
         if tools:
             result.update(tools=tools, tool_choice="auto", parallel_tool_calls=False)
+        if args.min_p is not None:
+            result["min_p"] = args.min_p
         if args.request_reasoning_budget is not None:
             result["reasoning_budget_tokens"] = args.request_reasoning_budget
         return result
+
+    if args.min_p is not None:
+        report["sampling"]["minP"] = args.min_p
 
     try:
         actual = device.shell("sha256sum " + shlex.quote(args.model)).split()[0]
         if actual != args.sha256:
             raise ValueError("GGUF SHA256 mismatch")
         report["serverSha256"] = device.shell("sha256sum " + shlex.quote(args.executable)).split()[0]
+        help_text = device.shell("LD_LIBRARY_PATH="
+            + shlex.quote(args.executable.rsplit("/", 1)[0]) + " "
+            + shlex.quote(args.executable) + " --help")
+        load_args = ["--load-mode", "none"] if "--load-mode" in help_text else ["--no-mmap"]
         report["thermalBeforeLoad"] = device.cool()
         argv = ["-m", args.model, "--alias", args.label, "--host", "127.0.0.1", "--port", str(PORT),
-                "-c", "8192", "-np", "1", "-t", "5", "-tb", "8", "-Cr", "3-7", "-Crb", "0-7",
+                "-c", str(args.context), "-np", "1", "-t", "5", "-tb", "8", "-Cr", "3-7", "-Crb", "0-7",
                 "--cpu-strict", "1", "--cpu-strict-batch", "1", "-b", "2048", "-ub", "512",
-                "--jinja", "--reasoning", args.server_thinking or args.thinking, "--reasoning-budget", "256", "--cache-ram", "512", "--no-mmap", "-ngl", "0"]
+                "--jinja", "--reasoning", args.server_thinking or args.thinking, "--reasoning-budget", "256", "--cache-ram", "512", *load_args, "-ngl", "0"]
         report["arguments"] = argv
         report["loadSeconds"] = device.start_owned(args.executable, argv, args.label)
         report["affinity"] = device.shell(f"for t in /proc/{device.pid}/task/*/status; do sed -n '/^Name:/p; /^Cpus_allowed_list:/p' $t; done")

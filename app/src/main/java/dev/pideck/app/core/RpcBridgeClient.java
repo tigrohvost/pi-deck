@@ -11,6 +11,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -47,6 +50,9 @@ public final class RpcBridgeClient implements AutoCloseable {
         return thread;
     });
     private final AtomicBoolean polling = new AtomicBoolean(false);
+    private final Object lifecycle = new Object();
+    private final Set<HttpURLConnection> connections = new HashSet<>();
+    private boolean closed;
 
     public RpcBridgeClient(String token) {
         this(token, DEFAULT_PORT);
@@ -97,8 +103,10 @@ public final class RpcBridgeClient implements AutoCloseable {
             long savedSequence,
             Listener listener
     ) {
-        if (!polling.compareAndSet(false, true)) return;
-        pollingExecutor.execute(() -> pollLoop(savedInstanceId, savedSequence, listener));
+        synchronized (lifecycle) {
+            if (closed || !polling.compareAndSet(false, true)) return;
+            pollingExecutor.execute(() -> pollLoop(savedInstanceId, savedSequence, listener));
+        }
     }
 
     private void pollLoop(
@@ -116,6 +124,7 @@ public final class RpcBridgeClient implements AutoCloseable {
                 long now = System.nanoTime();
                 if (!stateKnown || now >= nextStateRefresh) {
                     JSONObject state = state();
+                    if (!polling.get()) return;
                     String currentInstance = state.getString("bridgeInstanceId");
                     listener.onConnected(state);
                     if (!currentInstance.equals(instanceId)) {
@@ -125,6 +134,7 @@ public final class RpcBridgeClient implements AutoCloseable {
                     stateKnown = true;
                     nextStateRefresh = System.nanoTime() + STATE_REFRESH_INTERVAL_NANOS;
                 }
+                if (!polling.get()) return;
                 JSONObject response = request(
                         "GET",
                         "/v1/events?after=" + sequence + "&timeoutMs=20000",
@@ -132,6 +142,7 @@ public final class RpcBridgeClient implements AutoCloseable {
                         2_000,
                         23_000
                 );
+                if (!polling.get()) return;
                 requireSuccess(response);
                 String responseInstance = response.getString("bridgeInstanceId");
                 if (!responseInstance.equals(instanceId)) {
@@ -147,7 +158,7 @@ public final class RpcBridgeClient implements AutoCloseable {
                 if (response.optBoolean("eventGap", false)) {
                     listener.onEventGap(instanceId, earliest);
                 }
-                for (int i = 0; i < events.length(); i++) {
+                for (int i = 0; polling.get() && i < events.length(); i++) {
                     BridgeEvent event = BridgeEvent.parse(events.getJSONObject(i));
                     if (!event.bridgeInstanceId.equals(instanceId)) {
                         throw new JSONException("Bridge event instance mismatch");
@@ -157,11 +168,13 @@ public final class RpcBridgeClient implements AutoCloseable {
                             && !response.optBoolean("eventGap", false)) {
                         listener.onEventGap(instanceId, event.sequence);
                     }
+                    if (!polling.get()) return;
                     sequence = event.sequence;
                     listener.onEvent(event);
                 }
                 backoff = 400L;
             } catch (IOException | JSONException | IllegalArgumentException error) {
+                if (!polling.get()) return;
                 stateKnown = false;
                 listener.onDisconnected(safeMessage(error));
                 sleep(backoff + ThreadLocalRandom.current().nextLong(0, 250));
@@ -185,27 +198,35 @@ public final class RpcBridgeClient implements AutoCloseable {
         connection.setUseCaches(false);
         connection.setRequestProperty("X-PiDeck-Token", token);
         connection.setRequestProperty("Accept", "application/json");
-        if (body != null) {
-            byte[] encoded = body.toString().getBytes(StandardCharsets.UTF_8);
-            if (encoded.length > MAX_COMMAND_BYTES) {
-                throw new CommandRejectedException("Bridge command exceeds bounded size");
-            }
-            connection.setDoOutput(true);
-            connection.setFixedLengthStreamingMode(encoded.length);
-            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            try (OutputStream output = connection.getOutputStream()) {
-                output.write(encoded);
-            }
+        synchronized (lifecycle) {
+            if (closed) throw new IOException("Bridge client is closed");
+            connections.add(connection);
         }
-        int status = connection.getResponseCode();
+        int status;
         byte[] raw;
         try {
+            if (body != null) {
+                byte[] encoded = body.toString().getBytes(StandardCharsets.UTF_8);
+                if (encoded.length > MAX_COMMAND_BYTES) {
+                    throw new CommandRejectedException("Bridge command exceeds bounded size");
+                }
+                connection.setDoOutput(true);
+                connection.setFixedLengthStreamingMode(encoded.length);
+                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                try (OutputStream output = connection.getOutputStream()) {
+                    output.write(encoded);
+                }
+            }
+            status = connection.getResponseCode();
             raw = readBounded(
                     status >= 200 && status < 300
                             ? connection.getInputStream()
                             : connection.getErrorStream()
             );
         } finally {
+            synchronized (lifecycle) {
+                connections.remove(connection);
+            }
             connection.disconnect();
         }
         String responseText = new String(raw, StandardCharsets.UTF_8);
@@ -262,7 +283,17 @@ public final class RpcBridgeClient implements AutoCloseable {
 
     @Override
     public void close() {
-        polling.set(false);
-        pollingExecutor.shutdownNow();
+        List<HttpURLConnection> active;
+        synchronized (lifecycle) {
+            if (closed) return;
+            closed = true;
+            polling.set(false);
+            pollingExecutor.shutdownNow();
+            active = List.copyOf(connections);
+            connections.clear();
+        }
+        // Interrupting an executor does not interrupt HttpURLConnection's blocking reads.
+        // Disconnect outside the lock: the request's finally block also takes lifecycle.
+        for (HttpURLConnection connection : active) connection.disconnect();
     }
 }

@@ -24,6 +24,11 @@ source build. The app packages baseline and optimized Arm CPU variants, and
 llama.cpp selects the fastest compatible backend at runtime. The upstream MIT
 license is reproduced in this directory.
 
+Both executable and shared-library links use 16 KB maximum and common page
+alignment. `verifyNativeRuntime` checks the arm64 ELF LOAD and RELRO boundaries
+as well as the pinned bytes; APK ZIP alignment by itself is insufficient. The
+runtime remains compatible with the 4 KB pages used by the SM-S918B test phone.
+
 ## Isolated Snapdragon Hexagon candidate
 
 `tools/build_llama_snapdragon_android.sh` builds a separate HTP v73 probe from

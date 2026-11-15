@@ -27,23 +27,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RunWith(AndroidJUnit4.class)
 public final class ModelCatalogLayoutDeviceTest {
     @Test
-    public void compactCatalogExpandsAndSurvivesProgressRefreshes() {
+    public void allThreeProfilesStayVisibleAcrossProgressRefreshes() {
         Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
         instrumentation.runOnMainSync(() -> {
             CoreRootView view = createView(instrumentation.getTargetContext(), UiLanguage.ENGLISH);
             CoreRootView.State state = state(UiLanguage.ENGLISH, null, null);
             view.render(state);
             assertNotNull(findText(view, "Installed model"));
-            assertNull(findText(view, "Bonsai 2 9B"));
-            assertNotNull(findText(view, "Operating mode"));
-            findText(view, "All models · 2").performClick();
             assertNotNull(findText(view, "Bonsai 2 9B"));
-            // The heartbeat changes other settings; expansion must remain a view preference.
+            assertNotNull(findText(view, "Balanced model"));
+            assertNotNull(findText(view, "Operating mode"));
+            assertNull(findText(view, "All models · 3"));
             state.maximumSpeed = !state.maximumSpeed;
             view.render(state);
             assertNotNull(findText(view, "Bonsai 2 9B"));
-            findText(view, "Collapse catalog").performClick();
-            assertNull(findText(view, "Bonsai 2 9B"));
+            assertNotNull(findText(view, "Balanced model"));
+            assertNotNull(findText(view, "Installed model"));
         });
     }
 
@@ -81,6 +80,23 @@ public final class ModelCatalogLayoutDeviceTest {
                 view.layout(0, 0, width, height);
                 assertFits(findText(view, language.pick("Отменить загрузку", "Cancel download")));
                 assertFits(findText(view, language.pick("Подключить файл модели", "Attach model file")));
+                TextView cancel = findText(view, language.pick("Отменить загрузку", "Cancel download"));
+                TextView attach = findText(view, language.pick("Подключить файл модели", "Attach model file"));
+                assertEquals(cancel.getParent(), attach.getParent());
+                assertEquals(cancel.getTop(), attach.getTop());
+                assertTrue(cancel.getRight() <= attach.getLeft());
+                int touch = Math.round(48 * density);
+                assertTrue(cancel.getHeight() >= touch && attach.getHeight() >= touch);
+                TextView always = findText(view, language.pick("Всегда", "Always"));
+                assertFits(always);
+                ViewGroup idleChoices = (ViewGroup) always.getParent();
+                for (int i = 0; i < idleChoices.getChildCount(); i++) {
+                    View choice = idleChoices.getChildAt(i);
+                    assertEquals(always.getTop(), choice.getTop());
+                    assertEquals(always.getHeight(), choice.getHeight());
+                    assertTrue(choice.getBottom() <= idleChoices.getHeight()
+                            - idleChoices.getPaddingBottom());
+                }
             }
         });
     }
@@ -111,9 +127,11 @@ public final class ModelCatalogLayoutDeviceTest {
         state.language = language;
         state.models.add(new CoreRootView.ModelRow("Installed model", "906 MiB", "50%", 0,
                 true, true, 50, language.pick("Отменить загрузку", "Cancel download"), cancel,
-                language.pick("Подключить файл модели", "Attach model file"), () -> { }, true, details));
+                language.pick("Подключить файл модели", "Attach model file"), () -> { }, details));
+        state.models.add(new CoreRootView.ModelRow("Balanced model", "1.49 GiB", "Not downloaded", 0,
+                false, true, -1, null, null, null, null, details));
         state.models.add(new CoreRootView.ModelRow("Bonsai 2 9B", "1.86 GiB", "Candidate", 0,
-                false, true, -1, null, null, null, null, false, details));
+                false, true, -1, null, null, null, null, details));
         return state;
     }
 

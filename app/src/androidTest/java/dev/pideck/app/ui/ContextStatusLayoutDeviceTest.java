@@ -62,6 +62,7 @@ public final class ContextStatusLayoutDeviceTest {
                     language
             );
             deck.setContextUsage(usage, false, false);
+            deck.setCoreStatus(DeckView.CoreStatus.BUSY, "");
             String progress = language == UiLanguage.ENGLISH
                     ? "Task in progress… · 00:59"
                     : "Задача выполняется… · 00:59";
@@ -77,7 +78,7 @@ public final class ContextStatusLayoutDeviceTest {
             deck.layout(0, 0, width, height);
 
             contextMetric.set(findText(deck, COMPACT_CONTEXT));
-            progressMetric.set(findText(deck, progress));
+            progressMetric.set(findText(deck, language.pick("Работаю", "Working")));
         });
 
         TextView contextView = contextMetric.get();
@@ -91,6 +92,9 @@ public final class ContextStatusLayoutDeviceTest {
         TextView progressView = progressMetric.get();
         assertNotNull(progressView);
         assertEquals(1, progressView.getLineCount());
+        assertEquals(contextView.getParent(), progressView.getParent());
+        assertTrue(progressView.getRight() <= contextView.getLeft());
+        assertTrue(progressView.getContentDescription().toString().contains("00:59"));
     }
 
     private static TextView findText(View view, String expected) {

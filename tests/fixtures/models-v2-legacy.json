@@ -1,0 +1,1312 @@
+{
+  "schemaVersion": 2,
+  "catalogVersion": "2026-10-16-bonsai2-4b-9b",
+  "models": [
+    {
+      "id": "qwen3.5-0.8b",
+      "title": "Qwen3.5 0.8B",
+      "tier": "NANO",
+      "status": "EXPERIMENTAL",
+      "note": "Самый быстрый профиль для телефонов с небольшим запасом доступной памяти.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/ggml-org/Qwen3.5-0.8B-GGUF",
+        "verifiedAt": "2026-07-26T00:00:00Z"
+      },
+      "source": {
+        "repository": "ggml-org/Qwen3.5-0.8B-GGUF",
+        "revision": "8fea620810c4afa23dd6443f999a48574c1611a3",
+        "official": false,
+        "provenance": "llama.cpp-maintained-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "Qwen/Qwen3.5-0.8B",
+        "conversion": {
+          "performedBy": "ggml-org",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen3.5-0.8B-Q4_0.gguf",
+        "bytes": 563036064,
+        "sha256": "57d1997790d1744fba5b40a7317df71ea5e2acee28c47e78f0cce39c0703f8cf"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.05",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.3,
+        "topP": 0.9,
+        "topK": 20,
+        "minP": 0.05,
+        "presencePenalty": 0.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 1024,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 1536,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.5-2b",
+      "title": "Qwen3.5 2B",
+      "tier": "EDGE",
+      "status": "EXPERIMENTAL",
+      "note": "FAST: прямые ответы без скрытого рассуждения; быстрый профиль для повседневных правок.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF",
+        "verifiedAt": "2026-07-26T00:00:00Z"
+      },
+      "source": {
+        "repository": "bartowski/Qwen_Qwen3.5-2B-GGUF",
+        "revision": "7d26695454df6de5fbcce2e58681e62dae06ce43",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "Qwen/Qwen3.5-2B",
+        "conversion": {
+          "performedBy": "bartowski",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen_Qwen3.5-2B-Q4_K_M.gguf",
+        "bytes": 1396198496,
+        "sha256": "57a1085840f497d764a7fc5d346922dbde961efb54cc792ea81d694fd846a1d8"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 10240,
+        "maximumTestedContext": 10240,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.05",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.3,
+        "topP": 0.9,
+        "topK": 20,
+        "minP": 0.05,
+        "presencePenalty": 0.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": 3041,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.8-2b-distill",
+      "title": "Qwen3.8 2B Distill",
+      "tier": "EDGE",
+      "status": "CANDIDATE",
+      "note": "Компактный reasoning-кандидат на базе Qwen3.5 2B. На SM-S918B со stock b10092: 15,82 ток/с @192 и peak RSS 2 783 МиБ; русский ответ и suite-v2 Q01 пройдены, но Q04 провален — модель напечатала код вместо вызова read. Только ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/empero-ai/Qwen3.8-2B-Distill-GGUF",
+        "verifiedAt": "2026-09-02T00:00:00Z"
+      },
+      "source": {
+        "repository": "empero-ai/Qwen3.8-2B-Distill-GGUF",
+        "revision": "f4f73582d0b149595450c719b9a7521a03894f9c",
+        "official": true,
+        "provenance": "publisher-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "empero-ai/Qwen3.8-2B-Distill",
+        "conversion": {
+          "performedBy": "empero-ai",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": "e37a2dc4acc68ad75a91e07e63168cb04cc06345",
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen3.8-2B-Q4_K_M.gguf",
+        "bytes": 1312164224,
+        "sha256": "4aa0fb13c431514262f259d420ecc95a8714df58ac2a2384514e20b93983f0ff"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 10240,
+        "maximumTestedContext": 10240,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.6,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": 2783,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "lfm2.5-2.6b",
+      "title": "LFM2.5 2.6B",
+      "tier": "EDGE",
+      "status": "CANDIDATE",
+      "note": "Инструментальный агент Liquid: BFCLv4 выше Qwen3.5 4B при весе 1.7 ГиБ. Вендор не рекомендует его для agentic coding; suite-v1 и смоки ещё не пройдены.",
+      "license": {
+        "spdx": "LicenseRef-LFM-Open-1.0",
+        "weightsUrl": "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF",
+        "verifiedAt": "2026-08-07T00:00:00Z"
+      },
+      "source": {
+        "repository": "LiquidAI/LFM2.5-2.6B-GGUF",
+        "revision": "b421ad1d549afeda6a0fb2ad3a697cb5a7879adc",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "lfm2",
+        "upstreamModel": "LiquidAI/LFM2.5-2.6B",
+        "conversion": {
+          "performedBy": "LiquidAI",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "LFM2.5-2.6B-Q4_K_M.gguf",
+        "bytes": 1674454848,
+        "sha256": "79fdf00351b46cf26f020aead28d01889886be87c55fa0eb907e6f9b00bfee14"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 10240,
+        "maximumTestedContext": 10240,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.1",
+          "--reasoning-budget",
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.1,
+        "topP": 1.0,
+        "topK": 50,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "lfm2.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "lfm2.5-2.6b-qad",
+      "title": "LFM2.5 2.6B QAD Q4_0",
+      "tier": "EDGE",
+      "status": "EXPERIMENTAL",
+      "note": "Основной agent/coding-профиль при цели >15 ток/с: на SM-S918B и штатном b10092 медиана 16,47 ток/с @128 и 15,71 @192; с reasoning-budget 256 пройден точный read→edit→final tool-loop. Полный 28-task admission suite ещё не завершён.",
+      "license": {
+        "spdx": "LicenseRef-LFM-Open-1.0",
+        "weightsUrl": "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF",
+        "verifiedAt": "2026-08-23T00:00:00Z"
+      },
+      "source": {
+        "repository": "LiquidAI/LFM2.5-2.6B-GGUF",
+        "revision": "f4a289c8a200a5ca71005ba7abc2dad33058a450",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "lfm2",
+        "upstreamModel": "LiquidAI/LFM2.5-2.6B",
+        "conversion": {
+          "performedBy": "LiquidAI",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "LFM2.5-2.6B-QAD-Q4_0.gguf",
+        "bytes": 1593894944,
+        "sha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 10240,
+        "maximumTestedContext": 10240,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.1",
+          "--reasoning-budget",
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.1,
+        "topP": 1.0,
+        "topK": 50,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "lfm2.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "k2-horizon-3.7b",
+      "title": "K2 Horizon 3.7B Q4_K_M",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Агентская модель IFM с отдельным движком и исправлением reasoning-парсера. На SM-S918B: медиана 9,23 ток/с @192. Веса GGUF сторонней конвертации; полный допуск ещё не пройден. Ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/IFM/K2-Horizon-3.7B",
+        "verifiedAt": "2026-09-07T00:00:00Z"
+      },
+      "source": {
+        "repository": "NANI-Nithin/K2-Horizon-3.7B-GGUF",
+        "revision": "6b8f11e53bd89304a715ba7b6cffb37589d90834",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "k2",
+        "upstreamModel": "IFM/K2-Horizon-3.7B",
+        "conversion": {
+          "performedBy": "NANI-Nithin",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "K2-Horizon-3.7B-Q4_K_M.gguf",
+        "bytes": 3156598464,
+        "sha256": "f8dce940ec3e45be3e884a203b0eb3dee4ba57eb23fc63d0e210cdade2ca48ec"
+      },
+      "runtime": {
+        "serverFlavor": "k2horizon",
+        "minimumLlamaCppVersion": "k2horizon-35999d1-p2",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "256",
+          "--reasoning-effort",
+          "low",
+          "--reasoning-format",
+          "deepseek",
+          "--poll",
+          "0",
+          "--poll-batch",
+          "0",
+          "-b",
+          "512",
+          "-ub",
+          "128"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 1.0,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "k2-horizon-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 6144,
+        "measuredPeakRssMiB": 5452,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.8-4b-distill",
+      "title": "Empero Qwen3.8 4B Distill",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Reasoning-модель Empero на базе Qwen3.5. На SM-S918B: 7,93–8,23 ток/с @192. Полный агентский допуск ещё не пройден; доступна для ручного выбора.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/empero-ai/Qwen3.8-4B-Distill-GGUF",
+        "verifiedAt": "2026-09-07T00:00:00Z"
+      },
+      "source": {
+        "repository": "empero-ai/Qwen3.8-4B-Distill-GGUF",
+        "revision": "391fc7d103e3942a408def3e4f51c2f85d464417",
+        "official": true,
+        "provenance": "publisher-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "empero-ai/Qwen3.8-4B-Distill",
+        "conversion": {
+          "performedBy": "empero-ai",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen3.8-4B-Q4_K_M.gguf",
+        "bytes": 2783446304,
+        "sha256": "dec96e8cf2e11b613bb46513dec485377f9ca5a351e71712ee0e244f287c6790"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.6,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 1536,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 4096,
+        "measuredPeakRssMiB": 3200,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "ministral-3-3b-instruct-2512",
+      "title": "Ministral 3 3B Instruct",
+      "tier": "EDGE",
+      "status": "CANDIDATE",
+      "note": "Официальный edge-instruct Mistral с нативными tool calls и JSON. Минимальный smoke на SM-S918B пройден (≈0,5 ток/с); русский язык и suite-v1/v2 ещё не проверены.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF",
+        "verifiedAt": "2026-08-11T00:00:00Z"
+      },
+      "source": {
+        "repository": "mistralai/Ministral-3-3B-Instruct-2512-GGUF",
+        "revision": "eb599d408350ea2bb60452cb86be7c7b2fc28227",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "mistral3",
+        "upstreamModel": "mistralai/Ministral-3-3B-Instruct-2512",
+        "conversion": {
+          "performedBy": "mistralai",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": "b35d4dfe56c142746f54dbd64f579faab2744308",
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
+        "bytes": 2147023008,
+        "sha256": "9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.05,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "ministral3-local",
+        "maxTokens": 2048,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 4096,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "granite-4.2-3b",
+      "title": "Granite 4.2 3B",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Официальный reasoning/tool-кандидат IBM. На SM-S918B со stock b10092: 11,04 ток/с @192 и peak RSS 4 612 МиБ; русский ответ и suite-v2 Q01 пройдены, но tool-smoke сделал 4 вызова вместо одного и не завершился успешно за 420 с. Только ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/ibm-granite/granite-4.2-3b-GGUF",
+        "verifiedAt": "2026-09-02T00:00:00Z"
+      },
+      "source": {
+        "repository": "ibm-granite/granite-4.2-3b-GGUF",
+        "revision": "47a3d9699d7539606c83943d717fcea7bd9f6a19",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "granite",
+        "upstreamModel": "ibm-granite/granite-4.2-3b",
+        "conversion": {
+          "performedBy": "ibm-granite",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": "b7e947307dd2efb3ad3b853b0e8a7e75f8ad4ac2",
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "granite-4.2-3b-Q4_K_M.gguf",
+        "bytes": 2244012160,
+        "sha256": "20e436143017578687f7f848225cc6c6038126c84149192229c7dff6e4e0f427"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "256",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 1.0,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "granite4.2-local",
+        "maxTokens": 2048,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 5632,
+        "measuredPeakRssMiB": 4612,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "nanbeige4.2-3b",
+      "title": "Nanbeige4.2 3B",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Looped agentic-модель с отдельным закреплённым runtime Nanbeige. Официально заявлены английский и китайский; русский, suite-v1/v2 и скорость ещё не проверены.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/owao/Nanbeige4.2-3B-GGUF",
+        "verifiedAt": "2026-08-11T00:00:00Z"
+      },
+      "source": {
+        "repository": "owao/Nanbeige4.2-3B-GGUF",
+        "revision": "6784dff2a81a3713ddba6be7978a4534189c789c",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "nanbeige",
+        "upstreamModel": "Nanbeige/Nanbeige4.2-3B",
+        "conversion": {
+          "performedBy": "owao",
+          "tool": "llama.cpp (Nanbeige fork)",
+          "toolRevision": null,
+          "upstreamRevision": "5d54321e9e01e0d026f8e371046678fc384dca39",
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Nanbeige4.2-3B-Q4_K_M.gguf",
+        "bytes": 2574807904,
+        "sha256": "ffe1b9b8ee95ec4b962c379905aa8be6f72ae9c4645c6c70e3b6ff7b197e6ef4"
+      },
+      "runtime": {
+        "serverFlavor": "nanbeige42",
+        "minimumLlamaCppVersion": "nanbeige42-c6640a1",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "1024"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 1.0,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "nanbeige4.2-local",
+        "maxTokens": 3072,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 5120,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.5-4b",
+      "title": "Qwen3.5 4B",
+      "tier": "CORE",
+      "status": "EXPERIMENTAL",
+      "note": "Ручной DEEP-профиль: сильнее на отдельных сложных repair-задачах, но работает примерно на 7 ток/с и не входит в автоматическую лестницу; reasoning ограничен 512 токенами.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF",
+        "verifiedAt": "2026-07-26T00:00:00Z"
+      },
+      "source": {
+        "repository": "bartowski/Qwen_Qwen3.5-4B-GGUF",
+        "revision": "4168f45a16a1290d65a4ec0fa312ae917a4c15d6",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "Qwen/Qwen3.5-4B",
+        "conversion": {
+          "performedBy": "bartowski",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+        "bytes": 3013027808,
+        "sha256": "13c16f426047e2de38cd075bdade4a7bcbc8c774384876f677740cda65f8a983"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 8192,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--reasoning-budget",
+          "512",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "on",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.6,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 2048,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 5120,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "qwen3.5-9b",
+      "title": "Qwen3.5 9B",
+      "tier": "MAX",
+      "status": "EXPERIMENTAL",
+      "note": "Многошаговый профиль с высоким риском OOM; требует отдельного device benchmark.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/bartowski/Qwen_Qwen3.5-9B-GGUF",
+        "verifiedAt": "2026-07-26T00:00:00Z"
+      },
+      "source": {
+        "repository": "bartowski/Qwen_Qwen3.5-9B-GGUF",
+        "revision": "182be2fd6c7bc44887d88a91cb03ff009cc9f549",
+        "official": false,
+        "provenance": "third-party-conversion",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen3.5",
+        "upstreamModel": "Qwen/Qwen3.5-9B",
+        "conversion": {
+          "performedBy": "bartowski",
+          "tool": "llama.cpp",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Qwen_Qwen3.5-9B-Q4_K_M.gguf",
+        "bytes": 6169341984,
+        "sha256": "d784ce9eda1a5a7b51e8f705a9e6310844bf4f173654d115823c775fdea56d43"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 8192,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--repeat-penalty",
+          "1.05",
+          "--cache-ram",
+          "512",
+          "--no-mmap"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.3,
+        "topP": 0.9,
+        "topK": 20,
+        "minP": 0.05,
+        "presencePenalty": 0.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "qwen3.5-local",
+        "maxTokens": 2048,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 10240,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "unmeasured"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "bonsai-27b",
+      "title": "Bonsai 27B",
+      "tier": "MAX",
+      "status": "CANDIDATE",
+      "note": "27B в 1-битной упаковке: помещается в память флагмана, но декодирует ≈1.2 ток/с. Выбирается только вручную.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/prism-ml/Bonsai-27B-gguf",
+        "verifiedAt": "2026-07-30T00:00:00Z"
+      },
+      "source": {
+        "repository": "prism-ml/Bonsai-27B-gguf",
+        "revision": "f10afb355f104535e3e3e98cf7ab7795c72bd292",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen35",
+        "upstreamModel": "Qwen/Qwen3.6-27B",
+        "conversion": {
+          "performedBy": "prism-ml",
+          "tool": "llama.cpp (PrismML-Eng fork)",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Bonsai-27B-Q1_0.gguf",
+        "bytes": 3803452480,
+        "sha256": "17ef842e47450caeb8eaa3ebfbbab5d2f2278b62b79be107985fb69a2f819aa0"
+      },
+      "runtime": {
+        "serverFlavor": "stock",
+        "minimumLlamaCppVersion": "b10092",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 4096,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "--cache-ram",
+          "512"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.95,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 0.0
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "bonsai-local",
+        "maxTokens": 1024,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 5120,
+        "measuredPeakRssMiB": 4091,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "bonsai2-4b",
+      "title": "Bonsai 2 4B",
+      "tier": "CORE",
+      "status": "CANDIDATE",
+      "note": "Те же тернарные языковые веса, что в официальной MLX 2-bit, в компактном GGUF PTQ1_0 для Android. Текстовый чат и агентный профиль без скрытого рассуждения; ввод изображений не подключён. Скорость на телефоне и полный агентный тест ещё не проверены. Только ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-4B-gguf/blob/8d6557168168f91ea6697a4a49ed2ef622b53adb/LICENSE",
+        "verifiedAt": "2026-10-16T00:00:00Z"
+      },
+      "source": {
+        "repository": "prism-ml/Ternary-Bonsai-2-4B-gguf",
+        "revision": "8d6557168168f91ea6697a4a49ed2ef622b53adb",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen35",
+        "upstreamModel": "Qwen/Qwen3.5-4B",
+        "conversion": {
+          "performedBy": "prism-ml",
+          "tool": "llama.cpp (PrismML-Eng fork)",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": [
+            "https://huggingface.co/prism-ml/Ternary-Bonsai-2-4B-gguf/blob/8d6557168168f91ea6697a4a49ed2ef622b53adb/NOTICE.txt"
+          ]
+        }
+      },
+      "artifact": {
+        "file": "Ternary-Bonsai-2-4B-PTQ1_0.gguf",
+        "bytes": 949549920,
+        "sha256": "56711263ec9a9ffeaa74a3a0e58dece8127cf9268404746c721113ca76994d60"
+      },
+      "runtime": {
+        "serverFlavor": "prism",
+        "minimumLlamaCppVersion": "prism-842b188",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 4096,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "-b",
+          "256",
+          "-ub",
+          "128",
+          "--reasoning-budget",
+          "0",
+          "--repeat-penalty",
+          "1.0",
+          "--repeat-last-n",
+          "64",
+          "--cache-ram",
+          "512"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "bonsai2-local",
+        "maxTokens": 1024,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 3072,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "Android arm64; device validation pending"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "bonsai2-9b",
+      "title": "Bonsai 2 9B",
+      "tier": "MAX",
+      "status": "CANDIDATE",
+      "note": "Те же тернарные языковые веса, что в официальной MLX 2-bit, в компактном GGUF PTQ1_0 для Android. Текстовый чат и агентный профиль без скрытого рассуждения; ввод изображений не подключён. Скорость на телефоне и полный агентный тест ещё не проверены. Только ручной выбор.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-9B-gguf/blob/5b2abb02362efbed46bbe204014b02837778b2c2/LICENSE",
+        "verifiedAt": "2026-10-16T00:00:00Z"
+      },
+      "source": {
+        "repository": "prism-ml/Ternary-Bonsai-2-9B-gguf",
+        "revision": "5b2abb02362efbed46bbe204014b02837778b2c2",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen35",
+        "upstreamModel": "Qwen/Qwen3.5-9B",
+        "conversion": {
+          "performedBy": "prism-ml",
+          "tool": "llama.cpp (PrismML-Eng fork)",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": [
+            "https://huggingface.co/prism-ml/Ternary-Bonsai-2-9B-gguf/blob/5b2abb02362efbed46bbe204014b02837778b2c2/NOTICE.txt"
+          ]
+        }
+      },
+      "artifact": {
+        "file": "Ternary-Bonsai-2-9B-PTQ1_0.gguf",
+        "bytes": 1997486976,
+        "sha256": "3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b"
+      },
+      "runtime": {
+        "serverFlavor": "prism",
+        "minimumLlamaCppVersion": "prism-842b188",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 4096,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "-b",
+          "256",
+          "-ub",
+          "128",
+          "--reasoning-budget",
+          "0",
+          "--repeat-penalty",
+          "1.0",
+          "--repeat-last-n",
+          "64",
+          "--cache-ram",
+          "512"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "bonsai2-local",
+        "maxTokens": 1024,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 5120,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "Android arm64; device validation pending"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    },
+    {
+      "id": "bonsai2-27b",
+      "title": "Bonsai 2 27B",
+      "tier": "MAX",
+      "status": "CANDIDATE",
+      "note": "Ternary PTQ1_0, 5.54 GiB. Экспериментальный профиль для ручного запуска на флагмане; скорость и агентные сценарии не аттестованы.",
+      "license": {
+        "spdx": "Apache-2.0",
+        "weightsUrl": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf",
+        "verifiedAt": "2026-09-24T00:00:00Z"
+      },
+      "source": {
+        "repository": "prism-ml/Ternary-Bonsai-2-27B-gguf",
+        "revision": "8b7157531df3859ce2a415c60754e9152554e25d",
+        "official": true,
+        "provenance": "official",
+        "provenanceStatus": "INCOMPLETE",
+        "architecture": "qwen35",
+        "upstreamModel": "Qwen/Qwen3.8-27B",
+        "conversion": {
+          "performedBy": "prism-ml",
+          "tool": "llama.cpp (PrismML-Eng fork)",
+          "toolRevision": null,
+          "upstreamRevision": null,
+          "quantizationCommand": null,
+          "buildEnvironment": null,
+          "licenseChain": []
+        }
+      },
+      "artifact": {
+        "file": "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+        "bytes": 5946648928,
+        "sha256": "53107f530aa52eb00912263ab1ee29bd199261c87cd7b4ad4ca1318c1fe33ee3"
+      },
+      "runtime": {
+        "serverFlavor": "prism",
+        "minimumLlamaCppVersion": "prism-842b188",
+        "recommendedContext": 4096,
+        "maximumTestedContext": 4096,
+        "parallelSlots": 1,
+        "requiresJinja": true,
+        "serverArgs": [
+          "-b",
+          "256",
+          "-ub",
+          "128",
+          "--reasoning-budget",
+          "0",
+          "--cache-ram",
+          "512"
+        ],
+        "chatTemplateMode": "embedded",
+        "reasoningMode": "off",
+        "speculative": {
+          "mode": "off",
+          "draftMax": 0
+        }
+      },
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0,
+        "presencePenalty": 1.5
+      },
+      "agent": {
+        "toolProtocol": "openai",
+        "piProfile": "bonsai2-local",
+        "maxTokens": 1024,
+        "supportsToolCalls": true,
+        "supportsMultiTurnTools": true
+      },
+      "memory": {
+        "minimumAvailableMiB": 7680,
+        "measuredPeakRssMiB": null,
+        "deviceClass": "Samsung SM-S918B / 12 GiB / Android 16"
+      },
+      "benchmark": {
+        "suiteVersion": null,
+        "lastPassedAt": null,
+        "report": null
+      }
+    }
+  ]
+}

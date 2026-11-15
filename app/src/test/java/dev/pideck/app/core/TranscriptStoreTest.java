@@ -15,6 +15,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TranscriptStoreTest {
@@ -50,6 +52,60 @@ public class TranscriptStoreTest {
         store.save(entries(3));
         store.flush();
         assertTrue(store.awaitIdle(2_000L));
+        assertEquals(3, new TranscriptStore(file, null).load().size());
+    }
+
+    @Test
+    public void aSaveDuringAnInFlightWriteReachesDiskWithoutAnotherSave() throws Exception {
+        CountDownLatch firstWrite = new CountDownLatch(1);
+        CountDownLatch releaseFirstWrite = new CountDownLatch(1);
+        CountDownLatch secondWrite = new CountDownLatch(1);
+        AtomicInteger writes = new AtomicInteger();
+        File file = new File(temporary.getRoot(), "transcript.json") {
+            @Override
+            public File getParentFile() {
+                if (writes.incrementAndGet() == 1) {
+                    firstWrite.countDown();
+                    try {
+                        if (!releaseFirstWrite.await(5, TimeUnit.SECONDS)) {
+                            throw new AssertionError("First write was not released");
+                        }
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(error);
+                    }
+                } else {
+                    secondWrite.countDown();
+                }
+                return super.getParentFile();
+            }
+        };
+        TranscriptStore store = new TranscriptStore(file, null);
+        try {
+            store.save(entries(1));
+            assertTrue(firstWrite.await(3, TimeUnit.SECONDS));
+            store.save(entries(2));
+        } finally {
+            releaseFirstWrite.countDown();
+        }
+        assertTrue("The last save was stranded behind the running write",
+                secondWrite.await(3, TimeUnit.SECONDS));
+        assertTrue(store.awaitIdle(2_000L));
+        assertEquals(2, new TranscriptStore(file, null).load().size());
+        store.close();
+    }
+
+    @Test
+    public void closingFlushesTheLastSnapshotAndReleasesTheWriter() throws Exception {
+        File file = new File(temporary.getRoot(), "transcript.json");
+        TranscriptStore store = new TranscriptStore(file, null);
+        store.save(entries(3));
+        store.close();
+        store.close();
+        // Late Activity callbacks cannot resurrect the writer or overwrite the final snapshot.
+        store.save(entries(4));
+        store.flush();
+        assertTrue("The transcript writer did not terminate", store.awaitIdle(2_000L));
         assertEquals(3, new TranscriptStore(file, null).load().size());
     }
 

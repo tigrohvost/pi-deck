@@ -1,0 +1,238 @@
+{
+  "_id": "6adbfff03357f45be8989b43",
+  "id": "LiquidAI/LFM3-1.7B-GGUF",
+  "private": false,
+  "pipeline_tag": "text-generation",
+  "library_name": "gguf",
+  "tags": [
+    "gguf",
+    "liquid",
+    "lfm3",
+    "llama.cpp",
+    "text-generation",
+    "en",
+    "ar",
+    "zh",
+    "fr",
+    "de",
+    "it",
+    "ja",
+    "ko",
+    "pt",
+    "es",
+    "vi",
+    "th",
+    "id",
+    "hi",
+    "ru",
+    "pl",
+    "base_model:LiquidAI/LFM3-1.7B",
+    "base_model:quantized:LiquidAI/LFM3-1.7B",
+    "license:other",
+    "endpoints_compatible",
+    "region:us",
+    "conversational"
+  ],
+  "downloads": 357497,
+  "likes": 296,
+  "modelId": "LiquidAI/LFM3-1.7B-GGUF",
+  "author": "LiquidAI",
+  "sha": "cd0c74c575b5c416f3011b5b4c298077f26ca8c2",
+  "lastModified": "2026-11-03T14:48:57.000Z",
+  "gated": false,
+  "disabled": false,
+  "widgetData": [
+    {
+      "text": "Hi, what can you help me with?"
+    },
+    {
+      "text": "What is 84 * 3 / 2?"
+    },
+    {
+      "text": "Tell me an interesting fact about the universe!"
+    },
+    {
+      "text": "Explain quantum computing in simple terms."
+    }
+  ],
+  "model-index": null,
+  "config": {},
+  "cardData": {
+    "library_name": "gguf",
+    "license": "other",
+    "license_name": "lfm1.0",
+    "license_link": "LICENSE",
+    "pipeline_tag": "text-generation",
+    "tags": [
+      "liquid",
+      "lfm3",
+      "gguf",
+      "llama.cpp"
+    ],
+    "language": [
+      "en",
+      "ar",
+      "zh",
+      "fr",
+      "de",
+      "it",
+      "ja",
+      "ko",
+      "pt",
+      "es",
+      "vi",
+      "th",
+      "id",
+      "hi",
+      "ru",
+      "pl"
+    ],
+    "base_model": [
+      "LiquidAI/LFM3-1.7B",
+      "LiquidAI/LFM3-1.7B-NVFP4"
+    ],
+    "base_model_relation": "quantized"
+  },
+  "gguf": {
+    "total": 1728801600,
+    "architecture": "lfm3",
+    "context_length": 262144,
+    "chat_template": "{{- bos_token -}}\n{%- set preserve_thinking = preserve_thinking | default(false) -%}\n{%- set enable_thinking = enable_thinking | default(true) -%}\n\n{%- macro render_value(v) -%}\n    {%- if v is string -%}\n        {{- v -}}\n    {%- elif v is boolean -%}\n        {{- \"true\" if v else \"false\" -}}\n    {%- elif v is none -%}\n        {{- \"null\" -}}\n    {%- elif v is mapping or (v is sequence and v is not string) -%}\n        {{- v | tojson -}}\n    {%- else -%}\n        {{- v -}}\n    {%- endif -%}\n{%- endmacro -%}\n\n{%- macro parse_content(content) -%}\n    {%- if content is string -%}\n        {{- content -}}\n    {%- elif content is mapping and content.get(\"type\") == \"image\" -%}\n        {{- \"<|vision_start|><|image|><|vision_end|>\" -}}\n    {%- elif content is mapping and content.get(\"type\") == \"video\" -%}\n        {{- \"<|vision_start|><|video|><|vision_end|>\" -}}\n    {%- elif content is mapping and content.get(\"type\") == \"text\" -%}\n        {{- (content.get(\"text\") or \"\") | string -}}\n    {%- elif content is mapping -%}\n        {{- content | tojson -}}\n    {%- elif content is iterable -%}\n        {%- set _ns = namespace(result=\"\") -%}\n        {%- for item in content -%}\n            {%- if item is string -%}\n                {%- set _ns.result = _ns.result + item -%}\n            {%- elif item is mapping and item.get(\"type\") == \"image\" -%}\n                {%- set _ns.result = _ns.result + \"<|vision_start|><|image|><|vision_end|>\" -%}\n            {%- elif item is mapping and item.get(\"type\") == \"video\" -%}\n                {%- set _ns.result = _ns.result + \"<|vision_start|><|video|><|vision_end|>\" -%}\n            {%- elif item is mapping and item.get(\"type\") == \"text\" -%}\n                {%- set _ns.result = _ns.result + ((item.get(\"text\") or \"\") | string) -%}\n            {%- else -%}\n                {%- set _ns.result = _ns.result + (item | tojson) -%}\n            {%- endif -%}\n        {%- endfor -%}\n        {{- _ns.result -}}\n    {%- elif content is not none -%}\n        {{- content | tojson -}}\n    {%- endif -%}\n{%- endmacro -%}\n\n{%- macro render_tool_calls(tool_calls) -%}\n    {%- for tool_call in tool_calls -%}\n        {%- if not loop.first -%}{{- \"\\n\\n\" -}}{%- endif -%}\n        {%- set func = tool_call[\"function\"] if \"function\" in tool_call else tool_call -%}\n        {%- set func_args = func.get(\"arguments\") -%}\n        {%- if func_args is string and (func_args | trim) not in [\"\", \"{}\", \"null\"] -%}\n            {{- raise_exception(\"Tool call arguments must be a mapping, got a JSON-encoded string: parse arguments with json.loads() before applying the chat template\") -}}\n        {%- endif -%}\n        {{- \"<tool_call>\\n<function=\" + func[\"name\"] + \">\\n\" -}}\n        {%- if func_args is mapping -%}\n            {%- for arg_name, arg_value in func_args.items() -%}\n                {{- \"<parameter=\" + arg_name + \">\\n\" + render_value(arg_value) + \"\\n</parameter>\\n\" -}}\n            {%- endfor -%}\n        {%- endif -%}\n        {{- \"</function>\\n</tool_call>\" -}}\n    {%- endfor -%}\n{%- endmacro -%}\n\n{%- macro tool_to_json(tool) -%}\n    {%- set fn = tool.function if tool.function is defined else tool -%}\n    {%- set ns_t = namespace(first=true) -%}\n    {{- \"{\" -}}\n    {%- for k, v in fn.items() -%}\n        {%- if k != \"defer_loading\" -%}\n            {%- if not ns_t.first -%}{{- \", \" -}}{%- endif -%}\n            {%- set ns_t.first = false -%}\n            {{- k | tojson -}}{{- \": \" -}}{{- v | tojson -}}\n        {%- endif -%}\n    {%- endfor -%}\n    {{- \"}\" -}}\n{%- endmacro -%}\n\n{%- macro is_tool_reference(item) -%}\n    {{- \"1\" if item is mapping and item.get(\"type\") == \"tool_reference\" else \"\" -}}\n{%- endmacro -%}\n\n{%- macro referenced_tool_to_json(name) -%}\n    {%- set _ns = namespace(found=none) -%}\n    {%- for tool in tools or [] -%}\n        {%- set fn = tool.function if tool.function is defined else tool -%}\n        {%- if fn.name == name -%}\n            {%- set _ns.found = fn -%}\n        {%- endif -%}\n    {%- endfor -%}\n    {%- if _ns.found is none -%}\n        {{- raise_exception(\"Tool reference '\" + name | string + \"' not found in available tools. Every tool referenced by a tool_reference must be in `tools` on every request.\") -}}\n    {%- endif -%}\n    {{- tool_to_json(_ns.found) -}}\n{%- endmacro -%}\n\n{%- macro render_tool_response(content) -%}\n    {%- if content is string and \"<tool_response>\" in content -%}\n        {{- content -}}\n    {%- else -%}\n    {{- \"<tool_response>\\n\" -}}\n    {%- if content is string -%}\n        {{- content -}}\n    {%- elif content is mapping -%}\n        {{- parse_content(content) -}}\n    {%- elif content is iterable -%}\n        {%- for item in content -%}\n            {%- if not loop.first -%}{{- \"\\n\" -}}{%- endif -%}\n            {%- if is_tool_reference(item) -%}\n                {%- if loop.first or not is_tool_reference(loop.previtem) -%}\n                    {{- \"<additional_tools>\\n\" -}}\n                {%- endif -%}\n                {{- referenced_tool_to_json(item.name) -}}\n                {%- if loop.last or not is_tool_reference(loop.nextitem) -%}\n                    {{- \"\\n</additional_tools>\" -}}\n                {%- endif -%}\n            {%- elif item is mapping and item.result is defined and item.result is mapping and item.result.tools is defined -%}\n                {{- \"<additional_tools>\\n\" -}}\n                {%- set _tl = item.result.tools -%}\n                {%- if _tl is string -%}\n                    {{- _tl -}}\n                {%- elif _tl is mapping -%}\n                    {{- tool_to_json(_tl) -}}\n                {%- else -%}\n                    {%- for t in _tl -%}\n                        {%- if not loop.first -%}{{- \"\\n\" -}}{%- endif -%}\n                        {{- tool_to_json(t) -}}\n                    {%- endfor -%}\n                {%- endif -%}\n                {{- \"\\n</additional_tools>\" -}}\n            {%- else -%}\n                {{- parse_content(item) -}}\n            {%- endif -%}\n        {%- endfor -%}\n    {%- elif content is not none -%}\n        {{- content | tojson -}}\n    {%- endif -%}\n    {{- \"\\n</tool_response>\" -}}\n    {%- endif -%}\n{%- endmacro -%}\n\n{%- set ns = namespace(system_prompt=\"\", last_user_index=-1) -%}\n{%- if messages and messages[0][\"role\"] == \"system\" -%}\n    {%- if messages[0].get(\"content\") -%}\n        {%- set ns.system_prompt = parse_content(messages[0][\"content\"]) -%}\n    {%- endif -%}\n    {%- set messages = messages[1:] -%}\n{%- endif -%}\n{%- if tools -%}\n    {%- set tools_ns = namespace(lines=[]) -%}\n    {%- for tool in tools -%}\n        {%- set fn = tool.function if tool.function is defined else tool -%}\n        {%- set _dyn = (fn.defer_loading is defined and fn.defer_loading) or (tool.defer_loading is defined and tool.defer_loading) -%}\n        {%- if not _dyn -%}\n            {%- set tools_ns.lines = tools_ns.lines + [tool_to_json(fn)] -%}\n        {%- endif -%}\n    {%- endfor -%}\n    {%- if tools_ns.lines -%}\n        {%- set ns.system_prompt = ns.system_prompt + (\"\\n\\n\" if ns.system_prompt else \"\") + \"<tools>\\n\" + (tools_ns.lines | join(\"\\n\")) + \"\\n</tools>\" -%}\n    {%- endif -%}\n{%- endif -%}\n{%- if ns.system_prompt -%}\n    {{- \"<|im_start|>system\\n\" + ns.system_prompt + \"<|im_end|>\\n\" -}}\n{%- endif -%}\n{%- for message in messages -%}\n    {%- if message[\"role\"] == \"user\" -%}\n        {%- set ns.last_user_index = loop.index0 -%}\n    {%- endif -%}\n{%- endfor -%}\n{%- set carry = namespace(pending=[]) -%}\n{%- for message in messages -%}\n    {%- set _next = messages[loop.index0 + 1] if not loop.last else none -%}\n    {%- set _merge = message.role == \"tool\" and not message.get(\"additional_tools\")\n        and _next is not none and _next.role == \"tool\" and not _next.get(\"additional_tools\")\n        and message.get(\"tool_call_id\") and _next.get(\"tool_call_id\") == message.get(\"tool_call_id\") -%}\n    {%- set _items = [] -%}\n    {%- if message.role == \"tool\" and not message.get(\"additional_tools\") -%}\n        {%- set _c = message.get(\"content\") -%}\n        {%- if _c is string -%}\n            {%- set _items = [{\"type\": \"text\", \"text\": _c}] if _c else [] -%}\n        {%- elif _c is mapping -%}\n            {%- set _items = [_c] -%}\n        {%- elif _c is iterable -%}\n            {%- set _items = _c | list -%}\n        {%- elif _c is not none -%}\n            {%- set _items = [_c] -%}\n        {%- endif -%}\n    {%- endif -%}\n    {%- if _merge -%}\n        {%- set carry.pending = carry.pending + _items -%}\n    {%- else -%}\n    {{- \"<|im_start|>\" + message.role + \"\\n\" -}}\n    {%- if message.role == \"assistant\" -%}\n        {%- generation -%}\n        {%- set thinking = message.thinking if message.thinking is defined else message.reasoning if message.reasoning is defined else message.reasoning_content -%}\n        {%- set keep_thinking = preserve_thinking or loop.index0 > ns.last_user_index -%}\n        {%- if thinking is defined and keep_thinking -%}\n            {{- \"<think>\" + (thinking or \"\") + \"</think>\" -}}\n        {%- elif keep_thinking and \"</think>\" not in (message.get(\"content\") if message.get(\"content\") is string else \"\") -%}\n            {{- \"<think></think>\" -}}\n        {%- endif -%}\n        {%- set _cfm_tag = \"CONTINUE_FINAL_MESSAGE_TAG \" -%}\n        {%- set _has_cfm = false -%}\n        {%- set content = \"\" -%}\n        {%- if message.get(\"content\") -%}\n            {%- set content = parse_content(message.content) -%}\n        {%- endif -%}\n        {%- if not keep_thinking -%}\n            {%- if \"</think>\" in content -%}\n                {%- set content = content.split(\"</think>\")[-1] | trim -%}\n            {%- endif -%}\n            {%- set content = \"<think></think>\" + content -%}\n        {%- endif -%}\n        {%- if content.endswith(_cfm_tag) -%}\n            {%- set _has_cfm = true -%}\n            {%- set _trunc_len = (content | length) - (_cfm_tag | length) -%}\n            {%- set content = content[:_trunc_len] -%}\n        {%- endif -%}\n        {{- content -}}\n        {%- if message.tool_calls -%}\n            {{- render_tool_calls(message.tool_calls) -}}\n        {%- endif -%}\n        {%- if _has_cfm -%}\n            {{- _cfm_tag -}}\n        {%- endif -%}\n        {{- \"<|im_end|>\\n\" -}}\n        {%- endgeneration -%}\n    {%- elif message.role == \"tool\" -%}\n        {%- if message.get(\"additional_tools\") -%}\n            {%- set _at = message[\"additional_tools\"] -%}\n            {%- if _at is mapping or (_at is sequence and _at is not string) -%}\n                {%- set _src = _at -%}\n            {%- else -%}\n                {%- set _src = message.get(\"content\") -%}\n            {%- endif -%}\n            {%- if _src is string and \"<tool_response>\" in _src -%}\n                {{- _src -}}\n            {%- elif _src is string and \"<additional_tools>\" in _src -%}\n                {{- \"<tool_response>\\n\" + _src + \"\\n</tool_response>\" -}}\n            {%- elif _src -%}\n                {{- \"<tool_response>\\n<additional_tools>\\n\" -}}\n                {%- if _src is string -%}\n                    {{- _src -}}\n                {%- elif _src is mapping -%}\n                    {{- tool_to_json(_src) -}}\n                {%- else -%}\n                    {%- for t in _src -%}\n                        {%- if not loop.first -%}{{- \"\\n\" -}}{%- endif -%}\n                        {{- tool_to_json(t) -}}\n                    {%- endfor -%}\n                {%- endif -%}\n                {{- \"\\n</additional_tools>\\n</tool_response>\" -}}\n            {%- endif -%}\n        {%- elif carry.pending -%}\n            {{- render_tool_response(carry.pending + _items) -}}\n            {%- set carry.pending = [] -%}\n        {%- else -%}\n            {{- render_tool_response(\"\" if message.get(\"content\") is none else message.get(\"content\")) -}}\n        {%- endif -%}\n        {{- \"<|im_end|>\\n\" -}}\n    {%- else %}\n        {%- if message.get(\"content\") -%}\n            {{- parse_content(message[\"content\"]) -}}\n        {%- endif -%}\n        {{- \"<|im_end|>\\n\" -}}\n    {%- endif %}\n    {%- endif -%}\n{%- endfor -%}\n{%- if add_generation_prompt -%}\n    {{- \"<|im_start|>assistant\\n\" -}}\n    {%- if enable_thinking -%}\n        {{- \"<think>\" -}}\n    {%- else -%}\n        {{- \"<think></think>\" -}}\n    {%- endif -%}\n{%- endif -%}\n",
+    "bos_token": "<|startoftext|>",
+    "eos_token": "<|im_end|>",
+    "totalFileSize": 3466626336
+  },
+  "siblings": [
+    {
+      "rfilename": ".gitattributes",
+      "blobId": "a365f7608b49a3c0e61536c445513a3e00de10a1",
+      "size": 2031
+    },
+    {
+      "rfilename": "LFM3-1.7B-BF16.gguf",
+      "blobId": "5310c907afb84069df2b781e62b300ce9d271c9e",
+      "size": 3466626336,
+      "lfs": {
+        "sha256": "39158a79f56edb85e0c4252ce6447b8d7883ef82ffedd02f0cda7c84da5e9f68",
+        "size": 3466626336,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "LFM3-1.7B-F16.gguf",
+      "blobId": "21a4b74864d9e62434318351d2a440b6570b0f7a",
+      "size": 3466626336,
+      "lfs": {
+        "sha256": "b7ab8b69a85e4dfbf62cdfd0e02d7d051ed09f2c5b84c701771dddb073b85970",
+        "size": 3466626336,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "LFM3-1.7B-NVFP4.gguf",
+      "blobId": "7cef402894b0d8e66eb18b34b968eca018ff7025",
+      "size": 1280019776,
+      "lfs": {
+        "sha256": "462c2379586a45b30fe3dbfa30e6ff08cbb440734d6934689e24e4fe59a67bec",
+        "size": 1280019776,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "LFM3-1.7B-Q4_K_M.gguf",
+      "blobId": "afe02e884b9cff9beda50fd0c3237e2697554d98",
+      "size": 1099627808,
+      "lfs": {
+        "sha256": "3793e1e6e2266919d6e015287221b41100175a98eddaba92e111aed3b05c93c4",
+        "size": 1099627808,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "LFM3-1.7B-Q5_K_M.gguf",
+      "blobId": "d9c639c2f9c27140392f925615dee4725a267785",
+      "size": 1258663200,
+      "lfs": {
+        "sha256": "41e51fb0be5f472d323055f2734d986d5a2429570973508fa6322f3f07f6d7f3",
+        "size": 1258663200,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "LFM3-1.7B-Q6_K.gguf",
+      "blobId": "a3c142f731a1768fda35c983754d944cf8b893d1",
+      "size": 1427638304,
+      "lfs": {
+        "sha256": "54e1bd947c77167823d45bf495f1c3e2d226ca7fb242f83cfa141ee3a6ab55c6",
+        "size": 1427638304,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "LFM3-1.7B-Q8_0.gguf",
+      "blobId": "f04c114215e045cf93ab9b838fa99c1ff8cb0d8a",
+      "size": 1846238496,
+      "lfs": {
+        "sha256": "8f6b24182258205e9e01e21f1f24a1f208c1e8115578825d202ce39976af20b6",
+        "size": 1846238496,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "LFM3-1.7B-QAD-Q4_0.gguf",
+      "blobId": "394768bfbb4af027284445ec6acec1af91655bfa",
+      "size": 1049615680,
+      "lfs": {
+        "sha256": "43a7d09a0e9cba91b63eb7052488b9564569bddfd65754d2e426465e572a7452",
+        "size": 1049615680,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "LICENSE",
+      "blobId": "25e731c697c4fe4c52ee654cedf7106a827748d2",
+      "size": 10574
+    },
+    {
+      "rfilename": "README.md",
+      "blobId": "c7f4e5b2191d01de5fd9c1f96e94d19f268a695d",
+      "size": 6989
+    },
+    {
+      "rfilename": "leap/Q4_0.json",
+      "blobId": "de0683880ad97300496498a4134687ed3c3dca5c",
+      "size": 1800
+    },
+    {
+      "rfilename": "leap/Q4_K_M.json",
+      "blobId": "d69d25aaccebd409b2641223e26ecdf52370803a",
+      "size": 1798
+    },
+    {
+      "rfilename": "leap/Q5_K_M.json",
+      "blobId": "a2c1d9f9dd99e4e6c9760855f8e13642e0bbfdb3",
+      "size": 1798
+    },
+    {
+      "rfilename": "leap/Q8_0.json",
+      "blobId": "82c77eb621e856b9e7c19919fe1ce050af318cac",
+      "size": 1796
+    }
+  ],
+  "spaces": [
+    "ginigen-ai/edge-ai-news",
+    "webml-community/LFM3-1.7B-WebGPU-Pi",
+    "apathy-exe/LFM3-1.7B",
+    "ragraph-ai/arXiv-CS-RAG-WebGPU",
+    "TechnoBaptist/LFM3-1.7B-WebGPU-Pi",
+    "austindixson/python-sandbox-math-demo",
+    "sugatoray/LFM3-1.7B-WebGPU-Pi",
+    "tiodwiki/lfm3-1.7b",
+    "zk-Armor/LFM3-1.7B-WebGPU-Pi",
+    "JUDY1024618/LFM3-1.7B-WebGPU-Pi",
+    "v-pieter/agents-course-final",
+    "l0d0v1c/LFM3-1.7B"
+  ],
+  "createdAt": "2026-10-24T00:46:40.000Z",
+  "usedStorage": 16175075616
+}

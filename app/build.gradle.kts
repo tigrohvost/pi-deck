@@ -1,4 +1,6 @@
 import java.security.MessageDigest
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 plugins {
     id("com.android.application")
@@ -281,6 +283,7 @@ tasks.register("verifyNativeRuntime") {
                     && root["ndkRevision"] == "27.1.12297006"
                     && root["cmakeVersion"] == "3.22.1-g37088a8"
                     && root["patchSet"] == "pideck-affinity1"
+                    && root["elfPageAlignment"] == 16384
         ) {
             "Unsupported native runtime manifest"
         }
@@ -394,11 +397,46 @@ tasks.register("verifyNativeRuntime") {
                 "$name byte length differs from native-runtime.json"
             }
             digest.reset()
-            val hash = digest.digest(file.readBytes()).joinToString("") {
+            val bytes = file.readBytes()
+            val hash = digest.digest(bytes).joinToString("") {
                 "%02x".format(it.toInt() and 0xff)
             }
             require(hash == metadata["sha256"]) {
                 "$name SHA-256 differs from native-runtime.json"
+            }
+            // ZIP alignment alone does not make an ELF loadable on 16 KB Android devices.
+            val elf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            require(bytes.size >= 64 && elf.getInt(0) == 0x464c457f
+                    && elf.get(4).toInt() == 2 && elf.get(5).toInt() == 1
+                    && elf.getShort(18).toInt() == 183) { "$name is not an arm64 ELF" }
+            val table = elf.getLong(32)
+            val entrySize = elf.getShort(54).toInt() and 0xffff
+            val count = elf.getShort(56).toInt() and 0xffff
+            require(table >= 64 && entrySize >= 56 && count > 0
+                    && table <= bytes.size.toLong() - entrySize.toLong() * count) {
+                "$name has invalid ELF program headers"
+            }
+            data class Segment(val type: Int, val address: Long, val size: Long)
+            val segments = (0 until count).map { index ->
+                val at = (table + index.toLong() * entrySize).toInt()
+                val type = elf.getInt(at)
+                val offset = elf.getLong(at + 8)
+                val address = elf.getLong(at + 16)
+                if (type == 1) {
+                    val alignment = elf.getLong(at + 48)
+                    require(alignment >= 16384 && alignment and (alignment - 1) == 0L
+                            && offset % 16384 == address % 16384) {
+                        "$name has a LOAD segment without 16 KB alignment; rebuild the native runtime"
+                    }
+                }
+                Segment(type, address, elf.getLong(at + 40))
+            }
+            require(segments.any { it.type == 1 }) { "$name has no LOAD segments" }
+            segments.filter { it.type == 0x6474e552 }.forEach { relro ->
+                val end = relro.address + relro.size
+                require(end % 16384 == 0L || segments.any {
+                    it.type == 1 && it.address <= relro.address && it.address + it.size == end
+                }) { "$name has a RELRO boundary that overlaps writable data on 16 KB pages" }
             }
         }
     }

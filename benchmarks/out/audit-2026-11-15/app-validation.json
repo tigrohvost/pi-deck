@@ -1,0 +1,34 @@
+{
+  "sourceBaseCommit": "27fd19d97c1fcf3add4b2c81bf966e5dbbdccf9d",
+  "apkSha256": "2a7fb9f557d1b9a249115197e70fb60caea98269f96a454df2e17f544f756086",
+  "nativeFilesVerified": 18,
+  "elfPageAlignment": 16384,
+  "jvmTests": 248,
+  "runtimeTests": 153,
+  "toolsTests": 79,
+  "lintErrors": 0,
+  "lintWarnings": 12,
+  "gradleResult": "BUILD SUCCESSFUL",
+  "deviceLifecycleRecreations": 4,
+  "deviceDefaultInstrumentationReportedTests": 21,
+  "deviceInstrumentationCaveat": "Some device tests are opt-in; 21 reported does not mean all opt-in scenarios ran",
+  "fullAdmissionSuiteRun": false,
+  "sourceDescription": "Audit fixes, curated models, telemetry and compact controls on sourceBaseCommit",
+  "apkScope": "Locally built and device-signed release; GitHub build produces its own artifact",
+  "deviceFinalUiTelemetryLifecycleTests": 14,
+  "deviceUiWidthsDp": [
+    320,
+    360,
+    412
+  ],
+  "deviceUiTextScales": [
+    1.0,
+    1.15,
+    1.3
+  ],
+  "deviceBackgroundSeconds": 18,
+  "deviceLiveReplyCompleted": true,
+  "deviceStopConfirmed": true,
+  "deviceReleaseInstalled": true,
+  "installedApkHashRecheckedAfterReconnect": true
+}

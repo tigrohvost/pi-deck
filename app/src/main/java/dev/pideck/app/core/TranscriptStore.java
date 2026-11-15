@@ -30,7 +30,7 @@ import java.util.function.Supplier;
  * {@link #WRITE_DELAY_MS}. Pi's session file stays the durable conversation authority, so a crash
  * inside that window can lose at most the last fraction of a second of presentation.
  */
-public final class TranscriptStore {
+public final class TranscriptStore implements AutoCloseable {
     public static final int MAX_ENTRIES = 60;
     public static final int MAX_BYTES = 256 * 1024;
     static final int MAX_ENTRY_BYTES = 32 * 1024;
@@ -42,6 +42,8 @@ public final class TranscriptStore {
     private final ScheduledExecutorService writer;
     private final AtomicReference<List<ConsoleEntry>> pending = new AtomicReference<>();
     private ScheduledFuture<?> scheduled;
+    private long writeGeneration;
+    private boolean closed;
 
     /**
      * @param legacyReader returns and forgets a transcript stored by an older build, or null
@@ -83,21 +85,37 @@ public final class TranscriptStore {
 
     /** Records the latest snapshot; it reaches disk once, after the coalescing delay. */
     public synchronized void save(List<ConsoleEntry> entries) {
+        if (closed) return;
         pending.set(List.copyOf(entries));
         if (scheduled == null || scheduled.isDone()) {
-            scheduled = writer.schedule(this::writePending, WRITE_DELAY_MS, TimeUnit.MILLISECONDS);
+            scheduleWrite(WRITE_DELAY_MS);
         }
     }
 
     /** Writes any pending snapshot now, still off the calling thread. */
     public synchronized void flush() {
+        if (closed || pending.get() == null) return;
         if (scheduled != null) scheduled.cancel(false);
-        scheduled = null;
-        writer.execute(this::writePending);
+        scheduleWrite(0L);
+    }
+
+    private void scheduleWrite(long delayMs) {
+        long generation = ++writeGeneration;
+        scheduled = writer.schedule(() -> writePending(generation), delayMs, TimeUnit.MILLISECONDS);
+    }
+
+    /** Flushes the last snapshot and lets the writer exit without blocking the UI thread. */
+    @Override
+    public synchronized void close() {
+        if (closed) return;
+        flush();
+        closed = true;
+        writer.shutdown();
     }
 
     /** Blocks until queued writes finish; for tests and orderly shutdown only. */
     boolean awaitIdle(long timeoutMs) throws InterruptedException {
+        if (writer.isShutdown()) return writer.awaitTermination(timeoutMs, TimeUnit.MILLISECONDS);
         ScheduledFuture<?> marker = writer.schedule(() -> { }, 0, TimeUnit.MILLISECONDS);
         try {
             marker.get(timeoutMs, TimeUnit.MILLISECONDS);
@@ -107,8 +125,15 @@ public final class TranscriptStore {
         }
     }
 
-    private void writePending() {
-        List<ConsoleEntry> snapshot = pending.getAndSet(null);
+    private void writePending(long generation) {
+        List<ConsoleEntry> snapshot;
+        synchronized (this) {
+            // A cancelled task may already be running when flush replaces it. Only the current
+            // task owns the scheduled handle, and saves during its disk write need a new task.
+            if (generation != writeGeneration) return;
+            scheduled = null;
+            snapshot = pending.getAndSet(null);
+        }
         if (snapshot == null) return;
         byte[] encoded = encode(snapshot).getBytes(StandardCharsets.UTF_8);
         File parent = file.getParentFile();

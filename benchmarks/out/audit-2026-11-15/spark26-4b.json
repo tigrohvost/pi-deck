@@ -1,0 +1,676 @@
+{
+  "startedAt": "2026-11-15T17:54:03.342480+00:00",
+  "label": "spark26-4b",
+  "modelSha256": "91cb2811aebb47ac916aa619d27d4cdd7f4143106b7917accb8ead4cd7f5cbd9",
+  "harnessVersion": 2,
+  "qualityMaxTokens": 1536,
+  "requestReasoningBudget": null,
+  "mode": "both",
+  "thinking": "on",
+  "device": "SM-S918B",
+  "execution": "adb shell inference; bounded synthetic tools; not app admission",
+  "externalCooling": true,
+  "minimumFrequencyHeadroom": 0.95,
+  "sampling": {
+    "temperature": 1.0,
+    "topP": 0.95,
+    "topK": -1,
+    "repeatPenalty": 1.0,
+    "seed": 42,
+    "minP": 0.0
+  },
+  "samples": [
+    {
+      "seconds": 26.397,
+      "firstOutputSeconds": 6.726046711002709,
+      "firstTextSeconds": null,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 181,
+        "prompt_ms": 6704.728,
+        "prompt_per_token_ms": 37.04269613259669,
+        "prompt_per_second": 26.99587514959593,
+        "predicted_n": 192,
+        "predicted_ms": 19668.988,
+        "predicted_per_token_ms": 102.97899476439791,
+        "predicted_per_second": 9.710718212853655
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "Хм, пользователь просит подробное объяснение процесса работы программ, связанного с файлами, строками и тестами. Нужно отвечать по-русски, кратко, но всё-таки насыщающе детализированно, как в задании.  \n\nСтоит разделить ответ на логические блоки: устройство файлов, алгоритмы чтения/записи, архитектура работы с строками, методы тестирования. Важно подчеркнуть, что это общие принципы, а в реальной программировании используются специальные библиотеки (пояснить об этом).  \n\nМожно начать с обзора целей задания и системногоопира,"
+      },
+      "index": 0,
+      "warmup": true,
+      "thermalBefore": {
+        "at": "2026-11-15T17:54:17.815489+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 59200,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "thermalAfter": {
+        "at": "2026-11-15T17:54:46.289669+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 78900,
+        "maxFrequencyHeadroom": 0.8457
+      },
+      "memory": {
+        "VmHWM": 3968544,
+        "VmRSS": 3968032,
+        "RssAnon": 3958344,
+        "RssFile": 9316,
+        "VmSwap": 0
+      },
+      "valid": true
+    },
+    {
+      "seconds": 25.456,
+      "firstOutputSeconds": 4.591494617998251,
+      "firstTextSeconds": null,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 181,
+        "prompt_ms": 4521.203,
+        "prompt_per_token_ms": 24.979022099447516,
+        "prompt_per_second": 40.03359282916516,
+        "predicted_n": 192,
+        "predicted_ms": 20862.213,
+        "predicted_per_token_ms": 109.22624607329843,
+        "predicted_per_second": 9.155308691364622
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "Хм, пользователь просит подробное объяснение процесса работы программ, связанного с чтением файлов, изменением строк и проверкой тестами. Нужно написать не менее 400 слов на русском, в активной форме. \n\nПользователь явно хочет получить полное описание, а не просто краткие функции. Возможно, он сочетает учебные и практические нужды — может быть, изучает программирование или нужно для работы. \n\nЛучше начать с общего описания моделей значений программ, затем разделить объяснение на три ключевых аспекта: чтение файлов, изменение строк и проверка тестами. В каждом сл differently под"
+      },
+      "index": 1,
+      "warmup": false,
+      "thermalBefore": {
+        "at": "2026-11-15T17:55:09.402913+00:00",
+        "hottestZone": "cpuss-1",
+        "hottestMilliCelsius": 43000,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "thermalAfter": {
+        "at": "2026-11-15T17:55:36.873961+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 80100,
+        "maxFrequencyHeadroom": 0.88
+      },
+      "memory": {
+        "VmHWM": 4054444,
+        "VmRSS": 4038136,
+        "RssAnon": 4028448,
+        "RssFile": 9316,
+        "VmSwap": 15844
+      },
+      "valid": true
+    },
+    {
+      "seconds": 24.812,
+      "firstOutputSeconds": 4.673218908006675,
+      "firstTextSeconds": null,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 181,
+        "prompt_ms": 4605.341,
+        "prompt_per_token_ms": 25.4438729281768,
+        "prompt_per_second": 39.302192823506445,
+        "predicted_n": 192,
+        "predicted_ms": 20137.295,
+        "predicted_per_token_ms": 105.43086387434555,
+        "predicted_per_second": 9.484888610908268
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "Хм, пользователь просит подробное объяснение по-русски, как programs читают файлы, меняют строки и проверяют результаты тестами. Задание требует минимум 400 слов. Нужно быть точным и структурированным.\n\nСначала разберу структуру ответа. Логично начать с взаимодействия программ с файлами, затем детализировать последовательности вызовов, затем описать проверки результатов. Важно объяснить каждый этап, чтобы было понятно даже неопытному читателю.\n\nМожно использовать аналогии с компьютерной программой, чтобы дать простые образы. Например, будто программы польз"
+      },
+      "index": 2,
+      "warmup": false,
+      "thermalBefore": {
+        "at": "2026-11-15T17:56:00.064864+00:00",
+        "hottestZone": "cpu-1-7",
+        "hottestMilliCelsius": 43000,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "thermalAfter": {
+        "at": "2026-11-15T17:56:26.865044+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 79700,
+        "maxFrequencyHeadroom": 0.88
+      },
+      "memory": {
+        "VmHWM": 4124976,
+        "VmRSS": 4124472,
+        "RssAnon": 4114624,
+        "RssFile": 9476,
+        "VmSwap": 15624
+      },
+      "valid": true
+    },
+    {
+      "seconds": 25.088,
+      "firstOutputSeconds": 4.7964107880034135,
+      "firstTextSeconds": null,
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 181,
+        "prompt_ms": 4728.359,
+        "prompt_per_token_ms": 26.123530386740335,
+        "prompt_per_second": 38.27966531306104,
+        "predicted_n": 192,
+        "predicted_ms": 20289.01,
+        "predicted_per_token_ms": 106.22518324607329,
+        "predicted_per_second": 9.413963520152043
+      },
+      "finishReason": "length",
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "Хм, пользователь просит подробное объяснение по-русски о том, как программы читают файлы, изменяют строки и проверяют результаты тестами. Нужно написать не менее 400 слов. \n\nЗадача довольно специфическая — речь о низких уровнях программирования. Лучше начать с базовых концепций, чтобы показать системный подход. \n\nМожно разделить ответ на три главных блока: чтение файлов, работа со строками и тестирование. В каждой части стоит объяснить и технические детали, и practical aspect — почему это важно. \n\nДля чтения файлов нужно упомянуть различие открытий поток"
+      },
+      "index": 3,
+      "warmup": false,
+      "thermalBefore": {
+        "at": "2026-11-15T17:56:50.102980+00:00",
+        "hottestZone": "cpu-0-0",
+        "hottestMilliCelsius": 43400,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "thermalAfter": {
+        "at": "2026-11-15T17:57:17.194838+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 78900,
+        "maxFrequencyHeadroom": 0.88
+      },
+      "memory": {
+        "VmHWM": 4211124,
+        "VmRSS": 4210628,
+        "RssAnon": 4200780,
+        "RssFile": 9476,
+        "VmSwap": 15432
+      },
+      "valid": true
+    }
+  ],
+  "cases": [
+    {
+      "label": "exact",
+      "thermalBefore": {
+        "at": "2026-11-15T17:57:40.355347+00:00",
+        "hottestZone": "cpu-0-0",
+        "hottestMilliCelsius": 43400,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "rounds": [
+        {
+          "seconds": 21.648,
+          "firstOutputSeconds": 4.714922282000771,
+          "firstTextSeconds": 20.980306268000277,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 173,
+            "prompt_ms": 4643.178,
+            "prompt_per_token_ms": 26.839179190751445,
+            "prompt_per_second": 37.258963580547636,
+            "predicted_n": 162,
+            "predicted_ms": 16931.981,
+            "predicted_per_token_ms": 105.16758385093168,
+            "predicted_per_second": 9.508633396174966
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "ГОТОВО",
+            "reasoning_content": "Пользователь просит ответить ровно одним словом: \"ГОТОВО\". Это прямое указание. Должен дать именно это слово, без дополнительного текста.\n\nПользователь строго формулирует запрос: \"Ответь ровно одним словом\". Следовательно, нет необходимости в переводе или дополнительных пояснениях.\n\nВ текущем каталоге нет информации, релевантной данному запросу, поэтому использование инструментов не требуется. Ответу нужна точная формулировка."
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "ГОТОВО",
+      "passed": true,
+      "seconds": 21.648,
+      "thermalAfter": {
+        "at": "2026-11-15T17:58:04.008483+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 80100,
+        "maxFrequencyHeadroom": 0.88
+      },
+      "finalSource": null
+    },
+    {
+      "label": "russian",
+      "thermalBefore": {
+        "at": "2026-11-15T17:58:19.997147+00:00",
+        "hottestZone": "cpu-1-3",
+        "hottestMilliCelsius": 46500,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "rounds": [
+        {
+          "seconds": 35.806,
+          "firstOutputSeconds": 5.201980787998764,
+          "firstTextSeconds": 28.842260402001557,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 187,
+            "prompt_ms": 5147.784,
+            "prompt_per_token_ms": 27.52825668449198,
+            "prompt_per_second": 36.3263105056467,
+            "predicted_n": 280,
+            "predicted_ms": 30602.388,
+            "predicted_per_token_ms": 109.68597849462365,
+            "predicted_per_second": 9.11693558032138
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "Резервные копии обеспечивают полную безопасность данных, предотвращая их непреходящую потерю. Они становятся живой запасом при любых внешних ошибках или кризисных ситуациях.",
+            "reasoning_content": "Хм, пользователь просит кратко объяснить, зачем нужны резервные копии файлов, по-русски, в двух предложениях. \n\nНужно дать очень сжатый ответ, оттого что уточнил \"два предложения\". Стоит выделить главную цель: сохранение данных из-за возможных ошибок. \n\nМожно начать с общего факта про безопасность, а затем перейти к конкретной цели — предотвращению потерь. Важно использовать простое русское сленг, как \"чувствительных к failure\" или \"внешней кризисной ситуации\". \n\nПроверю, чтобы предложения были упорядоченные: первое — сам факт, второе — главная цель. Получится четко по два предложения."
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "Резервные копии обеспечивают полную безопасность данных, предотвращая их непреходящую потерю. Они становятся живой запасом при любых внешних ошибках или кризисных ситуациях.",
+      "passed": true,
+      "seconds": 35.806,
+      "thermalAfter": {
+        "at": "2026-11-15T17:58:57.873971+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 81300,
+        "maxFrequencyHeadroom": 0.6629
+      },
+      "finalSource": null
+    },
+    {
+      "label": "missing",
+      "thermalBefore": {
+        "at": "2026-11-15T17:59:42.521461+00:00",
+        "hottestZone": "cpu-1-2",
+        "hottestMilliCelsius": 43000,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "rounds": [
+        {
+          "seconds": 27.118,
+          "firstOutputSeconds": 13.061197344002721,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 449,
+            "prompt_ms": 12956.844,
+            "prompt_per_token_ms": 28.857113585746102,
+            "prompt_per_second": 34.653500497497696,
+            "predicted_n": 125,
+            "predicted_ms": 14055.097,
+            "predicted_per_token_ms": 113.3475564516129,
+            "predicted_per_second": 8.822422214517623
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "Я должен вызвать read ровно один раз для docs/definitely-missing.txt. Это файл, который по условию не должен существовать. Давайте просто вызову read один раз и обработаю возможный результат.\n\nРабочий каталог /workspace, поэтому путь docs/definitely-missing.txt — относительный, должен быть /workspace/docs/definitely-missing.txt.\n\nВызову read один раз.",
+            "tool_calls": [
+              {
+                "id": "dYPKpnJf3npIPqtVKpOk4z9sWitxjfvd",
+                "type": "function",
+                "function": {
+                  "name": "read",
+                  "arguments": "{\"path\":\"docs/definitely-missing.txt\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 8.181,
+          "firstOutputSeconds": 0.8192048689961666,
+          "firstTextSeconds": 3.020731133001391,
+          "timings": {
+            "cache_n": 573,
+            "prompt_n": 14,
+            "prompt_ms": 765.882,
+            "prompt_per_token_ms": 54.70585714285714,
+            "prompt_per_second": 18.279578316241928,
+            "predicted_n": 54,
+            "predicted_ms": 7360.919,
+            "predicted_per_token_ms": 138.88526415094339,
+            "predicted_per_second": 7.200187911319225
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "Файл `docs/definitely-missing.txt` не найден. Получено сообщение об ошке: `Error: file not found`. Стоп.",
+            "reasoning_content": "Файл не найден. Сообщить об этом и остановиться."
+          }
+        }
+      ],
+      "calls": [
+        {
+          "name": "read",
+          "arguments": {
+            "path": "docs/definitely-missing.txt"
+          },
+          "result": "Error: file not found"
+        }
+      ],
+      "answer": "Файл `docs/definitely-missing.txt` не найден. Получено сообщение об ошке: `Error: file not found`. Стоп.",
+      "passed": true,
+      "seconds": 35.299,
+      "thermalAfter": {
+        "at": "2026-11-15T18:00:18.830120+00:00",
+        "hottestZone": "cpu-1-5",
+        "hottestMilliCelsius": 86400,
+        "maxFrequencyHeadroom": 0.7371
+      },
+      "finalSource": null
+    },
+    {
+      "label": "repair",
+      "thermalBefore": {
+        "at": "2026-11-15T18:00:53.938227+00:00",
+        "hottestZone": "cpu-0-1",
+        "hottestMilliCelsius": 44600,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "rounds": [
+        {
+          "seconds": 24.826,
+          "firstOutputSeconds": 16.867854860996886,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 504,
+            "prompt_ms": 16821.653,
+            "prompt_per_token_ms": 33.37629563492063,
+            "prompt_per_second": 29.961383699925328,
+            "predicted_n": 43,
+            "predicted_ms": 7956.13,
+            "predicted_per_token_ms": 189.43166666666667,
+            "predicted_per_second": 5.278948433472052
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "Нужно прочитать src/math_utils.py, найти clamp, исправить, запустить тесты.",
+            "tool_calls": [
+              {
+                "id": "ghkGuE0zSGxTIb8BBhwTTNZP4mRxGhFz",
+                "type": "function",
+                "function": {
+                  "name": "read",
+                  "arguments": "{\"path\":\"src/math_utils.py\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 41.284,
+          "firstOutputSeconds": 3.207528489998367,
+          "firstTextSeconds": 23.786900578001223,
+          "timings": {
+            "cache_n": 546,
+            "prompt_n": 31,
+            "prompt_ms": 3182.616,
+            "prompt_per_token_ms": 102.66503225806451,
+            "prompt_per_second": 9.740414803419576,
+            "predicted_n": 320,
+            "predicted_ms": 38072.808,
+            "predicted_per_token_ms": 119.35049529780564,
+            "predicted_per_second": 8.378683284931336
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "Файл прочитан. Исправляю clamp внутренни настоящую логику: оставляет значение, если оно между нижней и верхней границами, иначе возвращает нижнюю или верхнюю границу.",
+            "reasoning_content": "Clamp должен быть: если value между lower и upper, оставаться таким, иначе нижняя/верхняя. Правильное:\n\ndef clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    elif value > upper:\n        return upper\n    return value\n\nИли минимальный/максимальный: max(lower, min(value, upper)) — это тоже верно. В оригинале min(lower, max(upper, value)) — неверно (это min из двух, max из двух... max(upper, value) — если value > upper, то upper, otherwise value; min(lower, ...) — если lower < value, верно верхняя...). Исправляю.",
+            "tool_calls": [
+              {
+                "id": "JAmIDwBOlsxv5czYbyXtSMy8lHbNiN8s",
+                "type": "function",
+                "function": {
+                  "name": "pideck_edit_text",
+                  "arguments": "{\"path\":\"src/math_utils.py\",\"oldText\":\"def clamp(value, lower, upper):\\n    return min(lower, max(upper, value))\",\"newText\":\"def clamp(value, lower, upper):\\n    if value < lower:\\n        return lower\\n    if value > upper:\\n        return upper\\n    return value\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 5.472,
+          "firstOutputSeconds": 0.8701505390054081,
+          "firstTextSeconds": 2.3351484800004982,
+          "timings": {
+            "cache_n": 896,
+            "prompt_n": 11,
+            "prompt_ms": 837.778,
+            "prompt_per_token_ms": 76.16163636363636,
+            "prompt_per_second": 13.129969992050398,
+            "predicted_n": 39,
+            "predicted_ms": 4599.473,
+            "predicted_per_token_ms": 121.03876315789473,
+            "predicted_per_second": 8.261816081972869
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "Теперь запускаю тесты:",
+            "reasoning_content": "Теперь запускаю тесты.",
+            "tool_calls": [
+              {
+                "id": "9e0pGQiimgMisn9jjJsfuheHj8oDZwK0",
+                "type": "function",
+                "function": {
+                  "name": "run_tests",
+                  "arguments": "{\"path\":\"tests/test_math_utils.py\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 13.111,
+          "firstOutputSeconds": 1.54593306100287,
+          "firstTextSeconds": 3.4473892180030816,
+          "timings": {
+            "cache_n": 945,
+            "prompt_n": 12,
+            "prompt_ms": 1491.525,
+            "prompt_per_token_ms": 124.29375,
+            "prompt_per_second": 8.045456831095692,
+            "predicted_n": 96,
+            "predicted_ms": 11563.208,
+            "predicted_per_token_ms": 121.71797894736842,
+            "predicted_per_second": 8.21571314811599
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "Готово.\n\n- `src/math_utils.py`: исправлен clamp — внутри границ число не меняется, ниже нижней границы возвращается нижняя, выше верхней — верхняя.\n- Тесты `tests/test_math_utils.py`: 4 пропустили.",
+            "reasoning_content": "Все done. Отвечу кратко по-русски."
+          }
+        }
+      ],
+      "calls": [
+        {
+          "name": "read",
+          "arguments": {
+            "path": "src/math_utils.py"
+          },
+          "result": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))\n"
+        },
+        {
+          "name": "pideck_edit_text",
+          "arguments": {
+            "path": "src/math_utils.py",
+            "oldText": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))",
+            "newText": "def clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    if value > upper:\n        return upper\n    return value"
+          },
+          "result": "Edit saved"
+        },
+        {
+          "name": "run_tests",
+          "arguments": {
+            "path": "tests/test_math_utils.py"
+          },
+          "result": "4 tests passed"
+        }
+      ],
+      "answer": "Готово.\n\n- `src/math_utils.py`: исправлен clamp — внутри границ число не меняется, ниже нижней границы возвращается нижняя, выше верхней — верхняя.\n- Тесты `tests/test_math_utils.py`: 4 пропустили.",
+      "passed": true,
+      "seconds": 84.693,
+      "thermalAfter": {
+        "at": "2026-11-15T18:02:20.969083+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 79300,
+        "maxFrequencyHeadroom": 0.5886
+      },
+      "finalSource": "def clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    if value > upper:\n        return upper\n    return value\n"
+    },
+    {
+      "label": "weather",
+      "thermalBefore": {
+        "at": "2026-11-15T18:03:20.664120+00:00",
+        "hottestZone": "cpu-0-1",
+        "hottestMilliCelsius": 43000,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "rounds": [
+        {
+          "seconds": 29.518,
+          "firstOutputSeconds": 24.049238732004596,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 457,
+            "prompt_ms": 23799.868,
+            "prompt_per_token_ms": 52.07848577680525,
+            "prompt_per_second": 19.2017871695759,
+            "predicted_n": 52,
+            "predicted_ms": 5468.029,
+            "predicted_per_token_ms": 107.2162549019608,
+            "predicted_per_second": 9.326943950004654
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "The user wants weather in Moscow, using the weather tool once, and concisely state temperature and precipitation. It's a synthetic test of the tool. Let me call weather for Moscow.",
+            "tool_calls": [
+              {
+                "id": "22DQuihvRTwfMMjJxH4ZJgoTUhKve0wH",
+                "type": "function",
+                "function": {
+                  "name": "weather",
+                  "arguments": "{\"city\":\"Москва\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 8.819,
+          "firstOutputSeconds": 4.015637554999557,
+          "firstTextSeconds": 6.672515990998363,
+          "timings": {
+            "cache_n": 452,
+            "prompt_n": 100,
+            "prompt_ms": 3982.896,
+            "prompt_per_token_ms": 39.82896,
+            "prompt_per_second": 25.10735906737208,
+            "predicted_n": 44,
+            "predicted_ms": 4801.742,
+            "predicted_per_token_ms": 111.66841860465117,
+            "predicted_per_second": 8.955083384321773
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "В Москве** 13 °C, осадки: дождь.",
+            "reasoning_content": "Get the result: Moscow, 13°C, precipitation (rain). Summarize briefly in Russian."
+          }
+        }
+      ],
+      "calls": [
+        {
+          "name": "weather",
+          "arguments": {
+            "city": "Москва"
+          },
+          "result": "{\"city\": \"Москва\", \"temperature_c\": 13, \"condition\": \"дождь\", \"test_fixture\": true}"
+        }
+      ],
+      "answer": "В Москве** 13 °C, осадки: дождь.",
+      "passed": true,
+      "seconds": 38.337,
+      "thermalAfter": {
+        "at": "2026-11-15T18:04:00.984289+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 79300,
+        "maxFrequencyHeadroom": 0.8114
+      },
+      "finalSource": null
+    }
+  ],
+  "serverSha256": "1935d60ca12da21245ea6fde311f9f950b0798bda2e64e2581bd3003cd3ad580",
+  "thermalBeforeLoad": {
+    "at": "2026-11-15T17:54:09.592601+00:00",
+    "hottestZone": "cpuss-0",
+    "hottestMilliCelsius": 52800,
+    "maxFrequencyHeadroom": 1.0
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-audit-20261115/models/Spark-X2.6-4B-Q4_K_M.gguf",
+    "--alias",
+    "spark26-4b",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18081",
+    "-c",
+    "8192",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "-Crb",
+    "0-7",
+    "--cpu-strict",
+    "1",
+    "--cpu-strict-batch",
+    "1",
+    "-b",
+    "2048",
+    "-ub",
+    "512",
+    "--jinja",
+    "--reasoning",
+    "on",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--load-mode",
+    "none",
+    "-ngl",
+    "0"
+  ],
+  "loadSeconds": 6.139203374004865,
+  "affinity": "Name:\tllama-b12088\nCpus_allowed_list:\t7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0-7\nName:\tllama-b12088\nCpus_allowed_list:\t0\nName:\tllama-b12088\nCpus_allowed_list:\t1\nName:\tllama-b12088\nCpus_allowed_list:\t2\nName:\tllama-b12088\nCpus_allowed_list:\t3\nName:\tllama-b12088\nCpus_allowed_list:\t4\nName:\tllama-b12088\nCpus_allowed_list:\t5\nName:\tllama-b12088\nCpus_allowed_list:\t6\nName:\tllama-b12088\nCpus_allowed_list:\t3\nName:\tllama-b12088\nCpus_allowed_list:\t4\nName:\tllama-b12088\nCpus_allowed_list:\t5\nName:\tllama-b12088\nCpus_allowed_list:\t6\nName:\tllama-b12088\nCpus_allowed_list:\t0\nName:\tllama-b12088\nCpus_allowed_list:\t1\nName:\tllama-b12088\nCpus_allowed_list:\t2\nName:\tllama-b12088\nCpus_allowed_list:\t3\nName:\tllama-b12088\nCpus_allowed_list:\t4\nName:\tllama-b12088\nCpus_allowed_list:\t5\nName:\tllama-b12088\nCpus_allowed_list:\t6\nName:\tllama-b12088\nCpus_allowed_list:\t3\nName:\tllama-b12088\nCpus_allowed_list:\t4\nName:\tllama-b12088\nCpus_allowed_list:\t5\nName:\tllama-b12088\nCpus_allowed_list:\t6\nName:\tllama-b12088\nCpus_allowed_list:\t7\n",
+  "medianDecodeTokensPerSecond": 9.413963520152043,
+  "status": "complete",
+  "finishedAt": "2026-11-15T18:04:00.986343+00:00",
+  "serverLogTail": "0, t =   3.96 s / 37.89 tokens per second\n4.15.371.689 I slot print_timing: id  0 | task 945 | prompt processing, n_tokens =    183, progress = 0.98, t =   4.98 s / 36.73 tokens per second\n4.25.778.061 I slot print_timing: id  0 | task 945 | n_gen =    100, tg =   9.67 t/s, tg_3s =   9.76 t/s\n4.28.778.615 I slot print_timing: id  0 | task 945 | n_gen =    127, tg =   9.52 t/s, tg_3s =   9.00 t/s\n4.31.812.397 I slot print_timing: id  0 | task 945 | n_gen =    154, tg =   9.40 t/s, tg_3s =   8.90 t/s\n4.34.848.619 I slot print_timing: id  0 | task 945 | n_gen =    180, tg =   9.27 t/s, tg_3s =   8.56 t/s\n4.37.944.147 I slot print_timing: id  0 | task 945 | n_gen =    208, tg =   9.24 t/s, tg_3s =   9.05 t/s\n4.40.959.283 I slot print_timing: id  0 | task 945 | n_gen =    235, tg =   9.20 t/s, tg_3s =   8.95 t/s\n4.44.022.159 I slot print_timing: id  0 | task 945 | n_gen =    261, tg =   9.13 t/s, tg_3s =   8.49 t/s\n4.46.139.803 I slot print_timing: id  0 | task 945 | prompt eval time =    5147.78 ms /   187 tokens (   27.53 ms per token,    36.33 tokens per second)\n4.46.139.811 I slot print_timing: id  0 | task 945 |        eval time =   30602.39 ms /   280 tokens (  109.69 ms per token,     9.12 tokens per second)\n4.46.139.813 I slot print_timing: id  0 | task 945 |       total time =   35750.17 ms /   467 tokens\n4.46.139.814 I slot print_timing: id  0 | task 945 |    graphs reused =       1193\n4.46.139.816 I slot print_timing: id  0 | task 945 |   graph reallocs =          0    /     0        (same size) / (changed size)\n4.46.139.852 I slot      release: id  0 | task 945 | stop processing: n_tokens = 466, truncated = 0\n5.32.897.545 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.138 (> 0.100 thold), f_keep = 0.133\n5.32.898.643 W srv         alloc:  - making room for prompt cache entry, removing oldest entry (size = 83.756 MiB)\n5.32.963.940 I slot launch_slot_: id  0 | task 1228 | processing task, is_child = 0\n5.44.379.423 I slot print_timing: id  0 | task 1228 | prompt processing, n_tokens =    406, progress = 0.90, t =  11.42 s / 35.57 tokens per second\n5.45.717.565 I slot print_timing: id  0 | task 1228 | prompt processing, n_tokens =    445, progress = 0.99, t =  12.75 s / 34.89 tokens per second\n5.57.104.162 I slot print_timing: id  0 | task 1228 | n_gen =    100, tg =   8.85 t/s, tg_3s =   8.94 t/s\n5.59.975.953 I slot print_timing: id  0 | task 1228 | prompt eval time =   12956.84 ms /   449 tokens (   28.86 ms per token,    34.65 tokens per second)\n5.59.975.963 I slot print_timing: id  0 | task 1228 |        eval time =   14055.10 ms /   125 tokens (  113.35 ms per token,     8.82 tokens per second)\n5.59.975.965 I slot print_timing: id  0 | task 1228 |       total time =   27011.94 ms /   574 tokens\n5.59.975.966 I slot print_timing: id  0 | task 1228 |    graphs reused =       1315\n5.59.975.968 I slot print_timing: id  0 | task 1228 |   graph reallocs =          0    /     0        (same size) / (changed size)\n5.59.976.318 I slot      release: id  0 | task 1228 | stop processing: n_tokens = 573, truncated = 0\n6.00.031.467 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.976 (> 0.100 thold), f_keep = 1.000\n6.00.032.212 I slot launch_slot_: id  0 | task 1356 | processing task, is_child = 0\n6.08.159.062 I slot print_timing: id  0 | task 1356 | prompt eval time =     765.88 ms /    14 tokens (   54.71 ms per token,    18.28 tokens per second)\n6.08.159.082 I slot print_timing: id  0 | task 1356 |        eval time =    7360.92 ms /    54 tokens (  138.89 ms per token,     7.20 tokens per second)\n6.08.159.084 I slot print_timing: id  0 | task 1356 |       total time =    8126.80 ms /    68 tokens\n6.08.159.086 I slot print_timing: id  0 | task 1356 |    graphs reused =       1367\n6.08.159.087 I slot print_timing: id  0 | task 1356 |   graph reallocs =          0    /     0        (same size) / (changed size)\n6.08.159.161 I slot      release: id  0 | task 1356 | stop processing: n_tokens = 640, truncated = 0\n6.44.320.924 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.810 (> 0.100 thold), f_keep = 0.637\n6.44.322.507 I slot launch_slot_: id  0 | task 1412 | processing task, is_child = 0\n6.56.330.188 I slot print_timing: id  0 | task 1412 | prompt processing, n_tokens =    406, progress = 0.81, t =  12.01 s / 33.81 tokens per second\n7.00.878.257 I slot print_timing: id  0 | task 1412 | prompt processing, n_tokens =    500, progress = 0.99, t =  16.56 s / 30.20 tokens per second\n7.09.100.338 I slot print_timing: id  0 | task 1412 | prompt eval time =   16821.65 ms /   504 tokens (   33.38 ms per token,    29.96 tokens per second)\n7.09.100.359 I slot print_timing: id  0 | task 1412 |        eval time =    7956.13 ms /    43 tokens (  189.43 ms per token,     5.28 tokens per second)\n7.09.100.361 I slot print_timing: id  0 | task 1412 |       total time =   24777.78 ms /   547 tokens\n7.09.100.362 I slot print_timing: id  0 | task 1412 |    graphs reused =       1407\n7.09.100.364 I slot print_timing: id  0 | task 1412 |   graph reallocs =          0    /     0        (same size) / (changed size)\n7.09.100.631 I slot      release: id  0 | task 1412 | stop processing: n_tokens = 546, truncated = 0\n7.09.128.705 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.946 (> 0.100 thold), f_keep = 1.000\n7.09.129.231 I slot launch_slot_: id  0 | task 1458 | processing task, is_child = 0\n7.23.973.457 I slot print_timing: id  0 | task 1458 | n_gen =    100, tg =   8.49 t/s, tg_3s =   8.58 t/s\n7.27.071.584 I slot print_timing: id  0 | task 1458 | n_gen =    126, tg =   8.47 t/s, tg_3s =   8.39 t/s\n7.30.089.446 I slot print_timing: id  0 | task 1458 | n_gen =    152, tg =   8.49 t/s, tg_3s =   8.62 t/s\n7.33.128.511 I slot print_timing: id  0 | task 1458 | n_gen =    178, tg =   8.50 t/s, tg_3s =   8.56 t/s\n7.36.227.780 I slot print_timing: id  0 | task 1458 | n_gen =    204, tg =   8.49 t/s, tg_3s =   8.39 t/s\n7.39.235.478 I slot print_timing: id  0 | task 1458 | n_gen =    229, tg =   8.47 t/s, tg_3s =   8.31 t/s\n7.42.337.322 I slot print_timing: id  0 | task 1458 | n_gen =    255, tg =   8.46 t/s, tg_3s =   8.38 t/s\n7.45.439.805 I slot print_timing: id  0 | task 1458 | n_gen =    279, tg =   8.39 t/s, tg_3s =   7.74 t/s\n7.48.464.642 I slot print_timing: id  0 | task 1458 | n_gen =    304, tg =   8.38 t/s, tg_3s =   8.26 t/s\n7.50.384.694 I slot print_timing: id  0 | task 1458 | prompt eval time =    3182.62 ms /    31 tokens (  102.67 ms per token,     9.74 tokens per second)\n7.50.384.710 I slot print_timing: id  0 | task 1458 |        eval time =   38072.81 ms /   320 tokens (  119.35 ms per token,     8.38 tokens per second)\n7.50.384.712 I slot print_timing: id  0 | task 1458 |       total time =   41255.42 ms /   351 tokens\n7.50.384.714 I slot print_timing: id  0 | task 1458 |    graphs reused =       1724\n7.50.384.715 I slot print_timing: id  0 | task 1458 |   graph reallocs =          0    /     0        (same size) / (changed size)\n7.50.384.833 I slot      release: id  0 | task 1458 | stop processing: n_tokens = 896, truncated = 0\n7.50.422.198 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.988 (> 0.100 thold), f_keep = 1.000\n7.50.422.668 I slot launch_slot_: id  0 | task 1780 | processing task, is_child = 0\n7.55.859.960 I slot print_timing: id  0 | task 1780 | prompt eval time =     837.78 ms /    11 tokens (   76.16 ms per token,    13.13 tokens per second)\n7.55.859.970 I slot print_timing: id  0 | task 1780 |        eval time =    4599.47 ms /    39 tokens (  121.04 ms per token,     8.26 tokens per second)\n7.55.859.971 I slot print_timing: id  0 | task 1780 |       total time =    5437.25 ms /    50 tokens\n7.55.859.973 I slot print_timing: id  0 | task 1780 |    graphs reused =       1761\n7.55.859.974 I slot print_timing: id  0 | task 1780 |   graph reallocs =          0    /     0        (same size) / (changed size)\n7.55.860.128 I slot      release: id  0 | task 1780 | stop processing: n_tokens = 945, truncated = 0\n7.55.916.659 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.987 (> 0.100 thold), f_keep = 1.000\n7.55.917.489 I slot launch_slot_: id  0 | task 1821 | processing task, is_child = 0\n8.08.972.266 I slot print_timing: id  0 | task 1821 | prompt eval time =    1491.53 ms /    12 tokens (  124.29 ms per token,     8.05 tokens per second)\n8.08.972.277 I slot print_timing: id  0 | task 1821 |        eval time =   11563.21 ms /    96 tokens (  121.72 ms per token,     8.22 tokens per second)\n8.08.972.279 I slot print_timing: id  0 | task 1821 |       total time =   13054.73 ms /   108 tokens\n8.08.972.280 I slot print_timing: id  0 | task 1821 |    graphs reused =       1854\n8.08.972.282 I slot print_timing: id  0 | task 1821 |   graph reallocs =          0    /     0        (same size) / (changed size)\n8.08.972.434 I slot      release: id  0 | task 1821 | stop processing: n_tokens = 1052, truncated = 0\n9.11.037.643 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.893 (> 0.100 thold), f_keep = 0.388\n9.11.038.396 W srv         alloc:  - making room for prompt cache entry, removing oldest entry (size = 83.756 MiB)\n9.11.064.896 W srv         alloc:  - making room for prompt cache entry, removing oldest entry (size = 83.756 MiB)\n9.11.074.286 W srv         alloc:  - making room for prompt cache entry, removing oldest entry (size = 83.756 MiB)\n9.11.085.636 W srv         alloc:  - making room for prompt cache entry, removing oldest entry (size = 80.627 MiB)\n9.11.093.035 W srv         alloc:  - making room for prompt cache entry, removing oldest entry (size = 100.669 MiB)\n9.11.252.503 I slot launch_slot_: id  0 | task 1919 | processing task, is_child = 0\n9.32.948.432 I slot print_timing: id  0 | task 1919 | prompt processing, n_tokens =    406, progress = 0.89, t =  21.70 s / 18.71 tokens per second\n9.34.851.929 I slot print_timing: id  0 | task 1919 | prompt processing, n_tokens =    453, progress = 0.99, t =  23.60 s / 19.20 tokens per second\n9.40.520.452 I slot print_timing: id  0 | task 1919 | prompt eval time =   23799.87 ms /   457 tokens (   52.08 ms per token,    19.20 tokens per second)\n9.40.520.502 I slot print_timing: id  0 | task 1919 |        eval time =    5468.03 ms /    52 tokens (  107.22 ms per token,     9.33 tokens per second)\n9.40.520.504 I slot print_timing: id  0 | task 1919 |       total time =   29267.90 ms /   509 tokens\n9.40.520.505 I slot print_timing: id  0 | task 1919 |    graphs reused =       1904\n9.40.520.507 I slot print_timing: id  0 | task 1919 |   graph reallocs =          0    /     0        (same size) / (changed size)\n9.40.520.745 I slot      release: id  0 | task 1919 | stop processing: n_tokens = 508, truncated = 0\n9.40.554.202 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.920 (> 0.100 thold), f_keep = 1.000\n9.40.554.796 I slot launch_slot_: id  0 | task 1974 | processing task, is_child = 0\n9.44.323.793 I slot print_timing: id  0 | task 1974 | prompt processing, n_tokens =     96, progress = 0.99, t =   3.77 s / 25.47 tokens per second\n9.49.339.493 I slot print_timing: id  0 | task 1974 | prompt eval time =    3982.90 ms /   100 tokens (   39.83 ms per token,    25.11 tokens per second)\n9.49.339.521 I slot print_timing: id  0 | task 1974 |        eval time =    4801.74 ms /    44 tokens (  111.67 ms per token,     8.96 tokens per second)\n9.49.339.522 I slot print_timing: id  0 | task 1974 |       total time =    8784.64 ms /   144 tokens\n9.49.339.524 I slot print_timing: id  0 | task 1974 |    graphs reused =       1946\n9.49.339.525 I slot print_timing: id  0 | task 1974 |   graph reallocs =          0    /     0        (same size) / (changed size)\n9.49.339.703 I slot      release: id  0 | task 1974 | stop processing: n_tokens = 595, truncated = 0\n"
+}

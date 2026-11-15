@@ -1,0 +1,404 @@
+{
+  "startedAt": "2026-11-15T18:04:32.586044+00:00",
+  "label": "bonsai9b-tools",
+  "modelSha256": "3561df7ac7d26a71ffa991ac2db740b10841c3a350aa2676ccd3ff5d428b4e8b",
+  "harnessVersion": 2,
+  "qualityMaxTokens": 1024,
+  "contextTokens": 4096,
+  "requestReasoningBudget": null,
+  "mode": "tools",
+  "thinking": "off",
+  "device": "SM-S918B",
+  "execution": "adb shell inference; bounded synthetic tools; not app admission",
+  "externalCooling": true,
+  "minimumFrequencyHeadroom": 0.95,
+  "sampling": {
+    "temperature": 0.0,
+    "topP": 1.0,
+    "topK": 40,
+    "repeatPenalty": 1.0,
+    "seed": 42,
+    "minP": 0.0
+  },
+  "samples": [],
+  "cases": [
+    {
+      "label": "exact",
+      "thermalBefore": {
+        "at": "2026-11-15T18:04:41.844379+00:00",
+        "hottestZone": "cpu-0-1",
+        "hottestMilliCelsius": 52900,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "rounds": [
+        {
+          "seconds": 19.509,
+          "firstOutputSeconds": 18.61543967000034,
+          "firstTextSeconds": 18.61544178600161,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 92,
+            "prompt_ms": 18596.565,
+            "prompt_per_token_ms": 202.1365760869565,
+            "prompt_per_second": 4.94715018606931,
+            "predicted_n": 4,
+            "predicted_ms": 891.864,
+            "predicted_per_token_ms": 297.288,
+            "predicted_per_second": 3.3637415570086917
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "ГОТОВО",
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "ГОТОВО",
+      "passed": true,
+      "seconds": 19.509,
+      "thermalAfter": {
+        "at": "2026-11-15T18:05:03.173925+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 73800,
+        "maxFrequencyHeadroom": 0.9486
+      },
+      "finalSource": null
+    },
+    {
+      "label": "repair",
+      "thermalBefore": {
+        "at": "2026-11-15T18:05:11.589003+00:00",
+        "hottestZone": "cpu-0-1",
+        "hottestMilliCelsius": 52500,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "rounds": [
+        {
+          "seconds": 139.967,
+          "firstOutputSeconds": 133.89361571000336,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 632,
+            "prompt_ms": 131999.478,
+            "prompt_per_token_ms": 208.8599335443038,
+            "prompt_per_second": 4.787897721837961,
+            "predicted_n": 27,
+            "predicted_ms": 7873.449,
+            "predicted_per_token_ms": 302.82496153846154,
+            "predicted_per_second": 3.3022376851618653
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "",
+            "tool_calls": [
+              {
+                "id": "5seOivBNRDO8elhSmNA6eCzJ7XOeijgW",
+                "type": "function",
+                "function": {
+                  "name": "read",
+                  "arguments": "{\"path\":\"/src/math_utils.py\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 13.387,
+          "firstOutputSeconds": 7.505976660999295,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 658,
+            "prompt_n": 26,
+            "prompt_ms": 5658.209,
+            "prompt_per_token_ms": 217.62342307692307,
+            "prompt_per_second": 4.595093606475124,
+            "predicted_n": 26,
+            "predicted_ms": 7677.711,
+            "predicted_per_token_ms": 307.10844000000003,
+            "predicted_per_second": 3.256178827257238
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "",
+            "tool_calls": [
+              {
+                "id": "Eb1OX2tLjaughMLWZSkEMpA73FISptBX",
+                "type": "function",
+                "function": {
+                  "name": "read",
+                  "arguments": "{\"path\":\"math_utils.py\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 13.092,
+          "firstOutputSeconds": 6.921818572001939,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 709,
+            "prompt_n": 23,
+            "prompt_ms": 4992.304,
+            "prompt_per_token_ms": 217.05669565217391,
+            "prompt_per_second": 4.607091234828649,
+            "predicted_n": 27,
+            "predicted_ms": 8051.079,
+            "predicted_per_token_ms": 309.6568846153846,
+            "predicted_per_second": 3.2293808072185106
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "",
+            "tool_calls": [
+              {
+                "id": "Fq5HPKqzuH1dvpIucVy0Mc4UjLJf0AxB",
+                "type": "function",
+                "function": {
+                  "name": "read",
+                  "arguments": "{\"path\":\"/workspace/math_utils.py\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 13.743,
+          "firstOutputSeconds": 7.255370439997932,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 758,
+            "prompt_n": 23,
+            "prompt_ms": 5282.038,
+            "prompt_per_token_ms": 229.6538260869565,
+            "prompt_per_second": 4.354379881401838,
+            "predicted_n": 28,
+            "predicted_ms": 8408.271,
+            "predicted_per_token_ms": 311.41744444444447,
+            "predicted_per_second": 3.211123904070171
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "",
+            "tool_calls": [
+              {
+                "id": "1Wspm344GzemMFchnFSsbeeUENjGdxDP",
+                "type": "function",
+                "function": {
+                  "name": "read",
+                  "arguments": "{\"path\":\"/workspace/src/math_utils.py\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 39.909,
+          "firstOutputSeconds": 8.933056477995706,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 808,
+            "prompt_n": 38,
+            "prompt_ms": 5800.161,
+            "prompt_per_token_ms": 152.6358157894737,
+            "prompt_per_second": 6.551542276154058,
+            "predicted_n": 109,
+            "predicted_ms": 34060.463,
+            "predicted_per_token_ms": 315.3746574074074,
+            "predicted_per_second": 3.1708318233959414
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "",
+            "tool_calls": [
+              {
+                "id": "C9f7uh3Sh5N0hHqkQDCIjBzwIU4wSw1c",
+                "type": "function",
+                "function": {
+                  "name": "pideck_edit_text",
+                  "arguments": "{\"path\":\"/workspace/src/math_utils.py\",\"oldText\":\"def clamp(value, lower, upper):\\n    return min(lower, max(upper, value))\",\"newText\":\"def clamp(value, lower, upper):\\n    if value < lower:\\n        return lower\\n    elif value > upper:\\n        return upper\\n    return value\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 13.625,
+          "firstOutputSeconds": 6.0523558870045235,
+          "firstTextSeconds": null,
+          "timings": {
+            "cache_n": 954,
+            "prompt_n": 20,
+            "prompt_ms": 3403.135,
+            "prompt_per_token_ms": 170.15675000000002,
+            "prompt_per_second": 5.876934062269054,
+            "predicted_n": 31,
+            "predicted_ms": 10172.609,
+            "predicted_per_token_ms": 339.0869666666667,
+            "predicted_per_second": 2.9490959497214533
+          },
+          "finishReason": "tool_calls",
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "",
+            "tool_calls": [
+              {
+                "id": "ETGsdAMmyPDTaXBlN59VAvk4S1ROxgsb",
+                "type": "function",
+                "function": {
+                  "name": "run_tests",
+                  "arguments": "{\"path\":\"/workspace/tests/test_math_utils.py\"}"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seconds": 11.461,
+          "firstOutputSeconds": 4.9901061589989695,
+          "firstTextSeconds": 4.9901095680033905,
+          "timings": {
+            "cache_n": 1004,
+            "prompt_n": 21,
+            "prompt_ms": 4930.492,
+            "prompt_per_token_ms": 234.78533333333334,
+            "prompt_per_second": 4.25920983139208,
+            "predicted_n": 21,
+            "predicted_ms": 6468.654,
+            "predicted_per_token_ms": 323.4327,
+            "predicted_per_second": 3.0918333242124247
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "Готово. Исправил clamp в `math_utils.py` и тесты прошли успешно.",
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "calls": [
+        {
+          "name": "read",
+          "arguments": {
+            "path": "/src/math_utils.py"
+          },
+          "result": "Error: Use a path inside /workspace"
+        },
+        {
+          "name": "read",
+          "arguments": {
+            "path": "math_utils.py"
+          },
+          "result": "Error: file not found"
+        },
+        {
+          "name": "read",
+          "arguments": {
+            "path": "/workspace/math_utils.py"
+          },
+          "result": "Error: file not found"
+        },
+        {
+          "name": "read",
+          "arguments": {
+            "path": "/workspace/src/math_utils.py"
+          },
+          "result": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))\n"
+        },
+        {
+          "name": "pideck_edit_text",
+          "arguments": {
+            "path": "/workspace/src/math_utils.py",
+            "oldText": "def clamp(value, lower, upper):\n    return min(lower, max(upper, value))",
+            "newText": "def clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    elif value > upper:\n        return upper\n    return value"
+          },
+          "result": "Edit saved"
+        },
+        {
+          "name": "run_tests",
+          "arguments": {
+            "path": "/workspace/tests/test_math_utils.py"
+          },
+          "result": "4 tests passed"
+        }
+      ],
+      "answer": "Готово. Исправил clamp в `math_utils.py` и тесты прошли успешно.",
+      "passed": true,
+      "seconds": 245.18400000000003,
+      "thermalAfter": {
+        "at": "2026-11-15T18:09:19.107181+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 72200,
+        "maxFrequencyHeadroom": 0.6229
+      },
+      "finalSource": "def clamp(value, lower, upper):\n    if value < lower:\n        return lower\n    elif value > upper:\n        return upper\n    return value\n"
+    }
+  ],
+  "serverSha256": "402f8118e8adf02ab3757cc62035b2bb92e7bc3c6e361856d51e7a8491a17b75",
+  "thermalBeforeLoad": {
+    "at": "2026-11-15T18:04:36.807555+00:00",
+    "hottestZone": "cpu-1-0",
+    "hottestMilliCelsius": 60700,
+    "maxFrequencyHeadroom": 1.0
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-audit-20261115/models/Ternary-Bonsai-2-9B-PTQ1_0.gguf",
+    "--alias",
+    "bonsai9b-tools",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18081",
+    "-c",
+    "4096",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "-Crb",
+    "0-7",
+    "--cpu-strict",
+    "1",
+    "--cpu-strict-batch",
+    "1",
+    "-b",
+    "2048",
+    "-ub",
+    "512",
+    "--jinja",
+    "--reasoning",
+    "off",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--load-mode",
+    "none",
+    "-ngl",
+    "0"
+  ],
+  "loadSeconds": 2.438756627001567,
+  "affinity": "Name:\tprism-server\nCpus_allowed_list:\t7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0-7\nName:\tprism-server\nCpus_allowed_list:\t0\nName:\tprism-server\nCpus_allowed_list:\t1\nName:\tprism-server\nCpus_allowed_list:\t2\nName:\tprism-server\nCpus_allowed_list:\t3\nName:\tprism-server\nCpus_allowed_list:\t4\nName:\tprism-server\nCpus_allowed_list:\t5\nName:\tprism-server\nCpus_allowed_list:\t6\nName:\tprism-server\nCpus_allowed_list:\t3\nName:\tprism-server\nCpus_allowed_list:\t4\nName:\tprism-server\nCpus_allowed_list:\t5\nName:\tprism-server\nCpus_allowed_list:\t6\nName:\tprism-server\nCpus_allowed_list:\t7\n",
+  "status": "complete",
+  "finishedAt": "2026-11-15T18:09:19.108383+00:00",
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.004.421 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.004.633 W srv  llama_server: -----------------\n0.00.004.646 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set\n0.00.004.648 W srv  llama_server: this can be a security risk (cross-origin attacks)\n0.00.004.649 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655\n0.00.004.649 W srv  llama_server: -----------------\n0.00.006.427 I srv    load_model: loading model '/data/local/tmp/pideck-audit-20261115/models/Ternary-Bonsai-2-9B-PTQ1_0.gguf'\n0.01.635.057 I cmn          init: llama threadpool init, n_threads = 5\n0.02.242.528 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 4096, kv_unified = 'false'\n0.02.247.015 I srv  llama_server: model loaded\n0.02.247.028 I srv  llama_server: listening on http://127.0.0.1:18081\n0.04.986.330 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.04.986.714 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n0.18.173.041 I slot print_timing: id  0 | task 0 | prompt processing, n_tokens =     71, progress = 0.77, t =  13.19 s / 5.38 tokens per second\n0.22.602.004 I slot print_timing: id  0 | task 0 | prompt processing, n_tokens =     88, progress = 0.96, t =  17.62 s / 5.00 tokens per second\n0.24.475.183 I slot print_timing: id  0 | task 0 | prompt eval time =   18596.56 ms /    92 tokens (  202.14 ms per token,     4.95 tokens per second)\n0.24.475.212 I slot print_timing: id  0 | task 0 |        eval time =     891.86 ms /     4 tokens (  297.29 ms per token,     3.36 tokens per second)\n0.24.475.214 I slot print_timing: id  0 | task 0 |       total time =   19488.43 ms /    96 tokens\n0.24.475.215 I slot print_timing: id  0 | task 0 |    graphs reused =          3\n0.24.475.256 I slot      release: id  0 | task 0 | stop processing: n_tokens = 95, truncated = 0\n0.34.738.569 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = 461612637724\n0.34.804.232 I slot launch_slot_: id  0 | task 7 | processing task, is_child = 0\n0.57.540.973 I slot print_timing: id  0 | task 7 | prompt processing, n_tokens =    116, progress = 0.18, t =  22.74 s / 5.10 tokens per second\n2.31.256.706 I slot print_timing: id  0 | task 7 | prompt processing, n_tokens =    563, progress = 0.89, t = 116.45 s / 4.83 tokens per second\n2.46.059.144 I slot print_timing: id  0 | task 7 | prompt processing, n_tokens =    628, progress = 0.99, t = 131.25 s / 4.78 tokens per second\n2.54.677.242 I slot print_timing: id  0 | task 7 | prompt eval time =  131999.48 ms /   632 tokens (  208.86 ms per token,     4.79 tokens per second)\n2.54.677.271 I slot print_timing: id  0 | task 7 |        eval time =    7873.45 ms /    27 tokens (  302.82 ms per token,     3.30 tokens per second)\n2.54.677.273 I slot print_timing: id  0 | task 7 |       total time =  139872.93 ms /   659 tokens\n2.54.677.274 I slot print_timing: id  0 | task 7 |    graphs reused =         28\n2.54.677.366 I slot      release: id  0 | task 7 | stop processing: n_tokens = 658, truncated = 0\n2.54.728.506 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.962 (> 0.100 thold), f_keep = 1.000\n2.54.729.069 I slot launch_slot_: id  0 | task 38 | processing task, is_child = 0\n2.59.573.105 I slot print_timing: id  0 | task 38 | prompt processing, n_tokens =     22, progress = 0.99, t =   4.84 s / 4.54 tokens per second\n3.08.065.029 I slot print_timing: id  0 | task 38 | prompt eval time =    5658.21 ms /    26 tokens (  217.62 ms per token,     4.60 tokens per second)\n3.08.065.037 I slot print_timing: id  0 | task 38 |        eval time =    7677.71 ms /    26 tokens (  307.11 ms per token,     3.26 tokens per second)\n3.08.065.038 I slot print_timing: id  0 | task 38 |       total time =   13335.92 ms /    52 tokens\n3.08.065.039 I slot print_timing: id  0 | task 38 |    graphs reused =         52\n3.08.065.146 I slot      release: id  0 | task 38 | stop processing: n_tokens = 709, truncated = 0\n3.08.114.366 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.969 (> 0.100 thold), f_keep = 1.000\n3.08.114.920 I slot launch_slot_: id  0 | task 66 | processing task, is_child = 0\n3.12.405.145 I slot print_timing: id  0 | task 66 | prompt processing, n_tokens =     19, progress = 0.99, t =   4.29 s / 4.43 tokens per second\n3.21.158.363 I slot print_timing: id  0 | task 66 | prompt eval time =    4992.30 ms /    23 tokens (  217.06 ms per token,     4.61 tokens per second)\n3.21.158.371 I slot print_timing: id  0 | task 66 |        eval time =    8051.08 ms /    27 tokens (  309.66 ms per token,     3.23 tokens per second)\n3.21.158.372 I slot print_timing: id  0 | task 66 |       total time =   13043.38 ms /    50 tokens\n3.21.158.374 I slot print_timing: id  0 | task 66 |    graphs reused =         77\n3.21.158.487 I slot      release: id  0 | task 66 | stop processing: n_tokens = 758, truncated = 0\n3.21.212.150 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.971 (> 0.100 thold), f_keep = 1.000\n3.21.212.611 I slot launch_slot_: id  0 | task 95 | processing task, is_child = 0\n3.25.638.350 I slot print_timing: id  0 | task 95 | prompt processing, n_tokens =     19, progress = 0.99, t =   4.43 s / 4.29 tokens per second\n3.34.902.959 I slot print_timing: id  0 | task 95 | prompt eval time =    5282.04 ms /    23 tokens (  229.65 ms per token,     4.35 tokens per second)\n3.34.902.984 I slot print_timing: id  0 | task 95 |        eval time =    8408.27 ms /    28 tokens (  311.42 ms per token,     3.21 tokens per second)\n3.34.902.985 I slot print_timing: id  0 | task 95 |       total time =   13690.31 ms /    51 tokens\n3.34.902.986 I slot print_timing: id  0 | task 95 |    graphs reused =        103\n3.34.903.139 I slot      release: id  0 | task 95 | stop processing: n_tokens = 808, truncated = 0\n3.34.951.452 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.955 (> 0.100 thold), f_keep = 1.000\n3.34.952.318 I slot launch_slot_: id  0 | task 125 | processing task, is_child = 0\n3.40.016.416 I slot print_timing: id  0 | task 125 | prompt processing, n_tokens =     34, progress = 1.00, t =   5.06 s / 6.71 tokens per second\n4.11.930.630 I slot print_timing: id  0 | task 125 | n_gen =    100, tg =   3.18 t/s, tg_3s =   3.21 t/s\n4.14.812.979 I slot print_timing: id  0 | task 125 | prompt eval time =    5800.16 ms /    38 tokens (  152.64 ms per token,     6.55 tokens per second)\n4.14.812.987 I slot print_timing: id  0 | task 125 |        eval time =   34060.46 ms /   109 tokens (  315.37 ms per token,     3.17 tokens per second)\n4.14.812.988 I slot print_timing: id  0 | task 125 |       total time =   39860.62 ms /   147 tokens\n4.14.812.989 I slot print_timing: id  0 | task 125 |    graphs reused =        210\n4.14.813.101 I slot      release: id  0 | task 125 | stop processing: n_tokens = 954, truncated = 0\n4.14.864.316 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.979 (> 0.100 thold), f_keep = 1.000\n4.14.864.807 I slot launch_slot_: id  0 | task 236 | processing task, is_child = 0\n4.28.440.594 I slot print_timing: id  0 | task 236 | prompt eval time =    3403.14 ms /    20 tokens (  170.16 ms per token,     5.88 tokens per second)\n4.28.440.605 I slot print_timing: id  0 | task 236 |        eval time =   10172.61 ms /    31 tokens (  339.09 ms per token,     2.95 tokens per second)\n4.28.440.607 I slot print_timing: id  0 | task 236 |       total time =   13575.74 ms /    51 tokens\n4.28.440.608 I slot print_timing: id  0 | task 236 |    graphs reused =        239\n4.28.440.743 I slot      release: id  0 | task 236 | stop processing: n_tokens = 1004, truncated = 0\n4.28.502.681 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.980 (> 0.100 thold), f_keep = 1.000\n4.28.503.238 I slot launch_slot_: id  0 | task 269 | processing task, is_child = 0\n4.32.691.283 I slot print_timing: id  0 | task 269 | prompt processing, n_tokens =     17, progress = 1.00, t =   4.19 s / 4.06 tokens per second\n4.39.902.428 I slot print_timing: id  0 | task 269 | prompt eval time =    4930.49 ms /    21 tokens (  234.79 ms per token,     4.26 tokens per second)\n4.39.902.454 I slot print_timing: id  0 | task 269 |        eval time =    6468.65 ms /    21 tokens (  323.43 ms per token,     3.09 tokens per second)\n4.39.902.455 I slot print_timing: id  0 | task 269 |       total time =   11399.15 ms /    42 tokens\n4.39.902.457 I slot print_timing: id  0 | task 269 |    graphs reused =        258\n4.39.902.566 I slot      release: id  0 | task 269 | stop processing: n_tokens = 1045, truncated = 0\n"
+}

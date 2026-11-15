@@ -101,8 +101,9 @@ SOURCE_DATE_EPOCH="${LLAMA_SOURCE_DATE_EPOCH}" "${cmake_bin}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_FLAGS_RELEASE="${common_flags}" \
     -DCMAKE_CXX_FLAGS_RELEASE="${common_flags}" \
-    -DCMAKE_EXE_LINKER_FLAGS=-Wl,--build-id=none \
-    -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--build-id=none \
+    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--build-id=none -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384" \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--build-id=none -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384" \
+    -DCMAKE_MODULE_LINKER_FLAGS="-Wl,--build-id=none -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384" \
     -DLLAMA_BUILD_NUMBER=10092 \
     -DLLAMA_BUILD_COMMIT=3ce7da2-pideck-affinity1 \
     -DBUILD_SHARED_LIBS=ON \

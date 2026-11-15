@@ -25,7 +25,15 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Restore pinned llama.cpp Android runtime
+      - name: Cache pinned Android native runtimes
+        id: native-cache
+        uses: actions/cache@v6
+        with:
+          path: app/src/main/jniLibs/arm64-v8a
+          key: pideck-native-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('app/src/main/assets/native-runtime.json', 'tools/*android.sh', 'third_party/**') }}
+
+      - name: Build pinned llama.cpp Android runtime
+        if: steps.native-cache.outputs.cache-hit != 'true'
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             "ndk;27.1.12297006" "ndk;28.2.13676358" "cmake;3.22.1"
@@ -36,6 +44,7 @@ jobs:
             ./tools/vendor_llama_android.sh
 
       - name: Test, lint and assemble debug plus unsigned release
+        # preBuild verifies every native file against native-runtime.json, including cache hits.
         run: >-
           ./gradlew testDebugUnitTest lintDebug assembleDebug
           assembleDebugAndroidTest assembleRelease

@@ -25,7 +25,7 @@ public class ModelCatalogTest {
     public void recommendationStaysInsideMeasuredMobileLatencyEnvelope() {
         long storage = 100L * GIB;
         assertEquals("NANO", catalog.recommend(2500L * 1_048_576L, false, storage).tier);
-        assertEquals("qwen3.5-2b", catalog.recommend(4L * GIB, false, storage).id);
+        assertEquals("qwen3.5-0.8b", catalog.recommend(4L * GIB, false, storage).id);
         assertEquals("lfm2.5-2.6b-qad", catalog.recommend(6L * GIB, false, storage).id);
         assertEquals("lfm2.5-2.6b-qad", catalog.recommend(12L * GIB, false, storage).id);
     }
@@ -37,7 +37,7 @@ public class ModelCatalogTest {
                 catalog.recommend(4L * GIB, true, 100L * GIB).tier
         );
         assertEquals(
-                "qwen3.5-2b",
+                "qwen3.5-0.8b",
                 catalog.recommend(5L * GIB, true, 100L * GIB).id
         );
         assertEquals(
@@ -50,7 +50,7 @@ public class ModelCatalogTest {
         );
         ModelSpec edge = catalog.byId("qwen3.5-2b").orElseThrow();
         long onlyEdgeFits = ModelCatalog.requiredStorageForFreshInstall(edge) + 1;
-        assertEquals("qwen3.5-2b", catalog.recommend(12L * GIB, false, onlyEdgeFits).id);
+        assertEquals("qwen3.5-0.8b", catalog.recommend(12L * GIB, false, onlyEdgeFits).id);
 
         ModelSpec nano = catalog.byId("qwen3.5-0.8b").orElseThrow();
         long onlyNanoFits = ModelCatalog.requiredStorageForFreshInstall(nano) + 1;
@@ -468,6 +468,11 @@ public class ModelCatalogTest {
     }
 
     private static Path asset(String name) {
+        // Retain parser/runtime coverage for historical profiles removed from the shipped list.
+        if ("models-v2.json".equals(name)) {
+            Path fixture = Path.of("../tests/fixtures/models-v2-legacy.json");
+            return Files.exists(fixture) ? fixture : Path.of("tests/fixtures/models-v2-legacy.json");
+        }
         Path module = Path.of("src/main/assets", name);
         return Files.exists(module) ? module : Path.of("app/src/main/assets", name);
     }

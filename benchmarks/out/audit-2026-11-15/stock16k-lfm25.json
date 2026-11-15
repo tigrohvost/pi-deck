@@ -1,0 +1,122 @@
+{
+  "startedAt": "2026-11-15T18:18:30.821584+00:00",
+  "label": "stock16k-lfm25",
+  "modelSha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03",
+  "harnessVersion": 2,
+  "qualityMaxTokens": 1536,
+  "contextTokens": 10240,
+  "requestReasoningBudget": 256,
+  "mode": "tools",
+  "thinking": "on",
+  "device": "SM-S918B",
+  "execution": "adb shell inference; bounded synthetic tools; not app admission",
+  "externalCooling": true,
+  "minimumFrequencyHeadroom": 0.95,
+  "sampling": {
+    "temperature": 0.1,
+    "topP": 1.0,
+    "topK": 50,
+    "repeatPenalty": 1.1,
+    "seed": 42,
+    "minP": 0.0
+  },
+  "samples": [],
+  "cases": [
+    {
+      "label": "exact",
+      "thermalBefore": {
+        "at": "2026-11-15T18:18:39.070050+00:00",
+        "hottestZone": "cpu-0-0",
+        "hottestMilliCelsius": 50100,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "rounds": [
+        {
+          "seconds": 5.419,
+          "firstOutputSeconds": 1.1773090019996744,
+          "firstTextSeconds": 5.2220252090046415,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 106,
+            "prompt_ms": 1158.422,
+            "prompt_per_token_ms": 10.928509433962265,
+            "prompt_per_second": 91.50378704824321,
+            "predicted_n": 92,
+            "predicted_ms": 4240.469,
+            "predicted_per_token_ms": 46.092054347826085,
+            "predicted_per_second": 21.695713375100727
+          },
+          "finishReason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "ГОТОВО",
+            "reasoning_content": "The user is asking me to respond with exactly one word: \"ГОТОВО\" (which means \"READY\" in Russian). They want a brief response in Russian, and I should use the available tools when needed. However, this is just a simple confirmation request - they want me to say \"ГОТОВО\" as my response.\n\nI need to respond with exactly one word: \"ГОТОВО\"."
+          }
+        }
+      ],
+      "calls": [],
+      "answer": "ГОТОВО",
+      "passed": true,
+      "seconds": 5.419,
+      "thermalAfter": {
+        "at": "2026-11-15T18:18:46.502172+00:00",
+        "hottestZone": "cpuss-0",
+        "hottestMilliCelsius": 78500,
+        "maxFrequencyHeadroom": 1.0
+      },
+      "finalSource": null
+    }
+  ],
+  "serverSha256": "08eee74af0f957809f5a9e5ea08d9cd5acd835e0612e3efd943d9ddad0510706",
+  "thermalBeforeLoad": {
+    "at": "2026-11-15T18:18:34.390252+00:00",
+    "hottestZone": "cpuss-0",
+    "hottestMilliCelsius": 48500,
+    "maxFrequencyHeadroom": 1.0
+  },
+  "arguments": [
+    "-m",
+    "/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf",
+    "--alias",
+    "stock16k-lfm25",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "18081",
+    "-c",
+    "10240",
+    "-np",
+    "1",
+    "-t",
+    "5",
+    "-tb",
+    "8",
+    "-Cr",
+    "3-7",
+    "-Crb",
+    "0-7",
+    "--cpu-strict",
+    "1",
+    "--cpu-strict-batch",
+    "1",
+    "-b",
+    "2048",
+    "-ub",
+    "512",
+    "--jinja",
+    "--reasoning",
+    "on",
+    "--reasoning-budget",
+    "256",
+    "--cache-ram",
+    "512",
+    "--no-mmap",
+    "-ngl",
+    "0"
+  ],
+  "loadSeconds": 2.1321895129949553,
+  "affinity": "Name:\tlibpideck_llama\nCpus_allowed_list:\t7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0-7\nName:\tlibpideck_llama\nCpus_allowed_list:\t0\nName:\tlibpideck_llama\nCpus_allowed_list:\t1\nName:\tlibpideck_llama\nCpus_allowed_list:\t2\nName:\tlibpideck_llama\nCpus_allowed_list:\t3\nName:\tlibpideck_llama\nCpus_allowed_list:\t4\nName:\tlibpideck_llama\nCpus_allowed_list:\t5\nName:\tlibpideck_llama\nCpus_allowed_list:\t6\nName:\tlibpideck_llama\nCpus_allowed_list:\t3\nName:\tlibpideck_llama\nCpus_allowed_list:\t4\nName:\tlibpideck_llama\nCpus_allowed_list:\t5\nName:\tlibpideck_llama\nCpus_allowed_list:\t6\n",
+  "status": "complete",
+  "finishedAt": "2026-11-15T18:18:46.503166+00:00",
+  "serverLogTail": "warning: no usable GPU found, --gpu-layers option will be ignored\nwarning: one possible reason is that llama.cpp was compiled without GPU support\nwarning: consult docs/build.md for compilation instructions\n0.00.007.982 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)\n0.00.008.362 W srv  llama_server: -----------------\n0.00.008.378 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set\n0.00.008.379 W srv  llama_server: this can be a security risk (cross-origin attacks)\n0.00.008.380 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655\n0.00.008.381 W srv  llama_server: -----------------\n0.00.010.063 I srv    load_model: loading model '/data/local/tmp/pideck-opt/LFM2.5-2.6B-QAD-Q4_0.gguf'\n0.01.872.200 I srv  attach_cpu_t: attached CPU affinity thread pools: decode=5, batch=8\n0.01.958.575 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 10240, kv_unified = 'false'\n0.01.964.652 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve\n0.01.964.684 I srv  llama_server: model loaded\n0.01.964.687 I srv  llama_server: listening on http://127.0.0.1:18081\n0.04.626.991 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1\n0.04.627.221 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0\n0.10.026.207 I slot print_timing: id  0 | task 0 | prompt eval time =    1158.42 ms /   106 tokens (   10.93 ms per token,    91.50 tokens per second)\n0.10.026.216 I slot print_timing: id  0 | task 0 |        eval time =    4240.47 ms /    92 tokens (   46.09 ms per token,    21.70 tokens per second)\n0.10.026.218 I slot print_timing: id  0 | task 0 |       total time =    5398.89 ms /   198 tokens\n0.10.026.219 I slot print_timing: id  0 | task 0 |    graphs reused =         91\n0.10.026.255 I slot      release: id  0 | task 0 | stop processing: n_tokens = 197, truncated = 0\n"
+}

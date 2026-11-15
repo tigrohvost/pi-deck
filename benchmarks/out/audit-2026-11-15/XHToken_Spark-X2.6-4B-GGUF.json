@@ -1,0 +1,165 @@
+{
+  "_id": "6ad5e7b1c6ac4d29b9e16f01",
+  "id": "XHToken/Spark-X2.6-4B-GGUF",
+  "private": false,
+  "pipeline_tag": "text-generation",
+  "library_name": "transformers",
+  "tags": [
+    "transformers",
+    "gguf",
+    "llm",
+    "sparkx2_5",
+    "text-generation",
+    "en",
+    "zh",
+    "base_model:XHToken/Spark-X2.6-4B",
+    "base_model:quantized:XHToken/Spark-X2.6-4B",
+    "license:apache-2.0",
+    "endpoints_compatible",
+    "region:us",
+    "conversational"
+  ],
+  "downloads": 767195,
+  "likes": 315,
+  "modelId": "XHToken/Spark-X2.6-4B-GGUF",
+  "author": "XHToken",
+  "sha": "9d716770ac7477776de5f891f70cdf98b003a5cd",
+  "lastModified": "2026-11-06T12:51:43.000Z",
+  "gated": false,
+  "disabled": false,
+  "widgetData": [
+    {
+      "text": "Hi, what can you help me with?"
+    },
+    {
+      "text": "What is 84 * 3 / 2?"
+    },
+    {
+      "text": "Tell me an interesting fact about the universe!"
+    },
+    {
+      "text": "Explain quantum computing in simple terms."
+    }
+  ],
+  "model-index": null,
+  "config": {},
+  "cardData": {
+    "license": "apache-2.0",
+    "language": [
+      "en",
+      "zh"
+    ],
+    "library_name": "transformers",
+    "pipeline_tag": "text-generation",
+    "tags": [
+      "llm",
+      "sparkx2_5"
+    ],
+    "base_model": [
+      "XHToken/Spark-X2.6-4B"
+    ]
+  },
+  "transformersInfo": {
+    "auto_model": "AutoModel"
+  },
+  "gguf": {
+    "total": 4447623680,
+    "architecture": "spark2_5",
+    "context_length": 1048576,
+    "chat_template": "{%- if not messages %}{{- raise_exception('No messages provided.') }}{%- endif %}{%- set enable_thinking = enable_thinking | default(true) %}{%- set reasoning_instructions = '' %}{%- if enable_thinking is true %}{%- set resolved_reasoning_effort = reasoning_effort|default('high') %}{%- if resolved_reasoning_effort not in ('high', 'low') %}{{- raise_exception('Unexpected reasoning effort ' ~ reasoning_effort ~ '. Supported types are high (default) and low.') }}{%- endif %}{%- if resolved_reasoning_effort == 'high' %}{%- set reasoning_instructions = '\n`thinking_effort` guides on how much to think in your thinking channel (not including the response channel), supported values include `low` and `high`.\nNow the system is invoked with `thinking_effort=high`.' %}{%- elif resolved_reasoning_effort == 'low' %}{%- set reasoning_instructions = '\n`thinking_effort` guides on how much to think in your thinking channel (not including the response channel), supported values include `low` and `high`.\nNow the system is invoked with `thinking_effort=low`.' %}{%- endif %}{%- endif %}{#- Render a string or a list of text blocks. -#}{%- macro render_content(content, context_name) %}{%- if content is string %}{{- content }}{%- elif content is none or content is undefined %}{{- '' }}{%- elif content is iterable and content is not mapping %}{%- for block in content %}{%- if block.type == 'text' %}{{- block.text }}{%- else %}{{- raise_exception('Unsupported ' ~ context_name ~ ' content block type: ' ~ (block.type | string)) }}{%- endif %}{%- endfor %}{%- else %}{{- raise_exception(context_name ~ ' content must be a string or a list of text blocks') }}{%- endif %}{%- endmacro %}{#- Default system prompt -#}{%- set default_system = \"you are a helpful assistant.\" + reasoning_instructions %}{#- The first message-level system is placed in the initial system block. -#}{%- set ns = namespace(initial_system='') %}{%- if messages[0].role == \"system\" %}{%- set ns.initial_system = render_content(messages[0].content, 'system') %}{%- endif %}{#- System block -#}{{- '<\uff5cstart\u2581of\u2581sentence\uff5c><|System|>' + '\n' + default_system }}{%- if tools %}{{- '\n\n' + '## Tools' + '\n' + 'You have access to the following functions:' + '\n' + '<tools>' }}{%- for tool in tools %}{{- '\n' + (tool.function | tojson(separators=(',', ':'))) }}{%- endfor %}{{- '\n' + '</tools>' }}{%- endif %}{%- if ns.initial_system %}{{- '\n\n' + ns.initial_system }}{%- endif %}{{- '<\uff5cend\u2581of\u2581sentence\uff5c>'}}{#- Conversation turns -#}{%- for message in messages %}{%- if message.role == \"system\" %}{#- The first system message was consumed by the initial block. -#}{%- if not loop.first %}{{- '<\uff5cstart\u2581of\u2581sentence\uff5c><|System|>\n' + render_content(message.content, 'system') + '<\uff5cend\u2581of\u2581sentence\uff5c>' }}{%- endif %}{%- elif message.role == \"user\" %}{{- '<\uff5cstart\u2581of\u2581sentence\uff5c><|User|>' + render_content(message.content, 'user') + '<\uff5cend\u2581of\u2581sentence\uff5c>' }}{%- elif message.role == \"assistant\" %}{%- set assistant_content = render_content(message.content, 'assistant') %}{%- if message.reasoning_content is defined and message.reasoning_content %}{%- set reasoning_content = message.reasoning_content %}{%- else %}{%- set reasoning_content = '' %}{%- endif %}{{- '<\uff5cstart\u2581of\u2581sentence\uff5c><|Bot|>'}}{%- if reasoning_content %}{{- '<think>' + reasoning_content + '</think>'}}{%- else %}{{- '</think>' }}{%- endif %}{%- if assistant_content %}{{- assistant_content }}{%- endif %}{%- if message.tool_calls is defined and message.tool_calls is not none %}{%- for tool_call in message.tool_calls %}{%- if tool_call.function.arguments is not mapping %}{{- raise_exception('tool_call.function.arguments must be a dictionary; normalize JSON strings before apply_chat_template') }}{%- endif %}{%- set args = tool_call.function.arguments %}{{- '<tool_call>' + tool_call.function.name }}{%- for k, v in args.items() %}{{- '<arg_key>' ~ k ~ '</arg_key><arg_value>' ~ (v if v is string else v | tojson(separators=(', ', ': '))) ~ '</arg_value>' }}{%- endfor %}{{- '</tool_call>' }}{%- endfor %}{%- endif %}{{- '<\uff5cend\u2581of\u2581sentence\uff5c>' }}{%- elif message.role == \"tool\" %}{%- if loop.previtem is undefined or loop.previtem.role != \"tool\" %}{{- '<\uff5cstart\u2581of\u2581sentence\uff5c><|Tool|>' }}{%- endif %}{{- '<tool_response>' ~ message.content ~ '</tool_response>' }}{%- if loop.nextitem is undefined or loop.nextitem.role != \"tool\" %}{{- '<\uff5cend\u2581of\u2581sentence\uff5c>' }}{%- endif %}{%- else %}{{- raise_exception('Unsupported message role: ' ~ message.role) }}{%- endif %}{%- endfor %}{#- Generation prompt -#}{%- if add_generation_prompt %}{{- '<\uff5cstart\u2581of\u2581sentence\uff5c><|Bot|>' }}{%- if enable_thinking is defined and enable_thinking %}{{- '<think>' }}{%- endif %}{%- if enable_thinking is defined and not enable_thinking %}{{- '</think>' }}{%- endif %}{%- endif %}",
+    "bos_token": "<\uff5cstart\u2581of\u2581sentence\uff5c>",
+    "eos_token": "<\uff5cend\u2581of\u2581sentence\uff5c>",
+    "totalFileSize": 3543441312
+  },
+  "siblings": [
+    {
+      "rfilename": ".gitattributes",
+      "blobId": "09cd601a6117e10d3efb219f9e2f224409490791",
+      "size": 1827
+    },
+    {
+      "rfilename": "LICENSE",
+      "blobId": "b7456707c547e5df6a88ee0255ad9c422ac52f9b",
+      "size": 11338
+    },
+    {
+      "rfilename": "README.md",
+      "blobId": "101c93c705630053cd3523472ca03bc27e3d7462",
+      "size": 14945
+    },
+    {
+      "rfilename": "Spark-X2.6-4B-Q4_K_M.gguf",
+      "blobId": "b318861f6d42eef2d2dd08252403846e1382b045",
+      "size": 3543441312,
+      "lfs": {
+        "sha256": "91cb2811aebb47ac916aa619d27d4cdd7f4143106b7917accb8ead4cd7f5cbd9",
+        "size": 3543441312,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "Spark-X2.6-4B-Q8_0.gguf",
+      "blobId": "4233df56b637020e5234638c8506e680ec1248f4",
+      "size": 4375021824,
+      "lfs": {
+        "sha256": "145c2aa606820663f26ad530b8fc141ed885e2e9ca29f9be7c3bfe8931d58b81",
+        "size": 4375021824,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "Spark-X2.6-4B.gguf",
+      "blobId": "2bd5ef7988fc7791030f14eec370f06bcfb8a009",
+      "size": 8229921024,
+      "lfs": {
+        "sha256": "1fcf934d5baab142ea66a508e0ef423854659f223f72248d2de31476ff6954a7",
+        "size": 8229921024,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "images/.DS_Store",
+      "blobId": "5008ddfcf53c02e82d7eee2e57c38e5672ef89f6",
+      "size": 6148
+    },
+    {
+      "rfilename": "images/all_benchmark.svg",
+      "blobId": "9b8c04ba48986c0fa977643f0569930231ab2d22",
+      "size": 45910
+    },
+    {
+      "rfilename": "images/benchmark.svg",
+      "blobId": "8ff50652fc18ce3f2c5ddb2af098c8230c95397e",
+      "size": 51427
+    },
+    {
+      "rfilename": "images/inference.svg",
+      "blobId": "5999bcdc1fad0559cd062cb5f95f8c787c8675d3",
+      "size": 25659
+    },
+    {
+      "rfilename": "images/reasoning_effort.svg",
+      "blobId": "5fa829cad5d02cf3e2b332c9e7f112f618b8f598",
+      "size": 13561
+    },
+    {
+      "rfilename": "images/xhtoken-wechat.jpg",
+      "blobId": "d6b44ebbd3ba2e1528a283bbd5f28fe964e49977",
+      "size": 160131,
+      "lfs": {
+        "sha256": "0c3fbd25c987237b383461fdaa96bf6881af615c23ba3baf19e51a7879354ddb",
+        "size": 160131,
+        "pointerSize": 131
+      }
+    }
+  ],
+  "spaces": [
+    "fastgpu/vram-and-gpu-cost-calculator",
+    "Jhoni08/vram-and-gpu-cost-calculator",
+    "JUDY1024618/vram-and-gpu-cost-calculator",
+    "2023Ryan/vram-and-gpu-cost-calculator",
+    "Shanny1126/test2"
+  ],
+  "createdAt": "2026-10-19T09:49:37.000Z",
+  "usedStorage": 19335469699
+}

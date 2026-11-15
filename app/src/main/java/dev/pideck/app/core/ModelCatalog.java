@@ -26,7 +26,6 @@ public final class ModelCatalog {
     /** Ordered defaults: strongest measured agent profile that stays above 15 tok/s first. */
     private static final List<String> DEFAULT_AGENT_MODEL_IDS = List.of(
             "lfm2.5-2.6b-qad",
-            "qwen3.5-2b",
             "qwen3.5-0.8b"
     );
     private static volatile ModelCatalog current;
@@ -105,13 +104,13 @@ public final class ModelCatalog {
     /**
      * Recommendation walks the explicit agent-default ladder while current memory and storage
      * can support it. LFM2.5 2.6B QAD is the strongest tested option that sustains the owner's
-     * 15 tok/s mobile target; constrained states downshift to Qwen3.5 2B and then 0.8B. Slower
-     * 4B+ models remain explicit user choices instead of being selected from RAM capacity alone.
+     * 15 tok/s mobile target; constrained states downshift to Qwen3.5 0.8B. Bonsai 2 9B remains
+     * an explicit user choice instead of being selected from RAM capacity alone.
      * Explicit selections do not pass through this method and remain available through
      * {@link #byId(String)}.
      *
      * <p>Memory is the only axis this can weigh, so a model that fits and is still a bad default
-     * — Bonsai 27B fits a flagship and decodes at roughly one token per second — has to be kept
+     * (a larger model can fit a flagship and still decode slowly) has to be kept
      * out by status. {@code CANDIDATE} means exactly that: listed and selectable by hand, never
      * proposed on the user's behalf.
      */
