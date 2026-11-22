@@ -4112,6 +4112,10 @@ class RuntimeTestCase(unittest.TestCase):
             gap, events = journal.after(0, 0)
             self.assertTrue(gap)
             self.assertEqual([3, 4], [event["sequence"] for event in events])
+            self.assertEqual((False, events), journal.after(2, 0))
+            self.assertEqual((False, events[1:]), journal.after(3, 0))
+            self.assertEqual((False, []), journal.after(4, 0))
+            self.assertEqual((False, []), journal.after(5, 0))
 
         journal = bridge.EventJournal(operation_id())
         event = journal.append(

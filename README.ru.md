@@ -9,7 +9,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
-[Скачать подписанный APK (0.3.0-alpha20)](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha20/pi-deck.apk) · [Опубликованные релизы](https://github.com/tigrohvost/pi-deck/releases)
+[Скачать подписанный APK (0.3.0-alpha21)](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha21/pi-deck.apk) · [Опубликованные релизы](https://github.com/tigrohvost/pi-deck/releases)
 
 </div>
 
@@ -87,6 +87,10 @@ PI//DECK запускает языковую модель на телефоне.
 в контрольном сравнении на SM-S918B повысил скорость подготовки примерно
 на 9%; скорость генерации не изменилась. Результат зависит от телефона,
 контекста и нагрева.
+
+При переключении моделей приложение оставляет в кэше место для последнего
+сохранённого префикса выбранной модели. В длинных сессиях агент пропускает
+уже доставленные события при выдаче новых фрагментов ответа. [Замеры](docs/performance-2026-11-22.md)
 
 ## Как начать
 

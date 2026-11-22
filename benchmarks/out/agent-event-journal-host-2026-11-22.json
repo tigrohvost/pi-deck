@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-11-22T21:15:14.817217+00:00",
+  "scope": "Host EventJournal.after() latency for recently emitted agent output",
+  "environment": {
+    "platform": "Linux",
+    "arch": "x86_64",
+    "python": "CPython 3.14.4"
+  },
+  "baselineCommit": "e221fa376d32a4a5295895e79830087738d77518",
+  "sourceSha256": {
+    "baseline": "c40b7421ed3c271cee550fb3b22c5931957129f0508602bd4da8bc2d1496dbd5",
+    "candidate": "abfae3f00f4b4c22cdd293188d3596a67be3479bb2db8f19a2a2a180a54b2220"
+  },
+  "fixture": {
+    "eventCount": 9000,
+    "eventType": "MODEL_OUTPUT_DELTA",
+    "journalSha256": "7478d14e3004d8562ecab5ffc60137655dbdc6c21116ca53cc1e60d39d7bf74d"
+  },
+  "method": {
+    "warmupPollsPerVariantAndCase": 50,
+    "blocks": 5,
+    "orderPerBlock": [
+      "baseline",
+      "candidate",
+      "candidate",
+      "baseline"
+    ],
+    "pollsPerSample": 500,
+    "timeoutSeconds": 0
+  },
+  "cases": [
+    {
+      "pending": 1,
+      "cursor": 8999,
+      "exactPageEqual": true,
+      "medianMicrosecondsPerPoll": {
+        "baseline": 383.17528900370235,
+        "candidate": 9.12893400163739
+      },
+      "medianSpeedup": 41.97371663931134,
+      "samples": [
+        {
+          "block": 1,
+          "variant": "baseline",
+          "elapsedSeconds": 0.10956844199972693
+        },
+        {
+          "block": 1,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0018345939970458858
+        },
+        {
+          "block": 1,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0018384040013188496
+        },
+        {
+          "block": 1,
+          "variant": "baseline",
+          "elapsedSeconds": 0.11182398199889576
+        },
+        {
+          "block": 2,
+          "variant": "baseline",
+          "elapsedSeconds": 0.11212104399965028
+        },
+        {
+          "block": 2,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0019147889979649335
+        },
+        {
+          "block": 2,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0019070409980486147
+        },
+        {
+          "block": 2,
+          "variant": "baseline",
+          "elapsedSeconds": 0.11281323799994425
+        },
+        {
+          "block": 3,
+          "variant": "baseline",
+          "elapsedSeconds": 0.11546128900226904
+        },
+        {
+          "block": 3,
+          "variant": "candidate",
+          "elapsedSeconds": 0.004582249999657506
+        },
+        {
+          "block": 3,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0045997409979463555
+        },
+        {
+          "block": 3,
+          "variant": "baseline",
+          "elapsedSeconds": 0.2677140000014333
+        },
+        {
+          "block": 4,
+          "variant": "baseline",
+          "elapsedSeconds": 0.2720388419984374
+        },
+        {
+          "block": 4,
+          "variant": "candidate",
+          "elapsedSeconds": 0.004595154998241924
+        },
+        {
+          "block": 4,
+          "variant": "candidate",
+          "elapsedSeconds": 0.004576521001581568
+        },
+        {
+          "block": 4,
+          "variant": "baseline",
+          "elapsedSeconds": 0.2697516309999628
+        },
+        {
+          "block": 5,
+          "variant": "baseline",
+          "elapsedSeconds": 0.2707248509977944
+        },
+        {
+          "block": 5,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0045690049992117565
+        },
+        {
+          "block": 5,
+          "variant": "candidate",
+          "elapsedSeconds": 0.004559929002425633
+        },
+        {
+          "block": 5,
+          "variant": "baseline",
+          "elapsedSeconds": 0.26982598699760274
+        }
+      ]
+    },
+    {
+      "pending": 8,
+      "cursor": 8992,
+      "exactPageEqual": true,
+      "medianMicrosecondsPerPoll": {
+        "baseline": 592.1515839982021,
+        "candidate": 58.95769899871084
+      },
+      "medianSpeedup": 10.043668495460619,
+      "samples": [
+        {
+          "block": 1,
+          "variant": "baseline",
+          "elapsedSeconds": 0.29125221200229134
+        },
+        {
+          "block": 1,
+          "variant": "candidate",
+          "elapsedSeconds": 0.029525272999308072
+        },
+        {
+          "block": 1,
+          "variant": "candidate",
+          "elapsedSeconds": 0.029498856998543488
+        },
+        {
+          "block": 1,
+          "variant": "baseline",
+          "elapsedSeconds": 0.29966620599952876
+        },
+        {
+          "block": 2,
+          "variant": "baseline",
+          "elapsedSeconds": 0.2953563219998614
+        },
+        {
+          "block": 2,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0296913370002585
+        },
+        {
+          "block": 2,
+          "variant": "candidate",
+          "elapsedSeconds": 0.02945884200016735
+        },
+        {
+          "block": 2,
+          "variant": "baseline",
+          "elapsedSeconds": 0.3000075169984484
+        },
+        {
+          "block": 3,
+          "variant": "baseline",
+          "elapsedSeconds": 0.32344026999999187
+        },
+        {
+          "block": 3,
+          "variant": "candidate",
+          "elapsedSeconds": 0.03773911399912322
+        },
+        {
+          "block": 3,
+          "variant": "candidate",
+          "elapsedSeconds": 0.030091455002548173
+        },
+        {
+          "block": 3,
+          "variant": "baseline",
+          "elapsedSeconds": 0.31854890500108013
+        },
+        {
+          "block": 4,
+          "variant": "baseline",
+          "elapsedSeconds": 0.2967952619983407
+        },
+        {
+          "block": 4,
+          "variant": "candidate",
+          "elapsedSeconds": 0.029410238999844296
+        },
+        {
+          "block": 4,
+          "variant": "candidate",
+          "elapsedSeconds": 0.029102373999194242
+        },
+        {
+          "block": 4,
+          "variant": "baseline",
+          "elapsedSeconds": 0.2946102649984823
+        },
+        {
+          "block": 5,
+          "variant": "baseline",
+          "elapsedSeconds": 0.24543778500083135
+        },
+        {
+          "block": 5,
+          "variant": "candidate",
+          "elapsedSeconds": 0.011357700001099147
+        },
+        {
+          "block": 5,
+          "variant": "candidate",
+          "elapsedSeconds": 0.011880548001499847
+        },
+        {
+          "block": 5,
+          "variant": "baseline",
+          "elapsedSeconds": 0.11790800599919748
+        }
+      ]
+    },
+    {
+      "pending": 0,
+      "cursor": 9000,
+      "exactPageEqual": true,
+      "medianMicrosecondsPerPoll": {
+        "baseline": 217.0555560005596,
+        "candidate": 0.6560419969900977
+      },
+      "medianSpeedup": 330.8561906042668,
+      "samples": [
+        {
+          "block": 1,
+          "variant": "baseline",
+          "elapsedSeconds": 0.10737524899741402
+        },
+        {
+          "block": 1,
+          "variant": "candidate",
+          "elapsedSeconds": 0.00032712599931983277
+        },
+        {
+          "block": 1,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0003061300012632273
+        },
+        {
+          "block": 1,
+          "variant": "baseline",
+          "elapsedSeconds": 0.10786733100030688
+        },
+        {
+          "block": 2,
+          "variant": "baseline",
+          "elapsedSeconds": 0.10777924400099437
+        },
+        {
+          "block": 2,
+          "variant": "candidate",
+          "elapsedSeconds": 0.00034013299955404364
+        },
+        {
+          "block": 2,
+          "variant": "candidate",
+          "elapsedSeconds": 0.00032422200092696585
+        },
+        {
+          "block": 2,
+          "variant": "baseline",
+          "elapsedSeconds": 0.10918822500025271
+        },
+        {
+          "block": 3,
+          "variant": "baseline",
+          "elapsedSeconds": 0.10973895999995875
+        },
+        {
+          "block": 3,
+          "variant": "candidate",
+          "elapsedSeconds": 0.00032935400304268114
+        },
+        {
+          "block": 3,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0003068770020036027
+        },
+        {
+          "block": 3,
+          "variant": "baseline",
+          "elapsedSeconds": 0.10986048999984632
+        },
+        {
+          "block": 4,
+          "variant": "baseline",
+          "elapsedSeconds": 0.11056242899940116
+        },
+        {
+          "block": 4,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0003304109995951876
+        },
+        {
+          "block": 4,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0003149030017084442
+        },
+        {
+          "block": 4,
+          "variant": "baseline",
+          "elapsedSeconds": 0.13287725299960584
+        },
+        {
+          "block": 5,
+          "variant": "baseline",
+          "elapsedSeconds": 0.10507955399953062
+        },
+        {
+          "block": 5,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0003342540003359318
+        },
+        {
+          "block": 5,
+          "variant": "candidate",
+          "elapsedSeconds": 0.0003289159976702649
+        },
+        {
+          "block": 5,
+          "variant": "baseline",
+          "elapsedSeconds": 0.10634193400255754
+        }
+      ]
+    }
+  ]
+}

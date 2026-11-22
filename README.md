@@ -9,7 +9,7 @@
 [![build](https://img.shields.io/github/actions/workflow/status/tigrohvost/pi-deck/build.yml?branch=main)](https://github.com/tigrohvost/pi-deck/actions/workflows/build.yml)
 [![license](https://img.shields.io/github/license/tigrohvost/pi-deck)](LICENSE)
 
-[Download signed APK (0.3.0-alpha20)](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha20/pi-deck.apk) · [Published releases](https://github.com/tigrohvost/pi-deck/releases)
+[Download signed APK (0.3.0-alpha21)](https://github.com/tigrohvost/pi-deck/releases/download/v0.3.0-alpha21/pi-deck.apk) · [Published releases](https://github.com/tigrohvost/pi-deck/releases)
 
 </div>
 
@@ -82,6 +82,10 @@ Prompt caching, CPU affinity and separate generation/prefill thread settings
 reduce repeated work. Bonsai 9B uses microbatch 256: a controlled SM-S918B
 comparison improved prompt-processing throughput by about 9%, with unchanged
 generation speed. Results depend on the device, context and temperature.
+
+When switching models, the app reserves a cache slot for the selected model’s
+most recent saved prefix. The agent also skips previously delivered events
+when streaming a long session. [Performance measurements](docs/performance-2026-11-22.md)
 
 ## Getting started
 

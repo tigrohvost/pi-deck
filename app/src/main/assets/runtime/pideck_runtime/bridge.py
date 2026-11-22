@@ -19,8 +19,10 @@ import threading
 import time
 import unicodedata
 import uuid
+from bisect import bisect_right
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from operator import itemgetter
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -1176,7 +1178,7 @@ class EventJournal:
     def __init__(self, bridge_instance_id: str):
         self.bridge_instance_id = bridge_instance_id
         self._condition = threading.Condition()
-        self._events: collections.deque[dict[str, Any]] = collections.deque()
+        self._events: list[dict[str, Any]] = []
         self._sequence = 0
         self._append_count = 0
         EVENT_JOURNAL.parent.mkdir(parents=True, exist_ok=True)
@@ -1245,9 +1247,9 @@ class EventJournal:
             gap = sequence < earliest - 1
             events = []
             page_bytes = 0
-            for event in self._events:
-                if event["sequence"] <= sequence:
-                    continue
+            start = bisect_right(self._events, sequence, key=itemgetter("sequence"))
+            for index in range(start, len(self._events)):
+                event = self._events[index]
                 encoded_bytes = len(json.dumps(event, ensure_ascii=False).encode("utf-8"))
                 if events and page_bytes + encoded_bytes > MAX_EVENT_PAGE_BYTES:
                     break
@@ -1277,7 +1279,7 @@ class EventJournal:
             ordered.append((event, encoded))
             retained_bytes += len(encoded)
         ordered.reverse()
-        self._events = collections.deque(event for event, _ in ordered)
+        self._events = [event for event, _ in ordered]
         content = b"".join(encoded for _, encoded in ordered)
         atomic_write_bytes(EVENT_JOURNAL, content, 0o600)
 

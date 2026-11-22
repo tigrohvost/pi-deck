@@ -64,14 +64,15 @@ public final class NativeLlamaController {
                         profile,
                         PORT,
                         apiKey,
-                        slotDirectory(app)
+                        slotDirectory(app, model)
                 )
         );
         monitorAndAdopt(app, operationId, model, apiKey, profile, generation);
     }
 
-    private static String slotDirectory(Context app) {
-        File directory = SlotSnapshotDirectory.prepare(app.getCacheDir());
+    private static String slotDirectory(Context app, ModelSpec model) {
+        if (!model.supportsSlotSnapshots()) return null;
+        File directory = SlotSnapshotDirectory.prepare(app.getCacheDir(), model.id);
         return directory == null ? null : directory.getAbsolutePath();
     }
 
