@@ -1,0 +1,152 @@
+{
+  "scope": "Host-only switched-model cache regression. Real prefix and native inference. Four newer unrelated model files are filename/mtime fixtures, not four inference workloads.",
+  "hardware": "Linux x86_64, Intel Core i7-1255U, CPU, 3 threads",
+  "server": "https://github.com/ggml-org/llama.cpp/releases/tag/b10092",
+  "commit": "3ce7da2c852c538c4c5f9806da27029cf8c9cc4a",
+  "model_url": "https://huggingface.co/LiquidAI/LFM2-350M-GGUF/blob/8fdc9d526b7ed346b19257551b05816c7912ecc2/LFM2-350M-Q4_0.gguf",
+  "model_sha256": "8e3ebc1c608dc8683adf8c3b3e6a40e2f4eab22aa33b908bff2ac03a1c16d796",
+  "old_java_commit": "e221fa376d32a4a5295895e79830087738d77518",
+  "new_java_commit": "6cc2c88b81960f4724e79651ac752b93197b062a",
+  "server_args": [
+    "-c",
+    "2048",
+    "-np",
+    "1",
+    "-t",
+    "3",
+    "-tb",
+    "3",
+    "--host",
+    "127.0.0.1",
+    "--no-warmup",
+    "--cache-ram",
+    "0",
+    "--jinja"
+  ],
+  "sequence": "ABBA with newly started llama-server and reset copies/mtimes for each case; try restore, evaluate and save only on miss, then greedy /completion on the same rendered chat.",
+  "seed_snapshot": {
+    "n_saved": 582,
+    "n_written": 7243280
+  },
+  "runs": [
+    {
+      "variant": "old",
+      "retained_files": 4,
+      "selected_retained": false,
+      "restore_http": 400,
+      "n_restored": 0,
+      "restore_ms": null,
+      "fallback_prefix_prompt_n": 582,
+      "fallback_prefix_prompt_ms": 4925.845,
+      "completion": {
+        "cache_n": 582,
+        "prompt_n": 17,
+        "prompt_ms": 244.336,
+        "predicted_n": 12,
+        "predicted_ms": 314.595
+      },
+      "total_evaluated_prompt_tokens": 599,
+      "output": "Section 39. Confirm observations using the supplied context.\n",
+      "wall_ms_excluding_startup": 5512.4
+    },
+    {
+      "variant": "new",
+      "retained_files": 4,
+      "selected_retained": true,
+      "restore_http": 200,
+      "n_restored": 582,
+      "restore_ms": 3.748,
+      "fallback_prefix_prompt_n": 0,
+      "fallback_prefix_prompt_ms": 0,
+      "completion": {
+        "cache_n": 582,
+        "prompt_n": 17,
+        "prompt_ms": 257.84,
+        "predicted_n": 12,
+        "predicted_ms": 532.396
+      },
+      "total_evaluated_prompt_tokens": 17,
+      "output": "Section 39. Confirm observations using the supplied context.\n",
+      "wall_ms_excluding_startup": 804.7
+    },
+    {
+      "variant": "new",
+      "retained_files": 4,
+      "selected_retained": true,
+      "restore_http": 200,
+      "n_restored": 582,
+      "restore_ms": 3.316,
+      "fallback_prefix_prompt_n": 0,
+      "fallback_prefix_prompt_ms": 0,
+      "completion": {
+        "cache_n": 582,
+        "prompt_n": 17,
+        "prompt_ms": 190.668,
+        "predicted_n": 12,
+        "predicted_ms": 320.476
+      },
+      "total_evaluated_prompt_tokens": 17,
+      "output": "Section 39. Confirm observations using the supplied context.\n",
+      "wall_ms_excluding_startup": 523.2
+    },
+    {
+      "variant": "old",
+      "retained_files": 4,
+      "selected_retained": false,
+      "restore_http": 400,
+      "n_restored": 0,
+      "restore_ms": null,
+      "fallback_prefix_prompt_n": 582,
+      "fallback_prefix_prompt_ms": 4197.221,
+      "completion": {
+        "cache_n": 582,
+        "prompt_n": 17,
+        "prompt_ms": 254.526,
+        "predicted_n": 12,
+        "predicted_ms": 274.324
+      },
+      "total_evaluated_prompt_tokens": 599,
+      "output": "Section 39. Confirm observations using the supplied context.\n",
+      "wall_ms_excluding_startup": 4754.5
+    }
+  ],
+  "server_archive_sha256": "b047abca5eb5186afb8c6fe816b008b34063f484613c3453b27ebc5600f937fe",
+  "input": {
+    "system_generator_python": "'You are a careful local assistant. Follow the last instruction.\\n' + ''.join(f'Section {i}. Confirm observations using the supplied context.\\n' for i in range(1, 48))",
+    "system_utf8_sha256": "3b5f4e449446325c72a080fdb04d87eb160f201eee6105b25e5f15d8b6d39918",
+    "user": "Reply with the single English word BLUE.",
+    "template": "Bundled model chat template, rendered by POST /apply-template with system and user messages. Find the common prefix of probe messages \"PI//DECK prefix probe A\" and \"PI//DECK prefix probe B, different\", then cut just before the final <|im_start|>user marker.",
+    "prefix_warm": {
+      "path": "/completion",
+      "n_predict": 0,
+      "cache_prompt": false
+    },
+    "completion": {
+      "path": "/completion",
+      "temperature": 0.0,
+      "seed": 42,
+      "n_predict": 12,
+      "id_slot": 0,
+      "cache_prompt": true
+    },
+    "model_id": "lfm2-350m-q4-0",
+    "selected_filename": "pideck-lfm2-350m-q4-0-3b0fdcb2ab755d8871830749.bin",
+    "foreign_filename_generator_python": "['pideck-foreign-' + str(i) + '-' + str(i) * 24 + '.bin' for i in range(1, 5)]",
+    "mtimes_unix_seconds": [
+      1700000000,
+      1700000001,
+      1700000002,
+      1700000003,
+      1700000004
+    ]
+  },
+  "measurement": {
+    "start": "Immediately before POST /slots/0?action=restore on a healthy fresh server, after running the actual Java directory cleanup.",
+    "end": "After receiving the complete greedy /completion JSON for the template-rendered user request.",
+    "includes": "Loopback request time, any fallback template rendering, prefix evaluation and save, final chat template rendering, processing of remaining prompt tokens, sampling and generation.",
+    "excludes": "Java cleanup, model load, server start, Android, Termux, Pi, network other than loopback.",
+    "endpoint_counter": "total_evaluated_prompt_tokens adds fallback_prefix_prompt_n and completion.prompt_n; completion.cache_n includes a prefix rebuilt during fallback for the old variant.",
+    "correctness": "Identical output bytes across four samples. This synthetic input tests equivalence of cache paths. The generated text did not follow the requested word and the trial measures no assistant quality.",
+    "repeats": "Two rounds per variant, ABBA order, reset seed snapshot and file mtimes before each run. Timings are observations on this host."
+  }
+}
